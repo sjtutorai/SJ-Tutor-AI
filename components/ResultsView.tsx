@@ -10,10 +10,11 @@ interface ResultsViewProps {
   content: string;
   isLoading: boolean;
   title: string;
+  type?: string; // 'Summary' | 'Essay' | 'Quiz' etc.
   onBack: () => void;
 }
 
-const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, onBack }) => {
+const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, type = 'Document', onBack }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -58,12 +59,18 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, on
     }
   };
 
+  const getFilename = (ext: string) => {
+    const cleanTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const cleanType = type.toLowerCase();
+    return `${cleanTitle}_${cleanType}.${ext}`;
+  };
+
   const downloadText = () => {
     const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_summary.txt`;
+    a.download = getFilename('txt');
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -83,7 +90,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, on
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.doc`;
+    a.download = getFilename('doc');
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -92,7 +99,6 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, on
     if (!contentRef.current) return;
     setIsDownloading(true);
     try {
-      // Use clone technique for Image as well to ensure full height
       const element = contentRef.current;
       const clone = element.cloneNode(true) as HTMLElement;
       
@@ -101,8 +107,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, on
       clone.style.top = '0';
       clone.style.width = '800px'; // Fixed width for consistent output
       clone.style.height = 'auto';
-      clone.style.overflow = 'visible';
-      clone.style.maxHeight = 'none';
+      clone.style.padding = '40px';
       clone.style.background = 'white';
       
       document.body.appendChild(clone);
@@ -113,7 +118,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, on
       const image = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = image;
-      a.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.png`;
+      a.download = getFilename('png');
       a.click();
     } catch (e) {
       console.error("Image download failed", e);
@@ -127,33 +132,34 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, on
     if (!contentRef.current) return;
     setIsDownloading(true);
     try {
-      // CLONE TECHNIQUE:
-      // We clone the DOM element and append it to the body (hidden).
-      // This allows us to remove scrollbars and force the element to render at full height.
-      // This ensures html2canvas captures the entire content, not just the visible viewport.
+      // CLONE TECHNIQUE for PDF
+      // We force the clone to have a width suitable for A4 printing (approx 700-800px)
+      // This ensures text wrapping matches what we want in the PDF.
       const element = contentRef.current;
       const clone = element.cloneNode(true) as HTMLElement;
       
-      // Styling to ensure full capture
+      const a4WidthPx = 750; // Width that fits well on A4 PDF with margins
+
       clone.style.position = 'absolute';
       clone.style.left = '-9999px';
       clone.style.top = '0';
-      clone.style.width = '750px'; // Fixed width to fit nicely on A4
-      clone.style.height = 'auto'; // Force full height
+      clone.style.width = `${a4WidthPx}px`; 
+      clone.style.height = 'auto'; 
       clone.style.overflow = 'visible';
       clone.style.maxHeight = 'none';
       clone.style.background = 'white';
+      clone.style.color = 'black'; // Ensure text is black for printing
       clone.style.padding = '40px'; // Add padding for the PDF look
       
       document.body.appendChild(clone);
 
       const canvas = await html2canvas(clone, { 
-        scale: 2,
+        scale: 2, // Higher scale for better quality text
         useCORS: true,
-        logging: false
+        logging: false,
+        windowWidth: a4WidthPx + 100 // Ensure window context is large enough
       });
       
-      // Clean up the clone
       document.body.removeChild(clone);
 
       const imgData = canvas.toDataURL('image/png');
@@ -162,25 +168,26 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, on
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      const imgWidth = pdfWidth; 
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      // Calculate image height to fit PDF width
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
       let heightLeft = imgHeight;
       let position = 0;
 
       // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
       heightLeft -= pdfHeight;
 
       // Add subsequent pages if content is long
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
         heightLeft -= pdfHeight;
       }
 
-      pdf.save(`${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
+      pdf.save(getFilename('pdf'));
     } catch (e) {
       console.error("PDF download failed", e);
       alert("Failed to generate PDF. Try downloading as Text or Word.");
@@ -198,11 +205,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, on
           <button 
             onClick={onBack}
             className="p-2 -ml-2 text-slate-400 hover:text-primary-600 hover:bg-slate-100 rounded-lg transition-colors"
-            title="Create New"
+            title="Back"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h3 className="font-semibold text-slate-800 line-clamp-1">{title}</h3>
+          <div className="flex flex-col">
+             <h3 className="font-semibold text-slate-800 line-clamp-1">{title}</h3>
+             <span className="text-xs text-slate-500 font-medium">{type}</span>
+          </div>
         </div>
         
         <div className="flex items-center gap-2">
@@ -214,7 +224,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, on
                    onClick={downloadPDF} 
                    disabled={isDownloading}
                    className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
-                   title="Download PDF"
+                   title="Download PDF (Preserves Formatting)"
                  >
                    <FileType className="w-4 h-4" />
                  </button>

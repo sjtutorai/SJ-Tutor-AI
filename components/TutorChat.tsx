@@ -90,9 +90,16 @@ const TutorChat: React.FC = () => {
           });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Chat error:", error);
-      setMessages(prev => [...prev, { role: 'model', text: "I'm sorry, I encountered an error. Please try asking again or check your connection.", timestamp: Date.now() }]);
+      let errorText = "I'm sorry, I encountered an error. Please try asking again or check your connection.";
+      
+      // Handle the specific API Not Enabled error to match the dashboard
+      if (error.message?.includes("Generative Language API has not been used") || error.message?.includes("PERMISSION_DENIED")) {
+        errorText = "⚠️ API Error: The Google Generative AI API is disabled for this project. Please enable it in Google Cloud Console.";
+      }
+      
+      setMessages(prev => [...prev, { role: 'model', text: errorText, timestamp: Date.now() }]);
     } finally {
       setIsTyping(false);
     }

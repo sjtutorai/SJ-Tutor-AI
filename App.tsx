@@ -778,6 +778,7 @@ const App: React.FC = () => {
             content={summaryContent} 
             isLoading={loading} 
             title={formData.chapterName}
+            type="Summary"
             onBack={() => setSummaryContent('')}
           />
         )}
@@ -787,6 +788,7 @@ const App: React.FC = () => {
             content={essayContent} 
             isLoading={loading} 
             title={formData.chapterName} 
+            type="Essay"
             onBack={() => setEssayContent('')}
           />
         )}
