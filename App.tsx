@@ -30,7 +30,8 @@ import {
   Crown,
   Plus,
   Clock,
-  Key
+  Key,
+  ExternalLink
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -362,7 +363,7 @@ const App: React.FC = () => {
       
       // Handle the specific API Not Enabled error
       if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
-        errorMessage = "API Configuration Error: The Google Generative AI API is not enabled for your project. Please enable it in the Google Cloud Console.";
+        errorMessage = "API_DISABLED";
       }
 
       setError(errorMessage);
@@ -717,14 +718,40 @@ const App: React.FC = () => {
             />
         )}
 
-        {error && (
+        {error === "API_DISABLED" ? (
+          <div className="bg-red-50 border border-red-200 text-red-800 p-6 rounded-xl shadow-sm flex flex-col gap-4 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg">API Not Enabled</h3>
+                <p className="text-sm text-red-700">The Google Generative AI API is disabled for your project.</p>
+              </div>
+            </div>
+            
+            <div className="pl-14">
+              <p className="text-sm mb-3">To fix this, you need to enable the API in the Google Cloud Console:</p>
+              <a 
+                href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm hover:shadow-md"
+              >
+                Enable Generative Language API
+                <ExternalLink className="w-4 h-4" />
+              </a>
+              <p className="text-xs text-red-500 mt-3">After enabling, wait 1-2 minutes and try again.</p>
+            </div>
+          </div>
+        ) : error && (
           <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl flex items-center gap-3 shadow-sm">
             <AlertCircle className="w-5 h-5 flex-shrink-0" />
             <p className="font-medium">{error}</p>
           </div>
         )}
 
-        {showEmptyState && (
+        {showEmptyState && !error && (
           <div className="text-center py-16 bg-white rounded-2xl border border-slate-100 shadow-sm">
              <div className="w-24 h-24 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-lg overflow-hidden">
                 <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
