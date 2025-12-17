@@ -3,12 +3,12 @@ import { getAuth } from "firebase/auth";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyD787Kvl1YH87mnG5iH_XcYl-X6ZjFm8jU",
-  authDomain: "study-verse-ai.firebaseapp.com",
-  projectId: "study-verse-ai",
-  storageBucket: "study-verse-ai.firebasestorage.app",
-  messagingSenderId: "918183555502",
-  appId: "1:918183555502:web:3fc55b0904fa6c09b4183f"
+  apiKey: "AIzaSyApvrjOz196Z3feFfkW6y3W7r4OQiM6oIY",
+  authDomain: "sj-tutorai.firebaseapp.com",
+  projectId: "sj-tutorai",
+  storageBucket: "sj-tutorai.firebasestorage.app",
+  messagingSenderId: "215292591396",
+  appId: "1:215292591396:web:8a3ccdf84585651e4c47b1"
 };
 
 // Initialize Firebase
