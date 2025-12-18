@@ -5,7 +5,7 @@ import { StudyRequestData, QuizQuestion, TimetableEntry } from "../types";
 // This prevents the "API Key must be set" error from crashing the app immediately on load.
 // The key is checked when a request is actually made.
 const getAiClient = () => {
-  const apiKey = process.env.API_KEY || "";
+  const apiKey = process.env.GEMINI_API_KEY || "";
   // We initialize here so we can catch errors during request time if key is missing
   return new GoogleGenAI({ apiKey });
 };

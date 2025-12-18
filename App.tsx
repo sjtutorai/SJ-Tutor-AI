@@ -94,8 +94,8 @@ const App: React.FC = () => {
 
   // Check API Key immediately
   useEffect(() => {
-    if (!process.env.API_KEY) {
-      console.warn("API Key is missing in environment variables!");
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn("GEMINI_API_KEY is missing in environment variables!");
       setApiKeyMissing(true);
     }
   }, []);
@@ -306,8 +306,8 @@ const App: React.FC = () => {
     }
     
     // Check API Key before attempting generation
-    if (!process.env.API_KEY) {
-      setError("Configuration Error: API Key is missing. Please check your environment variables.");
+    if (!process.env.GEMINI_API_KEY) {
+      setError("Configuration Error: GEMINI_API_KEY is missing. Please check your environment variables.");
       return;
     }
 
@@ -565,7 +565,7 @@ const App: React.FC = () => {
               <div>
                 <h4 className="font-bold text-red-800 text-sm">API Key Missing</h4>
                 <p className="text-xs text-red-600 mt-0.5">
-                  The AI features will not work because the <code>API_KEY</code> environment variable is missing. 
+                  The AI features will not work because the <code>GEMINI_API_KEY</code> environment variable is missing. 
                 </p>
               </div>
             </div>
@@ -760,7 +760,7 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="pl-12">
-                <p className="text-xs">Please verify your <code>API_KEY</code> in the environment variables (<code>.env</code> file) matches your Google AI Studio key.</p>
+                <p className="text-xs">Please verify your <code>GEMINI_API_KEY</code> in the environment variables (<code>.env</code> file) matches your Google AI Studio key.</p>
               </div>
             </div>
           );

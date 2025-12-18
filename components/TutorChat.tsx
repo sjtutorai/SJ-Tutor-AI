@@ -217,9 +217,6 @@ const TutorChat: React.FC = () => {
             <Send className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="text-center mt-1.5">
-           <span className="text-[9px] text-slate-400">AI responses can be inaccurate. Always verify important information.</span>
-        </div>
       </div>
     </div>
   );

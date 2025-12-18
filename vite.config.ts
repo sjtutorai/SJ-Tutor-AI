@@ -10,10 +10,10 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      // Polyfill process.env.API_KEY for the existing code
+      // Polyfill process.env.GEMINI_API_KEY for the existing code
       // We explicitly check process.env (for Vercel/CI) and env (for local .env files)
       // JSON.stringify is essential to wrap the value in quotes for the browser bundle
-      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || env.API_KEY || ''),
+      'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY || env.GEMINI_API_KEY || ''),
     },
     server: {
       port: 3000,
