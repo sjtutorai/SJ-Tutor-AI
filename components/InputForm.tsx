@@ -1,11 +1,12 @@
+
 import React from 'react';
 import { StudyRequestData, AppMode, DifficultyLevel } from '../types';
-import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap } from 'lucide-react';
+import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Image as ImageIcon } from 'lucide-react';
 
 interface InputFormProps {
   data: StudyRequestData;
   mode: AppMode;
-  onChange: (field: keyof StudyRequestData, value: string | number) => void;
+  onChange: (field: keyof StudyRequestData, value: string | number | boolean) => void;
   onFillSample?: () => void;
   disabled?: boolean;
 }
@@ -13,7 +14,10 @@ interface InputFormProps {
 const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSample, disabled }) => {
 
   const getEstimatedCost = () => {
-    if (mode === AppMode.SUMMARY || mode === AppMode.ESSAY) return 10;
+    if (mode === AppMode.SUMMARY) return 10;
+    if (mode === AppMode.ESSAY) {
+      return data.includeImages ? 15 : 10;
+    }
     if (mode === AppMode.QUIZ) {
       let cost = 10;
       const qCount = data.questionCount || 5;
@@ -79,7 +83,7 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-4 mb-2 relative z-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-4 mb-4 relative z-10">
         {renderInput("Subject", "subject", BookType, "e.g. History")}
         {renderInput("Class / Grade", "gradeClass", GraduationCap, "e.g. 10th Grade")}
         {renderInput("Board", "board", School, "e.g. CBSE")}
@@ -129,6 +133,32 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
           </>
         )}
       </div>
+
+      {/* Essay Specific Options */}
+      {mode === AppMode.ESSAY && (
+        <div className="relative z-10 pt-2 border-t border-slate-100 flex items-center justify-between">
+           <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center text-primary-600">
+                <ImageIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-800">Illustrate with AI Images</p>
+                <p className="text-[10px] text-slate-500">I'll generate highly relevant visuals for your essay.</p>
+              </div>
+           </div>
+           <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={data.includeImages} 
+                onChange={(e) => onChange('includeImages', e.target.checked)}
+                disabled={disabled}
+                className="sr-only peer" 
+              />
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+              <span className="ml-3 text-xs font-bold text-primary-700 bg-primary-50 px-2 py-0.5 rounded border border-primary-100">+5 Credits</span>
+           </label>
+        </div>
+      )}
     </div>
   );
 };

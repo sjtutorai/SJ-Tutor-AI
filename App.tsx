@@ -47,7 +47,8 @@ const SAMPLE_DATA: StudyRequestData = {
   chapterName: "Synthetic Fibres",
   author: '',
   questionCount: 5,
-  difficulty: 'Medium'
+  difficulty: 'Medium',
+  includeImages: false
 };
 
 const App: React.FC = () => {
@@ -229,7 +230,7 @@ const App: React.FC = () => {
     handleProfileSave(updatedProfile);
   };
 
-  const handleFormChange = (field: keyof StudyRequestData, value: string | number) => {
+  const handleFormChange = (field: keyof StudyRequestData, value: string | number | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -271,7 +272,9 @@ const App: React.FC = () => {
 
   const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
     if (targetMode === AppMode.SUMMARY) return 10;
-    if (targetMode === AppMode.ESSAY) return 10;
+    if (targetMode === AppMode.ESSAY) {
+      return data.includeImages ? 15 : 10;
+    }
     if (targetMode === AppMode.QUIZ) {
       let cost = 10; // Base cost
       const qCount = data.questionCount || 5;
@@ -347,6 +350,16 @@ const App: React.FC = () => {
                 setEssayContent(text);
             }
         }
+
+        // If user wants images, generate and append them after text is ready
+        if (formData.includeImages) {
+          const imageBase64 = await GeminiService.generateImage(`${formData.chapterName} - ${formData.subject}`);
+          if (imageBase64) {
+            text += `\n\n![${formData.chapterName}](${imageBase64})`;
+            setEssayContent(text);
+          }
+        }
+
         addToHistory(AppMode.ESSAY, text);
         deductCredit(cost);
 
@@ -376,7 +389,7 @@ const App: React.FC = () => {
       if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
         errorMessage = "API_DISABLED";
       } else if (errorMessage.includes("API key not valid") || errorMessage.includes("API_KEY_INVALID")) {
-        errorMessage = "API_KEY_INVALID";
+        errorMessage = "API_KEY_INVALID_ERROR";
       }
 
       setError(errorMessage);
@@ -748,7 +761,7 @@ const App: React.FC = () => {
           );
        } 
        
-       if (error === "API_KEY_INVALID") {
+       if (error === "API_KEY_INVALID_ERROR") {
           return (
             <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
               <div className="flex items-center gap-3">
