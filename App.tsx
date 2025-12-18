@@ -699,7 +699,7 @@ const App: React.FC = () => {
     }
 
     if (mode === AppMode.TUTOR) {
-      return <TutorChat />;
+      return <TutorChat onDeductCredit={deductCredit} currentCredits={userProfile.credits} />;
     }
 
     // Loading View

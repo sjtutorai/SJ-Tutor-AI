@@ -1,19 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage } from '../types';
 import { GeminiService } from '../services/geminiService';
-import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles } from 'lucide-react';
+import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Chat, GenerateContentResponse } from "@google/genai";
 import { SJTUTOR_AVATAR } from '../App';
 
 const SAMPLE_QUESTIONS = [
-  "Explain Quantum Physics simply.",
-  "How do I solve quadratic equations?",
-  "Summarize the French Revolution.",
-  "Write a haiku about studying."
+  "What is the difference between weather and climate?",
+  "Explain the process of photosynthesis in plants.",
+  "What are natural resources? Name any four.",
+  "Define force. What are its different effects?",
+  "What is the Indian Constitution and why is it important?",
+  "Explain the water cycle with the help of a diagram (description).",
+  "What are rational numbers? Give two examples.",
+  "Who was Mahatma Gandhi? Write any four of his contributions to India.",
+  "What is soil erosion? Mention two methods to prevent it.",
+  "Explain the difference between renewable and non-renewable resources."
 ];
 
-const TutorChat: React.FC = () => {
+interface TutorChatProps {
+  onDeductCredit: (amount: number) => boolean;
+  currentCredits: number;
+}
+
+const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'model',
@@ -24,6 +35,7 @@ const TutorChat: React.FC = () => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const chatSessionRef = useRef<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -38,7 +50,7 @@ const TutorChat: React.FC = () => {
   }, [messages]);
 
   const toggleVoiceInput = () => {
-    if (isListening) return; // Stop handled by browser usually, or we can force stop
+    if (isListening) return;
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -61,6 +73,14 @@ const TutorChat: React.FC = () => {
 
   const sendMessageToAi = async (textToSend: string) => {
     if (!textToSend.trim() || !chatSessionRef.current) return;
+    setError(null);
+
+    // Credit Deduction Logic: 1 credit per question
+    const cost = 1;
+    if (!onDeductCredit(cost)) {
+      setError("Insufficient credits! You need 1 credit per message in the Tutor Chat.");
+      return;
+    }
 
     const userMsg: ChatMessage = {
       role: 'user',
@@ -75,7 +95,6 @@ const TutorChat: React.FC = () => {
       const resultStream = await chatSessionRef.current.sendMessageStream({ message: userMsg.text });
       
       let fullResponseText = '';
-      // Add a placeholder for the model response that we will update
       setMessages(prev => [...prev, { role: 'model', text: '', timestamp: Date.now() }]);
 
       for await (const chunk of resultStream) {
@@ -95,17 +114,15 @@ const TutorChat: React.FC = () => {
       let errorText = "I'm sorry, I encountered an error. Please try asking again or check your connection.";
       let rawMsg = error.message || "";
       
-      // Attempt parse JSON error
       try {
         const parsed = JSON.parse(rawMsg);
         if (parsed.error?.message) rawMsg = parsed.error.message;
       } catch (e) {}
 
-      // Handle the specific API Not Enabled error to match the dashboard
       if (rawMsg.includes("Generative Language API has not been used") || rawMsg.includes("PERMISSION_DENIED")) {
-        errorText = "⚠️ API Error: The Google Generative AI API is disabled for this project. Please enable it in Google Cloud Console.";
+        errorText = "⚠️ API Error: The Google Generative AI API is disabled for this project.";
       } else if (rawMsg.includes("API key not valid") || rawMsg.includes("API_KEY_INVALID")) {
-        errorText = "⚠️ Config Error: The API Key provided is invalid. Please check your .env file.";
+        errorText = "⚠️ Config Error: The API Key provided is invalid.";
       }
       
       setMessages(prev => [...prev, { role: 'model', text: errorText, timestamp: Date.now() }]);
@@ -115,6 +132,7 @@ const TutorChat: React.FC = () => {
   };
 
   const handleSend = () => {
+    if (!input.trim() || isTyping) return;
     sendMessageToAi(input);
     setInput('');
   };
@@ -128,7 +146,16 @@ const TutorChat: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-140px)] flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      {/* Header Info */}
+      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SJ Tutor AI Session</span>
+        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 text-[10px] font-bold">
+          <Sparkles className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+          1 Credit / Msg
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
         {messages.map((msg, idx) => (
           <div
             key={idx}
@@ -175,17 +202,19 @@ const TutorChat: React.FC = () => {
         )}
         
         {messages.length === 1 && !isTyping && (
-          <div className="flex flex-wrap gap-2 mt-2 ml-11">
-            {SAMPLE_QUESTIONS.map((q, idx) => (
-              <button
-                key={idx}
-                onClick={() => sendMessageToAi(q)}
-                className="text-xs bg-primary-50 text-primary-700 px-3 py-1.5 rounded-full border border-primary-100 hover:bg-primary-100 transition-colors flex items-center gap-1"
-              >
-                <Sparkles className="w-3 h-3" />
-                {q}
-              </button>
-            ))}
+          <div className="space-y-3 mt-4 ml-11">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Try a question:</p>
+            <div className="flex flex-wrap gap-2">
+              {SAMPLE_QUESTIONS.map((q, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => sendMessageToAi(q)}
+                  className="text-left text-xs bg-white text-slate-600 px-3 py-2 rounded-lg border border-slate-200 hover:border-primary-400 hover:bg-primary-50 transition-all shadow-sm"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -193,6 +222,12 @@ const TutorChat: React.FC = () => {
       </div>
 
       <div className="p-3 bg-white border-t border-slate-100">
+        {error && (
+          <div className="mb-2 p-2 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 text-xs text-red-600 animate-in fade-in slide-in-from-bottom-2">
+            <AlertCircle className="w-3.5 h-3.5" />
+            {error}
+          </div>
+        )}
         <div className="relative flex items-center gap-2">
            <button
             onClick={toggleVoiceInput}
@@ -216,6 +251,10 @@ const TutorChat: React.FC = () => {
           >
             <Send className="w-3.5 h-3.5" />
           </button>
+        </div>
+        <div className="mt-1 flex justify-between px-1">
+          <span className="text-[9px] text-slate-400 font-medium">1 message = 1 credit</span>
+          <span className="text-[9px] text-slate-400 font-bold uppercase">Balance: {currentCredits}</span>
         </div>
       </div>
     </div>

@@ -78,11 +78,24 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
   const downloadWord = () => {
     if (!contentRef.current) return;
     
-    // A simple hack to create a file that Word can open (HTML)
+    // Create a structured HTML document for Word
     const htmlContent = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head><meta charset='utf-8'><title>${title}</title></head>
-      <body>${contentRef.current.innerHTML}</body>
+      <head>
+        <meta charset='utf-8'>
+        <title>${title}</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; }
+          h1 { color: #2d3748; border-bottom: 2px solid #D4AF37; padding-bottom: 10px; }
+          .type-label { color: #B7950B; font-weight: bold; text-transform: uppercase; font-size: 12px; margin-bottom: 20px; }
+          p { margin-bottom: 15px; }
+        </style>
+      </head>
+      <body>
+        <h1>${title}</h1>
+        <div class='type-label'>${type}</div>
+        ${contentRef.current.innerHTML}
+      </body>
       </html>
     `;
     
@@ -105,13 +118,22 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
       clone.style.position = 'absolute';
       clone.style.left = '-9999px';
       clone.style.top = '0';
-      clone.style.width = '800px'; // Fixed width for consistent output
+      clone.style.width = '800px';
       clone.style.height = 'auto';
-      clone.style.padding = '40px';
+      clone.style.padding = '50px';
       clone.style.background = 'white';
       
+      // Add visual header to image
+      const header = document.createElement('div');
+      header.innerHTML = `
+        <div style="margin-bottom: 30px; border-bottom: 2px solid #D4AF37; padding-bottom: 15px;">
+          <h1 style="margin: 0; color: #1a202c; font-size: 28px; font-family: sans-serif;">${title}</h1>
+          <p style="margin: 5px 0 0; color: #B7950B; font-weight: bold; text-transform: uppercase; font-size: 14px; font-family: sans-serif;">${type}</p>
+        </div>
+      `;
+      clone.insertBefore(header, clone.firstChild);
+      
       document.body.appendChild(clone);
-
       const canvas = await html2canvas(clone, { scale: 2, useCORS: true });
       document.body.removeChild(clone);
 
@@ -132,13 +154,10 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
     if (!contentRef.current) return;
     setIsDownloading(true);
     try {
-      // CLONE TECHNIQUE for PDF
-      // We force the clone to have a width suitable for A4 printing (approx 700-800px)
-      // This ensures text wrapping matches what we want in the PDF.
       const element = contentRef.current;
       const clone = element.cloneNode(true) as HTMLElement;
       
-      const a4WidthPx = 750; // Width that fits well on A4 PDF with margins
+      const a4WidthPx = 750;
 
       clone.style.position = 'absolute';
       clone.style.left = '-9999px';
@@ -148,16 +167,29 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
       clone.style.overflow = 'visible';
       clone.style.maxHeight = 'none';
       clone.style.background = 'white';
-      clone.style.color = 'black'; // Ensure text is black for printing
-      clone.style.padding = '40px'; // Add padding for the PDF look
+      clone.style.color = 'black';
+      clone.style.padding = '50px';
+      
+      // Add professional header to PDF clone
+      const header = document.createElement('div');
+      header.innerHTML = `
+        <div style="margin-bottom: 30px; border-bottom: 2px solid #D4AF37; padding-bottom: 15px; font-family: sans-serif;">
+          <h1 style="margin: 0; color: #1a202c; font-size: 26px;">${title}</h1>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+            <span style="color: #B7950B; font-weight: bold; text-transform: uppercase; font-size: 12px;">${type}</span>
+            <span style="color: #718096; font-size: 12px;">Date: ${new Date().toLocaleDateString()}</span>
+          </div>
+        </div>
+      `;
+      clone.insertBefore(header, clone.firstChild);
       
       document.body.appendChild(clone);
 
       const canvas = await html2canvas(clone, { 
-        scale: 2, // Higher scale for better quality text
+        scale: 2,
         useCORS: true,
         logging: false,
-        windowWidth: a4WidthPx + 100 // Ensure window context is large enough
+        windowWidth: a4WidthPx + 100
       });
       
       document.body.removeChild(clone);
@@ -168,18 +200,17 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      // Calculate image height to fit PDF width
       const imgProps = pdf.getImageProperties(imgData);
       const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
       let heightLeft = imgHeight;
       let position = 0;
 
-      // Add first page
+      // First page
       pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
       heightLeft -= pdfHeight;
 
-      // Add subsequent pages if content is long
+      // Subsequent pages (crucial for long essays)
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
@@ -219,12 +250,12 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
           {!isLoading && content && (
             <>
               {/* Download Options */}
-              <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 mr-2">
+              <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 mr-2 shadow-sm">
                  <button 
                    onClick={downloadPDF} 
                    disabled={isDownloading}
                    className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
-                   title="Download PDF (Preserves Formatting)"
+                   title={`Download ${type} as PDF`}
                  >
                    <FileType className="w-4 h-4" />
                  </button>
@@ -232,7 +263,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
                  <button 
                    onClick={downloadWord} 
                    className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                   title="Download Word (Doc)"
+                   title={`Download ${type} as Word`}
                  >
                    <FileText className="w-4 h-4" />
                  </button>
@@ -241,7 +272,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
                    onClick={downloadImage} 
                    disabled={isDownloading}
                    className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors disabled:opacity-50"
-                   title="Download Image (PNG)"
+                   title={`Download ${type} as Image`}
                  >
                    <ImageIcon className="w-4 h-4" />
                  </button>
@@ -249,7 +280,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
                  <button 
                    onClick={downloadText} 
                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
-                   title="Download Text"
+                   title={`Download ${type} as Text`}
                  >
                    <Download className="w-4 h-4" />
                  </button>
@@ -259,8 +290,8 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
                 onClick={toggleSpeech}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                   isPlaying 
-                    ? 'bg-red-50 text-red-600 hover:bg-red-100' 
-                    : 'bg-primary-50 text-primary-600 hover:bg-primary-100'
+                    ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' 
+                    : 'bg-primary-50 text-primary-600 hover:bg-primary-100 border border-primary-200'
                 }`}
                 title={isPlaying ? "Stop reading" : "Read aloud"}
               >
@@ -281,9 +312,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
         </div>
 
         {isLoading && (
-          <div className="flex items-center text-primary-600 text-sm">
+          <div className="flex items-center text-primary-600 text-sm font-medium">
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Generating...
+            Generating {type}...
           </div>
         )}
       </div>
@@ -295,7 +326,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
         {content === '' && isLoading && (
           <div className="flex flex-col items-center justify-center py-12 text-slate-400">
             <Loader2 className="w-8 h-8 mb-4 animate-spin text-primary-300" />
-            <p>Starting generation...</p>
+            <p>Initializing {type.toLowerCase()} generator...</p>
           </div>
         )}
       </div>
@@ -304,8 +335,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
         <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-center">
             <button 
                 onClick={onBack}
-                className="text-sm font-semibold text-primary-700 hover:text-primary-800 hover:underline"
+                className="text-sm font-semibold text-primary-700 hover:text-primary-800 hover:underline flex items-center gap-2"
             >
+                <RefreshCw className="w-3.5 h-3.5" />
                 Generate Another Version
             </button>
         </div>
@@ -313,5 +345,10 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
     </div>
   );
 };
+
+// Simple Refresh icon helper
+const RefreshCw = ({ className }: { className?: string }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+);
 
 export default ResultsView;
