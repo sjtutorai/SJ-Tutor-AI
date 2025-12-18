@@ -1,21 +1,17 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry } from "../types";
 
-// Helper to get the AI client lazily.
-// This prevents the "API Key must be set" error from crashing the app immediately on load.
-// The key is checked when a request is actually made.
-const getAiClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY || "";
-  // We initialize here so we can catch errors during request time if key is missing
-  return new GoogleGenAI({ apiKey });
-};
-
+/**
+ * Service to interact with Google Gemini API for academic content generation.
+ */
 export const GeminiService = {
   /**
    * Generates a summary for a specific chapter.
    */
   generateSummaryStream: async (data: StudyRequestData) => {
-    const ai = getAiClient();
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `
       Create a comprehensive, structured summary for the following study material.
       Use clear headings, bullet points for key concepts, and a bold conclusion.
@@ -29,7 +25,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         systemInstruction: "You are an expert academic tutor creating high-quality study summaries.",
@@ -43,7 +39,8 @@ export const GeminiService = {
    * Generates an essay based on the chapter.
    */
   generateEssayStream: async (data: StudyRequestData) => {
-    const ai = getAiClient();
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `
       Write a detailed, academic essay based on the topics covered in this chapter.
       The essay should have a proper introduction, body paragraphs analyzing key themes, and a conclusion.
@@ -72,7 +69,8 @@ export const GeminiService = {
    * Generates a quiz in JSON format.
    */
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
-    const ai = getAiClient();
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const count = data.questionCount || 5;
     const difficulty = data.difficulty || 'Medium';
 
@@ -90,7 +88,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -131,7 +129,8 @@ export const GeminiService = {
    * Generates a study timetable.
    */
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
-    const ai = getAiClient();
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const today = new Date().toDateString();
     const prompt = `
       Current Date: ${today}.
@@ -147,7 +146,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -192,7 +191,8 @@ export const GeminiService = {
    * Updates an existing study timetable based on user instructions.
    */
   updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
-    const ai = getAiClient();
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `
       You are an intelligent study planner.
       
@@ -210,7 +210,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -255,9 +255,10 @@ export const GeminiService = {
    * Creates a chat session for the AI Tutor.
    */
   createTutorChat: () => {
-    const ai = getAiClient();
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return ai.chats.create({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       config: {
         systemInstruction: "You are a helpful, encouraging, and knowledgeable AI Tutor. Help the student with their questions using the Socratic method where appropriate.",
       }
@@ -268,7 +269,8 @@ export const GeminiService = {
    * Analyzes a payment screenshot to verify the transaction.
    */
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
-    const ai = getAiClient();
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     
     // Strict Verification Prompt
@@ -289,7 +291,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           {

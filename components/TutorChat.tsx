@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage } from '../types';
 import { GeminiService } from '../services/geminiService';
-import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle } from 'lucide-react';
+import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle, ExternalLink } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Chat, GenerateContentResponse } from "@google/genai";
 import { SJTUTOR_AVATAR } from '../App';
@@ -36,6 +36,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isApiDisabled, setIsApiDisabled] = useState(false);
   const chatSessionRef = useRef<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -74,6 +75,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
   const sendMessageToAi = async (textToSend: string) => {
     if (!textToSend.trim() || !chatSessionRef.current) return;
     setError(null);
+    setIsApiDisabled(false);
 
     // Credit Deduction Logic: 1 credit per question
     const cost = 1;
@@ -120,7 +122,8 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
       } catch (e) {}
 
       if (rawMsg.includes("Generative Language API has not been used") || rawMsg.includes("PERMISSION_DENIED")) {
-        errorText = "⚠️ API Error: The Google Generative AI API is disabled for this project.";
+        setIsApiDisabled(true);
+        errorText = "API_DISABLED_BLOCK";
       } else if (rawMsg.includes("API key not valid") || rawMsg.includes("API_KEY_INVALID")) {
         errorText = "⚠️ Config Error: The API Key provided is invalid.";
       }
@@ -174,7 +177,26 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
                   : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-bl-none'
               }`}
             >
-              {msg.role === 'model' ? (
+              {msg.text === "API_DISABLED_BLOCK" ? (
+                <div className="bg-red-50 border border-red-100 p-4 rounded-lg space-y-3">
+                  <div className="flex items-start gap-2 text-red-800">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">API Not Enabled</p>
+                      <p className="text-xs text-red-600">The "Generative Language API" needs to be enabled in your Google Cloud project.</p>
+                    </div>
+                  </div>
+                  <a 
+                    href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2 bg-red-600 text-white text-xs font-bold rounded-md hover:bg-red-700 transition-colors shadow-sm"
+                  >
+                    Enable API Now
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              ) : msg.role === 'model' ? (
                 <div className="markdown-body">
                    <ReactMarkdown>{msg.text}</ReactMarkdown>
                 </div>

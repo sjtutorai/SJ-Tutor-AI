@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile } from './types';
 import InputForm from './components/InputForm';
@@ -92,10 +93,10 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check API Key immediately
+  // Check API Key immediately (using required process.env.API_KEY)
   useEffect(() => {
-    if (!process.env.GEMINI_API_KEY) {
-      console.warn("GEMINI_API_KEY is missing in environment variables!");
+    if (!process.env.API_KEY) {
+      console.warn("API_KEY is missing in environment variables!");
       setApiKeyMissing(true);
     }
   }, []);
@@ -305,9 +306,9 @@ const App: React.FC = () => {
       return;
     }
     
-    // Check API Key before attempting generation
-    if (!process.env.GEMINI_API_KEY) {
-      setError("Configuration Error: GEMINI_API_KEY is missing. Please check your environment variables.");
+    // Check required process.env.API_KEY before attempting generation
+    if (!process.env.API_KEY) {
+      setError("Configuration Error: API_KEY is missing. Please check your environment variables.");
       return;
     }
 
@@ -361,7 +362,7 @@ const App: React.FC = () => {
       
       let errorMessage = err.message || "Failed to generate content. Please check your inputs and try again.";
 
-      // Try to parse JSON error message if it looks like one (the raw error you saw)
+      // Try to parse JSON error message if it looks like one
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) {
@@ -556,7 +557,7 @@ const App: React.FC = () => {
         <div className="absolute -bottom-8 left-20 w-72 h-72 bg-primary-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
 
         <div className="relative z-10 space-y-6">
-          {/* API Key Warning */}
+          {/* API Key Warning (using required process.env.API_KEY) */}
           {apiKeyMissing && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-4 shadow-sm">
               <div className="bg-red-100 p-1.5 rounded-full">
@@ -565,7 +566,7 @@ const App: React.FC = () => {
               <div>
                 <h4 className="font-bold text-red-800 text-sm">API Key Missing</h4>
                 <p className="text-xs text-red-600 mt-0.5">
-                  The AI features will not work because the <code>GEMINI_API_KEY</code> environment variable is missing. 
+                  The AI features will not work because the <code>API_KEY</code> environment variable is missing. 
                 </p>
               </div>
             </div>
@@ -714,7 +715,7 @@ const App: React.FC = () => {
 
     const showEmptyState = !loading && !hasResult;
 
-    // Hide input form if we have a result (to display it cleanly) or if viewing a history quiz
+    // Hide input form if we have a result or if viewing a history quiz
     const showInputForm = !hasResult && !(mode === AppMode.QUIZ && existingQuizScore !== undefined);
 
     const renderError = () => {
@@ -760,7 +761,7 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="pl-12">
-                <p className="text-xs">Please verify your <code>GEMINI_API_KEY</code> in the environment variables (<code>.env</code> file) matches your Google AI Studio key.</p>
+                <p className="text-xs">Please verify your <code>API_KEY</code> in the environment variables (<code>.env</code> file) matches your Google AI Studio key.</p>
               </div>
             </div>
           );
@@ -986,7 +987,6 @@ const App: React.FC = () => {
                <Menu className="w-5 h-5" />
              </button>
              <h2 className="text-base font-bold text-slate-800">
-               {/* Show Study Verse AI on Mobile or when Dashboard is active, otherwise show nav label */}
                {mode === AppMode.DASHBOARD ? 'SJ Tutor AI' : 
                 (navItems.find(n => n.id === mode)?.label || 'SJ Tutor AI')}
              </h2>
