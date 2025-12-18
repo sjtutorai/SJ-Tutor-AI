@@ -93,10 +93,19 @@ const TutorChat: React.FC = () => {
     } catch (error: any) {
       console.error("Chat error:", error);
       let errorText = "I'm sorry, I encountered an error. Please try asking again or check your connection.";
+      let rawMsg = error.message || "";
       
+      // Attempt parse JSON error
+      try {
+        const parsed = JSON.parse(rawMsg);
+        if (parsed.error?.message) rawMsg = parsed.error.message;
+      } catch (e) {}
+
       // Handle the specific API Not Enabled error to match the dashboard
-      if (error.message?.includes("Generative Language API has not been used") || error.message?.includes("PERMISSION_DENIED")) {
+      if (rawMsg.includes("Generative Language API has not been used") || rawMsg.includes("PERMISSION_DENIED")) {
         errorText = "⚠️ API Error: The Google Generative AI API is disabled for this project. Please enable it in Google Cloud Console.";
+      } else if (rawMsg.includes("API key not valid") || rawMsg.includes("API_KEY_INVALID")) {
+        errorText = "⚠️ Config Error: The API Key provided is invalid. Please check your .env file.";
       }
       
       setMessages(prev => [...prev, { role: 'model', text: errorText, timestamp: Date.now() }]);
@@ -119,54 +128,54 @@ const TutorChat: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-140px)] flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-5">
         {messages.map((msg, idx) => (
           <div
             key={idx}
             className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {msg.role === 'model' && (
-              <div className="w-10 h-10 rounded-full overflow-hidden border border-primary-100 flex-shrink-0">
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-100 flex-shrink-0">
                 <img src={SJTUTOR_AVATAR} alt="AI" className="w-full h-full object-cover" />
               </div>
             )}
             
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-sm ${
+              className={`max-w-[85%] rounded-xl px-4 py-2.5 shadow-sm text-sm ${
                 msg.role === 'user'
                   ? 'bg-primary-600 text-white rounded-br-none'
                   : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-bl-none'
               }`}
             >
               {msg.role === 'model' ? (
-                <div className="markdown-body text-sm">
+                <div className="markdown-body">
                    <ReactMarkdown>{msg.text}</ReactMarkdown>
                 </div>
               ) : (
-                <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                <p className="whitespace-pre-wrap">{msg.text}</p>
               )}
             </div>
 
             {msg.role === 'user' && (
               <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                <UserIcon className="w-5 h-5 text-slate-500" />
+                <UserIcon className="w-4 h-4 text-slate-500" />
               </div>
             )}
           </div>
         ))}
         {isTyping && messages[messages.length - 1].role === 'user' && (
            <div className="flex gap-3 justify-start">
-               <div className="w-10 h-10 rounded-full overflow-hidden border border-primary-100 flex-shrink-0">
+               <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-100 flex-shrink-0">
                 <img src={SJTUTOR_AVATAR} alt="AI" className="w-full h-full object-cover" />
               </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl rounded-bl-none px-4 py-3 flex items-center">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl rounded-bl-none px-4 py-2.5 flex items-center">
                 <Loader2 className="w-4 h-4 text-primary-400 animate-spin" />
               </div>
            </div>
         )}
         
         {messages.length === 1 && !isTyping && (
-          <div className="flex flex-wrap gap-2 mt-4 ml-14">
+          <div className="flex flex-wrap gap-2 mt-2 ml-11">
             {SAMPLE_QUESTIONS.map((q, idx) => (
               <button
                 key={idx}
@@ -183,33 +192,33 @@ const TutorChat: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-white border-t border-slate-100">
+      <div className="p-3 bg-white border-t border-slate-100">
         <div className="relative flex items-center gap-2">
            <button
             onClick={toggleVoiceInput}
-            className={`p-3 rounded-xl transition-colors ${isListening ? 'bg-red-50 text-red-500 animate-pulse' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+            className={`p-2.5 rounded-lg transition-colors ${isListening ? 'bg-red-50 text-red-500 animate-pulse' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
             title="Voice Input"
           >
-            {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
           </button>
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={isListening ? "Listening..." : "Ask SJ Tutor AI anything..."}
-            className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none resize-none text-sm max-h-32 text-slate-900"
+            className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-sm max-h-32 text-slate-900"
             rows={1}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isTyping}
-            className="absolute right-2 p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="absolute right-1.5 p-1.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="text-center mt-2">
-           <span className="text-[10px] text-slate-400">AI responses can be inaccurate. Always verify important information.</span>
+        <div className="text-center mt-1.5">
+           <span className="text-[9px] text-slate-400">AI responses can be inaccurate. Always verify important information.</span>
         </div>
       </div>
     </div>

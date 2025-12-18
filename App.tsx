@@ -360,10 +360,22 @@ const App: React.FC = () => {
       console.error(err);
       
       let errorMessage = err.message || "Failed to generate content. Please check your inputs and try again.";
+
+      // Try to parse JSON error message if it looks like one (the raw error you saw)
+      try {
+         const parsed = JSON.parse(errorMessage);
+         if (parsed.error?.message) {
+            errorMessage = parsed.error.message;
+         }
+      } catch (e) {
+         // Not valid JSON, stick with original string
+      }
       
-      // Handle the specific API Not Enabled error
+      // Handle known error patterns
       if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
         errorMessage = "API_DISABLED";
+      } else if (errorMessage.includes("API key not valid") || errorMessage.includes("API_KEY_INVALID")) {
+        errorMessage = "API_KEY_INVALID";
       }
 
       setError(errorMessage);
@@ -431,16 +443,16 @@ const App: React.FC = () => {
     };
 
     const dashboardCards = [
-      { id: AppMode.SUMMARY, label: 'Summaries Created', count: stats.summaries, icon: FileText, color: 'text-amber-800', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.QUIZ, label: 'Quizzes Created', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.ESSAY, label: 'Essays Created', count: stats.essays, icon: BookOpen, color: 'text-amber-600', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.TUTOR, label: 'AI Tutor Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.NOTES, label: 'Notes Created', count: noteCount, icon: Calendar, color: 'text-emerald-700', bg: 'bg-[#FDF5E6]' },
+      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800', bg: 'bg-[#FDF5E6]' },
+      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700', bg: 'bg-[#FDF5E6]' },
+      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600', bg: 'bg-[#FDF5E6]' },
+      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900', bg: 'bg-[#FDF5E6]' },
+      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700', bg: 'bg-[#FDF5E6]' },
     ];
 
     if (dashboardView !== 'OVERVIEW') {
       const filteredHistory = history.filter(h => h.type === dashboardView);
-      const categoryLabel = dashboardCards.find(c => c.id === dashboardView)?.label.replace(' Created', '').replace(' Chats', '') || 'History';
+      const categoryLabel = dashboardCards.find(c => c.id === dashboardView)?.label || 'History';
       const getSingularName = (view: AppMode) => {
         switch(view) {
             case AppMode.SUMMARY: return 'Summary';
@@ -455,25 +467,25 @@ const App: React.FC = () => {
         <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
           <button 
             onClick={() => setDashboardView('OVERVIEW')}
-            className="flex items-center text-slate-500 hover:text-primary-600 mb-8 transition-all hover:-translate-x-1 group"
+            className="flex items-center text-slate-500 hover:text-primary-600 mb-6 transition-all hover:-translate-x-1 group text-sm"
           >
-            <div className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center mr-3 border border-slate-100 group-hover:border-primary-200 transition-colors">
-              <ArrowLeft className="w-4 h-4" />
+            <div className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center mr-2 border border-slate-100 group-hover:border-primary-200 transition-colors">
+              <ArrowLeft className="w-3.5 h-3.5" />
             </div>
             <span className="font-medium">Back to Dashboard</span>
           </button>
 
-          <h3 className="text-3xl font-bold text-slate-800 mb-8 flex items-center gap-3">
-            <Clock className="w-8 h-8 text-primary-400" />
+          <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+            <Clock className="w-6 h-6 text-primary-400" />
             {categoryLabel} History
           </h3>
 
           {filteredHistory.length === 0 ? (
-            <div className="text-center py-24 bg-white/60 backdrop-blur-md rounded-2xl border border-slate-200/60 border-dashed animate-in zoom-in duration-500">
-              <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 p-1">
+            <div className="text-center py-20 bg-white/60 backdrop-blur-md rounded-xl border border-slate-200/60 border-dashed animate-in zoom-in duration-500">
+              <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 p-1">
                  <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full rounded-full object-cover" />
               </div>
-              <p className="text-slate-500 font-medium mb-6">No {categoryLabel.toLowerCase()} found yet.</p>
+              <p className="text-slate-500 font-medium mb-5 text-sm">No {categoryLabel.toLowerCase()} found yet.</p>
 
               <button
                 onClick={() => {
@@ -487,45 +499,45 @@ const App: React.FC = () => {
                   setMode(dashboardView);
                   setDashboardView('OVERVIEW');
                 }}
-                className="inline-flex items-center px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium transition-colors shadow-lg shadow-primary-500/20"
+                className="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 text-sm"
               >
-                <Plus className="w-5 h-5 mr-2" />
+                <Plus className="w-4 h-4 mr-2" />
                 Create New {getSingularName(dashboardView)}
               </button>
             </div>
           ) : (
-            <div className="grid gap-5">
+            <div className="grid gap-4">
               {filteredHistory.map((item, idx) => (
                 <div 
                   key={item.id} 
-                  className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 flex justify-between items-center group cursor-pointer"
+                  className="bg-white/80 backdrop-blur-sm p-5 rounded-xl border border-slate-200/60 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
                   style={{ animationDelay: `${idx * 50}ms` }}
                   onClick={() => loadHistoryItem(item)}
                 >
-                  <div className="flex items-start gap-4">
-                    <div className={`mt-1 w-10 h-10 rounded-full flex items-center justify-center bg-primary-100 text-primary-600`}>
-                      {item.type === AppMode.QUIZ ? <BrainCircuit className="w-5 h-5" /> :
-                       item.type === AppMode.SUMMARY ? <FileText className="w-5 h-5" /> :
-                       item.type === AppMode.ESSAY ? <BookOpen className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-100 text-primary-600`}>
+                      {item.type === AppMode.QUIZ ? <BrainCircuit className="w-4 h-4" /> :
+                       item.type === AppMode.SUMMARY ? <FileText className="w-4 h-4" /> :
+                       item.type === AppMode.ESSAY ? <BookOpen className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
                     </div>
                     <div>
-                      <h4 className="font-semibold text-slate-800 mb-1 group-hover:text-primary-700 transition-colors text-lg">{item.title}</h4>
-                      <p className="text-sm text-slate-500 flex items-center gap-3">
-                        <span className="font-medium bg-slate-100 px-2 py-0.5 rounded text-xs">{item.subtitle}</span>
+                      <h4 className="font-semibold text-slate-800 mb-0.5 group-hover:text-primary-700 transition-colors">{item.title}</h4>
+                      <p className="text-xs text-slate-500 flex items-center gap-3">
+                        <span className="font-medium bg-slate-100 px-1.5 py-0.5 rounded">{item.subtitle}</span>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           {new Date(item.timestamp).toLocaleDateString()}
                         </span>
                         {item.type === AppMode.QUIZ && item.score !== undefined && (
-                          <span className="flex items-center gap-1 text-primary-600 font-bold bg-primary-50 px-2 py-0.5 rounded-full text-xs">
+                          <span className="flex items-center gap-1 text-primary-600 font-bold bg-primary-50 px-2 py-0.5 rounded-full">
                             Score: {item.score}
                           </span>
                         )}
                       </p>
                     </div>
                   </div>
-                  <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                    <Eye className="w-5 h-5 text-primary-600" />
+                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                    <Eye className="w-4 h-4 text-primary-600" />
                   </div>
                 </div>
               ))}
@@ -537,63 +549,62 @@ const App: React.FC = () => {
 
     // DASHBOARD OVERVIEW
     return (
-      <div className="relative min-h-[600px]">
+      <div className="relative min-h-[500px]">
         {/* Floating Background Blobs */}
         <div className="absolute top-0 -left-4 w-72 h-72 bg-primary-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute top-0 -right-4 w-72 h-72 bg-amber-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
         <div className="absolute -bottom-8 left-20 w-72 h-72 bg-primary-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
 
-        <div className="relative z-10 space-y-8">
+        <div className="relative z-10 space-y-6">
           {/* API Key Warning */}
           {apiKeyMissing && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-4 animate-in fade-in slide-in-from-top-4 shadow-sm">
-              <div className="bg-red-100 p-2 rounded-full">
-                <Key className="w-5 h-5 text-red-600" />
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-4 shadow-sm">
+              <div className="bg-red-100 p-1.5 rounded-full">
+                <Key className="w-4 h-4 text-red-600" />
               </div>
               <div>
-                <h4 className="font-bold text-red-800">API Key Missing</h4>
-                <p className="text-sm text-red-600 mt-1">
+                <h4 className="font-bold text-red-800 text-sm">API Key Missing</h4>
+                <p className="text-xs text-red-600 mt-0.5">
                   The AI features will not work because the <code>API_KEY</code> environment variable is missing. 
-                  Please check your project settings or <code>.env</code> file.
                 </p>
               </div>
             </div>
           )}
 
           {/* Welcome Card with Avatar */}
-          <div className="animate-fade-in-up bg-white/70 backdrop-blur-xl border border-white/50 rounded-3xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden relative group hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-500">
+          <div className="animate-fade-in-up bg-white/70 backdrop-blur-xl border border-white/50 rounded-2xl p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden relative group hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-500">
               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary-100/40 to-transparent rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-110 transition-transform duration-700"></div>
               
-              <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+              <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
                 <div className="flex-1">
-                  <h3 className="text-3xl font-bold text-slate-800 mb-2 tracking-tight">
+                  <h3 className="text-2xl font-bold text-slate-800 mb-1 tracking-tight">
                     Hey, I'm <span className="text-primary-600">SJ Tutor AI</span>!
                   </h3>
-                  <h4 className="text-xl font-medium text-slate-600 mb-4">
+                  <h4 className="text-lg font-medium text-slate-600 mb-3">
                     Welcome back, <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400">{user ? (userProfile.displayName || 'Scholar') : 'Guest'}</span>
                   </h4>
-                  <p className="text-slate-500 text-lg leading-relaxed mb-6">
+                  <p className="text-slate-500 text-base leading-relaxed mb-5">
                     {user ? "I'm ready to help you ace your studies. What are we working on today?" : "I'm your AI study companion. Sign in to unlock my full potential!"}
                   </p>
                   
-                  <div className="flex flex-wrap gap-4">
+                  <div className="flex flex-wrap gap-3">
                     <button 
                         onClick={() => {
                         if (!user) setShowAuthModal(true);
                         else setMode(AppMode.TUTOR);
                         }}
-                        className="group relative px-6 py-3 bg-slate-900 text-white rounded-xl font-medium overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-lg shadow-slate-900/20"
+                        className="group relative px-5 py-2.5 bg-slate-900 text-white rounded-lg font-medium overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-lg shadow-slate-900/20 text-sm"
                     >
                         <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                         <span className="flex items-center gap-2 relative z-10">
-                        <MessageCircle className="w-5 h-5" />
+                        <MessageCircle className="w-4 h-4" />
                         Chat with Me
                         </span>
                     </button>
                     {!user && (
                         <button 
                             onClick={() => setShowAuthModal(true)}
-                            className="px-6 py-3 bg-white text-slate-700 border border-slate-200 rounded-xl font-medium hover:bg-slate-50 transition-colors shadow-sm"
+                            className="px-5 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg font-medium hover:bg-slate-50 transition-colors shadow-sm text-sm"
                         >
                             Sign In / Sign Up
                         </button>
@@ -601,28 +612,28 @@ const App: React.FC = () => {
                   </div>
 
                    {user && (
-                       <div className="mt-6 flex items-center gap-2 text-primary-700 bg-primary-50/80 backdrop-blur-sm px-3 py-1.5 rounded-lg w-fit border border-primary-100">
-                          <Zap className="w-4 h-4 fill-primary-500 text-primary-500" />
-                          <span className="font-semibold text-sm">{userProfile.credits} generations remaining</span>
+                       <div className="mt-5 flex items-center gap-2 text-primary-700 bg-primary-50/80 backdrop-blur-sm px-3 py-1.5 rounded-lg w-fit border border-primary-100">
+                          <Zap className="w-3.5 h-3.5 fill-primary-500 text-primary-500" />
+                          <span className="font-semibold text-xs">{userProfile.credits} generations remaining</span>
                        </div>
                     )}
                 </div>
                 
                 {/* Avatar Display */}
-                <div className="relative w-48 h-48 md:w-64 md:h-64 flex-shrink-0 animate-blob">
+                <div className="relative w-40 h-40 md:w-56 md:h-56 flex-shrink-0 animate-blob">
                      <div className="absolute inset-0 bg-primary-200 rounded-full blur-2xl opacity-50"></div>
                      <img 
                         src={SJTUTOR_AVATAR} 
                         alt="SJ Tutor AI Mascot" 
-                        className="relative w-full h-full object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500"
+                        className="relative w-full h-full object-contain drop-shadow-xl hover:scale-105 transition-transform duration-500"
                      />
                 </div>
               </div>
           </div>
 
           {/* Stats List (Vertical) */}
-          <div className="flex flex-col gap-4">
-            <h3 className="text-lg font-bold text-slate-700 ml-1">Quick Actions</h3>
+          <div className="flex flex-col gap-3">
+            <h3 className="text-base font-bold text-slate-700 ml-1">Quick Actions</h3>
             {dashboardCards.map((stat, idx) => (
               <button 
                 key={idx} 
@@ -631,28 +642,28 @@ const App: React.FC = () => {
                     else if (stat.id === AppMode.NOTES) setMode(AppMode.NOTES);
                     else setDashboardView(stat.id as AppMode);
                 }}
-                className={`group relative p-6 rounded-2xl bg-[#FFFAF0] border border-stone-100/60 shadow-sm hover:shadow-md transition-all duration-300 text-left w-full overflow-hidden flex items-center justify-between`}
+                className={`group relative p-4 rounded-xl bg-[#FFFAF0] border border-stone-100/60 shadow-sm hover:shadow-md transition-all duration-300 text-left w-full overflow-hidden flex items-center justify-between`}
                 style={{ animationDelay: `${(idx + 1) * 150}ms` }}
               >
-                 <div className="flex items-center gap-6">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${stat.bg} shadow-sm border border-stone-100`}>
-                      <stat.icon className={`w-7 h-7 ${stat.color}`} />
+                 <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${stat.bg} shadow-sm border border-stone-100`}>
+                      <stat.icon className={`w-5 h-5 ${stat.color}`} />
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{stat.label}</p>
-                      <span className="text-3xl font-bold text-slate-800 tracking-tight">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{stat.label}</p>
+                      <span className="text-xl font-bold text-slate-800 tracking-tight">
                         {stat.count}
                       </span>
                     </div>
                  </div>
                  
                  {user && (stat.id === AppMode.TUTOR || stat.id === AppMode.NOTES) ? (
-                     <div className="flex items-center gap-1 px-3 py-1 bg-primary-100/50 rounded-full text-xs font-semibold text-primary-700">
+                     <div className="flex items-center gap-1 px-2.5 py-1 bg-primary-100/50 rounded-full text-[10px] font-semibold text-primary-700">
                         <span>{stat.id === AppMode.NOTES ? 'Open Notes' : 'View History'}</span>
-                        <ChevronRight className="w-3 h-3" />
+                        <ChevronRight className="w-2.5 h-2.5" />
                     </div>
                  ) : user && (
-                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary-400 transition-colors" />
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary-400 transition-colors" />
                  )}
               </button>
             ))}
@@ -706,8 +717,68 @@ const App: React.FC = () => {
     // Hide input form if we have a result (to display it cleanly) or if viewing a history quiz
     const showInputForm = !hasResult && !(mode === AppMode.QUIZ && existingQuizScore !== undefined);
 
+    const renderError = () => {
+       if (error === "API_DISABLED") {
+          return (
+            <div className="bg-red-50 border border-red-200 text-red-800 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 rounded-full">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">API Not Enabled</h3>
+                  <p className="text-sm text-red-700">The Google Generative AI API is disabled for your project.</p>
+                </div>
+              </div>
+              
+              <div className="pl-12">
+                <p className="text-xs mb-3">To fix this, you need to enable the API in the Google Cloud Console:</p>
+                <a 
+                  href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm hover:shadow-md text-sm"
+                >
+                  Enable Generative Language API
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+          );
+       } 
+       
+       if (error === "API_KEY_INVALID") {
+          return (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 rounded-full">
+                  <Key className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Invalid API Key</h3>
+                  <p className="text-sm text-amber-800">The API Key provided is not valid.</p>
+                </div>
+              </div>
+              <div className="pl-12">
+                <p className="text-xs">Please verify your <code>API_KEY</code> in the environment variables (<code>.env</code> file) matches your Google AI Studio key.</p>
+              </div>
+            </div>
+          );
+       }
+
+       if (error) {
+         return (
+          <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-lg flex items-center gap-3 shadow-sm">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <p className="font-medium text-sm">{error}</p>
+          </div>
+         );
+       }
+       return null;
+    };
+
     return (
-      <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="space-y-5 animate-in fade-in duration-500">
         {showInputForm && (
             <InputForm 
               data={formData} 
@@ -718,55 +789,24 @@ const App: React.FC = () => {
             />
         )}
 
-        {error === "API_DISABLED" ? (
-          <div className="bg-red-50 border border-red-200 text-red-800 p-6 rounded-xl shadow-sm flex flex-col gap-4 animate-in fade-in slide-in-from-top-2">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 rounded-full">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg">API Not Enabled</h3>
-                <p className="text-sm text-red-700">The Google Generative AI API is disabled for your project.</p>
-              </div>
-            </div>
-            
-            <div className="pl-14">
-              <p className="text-sm mb-3">To fix this, you need to enable the API in the Google Cloud Console:</p>
-              <a 
-                href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm hover:shadow-md"
-              >
-                Enable Generative Language API
-                <ExternalLink className="w-4 h-4" />
-              </a>
-              <p className="text-xs text-red-500 mt-3">After enabling, wait 1-2 minutes and try again.</p>
-            </div>
-          </div>
-        ) : error && (
-          <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl flex items-center gap-3 shadow-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p className="font-medium">{error}</p>
-          </div>
-        )}
+        {renderError()}
 
         {showEmptyState && !error && (
-          <div className="text-center py-16 bg-white rounded-2xl border border-slate-100 shadow-sm">
-             <div className="w-24 h-24 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-lg overflow-hidden">
+          <div className="text-center py-12 bg-white rounded-xl border border-slate-100 shadow-sm">
+             <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-white shadow-lg overflow-hidden">
                 <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
              </div>
-             <h3 className="text-lg font-semibold text-slate-800 mb-2">Ready to Start?</h3>
-             <p className="text-slate-500 mb-8 max-w-md mx-auto">
+             <h3 className="text-base font-semibold text-slate-800 mb-1">Ready to Start?</h3>
+             <p className="text-slate-500 mb-6 max-w-md mx-auto text-sm">
                Enter your study details above and I'll generate your personalized content immediately.
              </p>
-             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                <button 
                 type="button"
                 onClick={handleGenerate}
-                className="px-8 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold transition-colors shadow-lg shadow-primary-500/25 flex items-center gap-2"
+                className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-bold transition-colors shadow-lg shadow-primary-500/25 flex items-center gap-2 text-sm"
                >
-                 <Sparkles className="w-5 h-5" />
+                 <Sparkles className="w-4 h-4" />
                  Generate Now
                </button>
              </div>
@@ -829,21 +869,21 @@ const App: React.FC = () => {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-72 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
+      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
         <div className="h-full flex flex-col">
-          <div className="p-6 border-b border-slate-100">
+          <div className="p-5 border-b border-slate-100">
              <div className="flex items-center gap-3">
-               <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0">
+               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0">
                  <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
                </div>
                <div>
-                 <h1 className="text-xl font-bold text-slate-900 tracking-tight">SJ Tutor AI</h1>
-                 <p className="text-xs text-slate-500 font-medium">Your AI Study Buddy</p>
+                 <h1 className="text-lg font-bold text-slate-900 tracking-tight leading-tight">SJ Tutor AI</h1>
+                 <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">AI Study Buddy</p>
                </div>
              </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto py-5 px-3 space-y-1 custom-scrollbar">
             {navItems.map((item) => {
               const isActive = mode === item.id;
               const Icon = item.icon;
@@ -867,13 +907,13 @@ const App: React.FC = () => {
                       setFormData(INITIAL_FORM_DATA);
                     }
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group text-sm ${
                     isActive 
                       ? 'bg-primary-50 text-primary-700 font-semibold shadow-sm' 
                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-primary-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
                   {item.label}
                   {!user && item.id !== AppMode.DASHBOARD && (
                      <div className="ml-auto">
@@ -885,37 +925,37 @@ const App: React.FC = () => {
             })}
           </div>
 
-          <div className="p-4 border-t border-slate-100 space-y-3">
+          <div className="p-3 border-t border-slate-100 space-y-2">
             {user ? (
                <>
                 <button
                    onClick={() => setMode(AppMode.PROFILE)} 
-                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${mode === AppMode.PROFILE ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-slate-50'}`}
+                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mode === AppMode.PROFILE ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-slate-50'}`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-primary-100 border border-primary-200 flex items-center justify-center overflow-hidden">
+                  <div className="w-7 h-7 rounded-full bg-primary-100 border border-primary-200 flex items-center justify-center overflow-hidden flex-shrink-0">
                     {userProfile.photoURL ? (
                       <img src={userProfile.photoURL} alt="User" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="font-bold text-primary-700 text-xs">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
+                      <span className="font-bold text-primary-700 text-[10px]">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
                     )}
                   </div>
                   <div className="flex-1 text-left overflow-hidden">
-                    <p className="text-sm font-medium truncate">{userProfile.displayName || 'Scholar'}</p>
-                    <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                    <p className="text-xs font-medium truncate">{userProfile.displayName || 'Scholar'}</p>
+                    <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
                   </div>
                 </button>
                 <button 
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-3.5 h-3.5" />
                   Sign Out
                 </button>
                </>
             ) : (
               <button 
                 onClick={() => setShowAuthModal(true)}
-                className="w-full py-3 bg-slate-900 text-white rounded-xl font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-colors"
+                className="w-full py-2.5 bg-slate-900 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-colors text-sm"
               >
                 Sign In
               </button>
@@ -924,9 +964,9 @@ const App: React.FC = () => {
             {user && (
               <button 
                 onClick={() => setShowPremiumModal(true)}
-                className="w-full py-2.5 bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2"
+                className="w-full py-2 bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
               >
-                <Crown className="w-4 h-4" />
+                <Crown className="w-3.5 h-3.5" />
                 Upgrade Plan
               </button>
             )}
@@ -937,34 +977,34 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         {/* Header */}
-        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 h-16 flex items-center justify-between px-6 sticky top-0 z-30">
-          <div className="flex items-center gap-4">
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
+          <div className="flex items-center gap-3">
              <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"
+              className="lg:hidden p-1.5 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"
              >
-               <Menu className="w-6 h-6" />
+               <Menu className="w-5 h-5" />
              </button>
-             <h2 className="text-lg font-bold text-slate-800">
+             <h2 className="text-base font-bold text-slate-800">
                {/* Show Study Verse AI on Mobile or when Dashboard is active, otherwise show nav label */}
                {mode === AppMode.DASHBOARD ? 'SJ Tutor AI' : 
                 (navItems.find(n => n.id === mode)?.label || 'SJ Tutor AI')}
              </h2>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {user && (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full">
-                <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
-                <span className="text-sm font-bold text-slate-700">{userProfile.credits}</span>
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full">
+                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                <span className="text-xs font-bold text-slate-700">{userProfile.credits}</span>
               </div>
             )}
           </div>
         </header>
 
         {/* Content Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
-          <div className="max-w-6xl mx-auto">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
+          <div className="max-w-5xl mx-auto">
              {renderContent()}
           </div>
         </div>

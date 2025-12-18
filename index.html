@@ -17,7 +17,7 @@
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Omio', 'Inter', 'sans-serif'],
+              sans: ['Inter', 'system-ui', 'sans-serif'],
             },
             colors: {
               primary: {
@@ -67,11 +67,11 @@
         background: transparent;
       }
       ::-webkit-scrollbar-thumb {
-        background: #D4AF37;
+        background: #e2e8f0;
         border-radius: 10px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #B7950B;
+        background: #cbd5e1;
       }
       body {
         background-color: #FFFAF0; /* Warm Floral White for Premium Gold Theme */
@@ -86,30 +86,32 @@
       
       /* Premium Markdown Styles */
       .markdown-body p {
-        margin-bottom: 1.2rem;
-        line-height: 1.8;
+        margin-bottom: 0.8rem;
+        line-height: 1.6;
         color: #4a5568;
       }
       .markdown-body h1, .markdown-body h2, .markdown-body h3 {
         font-weight: 700;
-        margin-top: 2rem;
-        margin-bottom: 1rem;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
         color: #1a202c;
-        letter-spacing: -0.025em;
+        letter-spacing: -0.015em;
       }
-      .markdown-body h1 { font-size: 1.75rem; border-bottom: 2px solid #FDF5E6; padding-bottom: 0.5rem; }
-      .markdown-body h2 { font-size: 1.4rem; color: #B7950B; }
+      .markdown-body h1 { font-size: 1.5rem; border-bottom: 2px solid #FDF5E6; padding-bottom: 0.5rem; }
+      .markdown-body h2 { font-size: 1.25rem; color: #B7950B; }
+      .markdown-body h3 { font-size: 1.1rem; }
       .markdown-body strong { color: #2d3748; font-weight: 700; }
-      .markdown-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
-      .markdown-body ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+      .markdown-body ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.75rem; }
+      .markdown-body ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.75rem; }
       .markdown-body blockquote {
-        border-left: 4px solid #D4AF37;
-        padding-left: 1rem;
+        border-left: 3px solid #D4AF37;
+        padding-left: 0.75rem;
         font-style: italic;
         color: #718096;
         background: #FFFAF0;
-        padding: 1rem;
-        border-radius: 0 8px 8px 0;
+        padding: 0.75rem;
+        border-radius: 0 6px 6px 0;
+        margin-bottom: 1rem;
       }
     </style>
   <script type="importmap">

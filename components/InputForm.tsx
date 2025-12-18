@@ -33,53 +33,53 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
     placeholder: string
   ) => (
     <div className="space-y-1">
-      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">{label}</label>
+      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{label}</label>
       <div className="relative group">
-        <Icon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+        <Icon className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
         <input
           type="text"
           value={data[field] as string}
           onChange={(e) => onChange(field, e.target.value)}
           disabled={disabled}
           placeholder={placeholder}
-          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-60 text-slate-900"
+          className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm"
         />
       </div>
     </div>
   );
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6 relative overflow-hidden">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-5 relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute top-0 right-0 w-32 h-32 bg-primary-50 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
 
-      <div className="flex justify-between items-center mb-6 relative z-10">
-        <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-primary-600" />
+      <div className="flex justify-between items-center mb-5 relative z-10">
+        <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-primary-600" />
           Study Details
         </h2>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 rounded-full border border-amber-100 text-xs font-semibold">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full border border-amber-100 text-[10px] font-bold uppercase tracking-wide">
             <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
-            Est. Cost: {cost} Credits
+            Cost: {cost} Credits
           </div>
           
           {onFillSample && (
             <button
               onClick={onFillSample}
               disabled={disabled}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-100 rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-100 rounded-full transition-all hover:scale-105 active:scale-95 disabled:opacity-50 uppercase tracking-wide"
               title="Fill with sample data"
             >
-              <Sparkles className="w-3.5 h-3.5 fill-primary-400 text-primary-600" />
+              <Sparkles className="w-3 h-3 fill-primary-400 text-primary-600" />
               Try Example
             </button>
           )}
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 relative z-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-4 mb-2 relative z-10">
         {renderInput("Subject", "subject", BookType, "e.g. History")}
         {renderInput("Class / Grade", "gradeClass", GraduationCap, "e.g. 10th Grade")}
         {renderInput("Board", "board", School, "e.g. CBSE")}
@@ -91,9 +91,9 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
         {mode === AppMode.QUIZ && (
           <>
             <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">No. of Questions</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">No. of Questions</label>
               <div className="relative">
-                <HelpCircle className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                <HelpCircle className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                 <input
                   type="number"
                   value={data.questionCount || ''}
@@ -105,20 +105,20 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
                   min="1"
                   max="50"
                   placeholder="e.g. 10"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-60 text-slate-900"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm"
                 />
               </div>
             </div>
 
             <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Difficulty</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Difficulty</label>
               <div className="relative">
-                <BarChart className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                <BarChart className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                 <select
                   value={data.difficulty}
                   onChange={(e) => onChange('difficulty', e.target.value as DifficultyLevel)}
                   disabled={disabled}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-60 appearance-none text-slate-900"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 appearance-none text-slate-900 text-sm"
                 >
                   <option value="Easy">Easy</option>
                   <option value="Medium">Medium</option>
