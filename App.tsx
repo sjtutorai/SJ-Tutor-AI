@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile } from './types';
 import InputForm from './components/InputForm';
@@ -10,6 +9,7 @@ import Auth from './components/Auth';
 import PremiumModal from './components/PremiumModal';
 import LoadingState from './components/LoadingState'; 
 import NotesView from './components/NotesView';
+import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
@@ -94,10 +94,10 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check API Key immediately (using required process.env.API_KEY)
+  // Check API Key immediately (using required process.env.GEMINI_API_KEY)
   useEffect(() => {
-    if (!process.env.API_KEY) {
-      console.warn("API_KEY is missing in environment variables!");
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn("GEMINI_API_KEY is missing in environment variables!");
       setApiKeyMissing(true);
     }
   }, []);
@@ -309,9 +309,9 @@ const App: React.FC = () => {
       return;
     }
     
-    // Check required process.env.API_KEY before attempting generation
-    if (!process.env.API_KEY) {
-      setError("Configuration Error: API_KEY is missing. Please check your environment variables.");
+    // Check required process.env.GEMINI_API_KEY before attempting generation
+    if (!process.env.GEMINI_API_KEY) {
+      setError("Configuration Error: GEMINI_API_KEY is missing. Please check your environment variables.");
       return;
     }
 
@@ -388,8 +388,8 @@ const App: React.FC = () => {
       // Handle known error patterns
       if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
         errorMessage = "API_DISABLED";
-      } else if (errorMessage.includes("API key not valid") || errorMessage.includes("API_KEY_INVALID")) {
-        errorMessage = "API_KEY_INVALID_ERROR";
+      } else if (errorMessage.includes("API key not valid") || errorMessage.includes("GEMINI_API_KEY_INVALID")) {
+        errorMessage = "GEMINI_API_KEY_INVALID_ERROR";
       }
 
       setError(errorMessage);
@@ -513,7 +513,7 @@ const App: React.FC = () => {
                   setMode(dashboardView);
                   setDashboardView('OVERVIEW');
                 }}
-                className="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 text-sm"
+                className="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 shadow-primary-500/20 text-sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create New {getSingularName(dashboardView)}
@@ -570,16 +570,16 @@ const App: React.FC = () => {
         <div className="absolute -bottom-8 left-20 w-72 h-72 bg-primary-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
 
         <div className="relative z-10 space-y-6">
-          {/* API Key Warning (using required process.env.API_KEY) */}
+          {/* API Key Warning (using required process.env.GEMINI_API_KEY) */}
           {apiKeyMissing && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-4 shadow-sm">
               <div className="bg-red-100 p-1.5 rounded-full">
                 <Key className="w-4 h-4 text-red-600" />
               </div>
               <div>
-                <h4 className="font-bold text-red-800 text-sm">API Key Missing</h4>
+                <h4 className="font-bold text-red-800 text-sm">GEMINI_API_KEY Missing</h4>
                 <p className="text-xs text-red-600 mt-0.5">
-                  The AI features will not work because the <code>API_KEY</code> environment variable is missing. 
+                  The AI features will not work because the <code>GEMINI_API_KEY</code> environment variable is missing. 
                 </p>
               </div>
             </div>
@@ -761,7 +761,7 @@ const App: React.FC = () => {
           );
        } 
        
-       if (error === "API_KEY_INVALID_ERROR") {
+       if (error === "GEMINI_API_KEY_INVALID_ERROR") {
           return (
             <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
               <div className="flex items-center gap-3">
@@ -769,12 +769,12 @@ const App: React.FC = () => {
                   <Key className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base">Invalid API Key</h3>
-                  <p className="text-sm text-amber-800">The API Key provided is not valid.</p>
+                  <h3 className="font-bold text-base">Invalid GEMINI API Key</h3>
+                  <p className="text-sm text-amber-800">The GEMINI API Key provided is not valid.</p>
                 </div>
               </div>
               <div className="pl-12">
-                <p className="text-xs">Please verify your <code>API_KEY</code> in the environment variables (<code>.env</code> file) matches your Google AI Studio key.</p>
+                <p className="text-xs">Please verify your <code>GEMINI_API_KEY</code> in the environment variables (<code>.env</code> file) matches your Google AI Studio key.</p>
               </div>
             </div>
           );
