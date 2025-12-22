@@ -52,9 +52,9 @@ export const GeminiService = {
       ${data.author ? `Author: ${data.author}` : ''}
     `;
 
-    // Using gemini-3-pro-preview for complex text generation tasks as recommended
+    // Switched to gemini-3-flash-preview to avoid 'Resource Exhausted' (429) errors common with the Pro model on free tier
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         systemInstruction: "You are an academic essay writer. Maintain a formal and educational tone.",

@@ -386,7 +386,9 @@ const App: React.FC = () => {
       }
       
       // Handle known error patterns
-      if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
+      if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
+        errorMessage = "QUOTA_EXHAUSTED";
+      } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
         errorMessage = "API_DISABLED";
       } else if (errorMessage.includes("API key not valid") || errorMessage.includes("GEMINI_API_KEY_INVALID")) {
         errorMessage = "GEMINI_API_KEY_INVALID_ERROR";
@@ -732,6 +734,25 @@ const App: React.FC = () => {
     const showInputForm = !hasResult && !(mode === AppMode.QUIZ && existingQuizScore !== undefined);
 
     const renderError = () => {
+       if (error === "QUOTA_EXHAUSTED") {
+          return (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 rounded-full">
+                  <AlertCircle className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Daily Quota Reached</h3>
+                  <p className="text-sm text-amber-800">You've reached the free daily limit for this AI model. Google limits the number of free requests per day.</p>
+                </div>
+              </div>
+              <div className="pl-12">
+                <p className="text-xs">Please try again in a few minutes or tomorrow. Alternatively, switching subjects or being more specific in your inputs might help.</p>
+              </div>
+            </div>
+          );
+       }
+       
        if (error === "API_DISABLED") {
           return (
             <div className="bg-red-50 border border-red-200 text-red-800 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
