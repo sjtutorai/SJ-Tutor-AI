@@ -51,7 +51,12 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       }
     } catch (err: any) {
       console.error(err);
-      setError("Failed to sign in with GitHub. Please try again.");
+      // Handle "account-exists-with-different-credential" specifically if needed
+      if (err.code === 'auth/account-exists-with-different-credential') {
+        setError("An account already exists with the same email but different sign-in credentials. Please use Google or Email.");
+      } else {
+        setError("Failed to sign in with GitHub. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -83,7 +88,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
         if (onSignUpSuccess) {
           onSignUpSuccess();
         }
-        // Don't close immediately on signup so onboarding can happen (handled by parent)
       }
     } catch (err: any) {
       const firebaseError = err as { code: string; message: string };
