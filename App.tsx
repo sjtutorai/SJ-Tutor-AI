@@ -95,11 +95,10 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Initial Boot Logging
+  // Check API Key immediately (using required process.env.GEMINI_API_KEY)
   useEffect(() => {
-    console.log("[App] Initializing SJ Tutor AI...");
-    if (!process.env.API_KEY) {
-      console.warn("[App] API_KEY is missing in environment variables!");
+    if (!process.env.GEMINI_API_KEY) {
+      console.warn("GEMINI_API_KEY is missing in environment variables!");
       setApiKeyMissing(true);
     }
   }, []);
@@ -108,7 +107,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleSignInLink = async () => {
       if (isSignInWithEmailLink(auth, window.location.href)) {
-        console.log("[App] Magic link detected in URL. Finishing sign-in...");
         let email = window.localStorage.getItem('emailForSignIn');
         if (!email) {
           email = window.prompt('Please provide your email for confirmation');
@@ -118,11 +116,11 @@ const App: React.FC = () => {
             setAuthLoading(true);
             await signInWithEmailLink(auth, email, window.location.href);
             window.localStorage.removeItem('emailForSignIn');
-            console.log("[App] Magic link sign-in successful.");
+            // Remove the link from the URL
             window.history.replaceState({}, document.title, window.location.pathname);
           } catch (err: any) {
-            console.error("[App] Magic link sign-in error:", err);
-            setError("Failed to complete magic link sign-in. The link may have expired or was already used.");
+            console.error("Magic link sign-in error:", err);
+            setError("Failed to complete magic link sign-in. The link may have expired.");
           } finally {
             setAuthLoading(false);
           }
@@ -136,13 +134,11 @@ const App: React.FC = () => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (authLoading) {
-        console.warn("[App] Auth listener took too long. Forcing load state...");
         setAuthLoading(false);
       }
     }, 4000);
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      console.log("[App] Auth State Changed:", currentUser ? `Logged in as ${currentUser.uid}` : "Logged out");
       setUser(currentUser);
       setAuthLoading(false);
       clearTimeout(timeoutId);
@@ -153,7 +149,7 @@ const App: React.FC = () => {
         setMode(AppMode.DASHBOARD);
       }
     }, (err) => {
-      console.error("[App] Auth Listener Error:", err);
+      console.error("Auth Error:", err);
       setAuthLoading(false);
       clearTimeout(timeoutId);
     });
@@ -167,7 +163,6 @@ const App: React.FC = () => {
   // Profile Persistence Listener
   useEffect(() => {
     if (user) {
-      console.log("[App] Loading profile for user:", user.uid);
       const savedProfile = localStorage.getItem(`profile_${user.uid}`);
       if (savedProfile) {
         try {
@@ -179,7 +174,7 @@ const App: React.FC = () => {
             photoURL: parsed.photoURL || user.photoURL || '' 
           }));
         } catch (e) {
-          console.error("[App] Failed to parse saved profile", e);
+          console.error("Failed to parse profile", e);
         }
       } else {
         setUserProfile({
@@ -195,7 +190,6 @@ const App: React.FC = () => {
   // History Persistence: Load Logic
   useEffect(() => {
     const storageKey = user ? `history_${user.uid}` : 'history_guest';
-    console.log("[App] Loading history from key:", storageKey);
     const savedHistory = localStorage.getItem(storageKey);
     if (savedHistory) {
       try {
@@ -204,7 +198,6 @@ const App: React.FC = () => {
           setHistory(parsedHistory);
         }
       } catch (e) {
-        console.error("[App] Failed to parse history", e);
         setHistory([]);
       }
     } else {
@@ -214,14 +207,22 @@ const App: React.FC = () => {
 
   // History Persistence: Save Logic
   useEffect(() => {
-    if (history.length > 0) {
-      const storageKey = user ? `history_${user.uid}` : 'history_guest';
-      localStorage.setItem(storageKey, JSON.stringify(history));
-    }
+    const storageKey = user ? `history_${user.uid}` : 'history_guest';
+    localStorage.setItem(storageKey, JSON.stringify(history));
   }, [history, user]);
 
+  // Close sidebar on mode change for mobile
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const handleProfileSave = (newProfile: UserProfile, redirectDashboard = false) => {
-    console.log("[App] Saving updated profile...");
     setUserProfile(newProfile);
     if (user) {
       localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
@@ -236,14 +237,12 @@ const App: React.FC = () => {
   };
 
   const handleSignUpSuccess = () => {
-    console.log("[App] Sign up detected as success.");
     setIsNewUser(true);
     setUserProfile(initialProfileState);
     setShowAuthModal(false);
   };
 
   const handlePaymentSuccess = (creditsToAdd: number, planName: 'STARTER' | 'SCHOLAR' | 'ACHIEVER') => {
-    console.log("[App] Payment success! Plan:", planName, "Credits:", creditsToAdd);
     const planTypeMap: Record<string, 'Starter' | 'Scholar' | 'Achiever'> = {
       'STARTER': 'Starter',
       'SCHOLAR': 'Scholar',
@@ -262,7 +261,6 @@ const App: React.FC = () => {
   };
 
   const handleFillSample = () => {
-    console.log("[App] Filling form with sample data.");
     setFormData(SAMPLE_DATA);
   };
 
@@ -277,7 +275,6 @@ const App: React.FC = () => {
 
   const addToHistory = (type: AppMode, content: any) => {
     const newId = Date.now().toString();
-    console.log("[App] Adding item to history. ID:", newId);
     const newItem: HistoryItem = {
       id: newId,
       type,
@@ -292,7 +289,6 @@ const App: React.FC = () => {
   };
 
   const handleQuizComplete = (score: number) => {
-    console.log("[App] Quiz completed. Final score:", score);
     if (currentHistoryId) {
       setHistory(prev => prev.map(item => 
         item.id === currentHistoryId ? { ...item, score } : item
@@ -300,38 +296,35 @@ const App: React.FC = () => {
     }
   };
 
+  const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
+    if (targetMode === AppMode.SUMMARY) return 10;
+    if (targetMode === AppMode.ESSAY) {
+      return data.includeImages ? 15 : 10;
+    }
+    if (targetMode === AppMode.QUIZ) {
+      let cost = 10;
+      const qCount = data.questionCount || 5;
+      cost += Math.ceil(qCount / 2); 
+      if (data.difficulty === 'Hard') cost += 5; 
+      return cost;
+    }
+    return 0;
+  };
+
   const deductCredit = (amount: number) => {
     if (userProfile.credits >= amount) {
-      console.log("[App] Deducting credits:", amount);
       const updatedProfile = { ...userProfile, credits: userProfile.credits - amount };
       handleProfileSave(updatedProfile, false);
       return true;
     }
-    console.warn("[App] Credit deduction failed: insufficient balance.");
     return false;
   };
 
   const handleGenerate = async () => {
-    console.log("[App] Initiating content generation for mode:", mode);
     if (!user) {
       setShowAuthModal(true);
       return;
     }
-
-    const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
-      if (targetMode === AppMode.SUMMARY) return 10;
-      if (targetMode === AppMode.ESSAY) {
-        return data.includeImages ? 15 : 10;
-      }
-      if (targetMode === AppMode.QUIZ) {
-        let cost = 10;
-        const qCount = data.questionCount || 5;
-        cost += Math.ceil(qCount / 2); 
-        if (data.difficulty === 'Hard') cost += 5; 
-        return cost;
-      }
-      return 0;
-    };
 
     const cost = calculateCost(mode, formData);
     if (userProfile.credits < cost) {
@@ -339,8 +332,8 @@ const App: React.FC = () => {
       return;
     }
     
-    if (!process.env.API_KEY) {
-      setError("Configuration Error: API_KEY is missing.");
+    if (!process.env.GEMINI_API_KEY) {
+      setError("Configuration Error: GEMINI_API_KEY is missing. Please check your environment variables.");
       return;
     }
 
@@ -399,7 +392,8 @@ const App: React.FC = () => {
         deductCredit(cost);
       }
     } catch (err: any) {
-      console.error("[App] Generation failed:", err);
+      console.error(err);
+      
       let errorMessage = err.message || "Failed to generate content. Please check your inputs and try again.";
 
       try {
@@ -413,8 +407,8 @@ const App: React.FC = () => {
         errorMessage = "QUOTA_EXHAUSTED";
       } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
         errorMessage = "API_DISABLED";
-      } else if (errorMessage.includes("API key not valid")) {
-        errorMessage = "API_KEY_INVALID_ERROR";
+      } else if (errorMessage.includes("API key not valid") || errorMessage.includes("GEMINI_API_KEY_INVALID")) {
+        errorMessage = "GEMINI_API_KEY_INVALID_ERROR";
       }
 
       setError(errorMessage);
@@ -424,7 +418,6 @@ const App: React.FC = () => {
   };
 
   const loadHistoryItem = (item: HistoryItem) => {
-    console.log("[App] Loading history item:", item.id);
     if (item.formData) {
       setFormData(item.formData);
     }
@@ -447,12 +440,11 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      console.log("[App] Signing out user...");
       await signOut(auth);
       setMode(AppMode.DASHBOARD);
       setDashboardView('OVERVIEW');
     } catch (error) {
-      console.error("[App] Error signing out:", error);
+      console.error("Error signing out:", error);
     }
   };
 
@@ -599,9 +591,9 @@ const App: React.FC = () => {
                 <Key className="w-4 h-4 text-red-600" />
               </div>
               <div>
-                <h4 className="font-bold text-red-800 text-sm">API_KEY Missing</h4>
+                <h4 className="font-bold text-red-800 text-sm">GEMINI_API_KEY Missing</h4>
                 <p className="text-xs text-red-600 mt-0.5">
-                  The AI features will not work because the <code>API_KEY</code> environment variable is missing. 
+                  The AI features will not work because the <code>GEMINI_API_KEY</code> environment variable is missing. 
                 </p>
               </div>
             </div>
@@ -941,12 +933,12 @@ const App: React.FC = () => {
                     {userProfile.photoURL ? (
                       <img src={userProfile.photoURL} alt="User" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="font-bold text-primary-700 text-[10px]">{(userProfile.displayName || user.email || user.phoneNumber || 'U').charAt(0).toUpperCase()}</span>
+                      <span className="font-bold text-primary-700 text-[10px]">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
                     )}
                   </div>
                   <div className="flex-1 text-left overflow-hidden text-xs">
                     <p className="font-medium truncate">{userProfile.displayName || 'Scholar'}</p>
-                    <p className="text-[10px] text-slate-400 truncate">{user.email || user.phoneNumber}</p>
+                    <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
                   </div>
                 </button>
                 <button 
