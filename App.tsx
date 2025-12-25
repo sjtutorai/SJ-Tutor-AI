@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile } from './types';
 import InputForm from './components/InputForm';
@@ -13,7 +12,7 @@ import NotesView from './components/NotesView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { auth } from './firebaseConfig';
-import { onAuthStateChanged, User, signOut, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { 
   BookOpen, 
   FileText, 
@@ -103,37 +102,12 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Handle Magic Link Completion
-  useEffect(() => {
-    const handleSignInLink = async () => {
-      if (isSignInWithEmailLink(auth, window.location.href)) {
-        let email = window.localStorage.getItem('emailForSignIn');
-        if (!email) {
-          email = window.prompt('Please provide your email for confirmation');
-        }
-        if (email) {
-          try {
-            setAuthLoading(true);
-            await signInWithEmailLink(auth, email, window.location.href);
-            window.localStorage.removeItem('emailForSignIn');
-            // Remove the link from the URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-          } catch (err: any) {
-            console.error("Magic link sign-in error:", err);
-            setError("Failed to complete magic link sign-in. The link may have expired.");
-          } finally {
-            setAuthLoading(false);
-          }
-        }
-      }
-    };
-    handleSignInLink();
-  }, []);
-
   // Auth Listener with Safety Timeout
   useEffect(() => {
+    // Safety timeout: If Firebase is blocked or slow, stop loading after 4 seconds
     const timeoutId = setTimeout(() => {
       if (authLoading) {
+        console.warn("Auth check timed out, defaulting to guest.");
         setAuthLoading(false);
       }
     }, 4000);
@@ -141,16 +115,16 @@ const App: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId); // Clear timeout on success
       
       if (!currentUser) {
         setIsNewUser(false);
         setUserProfile(initialProfileState);
-        setMode(AppMode.DASHBOARD);
+        setMode(AppMode.DASHBOARD); // Reset to dashboard if logged out
       }
     }, (err) => {
       console.error("Auth Error:", err);
-      setAuthLoading(false);
+      setAuthLoading(false); // Stop loading on error
       clearTimeout(timeoutId);
     });
 
@@ -302,9 +276,11 @@ const App: React.FC = () => {
       return data.includeImages ? 15 : 10;
     }
     if (targetMode === AppMode.QUIZ) {
-      let cost = 10;
+      let cost = 10; // Base cost
       const qCount = data.questionCount || 5;
+      // 2 questions = 1 credit
       cost += Math.ceil(qCount / 2); 
+      // Difficulty increase (Hard) = 5 credits
       if (data.difficulty === 'Hard') cost += 5; 
       return cost;
     }
@@ -314,6 +290,7 @@ const App: React.FC = () => {
   const deductCredit = (amount: number) => {
     if (userProfile.credits >= amount) {
       const updatedProfile = { ...userProfile, credits: userProfile.credits - amount };
+      // Pass false to prevent redirect
       handleProfileSave(updatedProfile, false);
       return true;
     }
@@ -332,6 +309,7 @@ const App: React.FC = () => {
       return;
     }
     
+    // Check required process.env.GEMINI_API_KEY before attempting generation
     if (!process.env.GEMINI_API_KEY) {
       setError("Configuration Error: GEMINI_API_KEY is missing. Please check your environment variables.");
       return;
@@ -373,6 +351,7 @@ const App: React.FC = () => {
             }
         }
 
+        // If user wants images, generate and append them after text is ready
         if (formData.includeImages) {
           const imageBase64 = await GeminiService.generateImage(`${formData.chapterName} - ${formData.subject}`);
           if (imageBase64) {
@@ -396,13 +375,17 @@ const App: React.FC = () => {
       
       let errorMessage = err.message || "Failed to generate content. Please check your inputs and try again.";
 
+      // Try to parse JSON error message if it looks like one
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) {
             errorMessage = parsed.error.message;
          }
-      } catch (e) {}
+      } catch (e) {
+         // Not valid JSON, stick with original string
+      }
       
+      // Handle known error patterns
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
       } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
@@ -448,6 +431,7 @@ const App: React.FC = () => {
     }
   };
 
+  // Nav Items Configuration
   const navItems = [
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: AppMode.SUMMARY, label: 'Summary Generator', icon: FileText },
@@ -458,6 +442,7 @@ const App: React.FC = () => {
   ];
 
   const renderDashboard = () => {
+    // Determine the count for Notes locally
     const noteCount = (() => {
        try {
          const key = user ? `notes_${user.uid}` : 'notes_guest';
@@ -530,7 +515,7 @@ const App: React.FC = () => {
                   setMode(dashboardView);
                   setDashboardView('OVERVIEW');
                 }}
-                className="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 text-sm"
+                className="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 shadow-primary-500/20 text-sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create New {getSingularName(dashboardView)}
@@ -578,13 +563,16 @@ const App: React.FC = () => {
       );
     }
 
+    // DASHBOARD OVERVIEW
     return (
       <div className="relative min-h-[500px]">
+        {/* Floating Background Blobs */}
         <div className="absolute top-0 -left-4 w-72 h-72 bg-primary-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute top-0 -right-4 w-72 h-72 bg-amber-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
         <div className="absolute -bottom-8 left-20 w-72 h-72 bg-primary-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
 
         <div className="relative z-10 space-y-6">
+          {/* API Key Warning (using required process.env.GEMINI_API_KEY) */}
           {apiKeyMissing && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-4 shadow-sm">
               <div className="bg-red-100 p-1.5 rounded-full">
@@ -599,6 +587,7 @@ const App: React.FC = () => {
             </div>
           )}
 
+          {/* Welcome Card with Avatar */}
           <div className="animate-fade-in-up bg-white/70 backdrop-blur-xl border border-white/50 rounded-2xl p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden relative group hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-500">
               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary-100/40 to-transparent rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-110 transition-transform duration-700"></div>
               
@@ -646,6 +635,7 @@ const App: React.FC = () => {
                     )}
                 </div>
                 
+                {/* Avatar Display */}
                 <div className="relative w-40 h-40 md:w-56 md:h-56 flex-shrink-0 animate-blob">
                      <div className="absolute inset-0 bg-primary-200 rounded-full blur-2xl opacity-50"></div>
                      <img 
@@ -657,6 +647,7 @@ const App: React.FC = () => {
               </div>
           </div>
 
+          {/* Stats List (Vertical) */}
           <div className="flex flex-col gap-3">
             <h3 className="text-base font-bold text-slate-700 ml-1">Quick Actions</h3>
             {dashboardCards.map((stat, idx) => (
@@ -727,16 +718,19 @@ const App: React.FC = () => {
       return <TutorChat onDeductCredit={deductCredit} currentCredits={userProfile.credits} />;
     }
 
+    // Loading View
     if (loading) {
       return <LoadingState mode={mode} />;
     }
 
+    // Check if we have generated content
     const hasResult = (mode === AppMode.SUMMARY && summaryContent) ||
                       (mode === AppMode.ESSAY && essayContent) ||
                       (mode === AppMode.QUIZ && quizData);
 
     const showEmptyState = !loading && !hasResult;
 
+    // Hide input form if we have a result or if viewing a history quiz
     const showInputForm = !hasResult && !(mode === AppMode.QUIZ && existingQuizScore !== undefined);
 
     const renderError = () => {
@@ -749,10 +743,12 @@ const App: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-base">Daily Quota Reached</h3>
-                  <p className="text-sm text-amber-800">You've reached the free daily limit for this AI model.</p>
+                  <p className="text-sm text-amber-800">You've reached the free daily limit for this AI model. Google limits the number of free requests per day.</p>
                 </div>
               </div>
-              <div className="pl-12 text-xs">Please try again in a few minutes or tomorrow.</div>
+              <div className="pl-12">
+                <p className="text-xs">Please try again in a few minutes or tomorrow. Alternatively, switching subjects or being more specific in your inputs might help.</p>
+              </div>
             </div>
           );
        }
@@ -766,12 +762,44 @@ const App: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-base">API Not Enabled</h3>
-                  <p className="text-sm text-red-700">The Google Generative AI API is disabled.</p>
+                  <p className="text-sm text-red-700">The Google Generative AI API is disabled for your project.</p>
                 </div>
+              </div>
+              
+              <div className="pl-12">
+                <p className="text-xs mb-3">To fix this, you need to enable the API in the Google Cloud Console:</p>
+                <a 
+                  href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm hover:shadow-md text-sm"
+                >
+                  Enable Generative Language API
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
             </div>
           );
        } 
+       
+       if (error === "GEMINI_API_KEY_INVALID_ERROR") {
+          return (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 rounded-full">
+                  <Key className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">Invalid GEMINI API Key</h3>
+                  <p className="text-sm text-amber-800">The GEMINI API Key provided is not valid.</p>
+                </div>
+              </div>
+              <div className="pl-12">
+                <p className="text-xs">Please verify your <code>GEMINI_API_KEY</code> in the environment variables (<code>.env</code> file) matches your Google AI Studio key.</p>
+              </div>
+            </div>
+          );
+       }
 
        if (error) {
          return (
@@ -807,7 +835,8 @@ const App: React.FC = () => {
              <p className="text-slate-500 mb-6 max-w-md mx-auto text-sm">
                Enter your study details above and I'll generate your personalized content immediately.
              </p>
-             <button 
+             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+               <button 
                 type="button"
                 onClick={handleGenerate}
                 className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-bold transition-colors shadow-lg shadow-primary-500/25 flex items-center gap-2 text-sm"
@@ -815,6 +844,7 @@ const App: React.FC = () => {
                  <Sparkles className="w-4 h-4" />
                  Generate Now
                </button>
+             </div>
           </div>
         )}
 
@@ -865,6 +895,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FFFAF0] font-sans selection:bg-primary-100 selection:text-primary-900 flex">
+      {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
@@ -872,6 +903,7 @@ const App: React.FC = () => {
         ></div>
       )}
 
+      {/* Sidebar */}
       <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
         <div className="h-full flex flex-col">
           <div className="p-5 border-b border-slate-100">
@@ -894,9 +926,10 @@ const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => {
+                    // Auth Check for nav items except Dashboard
                     if (item.id !== AppMode.DASHBOARD && !user) {
                       setShowAuthModal(true);
-                      setIsSidebarOpen(false);
+                      setIsSidebarOpen(false); // Close sidebar on mobile
                     } else {
                       setMode(item.id);
                       setDashboardView('OVERVIEW');
@@ -917,6 +950,11 @@ const App: React.FC = () => {
                 >
                   <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
                   {item.label}
+                  {!user && item.id !== AppMode.DASHBOARD && (
+                     <div className="ml-auto">
+                        <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
+                     </div>
+                  )}
                 </button>
               );
             })}
@@ -936,8 +974,8 @@ const App: React.FC = () => {
                       <span className="font-bold text-primary-700 text-[10px]">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
                     )}
                   </div>
-                  <div className="flex-1 text-left overflow-hidden text-xs">
-                    <p className="font-medium truncate">{userProfile.displayName || 'Scholar'}</p>
+                  <div className="flex-1 text-left overflow-hidden">
+                    <p className="text-xs font-medium truncate">{userProfile.displayName || 'Scholar'}</p>
                     <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
                   </div>
                 </button>
@@ -971,7 +1009,9 @@ const App: React.FC = () => {
         </div>
       </aside>
 
+      {/* Main Content */}
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+        {/* Header */}
         <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
           <div className="flex items-center gap-3">
              <button 
@@ -996,6 +1036,7 @@ const App: React.FC = () => {
           </div>
         </header>
 
+        {/* Content Scroll Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
           <div className="max-w-5xl mx-auto">
              {renderContent()}
@@ -1003,6 +1044,7 @@ const App: React.FC = () => {
         </div>
       </main>
 
+      {/* Modals */}
       {showAuthModal && (
         <Auth 
           onClose={() => setShowAuthModal(false)} 

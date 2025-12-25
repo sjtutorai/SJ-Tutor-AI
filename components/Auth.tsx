@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { auth, googleProvider, githubProvider } from '../firebaseConfig';
-import { sendSignInLinkToEmail, signInWithPopup, getAdditionalUserInfo } from 'firebase/auth';
-import { ArrowRight, Loader2, Mail, X, Github, Sparkles, CheckCircle } from 'lucide-react';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, getAdditionalUserInfo } from 'firebase/auth';
+import { ArrowRight, Loader2, Mail, Lock, X, Github } from 'lucide-react';
 import { SJTUTOR_AVATAR } from '../App';
 
 interface AuthProps {
@@ -13,9 +13,9 @@ interface AuthProps {
 const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [linkSent, setLinkSent] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
@@ -51,8 +51,9 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       }
     } catch (err: any) {
       console.error(err);
+      // Handle "account-exists-with-different-credential" specifically if needed
       if (err.code === 'auth/account-exists-with-different-credential') {
-        setError("An account already exists with the same email but different sign-in credentials. Please use Google.");
+        setError("An account already exists with the same email but different sign-in credentials. Please use Google or Email.");
       } else {
         setError("Failed to sign in with GitHub. Please try again.");
       }
@@ -66,44 +67,57 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
     setLoading(true);
     setError(null);
 
-    const actionCodeSettings = {
-      // Must point back to the app URL
-      url: window.location.origin,
-      handleCodeInApp: true,
-    };
+    // Domain Validation for Sign Up
+    if (!isLogin) {
+      const allowedDomains = ['@gmail.com', '@outlook.com', '@microsoft.com'];
+      const isValidDomain = allowedDomains.some(domain => email.toLowerCase().endsWith(domain));
+      
+      if (!isValidDomain) {
+        setError("Sign up is restricted to @gmail.com, @outlook.com, or @microsoft.com emails.");
+        setLoading(false);
+        return;
+      }
+    }
 
     try {
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', email);
-      setLinkSent(true);
+      if (isLogin) {
+        await signInWithEmailAndPassword(auth, email, password);
+        onClose(); // Close modal on successful login
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+        if (onSignUpSuccess) {
+          onSignUpSuccess();
+        }
+      }
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Failed to send magic link. Please check your email and try again.");
+      const firebaseError = err as { code: string; message: string };
+      let errorMessage = "An error occurred. Please try again.";
+      
+      switch (firebaseError.code) {
+        case 'auth/invalid-email':
+          errorMessage = "Invalid email address.";
+          break;
+        case 'auth/user-disabled':
+          errorMessage = "This account has been disabled.";
+          break;
+        case 'auth/user-not-found':
+          errorMessage = "No account found with this email.";
+          break;
+        case 'auth/wrong-password':
+          errorMessage = "Incorrect password.";
+          break;
+        case 'auth/email-already-in-use':
+          errorMessage = "Email is already in use.";
+          break;
+        case 'auth/weak-password':
+          errorMessage = "Password should be at least 6 characters.";
+          break;
+      }
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
-
-  if (linkSent) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
-        <div className="relative bg-white p-8 rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md text-center animate-in zoom-in duration-300">
-          <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-8 h-8 text-emerald-500" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Check Your Email!</h2>
-          <p className="text-slate-500 mb-6 text-sm">We've sent a magic link to <strong>{email}</strong>. Click the link in your inbox to sign in instantly.</p>
-          <button 
-            onClick={onClose}
-            className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -130,7 +144,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             {isLogin ? 'Welcome Back!' : 'Join SJ Tutor AI'}
           </h2>
           <p className="text-slate-500 mt-2 text-sm">
-            {isLogin ? 'Sign in with a secure magic link.' : 'Enter your email to create a passwordless account.'}
+            {isLogin ? 'Sign in to sync your progress.' : 'Create an account to start your AI learning journey.'}
           </p>
         </div>
 
@@ -140,13 +154,17 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             disabled={loading}
             className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-white border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-            </svg>
-            Continue with Google
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+              <>
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                Continue with Google
+              </>
+            )}
           </button>
 
           <button
@@ -154,8 +172,12 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             disabled={loading}
             className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-slate-900 border border-slate-800 rounded-xl font-semibold text-white hover:bg-slate-800 transition-all shadow-sm"
           >
-            <Github className="w-5 h-5" />
-            Continue with GitHub
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+              <>
+                <Github className="w-5 h-5" />
+                Continue with GitHub
+              </>
+            )}
           </button>
         </div>
 
@@ -195,14 +217,29 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Email</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+              <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-slate-900 text-sm"
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-slate-900"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Password</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-slate-900"
               />
             </div>
           </div>
@@ -215,14 +252,14 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
 
           <button
             type="submit"
-            disabled={loading || !email}
-            className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-bold shadow-lg shadow-primary-500/25 flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none mt-4 text-sm"
+            disabled={loading}
+            className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-bold shadow-lg shadow-primary-500/25 flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none mt-4"
           >
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                Send Magic Link
+                {isLogin ? 'Sign In' : 'Create Account'}
                 <ArrowRight className="w-5 h-5" />
               </>
             )}
@@ -231,7 +268,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
 
         <div className="mt-6 text-center">
           <p className="text-xs text-slate-400">
-            No password needed. Just click the link we send to your inbox.
+            By continuing, you agree to SJ Tutor AI's Terms of Service.
           </p>
         </div>
       </div>
