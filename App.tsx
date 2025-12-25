@@ -95,10 +95,10 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check API Key immediately (using required process.env.GEMINI_API_KEY)
+  // Check API Key immediately (using required process.env.API_KEY)
   useEffect(() => {
-    if (!process.env.GEMINI_API_KEY) {
-      console.warn("GEMINI_API_KEY is missing in environment variables!");
+    if (!process.env.API_KEY) {
+      console.warn("API_KEY is missing in environment variables!");
       setApiKeyMissing(true);
     }
   }, []);
@@ -120,7 +120,7 @@ const App: React.FC = () => {
             window.history.replaceState({}, document.title, window.location.pathname);
           } catch (err: any) {
             console.error("Magic link sign-in error:", err);
-            setError("Failed to complete magic link sign-in. The link may have expired.");
+            setError("Failed to complete magic link sign-in. The link may have expired or was already used.");
           } finally {
             setAuthLoading(false);
           }
@@ -296,21 +296,6 @@ const App: React.FC = () => {
     }
   };
 
-  const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
-    if (targetMode === AppMode.SUMMARY) return 10;
-    if (targetMode === AppMode.ESSAY) {
-      return data.includeImages ? 15 : 10;
-    }
-    if (targetMode === AppMode.QUIZ) {
-      let cost = 10;
-      const qCount = data.questionCount || 5;
-      cost += Math.ceil(qCount / 2); 
-      if (data.difficulty === 'Hard') cost += 5; 
-      return cost;
-    }
-    return 0;
-  };
-
   const deductCredit = (amount: number) => {
     if (userProfile.credits >= amount) {
       const updatedProfile = { ...userProfile, credits: userProfile.credits - amount };
@@ -326,14 +311,29 @@ const App: React.FC = () => {
       return;
     }
 
+    const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
+      if (targetMode === AppMode.SUMMARY) return 10;
+      if (targetMode === AppMode.ESSAY) {
+        return data.includeImages ? 15 : 10;
+      }
+      if (targetMode === AppMode.QUIZ) {
+        let cost = 10;
+        const qCount = data.questionCount || 5;
+        cost += Math.ceil(qCount / 2); 
+        if (data.difficulty === 'Hard') cost += 5; 
+        return cost;
+      }
+      return 0;
+    };
+
     const cost = calculateCost(mode, formData);
     if (userProfile.credits < cost) {
       setError(`Insufficient credits. This generation requires ${cost} credits, but you have ${userProfile.credits}. Upgrade to Premium for more.`);
       return;
     }
     
-    if (!process.env.GEMINI_API_KEY) {
-      setError("Configuration Error: GEMINI_API_KEY is missing. Please check your environment variables.");
+    if (!process.env.API_KEY) {
+      setError("Configuration Error: API_KEY is missing.");
       return;
     }
 
@@ -407,8 +407,8 @@ const App: React.FC = () => {
         errorMessage = "QUOTA_EXHAUSTED";
       } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
         errorMessage = "API_DISABLED";
-      } else if (errorMessage.includes("API key not valid") || errorMessage.includes("GEMINI_API_KEY_INVALID")) {
-        errorMessage = "GEMINI_API_KEY_INVALID_ERROR";
+      } else if (errorMessage.includes("API key not valid")) {
+        errorMessage = "API_KEY_INVALID_ERROR";
       }
 
       setError(errorMessage);
@@ -591,9 +591,9 @@ const App: React.FC = () => {
                 <Key className="w-4 h-4 text-red-600" />
               </div>
               <div>
-                <h4 className="font-bold text-red-800 text-sm">GEMINI_API_KEY Missing</h4>
+                <h4 className="font-bold text-red-800 text-sm">API_KEY Missing</h4>
                 <p className="text-xs text-red-600 mt-0.5">
-                  The AI features will not work because the <code>GEMINI_API_KEY</code> environment variable is missing. 
+                  The AI features will not work because the <code>API_KEY</code> environment variable is missing. 
                 </p>
               </div>
             </div>

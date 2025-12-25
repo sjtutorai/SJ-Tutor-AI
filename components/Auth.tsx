@@ -67,8 +67,8 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
     setError(null);
 
     const actionCodeSettings = {
-      // Must point back to the app URL
-      url: window.location.origin,
+      // Use full URL to handle subpaths or specific routing
+      url: window.location.href.split('?')[0].split('#')[0],
       handleCodeInApp: true,
     };
 
@@ -86,7 +86,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
 
   if (linkSent) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
         <div className="relative bg-white p-8 rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md text-center animate-in zoom-in duration-300">
           <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -106,7 +106,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry } from "../types";
 
@@ -9,8 +10,7 @@ export const GeminiService = {
    * Generates a summary for a specific chapter.
    */
   generateSummaryStream: async (data: StudyRequestData) => {
-    // Correctly initialize GoogleGenAI with the required process.env.GEMINI_API_KEY as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `
       Create a comprehensive, structured summary for the following study material.
       Use clear headings, bullet points for key concepts, and a bold conclusion.
@@ -38,8 +38,7 @@ export const GeminiService = {
    * Generates an essay based on the chapter.
    */
   generateEssayStream: async (data: StudyRequestData) => {
-    // Correctly initialize GoogleGenAI with the required process.env.GEMINI_API_KEY as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `
       Write a detailed, academic essay based on the topics covered in this chapter.
       The essay should have a proper introduction, body paragraphs analyzing key themes, and a conclusion.
@@ -52,7 +51,6 @@ export const GeminiService = {
       ${data.author ? `Author: ${data.author}` : ''}
     `;
 
-    // Switched to gemini-3-flash-preview to avoid 'Resource Exhausted' (429) errors common with the Pro model on free tier
     const response = await ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -68,7 +66,7 @@ export const GeminiService = {
    * Generates a relevant image based on content description.
    */
   generateImage: async (promptText: string): Promise<string | null> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
       const response = await ai.models.generateContent({
@@ -98,8 +96,7 @@ export const GeminiService = {
    * Generates a quiz in JSON format.
    */
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
-    // Correctly initialize GoogleGenAI with the required process.env.GEMINI_API_KEY as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const count = data.questionCount || 5;
     const difficulty = data.difficulty || 'Medium';
 
@@ -158,8 +155,7 @@ export const GeminiService = {
    * Generates a study timetable.
    */
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
-    // Correctly initialize GoogleGenAI with the required process.env.GEMINI_API_KEY as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const today = new Date().toDateString();
     const prompt = `
       Current Date: ${today}.
@@ -220,8 +216,7 @@ export const GeminiService = {
    * Updates an existing study timetable based on user instructions.
    */
   updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
-    // Correctly initialize GoogleGenAI with the required process.env.GEMINI_API_KEY as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `
       You are an intelligent study planner.
       
@@ -284,8 +279,7 @@ export const GeminiService = {
    * Creates a chat session for the AI Tutor.
    */
   createTutorChat: () => {
-    // Correctly initialize GoogleGenAI with the required process.env.GEMINI_API_KEY as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
@@ -298,11 +292,9 @@ export const GeminiService = {
    * Analyzes a payment screenshot to verify the transaction.
    */
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
-    // Correctly initialize GoogleGenAI with the required process.env.GEMINI_API_KEY as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     
-    // Strict Verification Prompt
     const prompt = `
       Analyze this image. It is submitted as proof of payment for a subscription plan "${planName}".
       
