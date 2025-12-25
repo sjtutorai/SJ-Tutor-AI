@@ -11,6 +11,7 @@ interface AuthProps {
 }
 
 const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +52,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/account-exists-with-different-credential') {
-        setError("An account already exists with this email. Please use Google.");
+        setError("An account already exists with the same email but different sign-in credentials. Please use Google.");
       } else {
         setError("Failed to sign in with GitHub. Please try again.");
       }
@@ -60,20 +61,19 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
     }
   };
 
-  const handleMagicLinkSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     const actionCodeSettings = {
-      // Points back to the current app URL to handle the return link
-      url: window.location.href,
+      // Must point back to the app URL
+      url: window.location.origin,
       handleCodeInApp: true,
     };
 
     try {
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      // Save email for later confirmation on return
       window.localStorage.setItem('emailForSignIn', email);
       setLinkSent(true);
     } catch (err: any) {
@@ -93,12 +93,12 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             <CheckCircle className="w-8 h-8 text-emerald-500" />
           </div>
           <h2 className="text-2xl font-bold text-slate-800 mb-2">Check Your Email!</h2>
-          <p className="text-slate-500 mb-6">We've sent a magic link to <strong>{email}</strong>. Click the link in your inbox to sign in instantly.</p>
+          <p className="text-slate-500 mb-6 text-sm">We've sent a magic link to <strong>{email}</strong>. Click the link in your inbox to sign in instantly.</p>
           <button 
             onClick={onClose}
             className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
           >
-            Got it!
+            Close
           </button>
         </div>
       </div>
@@ -122,13 +122,15 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
           <X className="w-5 h-5" />
         </button>
 
-        <div className="mb-8 text-center">
+        <div className="mb-6 text-center">
           <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center shadow-xl shadow-primary-500/20 mx-auto mb-4 overflow-hidden border-4 border-white">
             <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-800">Passwordless Sign In</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-800">
+            {isLogin ? 'Welcome Back!' : 'Join SJ Tutor AI'}
+          </h2>
           <p className="text-slate-500 mt-2 text-sm">
-            Simple and secure. We'll send a magic link to your email to log you in instantly.
+            {isLogin ? 'Sign in with a secure magic link.' : 'Enter your email to create a passwordless account.'}
           </p>
         </div>
 
@@ -162,22 +164,45 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             <div className="w-full border-t border-slate-100"></div>
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white px-2 text-slate-400 font-bold tracking-wider">Or use email magic link</span>
+            <span className="bg-white px-2 text-slate-400 font-bold tracking-wider">Or continue with email</span>
           </div>
         </div>
 
-        <form onSubmit={handleMagicLinkSubmit} className="space-y-4">
+        <div className="flex gap-4 mb-6 bg-slate-50 p-1 rounded-xl">
+          <button
+            onClick={() => { setIsLogin(true); setError(null); }}
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+              isLogin 
+                ? 'bg-white text-primary-600 shadow-sm ring-1 ring-slate-200' 
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            Log In
+          </button>
+          <button
+            onClick={() => { setIsLogin(false); setError(null); }}
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+              !isLogin 
+                ? 'bg-white text-primary-600 shadow-sm ring-1 ring-slate-200' 
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            Sign Up
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Email Address</label>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Email</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+              <Mail className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition-all text-slate-900"
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-slate-900 text-sm"
               />
             </div>
           </div>
@@ -191,21 +216,24 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
           <button
             type="submit"
             disabled={loading || !email}
-            className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
+            className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-bold shadow-lg shadow-primary-500/25 flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none mt-4 text-sm"
           >
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                Send Magic Link <Sparkles className="w-4 h-4" />
+                Send Magic Link
+                <ArrowRight className="w-5 h-5" />
               </>
             )}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-[10px] text-slate-400 uppercase tracking-widest font-bold">
-          No Password. No Hassle. Just Learn.
-        </p>
+        <div className="mt-6 text-center">
+          <p className="text-xs text-slate-400">
+            No password needed. Just click the link we send to your inbox.
+          </p>
+        </div>
       </div>
     </div>
   );
