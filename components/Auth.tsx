@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { auth, googleProvider, githubProvider } from '../firebaseConfig';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, getAdditionalUserInfo } from 'firebase/auth';
-import { ArrowRight, Loader2, Mail, Lock, X, Github } from 'lucide-react';
+import { signInWithPopup, getAdditionalUserInfo, sendSignInLinkToEmail } from 'firebase/auth';
+import { ArrowRight, Loader2, Mail, X, Github, Sparkles, CheckCircle2 } from 'lucide-react';
 import { SJTUTOR_AVATAR } from '../App';
 
 interface AuthProps {
@@ -13,9 +12,9 @@ interface AuthProps {
 const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [linkSent, setLinkSent] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
@@ -51,9 +50,8 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       }
     } catch (err: any) {
       console.error(err);
-      // Handle "account-exists-with-different-credential" specifically if needed
       if (err.code === 'auth/account-exists-with-different-credential') {
-        setError("An account already exists with the same email but different sign-in credentials. Please use Google or Email.");
+        setError("An account already exists with the same email but different sign-in credentials. Please use Google or the Magic Link.");
       } else {
         setError("Failed to sign in with GitHub. Please try again.");
       }
@@ -67,7 +65,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
     setLoading(true);
     setError(null);
 
-    // Domain Validation for Sign Up
+    // Domain Validation for Sign Up (Retained from original)
     if (!isLogin) {
       const allowedDomains = ['@gmail.com', '@outlook.com', '@microsoft.com'];
       const isValidDomain = allowedDomains.some(domain => email.toLowerCase().endsWith(domain));
@@ -79,45 +77,45 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       }
     }
 
+    const actionCodeSettings = {
+      // URL you want to redirect back to. The domain (origin) must be whitelisted in Firebase.
+      url: window.location.origin,
+      handleCodeInApp: true,
+    };
+
     try {
-      if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
-        onClose(); // Close modal on successful login
-      } else {
-        await createUserWithEmailAndPassword(auth, email, password);
-        if (onSignUpSuccess) {
-          onSignUpSuccess();
-        }
-      }
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      // Save the email locally so the user doesn't have to re-enter it when they click the link
+      window.localStorage.setItem('emailForSignIn', email);
+      setLinkSent(true);
     } catch (err: any) {
-      const firebaseError = err as { code: string; message: string };
-      let errorMessage = "An error occurred. Please try again.";
-      
-      switch (firebaseError.code) {
-        case 'auth/invalid-email':
-          errorMessage = "Invalid email address.";
-          break;
-        case 'auth/user-disabled':
-          errorMessage = "This account has been disabled.";
-          break;
-        case 'auth/user-not-found':
-          errorMessage = "No account found with this email.";
-          break;
-        case 'auth/wrong-password':
-          errorMessage = "Incorrect password.";
-          break;
-        case 'auth/email-already-in-use':
-          errorMessage = "Email is already in use.";
-          break;
-        case 'auth/weak-password':
-          errorMessage = "Password should be at least 6 characters.";
-          break;
-      }
-      setError(errorMessage);
+      console.error(err);
+      setError(err.message || "Failed to send magic link. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (linkSent) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
+        <div className="relative bg-white p-8 rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md text-center animate-in fade-in zoom-in duration-300">
+          <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">Check your email!</h2>
+          <p className="text-slate-500 mb-6">We've sent a magic link to <span className="font-bold text-slate-700">{email}</span>. Click the link in your inbox to sign in instantly.</p>
+          <button 
+            onClick={onClose}
+            className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -144,7 +142,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             {isLogin ? 'Welcome Back!' : 'Join SJ Tutor AI'}
           </h2>
           <p className="text-slate-500 mt-2 text-sm">
-            {isLogin ? 'Sign in to sync your progress.' : 'Create an account to start your AI learning journey.'}
+            {isLogin ? 'Sign in securely with a magic link.' : 'Enter your email to create a passwordless account.'}
           </p>
         </div>
 
@@ -186,7 +184,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             <div className="w-full border-t border-slate-100"></div>
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-white px-2 text-slate-400 font-bold tracking-wider">Or continue with email</span>
+            <span className="bg-white px-2 text-slate-400 font-bold tracking-wider">Or Magic Link</span>
           </div>
         </div>
 
@@ -229,21 +227,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-slate-900"
-              />
-            </div>
-          </div>
-
           {error && (
             <div className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg border border-red-100">
               {error}
@@ -259,7 +242,8 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                {isLogin ? 'Sign In' : 'Create Account'}
+                <Sparkles className="w-5 h-5" />
+                {isLogin ? 'Send Login Link' : 'Send Activation Link'}
                 <ArrowRight className="w-5 h-5" />
               </>
             )}
