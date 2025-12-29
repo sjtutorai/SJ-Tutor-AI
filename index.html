@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -5,15 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SJ Tutor AI - Your AI Study Buddy</title>
     <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg" />
-    <!-- Tailwind CSS via CDN kept for simplicity in this setup -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      // Safety polyfill for process.env to prevent "process is not defined" errors in browser
       window.process = window.process || { env: {} };
     </script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
@@ -21,19 +21,19 @@
             },
             colors: {
               primary: {
-                50: '#FFFAF0',   /* Floral White - Very light gold/cream */
-                100: '#FDF5E6',  /* Old Lace - Light gold background */
-                200: '#FEEBC8',  /* Light Gold */
-                300: '#FBD38D',  /* Soft Gold */
-                400: '#F6AD55',  /* Warm Gold */
-                500: '#D4AF37',  /* Metallic Gold - Main Brand Color */
-                600: '#B7950B',  /* Darker Gold - For buttons/hover */
-                700: '#975A16',  /* Bronze/Dark Gold - For text */
-                800: '#744210',  /* Deep Bronze */
+                50: '#FFFAF0',
+                100: '#FDF5E6',
+                200: '#FEEBC8',
+                300: '#FBD38D',
+                400: '#F6AD55',
+                500: '#D4AF37',
+                600: '#B7950B',
+                700: '#975A16',
+                800: '#744210',
                 900: '#742A2A',
               },
               slate: {
-                850: '#1a202c', /* Premium Dark for text */
+                850: '#1a202c',
                 900: '#111827',
               }
             },
@@ -58,7 +58,6 @@
       }
     </script>
     <style>
-      /* Custom scrollbar for cleaner look */
       ::-webkit-scrollbar {
         width: 6px;
         height: 6px;
@@ -73,10 +72,19 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #cbd5e1;
       }
-      body {
-        background-color: #FFFAF0; /* Warm Floral White for Premium Gold Theme */
+      
+      html, body {
+        transition: background-color 0.3s ease, color 0.3s ease;
       }
-      /* Utility for staggering animations */
+
+      body {
+        background-color: #FFFAF0;
+      }
+      
+      .dark body {
+        background-color: #0f172a;
+      }
+
       .animation-delay-2000 {
         animation-delay: 2s;
       }
@@ -84,11 +92,13 @@
         animation-delay: 4s;
       }
       
-      /* Premium Markdown Styles */
       .markdown-body p {
         margin-bottom: 0.8rem;
         line-height: 1.6;
         color: #4a5568;
+      }
+      .dark .markdown-body p {
+        color: #94a3b8;
       }
       .markdown-body h1, .markdown-body h2, .markdown-body h3 {
         font-weight: 700;
@@ -97,10 +107,15 @@
         color: #1a202c;
         letter-spacing: -0.015em;
       }
+      .dark .markdown-body h1, .dark .markdown-body h3 {
+        color: #f1f5f9;
+      }
       .markdown-body h1 { font-size: 1.5rem; border-bottom: 2px solid #FDF5E6; padding-bottom: 0.5rem; }
+      .dark .markdown-body h1 { border-bottom-color: #1e293b; }
       .markdown-body h2 { font-size: 1.25rem; color: #B7950B; }
       .markdown-body h3 { font-size: 1.1rem; }
       .markdown-body strong { color: #2d3748; font-weight: 700; }
+      .dark .markdown-body strong { color: #e2e8f0; }
       .markdown-body ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.75rem; }
       .markdown-body ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.75rem; }
       .markdown-body blockquote {
@@ -112,6 +127,10 @@
         padding: 0.75rem;
         border-radius: 0 6px 6px 0;
         margin-bottom: 1rem;
+      }
+      .dark .markdown-body blockquote {
+        background: #1e293b;
+        color: #94a3b8;
       }
     </style>
   <script type="importmap">

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile } from './types';
 import InputForm from './components/InputForm';
@@ -32,7 +33,9 @@ import {
   Plus,
   Clock,
   Key,
-  ExternalLink
+  ExternalLink,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -52,6 +55,9 @@ const SAMPLE_DATA: StudyRequestData = {
 };
 
 const App: React.FC = () => {
+  // Theme State
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+
   // Auth State
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -94,17 +100,26 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check API Key immediately (using required process.env.GEMINI_API_KEY)
+  // Theme effect
   useEffect(() => {
-    if (!process.env.GEMINI_API_KEY) {
-      console.warn("GEMINI_API_KEY is missing in environment variables!");
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  // Check API Key immediately (using required process.env.API_KEY)
+  useEffect(() => {
+    if (!process.env.API_KEY) {
+      console.warn("API_KEY is missing in environment variables!");
       setApiKeyMissing(true);
     }
   }, []);
 
   // Auth Listener with Safety Timeout
   useEffect(() => {
-    // Safety timeout: If Firebase is blocked or slow, stop loading after 4 seconds
     const timeoutId = setTimeout(() => {
       if (authLoading) {
         console.warn("Auth check timed out, defaulting to guest.");
@@ -115,16 +130,16 @@ const App: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
-      clearTimeout(timeoutId); // Clear timeout on success
+      clearTimeout(timeoutId);
       
       if (!currentUser) {
         setIsNewUser(false);
         setUserProfile(initialProfileState);
-        setMode(AppMode.DASHBOARD); // Reset to dashboard if logged out
+        setMode(AppMode.DASHBOARD);
       }
     }, (err) => {
       console.error("Auth Error:", err);
-      setAuthLoading(false); // Stop loading on error
+      setAuthLoading(false);
       clearTimeout(timeoutId);
     });
 
@@ -185,7 +200,6 @@ const App: React.FC = () => {
     localStorage.setItem(storageKey, JSON.stringify(history));
   }, [history, user]);
 
-  // Close sidebar on mode change for mobile
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
@@ -276,11 +290,9 @@ const App: React.FC = () => {
       return data.includeImages ? 15 : 10;
     }
     if (targetMode === AppMode.QUIZ) {
-      let cost = 10; // Base cost
+      let cost = 10;
       const qCount = data.questionCount || 5;
-      // 2 questions = 1 credit
       cost += Math.ceil(qCount / 2); 
-      // Difficulty increase (Hard) = 5 credits
       if (data.difficulty === 'Hard') cost += 5; 
       return cost;
     }
@@ -290,7 +302,6 @@ const App: React.FC = () => {
   const deductCredit = (amount: number) => {
     if (userProfile.credits >= amount) {
       const updatedProfile = { ...userProfile, credits: userProfile.credits - amount };
-      // Pass false to prevent redirect
       handleProfileSave(updatedProfile, false);
       return true;
     }
@@ -309,9 +320,8 @@ const App: React.FC = () => {
       return;
     }
     
-    // Check required process.env.GEMINI_API_KEY before attempting generation
-    if (!process.env.GEMINI_API_KEY) {
-      setError("Configuration Error: GEMINI_API_KEY is missing. Please check your environment variables.");
+    if (!process.env.API_KEY) {
+      setError("Configuration Error: API_KEY is missing. Please check your environment variables.");
       return;
     }
 
@@ -351,7 +361,6 @@ const App: React.FC = () => {
             }
         }
 
-        // If user wants images, generate and append them after text is ready
         if (formData.includeImages) {
           const imageBase64 = await GeminiService.generateImage(`${formData.chapterName} - ${formData.subject}`);
           if (imageBase64) {
@@ -372,28 +381,7 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error(err);
-      
-      let errorMessage = err.message || "Failed to generate content. Please check your inputs and try again.";
-
-      // Try to parse JSON error message if it looks like one
-      try {
-         const parsed = JSON.parse(errorMessage);
-         if (parsed.error?.message) {
-            errorMessage = parsed.error.message;
-         }
-      } catch (e) {
-         // Not valid JSON, stick with original string
-      }
-      
-      // Handle known error patterns
-      if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
-        errorMessage = "QUOTA_EXHAUSTED";
-      } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
-        errorMessage = "API_DISABLED";
-      } else if (errorMessage.includes("API key not valid") || errorMessage.includes("GEMINI_API_KEY_INVALID")) {
-        errorMessage = "GEMINI_API_KEY_INVALID_ERROR";
-      }
-
+      let errorMessage = err.message || "Failed to generate content. Please try again.";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -431,7 +419,10 @@ const App: React.FC = () => {
     }
   };
 
-  // Nav Items Configuration
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
   const navItems = [
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: AppMode.SUMMARY, label: 'Summary Generator', icon: FileText },
@@ -442,7 +433,6 @@ const App: React.FC = () => {
   ];
 
   const renderDashboard = () => {
-    // Determine the count for Notes locally
     const noteCount = (() => {
        try {
          const key = user ? `notes_${user.uid}` : 'notes_guest';
@@ -459,66 +449,46 @@ const App: React.FC = () => {
     };
 
     const dashboardCards = [
-      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700', bg: 'bg-[#FDF5E6]' },
+      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-slate-800' },
+      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-slate-800' },
+      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-slate-800' },
+      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-slate-800' },
+      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-slate-800' },
     ];
 
     if (dashboardView !== 'OVERVIEW') {
       const filteredHistory = history.filter(h => h.type === dashboardView);
       const categoryLabel = dashboardCards.find(c => c.id === dashboardView)?.label || 'History';
-      const getSingularName = (view: AppMode) => {
-        switch(view) {
-            case AppMode.SUMMARY: return 'Summary';
-            case AppMode.QUIZ: return 'Quiz';
-            case AppMode.ESSAY: return 'Essay';
-            case AppMode.TUTOR: return 'Chat';
-            default: return 'Item';
-        }
-      };
-
+      
       return (
-        <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
+        <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500">
           <button 
             onClick={() => setDashboardView('OVERVIEW')}
-            className="flex items-center text-slate-500 hover:text-primary-600 mb-6 transition-all hover:-translate-x-1 group text-sm"
+            className="flex items-center text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 mb-6 transition-all group text-sm"
           >
-            <div className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center mr-2 border border-slate-100 group-hover:border-primary-200 transition-colors">
+            <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mr-2 border border-slate-100 dark:border-slate-700 transition-colors">
               <ArrowLeft className="w-3.5 h-3.5" />
             </div>
             <span className="font-medium">Back to Dashboard</span>
           </button>
 
-          <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+          <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2">
             <Clock className="w-6 h-6 text-primary-400" />
             {categoryLabel} History
           </h3>
 
           {filteredHistory.length === 0 ? (
-            <div className="text-center py-20 bg-white/60 backdrop-blur-md rounded-xl border border-slate-200/60 border-dashed animate-in zoom-in duration-500">
-              <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 p-1">
-                 <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full rounded-full object-cover" />
-              </div>
-              <p className="text-slate-500 font-medium mb-5 text-sm">No {categoryLabel.toLowerCase()} found yet.</p>
-
+            <div className="text-center py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl border border-slate-200 dark:border-slate-700 border-dashed">
+              <p className="text-slate-500 dark:text-slate-400 font-medium mb-5 text-sm">No {categoryLabel.toLowerCase()} found yet.</p>
               <button
                 onClick={() => {
-                  setSummaryContent('');
-                  setEssayContent('');
-                  setQuizData(null);
-                  setExistingQuizScore(undefined);
-                  setCurrentHistoryId(null);
-                  setError(null);
-                  setFormData(INITIAL_FORM_DATA);
                   setMode(dashboardView);
                   setDashboardView('OVERVIEW');
                 }}
-                className="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 shadow-primary-500/20 text-sm"
+                className="inline-flex items-center px-5 py-2.5 bg-primary-600 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 text-sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Create New {getSingularName(dashboardView)}
+                Create New
               </button>
             </div>
           ) : (
@@ -526,34 +496,25 @@ const App: React.FC = () => {
               {filteredHistory.map((item, idx) => (
                 <div 
                   key={item.id} 
-                  className="bg-white/80 backdrop-blur-sm p-5 rounded-xl border border-slate-200/60 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
-                  style={{ animationDelay: `${idx * 50}ms` }}
+                  className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group cursor-pointer"
                   onClick={() => loadHistoryItem(item)}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-100 text-primary-600`}>
+                    <div className="mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400">
                       {item.type === AppMode.QUIZ ? <BrainCircuit className="w-4 h-4" /> :
                        item.type === AppMode.SUMMARY ? <FileText className="w-4 h-4" /> :
                        item.type === AppMode.ESSAY ? <BookOpen className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
                     </div>
                     <div>
-                      <h4 className="font-semibold text-slate-800 mb-0.5 group-hover:text-primary-700 transition-colors">{item.title}</h4>
-                      <p className="text-xs text-slate-500 flex items-center gap-3">
-                        <span className="font-medium bg-slate-100 px-1.5 py-0.5 rounded">{item.subtitle}</span>
+                      <h4 className="font-semibold text-slate-800 dark:text-slate-100 mb-0.5 group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors">{item.title}</h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-3">
+                        <span className="font-medium bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">{item.subtitle}</span>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           {new Date(item.timestamp).toLocaleDateString()}
                         </span>
-                        {item.type === AppMode.QUIZ && item.score !== undefined && (
-                          <span className="flex items-center gap-1 text-primary-600 font-bold bg-primary-50 px-2 py-0.5 rounded-full">
-                            Score: {item.score}
-                          </span>
-                        )}
                       </p>
                     </div>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                    <Eye className="w-4 h-4 text-primary-600" />
                   </div>
                 </div>
               ))}
@@ -563,93 +524,61 @@ const App: React.FC = () => {
       );
     }
 
-    // DASHBOARD OVERVIEW
     return (
       <div className="relative min-h-[500px]">
-        {/* Floating Background Blobs */}
         <div className="absolute top-0 -left-4 w-72 h-72 bg-primary-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute top-0 -right-4 w-72 h-72 bg-amber-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-primary-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
 
         <div className="relative z-10 space-y-6">
-          {/* API Key Warning (using required process.env.GEMINI_API_KEY) */}
           {apiKeyMissing && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-4 shadow-sm">
-              <div className="bg-red-100 p-1.5 rounded-full">
-                <Key className="w-4 h-4 text-red-600" />
-              </div>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 flex items-start gap-3">
+              <Key className="w-4 h-4 text-red-600" />
               <div>
-                <h4 className="font-bold text-red-800 text-sm">GEMINI_API_KEY Missing</h4>
-                <p className="text-xs text-red-600 mt-0.5">
-                  The AI features will not work because the <code>GEMINI_API_KEY</code> environment variable is missing. 
-                </p>
+                <h4 className="font-bold text-red-800 dark:text-red-300 text-sm">API_KEY Missing</h4>
+                <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Please check your environment variables.</p>
               </div>
             </div>
           )}
 
-          {/* Welcome Card with Avatar */}
-          <div className="animate-fade-in-up bg-white/70 backdrop-blur-xl border border-white/50 rounded-2xl p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden relative group hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-500">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary-100/40 to-transparent rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-110 transition-transform duration-700"></div>
-              
+          <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 rounded-2xl p-6 shadow-sm overflow-hidden relative group">
               <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
                 <div className="flex-1">
-                  <h3 className="text-2xl font-bold text-slate-800 mb-1 tracking-tight">
+                  <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-1 tracking-tight">
                     Hey, I'm <span className="text-primary-600">SJ Tutor AI</span>!
                   </h3>
-                  <h4 className="text-lg font-medium text-slate-600 mb-3">
-                    Welcome back, <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400">{user ? (userProfile.displayName || 'Scholar') : 'Guest'}</span>
+                  <h4 className="text-lg font-medium text-slate-600 dark:text-slate-400 mb-3">
+                    Welcome, <span className="text-primary-600">{user ? (userProfile.displayName || 'Scholar') : 'Guest'}</span>
                   </h4>
-                  <p className="text-slate-500 text-base leading-relaxed mb-5">
-                    {user ? "I'm ready to help you ace your studies. What are we working on today?" : "I'm your AI study companion. Sign in to unlock my full potential!"}
+                  <p className="text-slate-500 dark:text-slate-400 text-base leading-relaxed mb-5">
+                    Your personal study companion. Let's make learning exciting and effective today.
                   </p>
                   
                   <div className="flex flex-wrap gap-3">
                     <button 
-                        onClick={() => {
-                        if (!user) setShowAuthModal(true);
-                        else setMode(AppMode.TUTOR);
-                        }}
-                        className="group relative px-5 py-2.5 bg-slate-900 text-white rounded-lg font-medium overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-lg shadow-slate-900/20 text-sm"
+                        onClick={() => user ? setMode(AppMode.TUTOR) : setShowAuthModal(true)}
+                        className="px-5 py-2.5 bg-slate-900 dark:bg-primary-600 text-white rounded-lg font-medium hover:scale-105 active:scale-95 transition-all shadow-lg text-sm flex items-center gap-2"
                     >
-                        <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                        <span className="flex items-center gap-2 relative z-10">
                         <MessageCircle className="w-4 h-4" />
                         Chat with Me
-                        </span>
                     </button>
-                    {!user && (
-                        <button 
-                            onClick={() => setShowAuthModal(true)}
-                            className="px-5 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg font-medium hover:bg-slate-50 transition-colors shadow-sm text-sm"
-                        >
-                            Sign In / Sign Up
-                        </button>
-                    )}
                   </div>
 
                    {user && (
-                       <div className="mt-5 flex items-center gap-2 text-primary-700 bg-primary-50/80 backdrop-blur-sm px-3 py-1.5 rounded-lg w-fit border border-primary-100">
-                          <Zap className="w-3.5 h-3.5 fill-primary-500 text-primary-500" />
-                          <span className="font-semibold text-xs">{userProfile.credits} generations remaining</span>
+                       <div className="mt-5 flex items-center gap-2 text-primary-700 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 px-3 py-1.5 rounded-lg w-fit border border-primary-100 dark:border-primary-800/30">
+                          <Zap className="w-3.5 h-3.5 fill-primary-500" />
+                          <span className="font-semibold text-xs">{userProfile.credits} generations left</span>
                        </div>
                     )}
                 </div>
                 
-                {/* Avatar Display */}
-                <div className="relative w-40 h-40 md:w-56 md:h-56 flex-shrink-0 animate-blob">
-                     <div className="absolute inset-0 bg-primary-200 rounded-full blur-2xl opacity-50"></div>
-                     <img 
-                        src={SJTUTOR_AVATAR} 
-                        alt="SJ Tutor AI Mascot" 
-                        className="relative w-full h-full object-contain drop-shadow-xl hover:scale-105 transition-transform duration-500"
-                     />
+                <div className="relative w-40 h-40 flex-shrink-0 animate-blob">
+                     <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-contain drop-shadow-xl" />
                 </div>
               </div>
           </div>
 
-          {/* Stats List (Vertical) */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-base font-bold text-slate-700 ml-1">Quick Actions</h3>
+            <h3 className="text-base font-bold text-slate-700 dark:text-slate-300 ml-1">Quick Actions</h3>
             {dashboardCards.map((stat, idx) => (
               <button 
                 key={idx} 
@@ -658,29 +587,18 @@ const App: React.FC = () => {
                     else if (stat.id === AppMode.NOTES) setMode(AppMode.NOTES);
                     else setDashboardView(stat.id as AppMode);
                 }}
-                className={`group relative p-4 rounded-xl bg-[#FFFAF0] border border-stone-100/60 shadow-sm hover:shadow-md transition-all duration-300 text-left w-full overflow-hidden flex items-center justify-between`}
-                style={{ animationDelay: `${(idx + 1) * 150}ms` }}
+                className="group relative p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all flex items-center justify-between"
               >
                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${stat.bg} shadow-sm border border-stone-100`}>
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${stat.bg} border border-slate-50 dark:border-slate-700`}>
                       <stat.icon className={`w-5 h-5 ${stat.color}`} />
                     </div>
-                    <div>
+                    <div className="text-left">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{stat.label}</p>
-                      <span className="text-xl font-bold text-slate-800 tracking-tight">
-                        {stat.count}
-                      </span>
+                      <span className="text-xl font-bold text-slate-800 dark:text-slate-100">{stat.count}</span>
                     </div>
                  </div>
-                 
-                 {user && (stat.id === AppMode.TUTOR || stat.id === AppMode.NOTES) ? (
-                     <div className="flex items-center gap-1 px-2.5 py-1 bg-primary-100/50 rounded-full text-[10px] font-semibold text-primary-700">
-                        <span>{stat.id === AppMode.NOTES ? 'Open Notes' : 'View History'}</span>
-                        <ChevronRight className="w-2.5 h-2.5" />
-                    </div>
-                 ) : user && (
-                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary-400 transition-colors" />
-                 )}
+                 <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary-400" />
               </button>
             ))}
           </div>
@@ -690,354 +608,153 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
-    if (mode === AppMode.DASHBOARD) {
-      return renderDashboard();
-    }
+    if (mode === AppMode.DASHBOARD) return renderDashboard();
+    if (mode === AppMode.PROFILE) return <ProfileView profile={userProfile} email={user?.email || null} onSave={handleProfileSave} isOnboarding={isNewUser} />;
+    if (mode === AppMode.NOTES) return <NotesView userId={user?.uid || null} onDeductCredit={deductCredit} />;
+    if (mode === AppMode.TUTOR) return <TutorChat onDeductCredit={deductCredit} currentCredits={userProfile.credits} />;
 
-    if (mode === AppMode.PROFILE) {
-      return (
-        <ProfileView 
-          profile={userProfile} 
-          email={user?.email || null} 
-          onSave={handleProfileSave} 
-          isOnboarding={isNewUser}
-        />
-      );
-    }
+    if (loading) return <LoadingState mode={mode} />;
 
-    if (mode === AppMode.NOTES) {
-      return (
-        <NotesView 
-          userId={user?.uid || null} 
-          onDeductCredit={deductCredit}
-        />
-      );
-    }
-
-    if (mode === AppMode.TUTOR) {
-      return <TutorChat onDeductCredit={deductCredit} currentCredits={userProfile.credits} />;
-    }
-
-    // Loading View
-    if (loading) {
-      return <LoadingState mode={mode} />;
-    }
-
-    // Check if we have generated content
     const hasResult = (mode === AppMode.SUMMARY && summaryContent) ||
                       (mode === AppMode.ESSAY && essayContent) ||
                       (mode === AppMode.QUIZ && quizData);
 
-    const showEmptyState = !loading && !hasResult;
-
-    // Hide input form if we have a result or if viewing a history quiz
     const showInputForm = !hasResult && !(mode === AppMode.QUIZ && existingQuizScore !== undefined);
-
-    const renderError = () => {
-       if (error === "QUOTA_EXHAUSTED") {
-          return (
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 rounded-full">
-                  <AlertCircle className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">Daily Quota Reached</h3>
-                  <p className="text-sm text-amber-800">You've reached the free daily limit for this AI model. Google limits the number of free requests per day.</p>
-                </div>
-              </div>
-              <div className="pl-12">
-                <p className="text-xs">Please try again in a few minutes or tomorrow. Alternatively, switching subjects or being more specific in your inputs might help.</p>
-              </div>
-            </div>
-          );
-       }
-       
-       if (error === "API_DISABLED") {
-          return (
-            <div className="bg-red-50 border border-red-200 text-red-800 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-100 rounded-full">
-                  <AlertCircle className="w-5 h-5 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">API Not Enabled</h3>
-                  <p className="text-sm text-red-700">The Google Generative AI API is disabled for your project.</p>
-                </div>
-              </div>
-              
-              <div className="pl-12">
-                <p className="text-xs mb-3">To fix this, you need to enable the API in the Google Cloud Console:</p>
-                <a 
-                  href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm hover:shadow-md text-sm"
-                >
-                  Enable Generative Language API
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            </div>
-          );
-       } 
-       
-       if (error === "GEMINI_API_KEY_INVALID_ERROR") {
-          return (
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 rounded-full">
-                  <Key className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">Invalid GEMINI API Key</h3>
-                  <p className="text-sm text-amber-800">The GEMINI API Key provided is not valid.</p>
-                </div>
-              </div>
-              <div className="pl-12">
-                <p className="text-xs">Please verify your <code>GEMINI_API_KEY</code> in the environment variables (<code>.env</code> file) matches your Google AI Studio key.</p>
-              </div>
-            </div>
-          );
-       }
-
-       if (error) {
-         return (
-          <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-lg flex items-center gap-3 shadow-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p className="font-medium text-sm">{error}</p>
-          </div>
-         );
-       }
-       return null;
-    };
 
     return (
       <div className="space-y-5 animate-in fade-in duration-500">
         {showInputForm && (
-            <InputForm 
-              data={formData} 
-              mode={mode}
-              onChange={handleFormChange}
-              onFillSample={handleFillSample}
-              disabled={loading}
-            />
+            <InputForm data={formData} mode={mode} onChange={handleFormChange} onFillSample={handleFillSample} disabled={loading} />
         )}
 
-        {renderError()}
-
-        {showEmptyState && !error && (
-          <div className="text-center py-12 bg-white rounded-xl border border-slate-100 shadow-sm">
-             <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-white shadow-lg overflow-hidden">
-                <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
-             </div>
-             <h3 className="text-base font-semibold text-slate-800 mb-1">Ready to Start?</h3>
-             <p className="text-slate-500 mb-6 max-w-md mx-auto text-sm">
-               Enter your study details above and I'll generate your personalized content immediately.
-             </p>
-             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-               <button 
-                type="button"
-                onClick={handleGenerate}
-                className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-bold transition-colors shadow-lg shadow-primary-500/25 flex items-center gap-2 text-sm"
-               >
-                 <Sparkles className="w-4 h-4" />
-                 Generate Now
-               </button>
-             </div>
+        {error && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg flex items-center gap-3">
+            <AlertCircle className="w-5 h-5" />
+            <p className="font-medium text-sm">{error}</p>
           </div>
         )}
 
-        {mode === AppMode.SUMMARY && summaryContent && (
-          <ResultsView 
-            content={summaryContent} 
-            isLoading={loading} 
-            title={formData.chapterName}
-            type="Summary"
-            onBack={() => setSummaryContent('')}
-          />
-        )}
-        
-        {mode === AppMode.ESSAY && essayContent && (
-          <ResultsView 
-            content={essayContent} 
-            isLoading={loading} 
-            title={formData.chapterName} 
-            type="Essay"
-            onBack={() => setEssayContent('')}
-          />
+        {!loading && !hasResult && !error && (
+          <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
+             <div className="w-20 h-20 bg-primary-50 dark:bg-primary-900/20 rounded-full flex items-center justify-center mx-auto mb-5">
+                <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full rounded-full object-cover" />
+             </div>
+             <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-1">Ready to Start?</h3>
+             <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-md mx-auto text-sm">Fill in the details and I'll generate your personalized content.</p>
+             <button onClick={handleGenerate} className="px-6 py-2.5 bg-primary-600 text-white rounded-lg font-bold flex items-center gap-2 mx-auto text-sm">
+                 <Sparkles className="w-4 h-4" />
+                 Generate Now
+             </button>
+          </div>
         )}
 
-        {mode === AppMode.QUIZ && quizData && (
-          <QuizView 
-            questions={quizData} 
-            onReset={() => setQuizData(null)}
-            onComplete={handleQuizComplete}
-            existingScore={existingQuizScore}
-          />
-        )}
+        {mode === AppMode.SUMMARY && summaryContent && <ResultsView content={summaryContent} isLoading={loading} title={formData.chapterName} type="Summary" onBack={() => setSummaryContent('')} />}
+        {mode === AppMode.ESSAY && essayContent && <ResultsView content={essayContent} isLoading={loading} title={formData.chapterName} type="Essay" onBack={() => setEssayContent('')} />}
+        {mode === AppMode.QUIZ && quizData && <QuizView questions={quizData} onReset={() => setQuizData(null)} onComplete={handleQuizComplete} existingScore={existingQuizScore} />}
       </div>
     );
   };
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#FFFAF0] flex items-center justify-center flex-col gap-4">
-        <div className="relative">
-             <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-500 animate-bounce">
-                <img src={SJTUTOR_AVATAR} alt="Loading..." className="w-full h-full object-cover" />
-             </div>
-             <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
+      <div className="min-h-screen bg-[#FFFAF0] dark:bg-slate-950 flex items-center justify-center flex-col gap-4 transition-colors">
+        <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-500 animate-bounce">
+           <img src={SJTUTOR_AVATAR} alt="Loading..." className="w-full h-full object-cover" />
         </div>
-        <p className="text-slate-800 font-bold animate-pulse">Authenticating...</p>
+        <p className="text-slate-800 dark:text-slate-200 font-bold">Authenticating...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#FFFAF0] font-sans selection:bg-primary-100 selection:text-primary-900 flex">
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        ></div>
-      )}
+    <div className="min-h-screen bg-[#FFFAF0] dark:bg-slate-950 font-sans flex transition-colors">
+      {isSidebarOpen && <div className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>}
 
-      {/* Sidebar */}
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
+      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="h-full flex flex-col">
-          <div className="p-5 border-b border-slate-100">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800">
              <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0">
+               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md">
                  <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
                </div>
                <div>
-                 <h1 className="text-lg font-bold text-slate-900 tracking-tight leading-tight">SJ Tutor AI</h1>
-                 <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">AI Study Buddy</p>
+                 <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight">SJ Tutor AI</h1>
+                 <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">Your Study Buddy</p>
                </div>
              </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto py-5 px-3 space-y-1 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto py-5 px-3 space-y-1">
             {navItems.map((item) => {
               const isActive = mode === item.id;
-              const Icon = item.icon;
               return (
                 <button
                   key={item.id}
                   onClick={() => {
-                    // Auth Check for nav items except Dashboard
-                    if (item.id !== AppMode.DASHBOARD && !user) {
-                      setShowAuthModal(true);
-                      setIsSidebarOpen(false); // Close sidebar on mobile
-                    } else {
+                    if (item.id !== AppMode.DASHBOARD && !user) setShowAuthModal(true);
+                    else {
                       setMode(item.id);
                       setDashboardView('OVERVIEW');
                       setSummaryContent('');
                       setEssayContent('');
                       setQuizData(null);
-                      setExistingQuizScore(undefined);
-                      setCurrentHistoryId(null);
                       setError(null);
-                      setFormData(INITIAL_FORM_DATA);
                     }
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group text-sm ${
-                    isActive 
-                      ? 'bg-primary-50 text-primary-700 font-semibold shadow-sm' 
-                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm ${isActive ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 font-semibold' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                  <item.icon className="w-4 h-4" />
                   {item.label}
-                  {!user && item.id !== AppMode.DASHBOARD && (
-                     <div className="ml-auto">
-                        <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
-                     </div>
-                  )}
                 </button>
               );
             })}
           </div>
 
-          <div className="p-3 border-t border-slate-100 space-y-2">
+          <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
             {user ? (
                <>
-                <button
-                   onClick={() => setMode(AppMode.PROFILE)} 
-                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mode === AppMode.PROFILE ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-slate-50'}`}
-                >
-                  <div className="w-7 h-7 rounded-full bg-primary-100 border border-primary-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {userProfile.photoURL ? (
-                      <img src={userProfile.photoURL} alt="User" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="font-bold text-primary-700 text-[10px]">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
-                    )}
+                <button onClick={() => setMode(AppMode.PROFILE)} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+                  <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden">
+                    {userProfile.photoURL ? <img src={userProfile.photoURL} alt="P" className="w-full h-full object-cover" /> : <span className="text-[10px] font-bold">U</span>}
                   </div>
-                  <div className="flex-1 text-left overflow-hidden">
-                    <p className="text-xs font-medium truncate">{userProfile.displayName || 'Scholar'}</p>
-                    <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
-                  </div>
+                  <div className="flex-1 text-left overflow-hidden"><p className="text-xs font-medium truncate">{userProfile.displayName || 'Scholar'}</p></div>
                 </button>
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  Sign Out
+                <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                  <LogOut className="w-3.5 h-3.5" />Sign Out
                 </button>
                </>
             ) : (
-              <button 
-                onClick={() => setShowAuthModal(true)}
-                className="w-full py-2.5 bg-slate-900 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-colors text-sm"
-              >
-                Sign In
-              </button>
+              <button onClick={() => setShowAuthModal(true)} className="w-full py-2.5 bg-slate-900 dark:bg-slate-800 text-white rounded-lg font-medium text-sm">Sign In</button>
             )}
-             
-            {user && (
-              <button 
-                onClick={() => setShowPremiumModal(true)}
-                className="w-full py-2 bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
-              >
-                <Crown className="w-3.5 h-3.5" />
-                Upgrade Plan
-              </button>
-            )}
+            {user && <button onClick={() => setShowPremiumModal(true)} className="w-full py-2 bg-gradient-to-r from-amber-200 to-yellow-400 text-amber-900 rounded-lg font-bold text-xs"><Crown className="w-3.5 h-3.5 inline mr-1" />Upgrade Plan</button>}
           </div>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        {/* Header */}
-        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
+        <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
           <div className="flex items-center gap-3">
-             <button 
-              onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-1.5 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-             >
-               <Menu className="w-5 h-5" />
-             </button>
-             <h2 className="text-base font-bold text-slate-800">
-               {mode === AppMode.DASHBOARD ? 'SJ Tutor AI' : 
-                (navItems.find(n => n.id === mode)?.label || 'SJ Tutor AI')}
-             </h2>
+             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-1.5 text-slate-500 dark:text-slate-400"><Menu className="w-5 h-5" /></button>
+             <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">{navItems.find(n => n.id === mode)?.label || 'SJ Tutor AI'}</h2>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={toggleTheme}
+              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
             {user && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full">
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
                 <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                <span className="text-xs font-bold text-slate-700">{userProfile.credits}</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{userProfile.credits}</span>
               </div>
             )}
           </div>
         </header>
 
-        {/* Content Scroll Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
           <div className="max-w-5xl mx-auto">
              {renderContent()}
@@ -1045,20 +762,8 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Modals */}
-      {showAuthModal && (
-        <Auth 
-          onClose={() => setShowAuthModal(false)} 
-          onSignUpSuccess={handleSignUpSuccess}
-        />
-      )}
-      
-      {showPremiumModal && (
-        <PremiumModal 
-          onClose={() => setShowPremiumModal(false)}
-          onPaymentSuccess={handlePaymentSuccess}
-        />
-      )}
+      {showAuthModal && <Auth onClose={() => setShowAuthModal(false)} onSignUpSuccess={handleSignUpSuccess} />}
+      {showPremiumModal && <PremiumModal onClose={() => setShowPremiumModal(false)} onPaymentSuccess={handlePaymentSuccess} />}
     </div>
   );
 };

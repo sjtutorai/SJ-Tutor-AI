@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Loader2, Volume2, Square, ArrowLeft, Download, FileText, Image as ImageIcon, FileType } from 'lucide-react';
@@ -10,7 +11,7 @@ interface ResultsViewProps {
   content: string;
   isLoading: boolean;
   title: string;
-  type?: string; // 'Summary' | 'Essay' | 'Quiz' etc.
+  type?: string; 
   onBack: () => void;
 }
 
@@ -20,13 +21,11 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Cleanup speech when component unmounts
     return () => {
       window.speechSynthesis.cancel();
     };
   }, []);
 
-  // Stop playing if content changes or loading starts
   useEffect(() => {
     if (isLoading) {
       window.speechSynthesis.cancel();
@@ -40,20 +39,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
       setIsPlaying(false);
     } else {
       if (!content) return;
-
-      // Simple cleanup to remove markdown symbols for better reading
       const textToRead = content
-        .replace(/[*#_`]/g, '') // Remove standard markdown chars
-        .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Keep link text, remove URL
-        .replace(/\n/g, '. '); // Pause on newlines
+        .replace(/[*#_`]/g, '') 
+        .replace(/\[(.*?)\]\(.*?\)/g, '$1') 
+        .replace(/\n/g, '. '); 
 
       const utterance = new SpeechSynthesisUtterance(textToRead);
-      utterance.rate = 1;
-      utterance.pitch = 1;
-      
       utterance.onend = () => setIsPlaying(false);
       utterance.onerror = () => setIsPlaying(false);
-      
       window.speechSynthesis.speak(utterance);
       setIsPlaying(true);
     }
@@ -77,28 +70,15 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
 
   const downloadWord = () => {
     if (!contentRef.current) return;
-    
-    // Create a structured HTML document for Word
     const htmlContent = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <meta charset='utf-8'>
-        <title>${title}</title>
-        <style>
-          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; }
-          h1 { color: #2d3748; border-bottom: 2px solid #D4AF37; padding-bottom: 10px; }
-          .type-label { color: #B7950B; font-weight: bold; text-transform: uppercase; font-size: 12px; margin-bottom: 20px; }
-          p { margin-bottom: 15px; }
-        </style>
-      </head>
-      <body>
+      <html>
+      <body style="font-family: sans-serif; line-height: 1.6;">
         <h1>${title}</h1>
-        <div class='type-label'>${type}</div>
+        <div style="color: #B7950B; font-weight: bold;">${type}</div>
         ${contentRef.current.innerHTML}
       </body>
       </html>
     `;
-    
     const blob = new Blob([htmlContent], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -113,37 +93,13 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
     setIsDownloading(true);
     try {
       const element = contentRef.current;
-      const clone = element.cloneNode(true) as HTMLElement;
-      
-      clone.style.position = 'absolute';
-      clone.style.left = '-9999px';
-      clone.style.top = '0';
-      clone.style.width = '800px';
-      clone.style.height = 'auto';
-      clone.style.padding = '50px';
-      clone.style.background = 'white';
-      
-      // Add visual header to image
-      const header = document.createElement('div');
-      header.innerHTML = `
-        <div style="margin-bottom: 30px; border-bottom: 2px solid #D4AF37; padding-bottom: 15px;">
-          <h1 style="margin: 0; color: #1a202c; font-size: 28px; font-family: sans-serif;">${title}</h1>
-          <p style="margin: 5px 0 0; color: #B7950B; font-weight: bold; text-transform: uppercase; font-size: 14px; font-family: sans-serif;">${type}</p>
-        </div>
-      `;
-      clone.insertBefore(header, clone.firstChild);
-      
-      document.body.appendChild(clone);
-      const canvas = await html2canvas(clone, { scale: 2, useCORS: true });
-      document.body.removeChild(clone);
-
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true });
       const image = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = image;
       a.download = getFilename('png');
       a.click();
     } catch (e) {
-      console.error("Image download failed", e);
       alert("Failed to generate image.");
     } finally {
       setIsDownloading(false);
@@ -154,74 +110,16 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
     if (!contentRef.current) return;
     setIsDownloading(true);
     try {
-      const element = contentRef.current;
-      const clone = element.cloneNode(true) as HTMLElement;
-      
-      const a4WidthPx = 750;
-
-      clone.style.position = 'absolute';
-      clone.style.left = '-9999px';
-      clone.style.top = '0';
-      clone.style.width = `${a4WidthPx}px`; 
-      clone.style.height = 'auto'; 
-      clone.style.overflow = 'visible';
-      clone.style.maxHeight = 'none';
-      clone.style.background = 'white';
-      clone.style.color = 'black';
-      clone.style.padding = '50px';
-      
-      // Add professional header to PDF clone
-      const header = document.createElement('div');
-      header.innerHTML = `
-        <div style="margin-bottom: 30px; border-bottom: 2px solid #D4AF37; padding-bottom: 15px; font-family: sans-serif;">
-          <h1 style="margin: 0; color: #1a202c; font-size: 26px;">${title}</h1>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-            <span style="color: #B7950B; font-weight: bold; text-transform: uppercase; font-size: 12px;">${type}</span>
-            <span style="color: #718096; font-size: 12px;">Date: ${new Date().toLocaleDateString()}</span>
-          </div>
-        </div>
-      `;
-      clone.insertBefore(header, clone.firstChild);
-      
-      document.body.appendChild(clone);
-
-      const canvas = await html2canvas(clone, { 
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        windowWidth: a4WidthPx + 100
-      });
-      
-      document.body.removeChild(clone);
-
+      const canvas = await html2canvas(contentRef.current, { scale: 2, useCORS: true });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      
       const imgProps = pdf.getImageProperties(imgData);
       const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      // First page
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
-      heightLeft -= pdfHeight;
-
-      // Subsequent pages (crucial for long essays)
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
-        heightLeft -= pdfHeight;
-      }
-
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
       pdf.save(getFilename('pdf'));
     } catch (e) {
-      console.error("PDF download failed", e);
-      alert("Failed to generate PDF. Try downloading as Text or Word.");
+      alert("Failed to generate PDF.");
     } finally {
       setIsDownloading(false);
     }
@@ -230,89 +128,49 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
   if (!content && !isLoading) return null;
 
   return (
-    <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center flex-wrap gap-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-md border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in transition-colors">
+      <div className="bg-slate-50 dark:bg-slate-800 px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <button 
             onClick={onBack}
-            className="p-2 -ml-2 text-slate-400 hover:text-primary-600 hover:bg-slate-100 rounded-lg transition-colors"
-            title="Back"
+            className="p-2 -ml-2 text-slate-400 dark:text-slate-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="flex flex-col">
-             <h3 className="font-semibold text-slate-800 line-clamp-1">{title}</h3>
-             <span className="text-xs text-slate-500 font-medium">{type}</span>
+          <div className="flex flex-col text-left">
+             <h3 className="font-semibold text-slate-800 dark:text-slate-100 line-clamp-1">{title}</h3>
+             <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">{type}</span>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
           {!isLoading && content && (
             <>
-              {/* Download Options */}
-              <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 mr-2 shadow-sm">
-                 <button 
-                   onClick={downloadPDF} 
-                   disabled={isDownloading}
-                   className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
-                   title={`Download ${type} as PDF`}
-                 >
-                   <FileType className="w-4 h-4" />
-                 </button>
-                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                 <button 
-                   onClick={downloadWord} 
-                   className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                   title={`Download ${type} as Word`}
-                 >
-                   <FileText className="w-4 h-4" />
-                 </button>
-                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                 <button 
-                   onClick={downloadImage} 
-                   disabled={isDownloading}
-                   className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors disabled:opacity-50"
-                   title={`Download ${type} as Image`}
-                 >
-                   <ImageIcon className="w-4 h-4" />
-                 </button>
-                 <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                 <button 
-                   onClick={downloadText} 
-                   className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
-                   title={`Download ${type} as Text`}
-                 >
-                   <Download className="w-4 h-4" />
-                 </button>
+              <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1 mr-2 shadow-sm">
+                 <button onClick={downloadPDF} disabled={isDownloading} className="p-1.5 text-slate-500 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-colors"><FileType className="w-4 h-4" /></button>
+                 <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                 <button onClick={downloadWord} className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-md transition-colors"><FileText className="w-4 h-4" /></button>
+                 <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                 <button onClick={downloadText} className="p-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 rounded-md transition-colors"><Download className="w-4 h-4" /></button>
               </div>
 
               <button
                 onClick={toggleSpeech}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                   isPlaying 
-                    ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' 
-                    : 'bg-primary-50 text-primary-600 hover:bg-primary-100 border border-primary-200'
+                    ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800' 
+                    : 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-800/30'
                 }`}
-                title={isPlaying ? "Stop reading" : "Read aloud"}
               >
-                {isPlaying ? (
-                  <>
-                    <Square className="w-3.5 h-3.5 fill-current" />
-                    <span className="hidden sm:inline">Stop</span>
-                  </>
-                ) : (
-                  <>
-                    <Volume2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Listen</span>
-                  </>
-                )}
+                {isPlaying ? <Square className="w-3.5 h-3.5 fill-current" /> : <Volume2 className="w-4 h-4" />}
+                <span className="hidden sm:inline">{isPlaying ? 'Stop' : 'Listen'}</span>
               </button>
             </>
           )}
         </div>
 
         {isLoading && (
-          <div className="flex items-center text-primary-600 text-sm font-medium">
+          <div className="flex items-center text-primary-600 dark:text-primary-400 text-sm font-medium">
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
             Generating {type}...
           </div>
@@ -320,24 +178,20 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
       </div>
       
       <div className="p-6 min-h-[200px]" ref={contentRef}>
-        <div className="markdown-body text-slate-700 bg-white">
+        <div className="markdown-body text-slate-700 dark:text-slate-300">
           <ReactMarkdown>{content}</ReactMarkdown>
         </div>
         {content === '' && isLoading && (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-500">
             <Loader2 className="w-8 h-8 mb-4 animate-spin text-primary-300" />
-            <p>Initializing {type.toLowerCase()} generator...</p>
+            <p>SJ Tutor AI is brainstorming...</p>
           </div>
         )}
       </div>
       
       {!isLoading && (
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-center">
-            <button 
-                onClick={onBack}
-                className="text-sm font-semibold text-primary-700 hover:text-primary-800 hover:underline flex items-center gap-2"
-            >
-                <RefreshCw className="w-3.5 h-3.5" />
+        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex justify-center">
+            <button onClick={onBack} className="text-sm font-semibold text-primary-700 dark:text-primary-400 hover:underline flex items-center gap-2">
                 Generate Another Version
             </button>
         </div>
@@ -345,10 +199,5 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
     </div>
   );
 };
-
-// Simple Refresh icon helper
-const RefreshCw = ({ className }: { className?: string }) => (
-  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
-);
 
 export default ResultsView;
