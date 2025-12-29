@@ -12,7 +12,7 @@ import NotesView from './components/NotesView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { auth } from './firebaseConfig';
-import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { onAuthStateChanged, User, signOut, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { 
   BookOpen, 
   FileText, 
@@ -59,6 +59,7 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
+  const [verifyingLink, setVerifyingLink] = useState(false);
 
   // App State
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -99,6 +100,39 @@ const App: React.FC = () => {
     if (!process.env.GEMINI_API_KEY) {
       console.warn("GEMINI_API_KEY is missing in environment variables!");
       setApiKeyMissing(true);
+    }
+  }, []);
+
+  // Handle Magic Link Completion on Mount
+  useEffect(() => {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      let email = window.localStorage.getItem('emailForSignIn');
+      if (!email) {
+        // Fallback if local storage was cleared or user is on different device/browser
+        email = window.prompt('Please provide your email for confirmation');
+      }
+      
+      if (email) {
+        setVerifyingLink(true);
+        signInWithEmailLink(auth, email, window.location.href)
+          .then((result) => {
+            window.localStorage.removeItem('emailForSignIn');
+            // Detect if this was a new user to trigger onboarding
+            const additionalInfo = (result as any)._tokenResponse?.isNewUser;
+            if (additionalInfo) {
+              setIsNewUser(true);
+            }
+            // Clean the URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+          })
+          .catch((error) => {
+            console.error("Magic link sign-in error:", error);
+            alert("The magic link was invalid or expired. Please try requesting a new one.");
+          })
+          .finally(() => {
+            setVerifyingLink(false);
+          });
+      }
     }
   }, []);
 
@@ -880,7 +914,7 @@ const App: React.FC = () => {
     );
   };
 
-  if (authLoading) {
+  if (authLoading || verifyingLink) {
     return (
       <div className="min-h-screen bg-[#FFFAF0] flex items-center justify-center flex-col gap-4">
         <div className="relative">
@@ -889,7 +923,7 @@ const App: React.FC = () => {
              </div>
              <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
         </div>
-        <p className="text-slate-800 font-bold animate-pulse">Authenticating...</p>
+        {verifyingLink && <p className="text-slate-800 font-bold animate-pulse">Verifying Access Link...</p>}
       </div>
     );
   }
