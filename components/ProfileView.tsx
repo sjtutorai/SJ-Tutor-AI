@@ -56,7 +56,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
       
       {isOnboarding && (
         <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Welcome to StudyVerse!</h1>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">Welcome to SJ Tutor AI!</h1>
           <p className="text-slate-500 max-w-lg mx-auto">Let's build your academic profile to personalize your AI tutor and study materials.</p>
         </div>
       )}
