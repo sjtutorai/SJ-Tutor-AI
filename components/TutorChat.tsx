@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage } from '../types';
 import { GeminiService } from '../services/geminiService';
@@ -124,8 +125,8 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
       if (rawMsg.includes("Generative Language API has not been used") || rawMsg.includes("PERMISSION_DENIED")) {
         setIsApiDisabled(true);
         errorText = "API_DISABLED_BLOCK";
-      } else if (rawMsg.includes("API key not valid") || rawMsg.includes("GEMINI_API_KEY_INVALID")) {
-        errorText = "⚠️ Config Error: The GEMINI API Key provided is invalid.";
+      } else if (rawMsg.includes("API key not valid")) {
+        errorText = "⚠️ Config Error: The API Key provided is invalid.";
       }
       
       setMessages(prev => [...prev, { role: 'model', text: errorText, timestamp: Date.now() }]);

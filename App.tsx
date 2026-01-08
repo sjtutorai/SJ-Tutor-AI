@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile } from './types';
 import InputForm from './components/InputForm';
@@ -94,10 +95,10 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check API Key immediately (using required process.env.GEMINI_API_KEY)
+  // Check API Key immediately (using required process.env.API_KEY)
   useEffect(() => {
-    if (!process.env.GEMINI_API_KEY) {
-      console.warn("GEMINI_API_KEY is missing in environment variables!");
+    if (!process.env.API_KEY) {
+      console.warn("API_KEY is missing in environment variables!");
       setApiKeyMissing(true);
     }
   }, []);
@@ -309,9 +310,9 @@ const App: React.FC = () => {
       return;
     }
     
-    // Check required process.env.GEMINI_API_KEY before attempting generation
-    if (!process.env.GEMINI_API_KEY) {
-      setError("Configuration Error: GEMINI_API_KEY is missing. Please check your environment variables.");
+    // Check required process.env.API_KEY before attempting generation
+    if (!process.env.API_KEY) {
+      setError("Configuration Error: API_KEY is missing. Please check your environment variables.");
       return;
     }
 
@@ -390,8 +391,8 @@ const App: React.FC = () => {
         errorMessage = "QUOTA_EXHAUSTED";
       } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
         errorMessage = "API_DISABLED";
-      } else if (errorMessage.includes("API key not valid") || errorMessage.includes("GEMINI_API_KEY_INVALID")) {
-        errorMessage = "GEMINI_API_KEY_INVALID_ERROR";
+      } else if (errorMessage.includes("API key not valid")) {
+        errorMessage = "API_KEY_INVALID_ERROR";
       }
 
       setError(errorMessage);
@@ -572,16 +573,16 @@ const App: React.FC = () => {
         <div className="absolute -bottom-8 left-20 w-72 h-72 bg-primary-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
 
         <div className="relative z-10 space-y-6">
-          {/* API Key Warning (using required process.env.GEMINI_API_KEY) */}
+          {/* API Key Warning (using required process.env.API_KEY) */}
           {apiKeyMissing && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-4 shadow-sm">
               <div className="bg-red-100 p-1.5 rounded-full">
                 <Key className="w-4 h-4 text-red-600" />
               </div>
               <div>
-                <h4 className="font-bold text-red-800 text-sm">GEMINI_API_KEY Missing</h4>
+                <h4 className="font-bold text-red-800 text-sm">API_KEY Missing</h4>
                 <p className="text-xs text-red-600 mt-0.5">
-                  The AI features will not work because the <code>GEMINI_API_KEY</code> environment variable is missing. 
+                  The AI features will not work because the <code>API_KEY</code> environment variable is missing. 
                 </p>
               </div>
             </div>
@@ -742,12 +743,19 @@ const App: React.FC = () => {
                   <AlertCircle className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base">Daily Quota Reached</h3>
-                  <p className="text-sm text-amber-800">You've reached the free daily limit for this AI model. Google limits the number of free requests per day.</p>
+                  <h3 className="font-bold text-base">API Rate Limit Reached</h3>
+                  <p className="text-sm text-amber-800">You've made too many requests in a short period. This can happen on shared API keys.</p>
                 </div>
               </div>
               <div className="pl-12">
-                <p className="text-xs">Please try again in a few minutes or tomorrow. Alternatively, switching subjects or being more specific in your inputs might help.</p>
+                 <p className="text-xs mb-3">Please wait a moment and try again. For higher rate limits, consider upgrading your plan.</p>
+                 <button 
+                  onClick={() => setShowPremiumModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 transition-colors shadow-sm hover:shadow-md text-sm"
+                >
+                  <Crown className="w-3.5 h-3.5" />
+                  Upgrade Your Plan
+                </button>
               </div>
             </div>
           );
@@ -782,7 +790,7 @@ const App: React.FC = () => {
           );
        } 
        
-       if (error === "GEMINI_API_KEY_INVALID_ERROR") {
+       if (error === "API_KEY_INVALID_ERROR") {
           return (
             <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
               <div className="flex items-center gap-3">
@@ -790,12 +798,12 @@ const App: React.FC = () => {
                   <Key className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base">Invalid GEMINI API Key</h3>
-                  <p className="text-sm text-amber-800">The GEMINI API Key provided is not valid.</p>
+                  <h3 className="font-bold text-base">Invalid API Key</h3>
+                  <p className="text-sm text-amber-800">The API Key provided is not valid.</p>
                 </div>
               </div>
               <div className="pl-12">
-                <p className="text-xs">Please verify your <code>GEMINI_API_KEY</code> in the environment variables (<code>.env</code> file) matches your Google AI Studio key.</p>
+                <p className="text-xs">Please verify your <code>API_KEY</code> in the environment variables matches your Google AI Studio key.</p>
               </div>
             </div>
           );
