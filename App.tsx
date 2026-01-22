@@ -224,6 +224,7 @@ function App() {
     setEssayContent('');
     setQuizData(null);
     setIsLoading(true);
+    setCurrentHistoryId(null); // Reset history ID so we know this is a fresh generation
 
     try {
       if (mode === AppMode.SUMMARY) {
@@ -288,6 +289,20 @@ function App() {
   };
 
   const handleQuizComplete = (score: number) => {
+    // Check for reward on fresh quiz attempt
+    const questionsCount = quizData?.length || 0;
+    const isPerfectScore = score === questionsCount;
+    
+    // Only reward if it's a fresh quiz (no history ID yet) and perfect score
+    if (!currentHistoryId && isPerfectScore && questionsCount > 0) {
+       setUserProfile(prev => ({
+          ...prev,
+          credits: prev.credits + 5
+       }));
+       // Note: The UI feedback for this is handled in QuizView via props, 
+       // but we updated the profile here.
+    }
+
     if (!currentHistoryId) {
       // New Quiz
       addToHistory(AppMode.QUIZ, formData.chapterName, formData.subject, quizData, score);
@@ -755,7 +770,7 @@ function App() {
             onBack={() => setSummaryContent('')} 
           />
         ) : (
-          <div className="max-w-3xl mx-auto">
+          <div className="w-full max-w-7xl mx-auto">
             <InputForm 
               data={formData} 
               mode={mode} 
@@ -779,7 +794,7 @@ function App() {
             onBack={() => setEssayContent('')} 
           />
         ) : (
-          <div className="max-w-3xl mx-auto">
+          <div className="w-full max-w-7xl mx-auto">
              <InputForm 
               data={formData} 
               mode={mode} 
@@ -805,7 +820,7 @@ function App() {
             existingScore={existingQuizScore}
           />
         ) : (
-          <div className="max-w-3xl mx-auto">
+          <div className="w-full max-w-7xl mx-auto">
              <InputForm 
               data={formData} 
               mode={mode} 
