@@ -358,6 +358,18 @@ const App: React.FC = () => {
       setHistory(prev => prev.map(item => 
         item.id === currentHistoryId ? { ...item, score } : item
       ));
+
+      // Award 50 Credits for Completing 20 Hard Questions
+      if (formData.questionCount === 20 && formData.difficulty === 'Hard') {
+        const bonus = 50;
+        const newCredits = userProfile.credits + bonus;
+        handleProfileSave({ ...userProfile, credits: newCredits }, false);
+        
+        // Small delay to let the score screen show first, then show reward
+        setTimeout(() => {
+          alert(`🎉 CHALLENGE COMPLETE! 🎉\n\nYou've earned ${bonus} credits for completing the Hard Mode challenge!`);
+        }, 1000);
+      }
     }
   };
 
@@ -367,6 +379,9 @@ const App: React.FC = () => {
       return data.includeImages ? 15 : 10;
     }
     if (targetMode === AppMode.QUIZ) {
+      // Free generation for the 20 Hard Questions Challenge
+      if (data.questionCount === 20 && data.difficulty === 'Hard') return 0;
+
       let cost = 10; // Base cost
       const qCount = data.questionCount || 5;
       // 2 questions = 1 credit
@@ -712,212 +727,175 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
-    if (mode === AppMode.DASHBOARD) {
-      return renderDashboard();
-    }
+    if (loading) return <LoadingState mode={mode} />;
 
-    if (mode === AppMode.PROFILE) {
-      return (
-        <ProfileView 
-          profile={userProfile} 
-          email={user?.email || null} 
-          onSave={handleProfileSave} 
-          isOnboarding={isNewUser}
-        />
-      );
-    }
-
-    if (mode === AppMode.SETTINGS) {
-      return (
-        <SettingsView
-          userProfile={userProfile}
-          onLogout={handleLogout}
-          onNavigateToProfile={() => setMode(AppMode.PROFILE)}
-          onOpenPremium={() => setShowPremiumModal(true)}
-        />
-      );
-    }
-
-    if (mode === AppMode.NOTES) {
-      return (
-        <NotesView 
-          userId={user?.uid || null} 
-          onDeductCredit={deductCredit}
-        />
-      );
-    }
-
-    if (mode === AppMode.TUTOR) {
-      return <TutorChat onDeductCredit={deductCredit} currentCredits={userProfile.credits} />;
-    }
-
-    // Loading View
-    if (loading) {
-      return <LoadingState mode={mode} />;
-    }
-
-    // Check if we have generated content
-    const hasResult = (mode === AppMode.SUMMARY && summaryContent) ||
-                      (mode === AppMode.ESSAY && essayContent) ||
-                      (mode === AppMode.QUIZ && quizData);
-
-    const showEmptyState = !loading && !hasResult;
-
-    // Hide input form if we have a result or if viewing a history quiz
-    const showInputForm = !hasResult && !(mode === AppMode.QUIZ && existingQuizScore !== undefined);
-
-    const renderError = () => {
-       if (error === "QUOTA_EXHAUSTED") {
+    switch (mode) {
+      case AppMode.DASHBOARD:
+        return renderDashboard();
+      
+      case AppMode.SUMMARY:
+        if (summaryContent) {
           return (
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 rounded-full">
-                  <AlertCircle className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">API Rate Limit Reached</h3>
-                  <p className="text-sm text-amber-800">You've made too many requests in a short period. This can happen on shared API keys.</p>
-                </div>
-              </div>
-              <div className="pl-12">
-                 <p className="text-xs mb-3">Please wait a moment and try again. For higher rate limits, consider upgrading your plan.</p>
-                 <button 
-                  onClick={() => setShowPremiumModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 transition-colors shadow-sm hover:shadow-md text-sm"
-                >
-                  <Crown className="w-3.5 h-3.5" />
-                  Upgrade Your Plan
-                </button>
-              </div>
-            </div>
+            <ResultsView
+              title={formData.chapterName}
+              content={summaryContent}
+              type="Summary"
+              isLoading={false}
+              onBack={() => {
+                 setSummaryContent('');
+                 setCurrentHistoryId(null);
+              }}
+            />
           );
-       }
-       
-       if (error === "API_DISABLED") {
-          return (
-            <div className="bg-red-50 border border-red-200 text-red-800 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-100 rounded-full">
-                  <AlertCircle className="w-5 h-5 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">API Not Enabled</h3>
-                  <p className="text-sm text-red-700">The Google Generative AI API is disabled for your project.</p>
-                </div>
-              </div>
-              
-              <div className="pl-12">
-                <p className="text-xs mb-3">To fix this, you need to enable the API in the Google Cloud Console:</p>
-                <a 
-                  href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm hover:shadow-md text-sm"
-                >
-                  Enable Generative Language API
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            </div>
-          );
-       } 
-       
-       if (error === "API_KEY_INVALID_ERROR") {
-          return (
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 rounded-full">
-                  <Key className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">Invalid API Key</h3>
-                  <p className="text-sm text-amber-800">The API Key provided is not valid.</p>
-                </div>
-              </div>
-              <div className="pl-12">
-                <p className="text-xs">Please verify your <code>API_KEY</code> in the environment variables matches your Google AI Studio key.</p>
-              </div>
-            </div>
-          );
-       }
-
-       if (error) {
-         return (
-          <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-lg flex items-center gap-3 shadow-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p className="font-medium text-sm">{error}</p>
-          </div>
-         );
-       }
-       return null;
-    };
-
-    return (
-      <div className="space-y-5 animate-in fade-in duration-500 w-full h-full">
-        {showInputForm && (
-            <InputForm 
-              data={formData} 
-              mode={mode}
+        }
+        return (
+          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <InputForm
+              data={formData}
+              mode={AppMode.SUMMARY}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
-              disabled={loading}
             />
-        )}
-
-        {renderError()}
-
-        {showEmptyState && !error && (
-          <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
-             <div className="w-20 h-20 bg-primary-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-white dark:border-slate-600 shadow-lg overflow-hidden p-1">
-                <Logo className="w-full h-full" iconOnly />
-             </div>
-             <h3 className="text-base font-semibold text-slate-800 dark:text-white mb-1">Ready to Start?</h3>
-             <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-md mx-auto text-sm">
-               Enter your study details above and I'll generate your personalized content immediately.
-             </p>
-             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-               <button 
-                type="button"
-                onClick={handleGenerate}
-                className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-bold transition-colors shadow-lg shadow-primary-500/25 flex items-center gap-2 text-sm"
-               >
-                 <Sparkles className="w-4 h-4" />
-                 Generate Now
-               </button>
-             </div>
+            {error && (
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+            <button
+              onClick={handleGenerate}
+              className="w-full py-4 bg-gradient-to-r from-primary-600 to-amber-600 hover:from-primary-700 hover:to-amber-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+            >
+              <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
+              Generate Summary
+            </button>
           </div>
-        )}
+        );
 
-        {mode === AppMode.SUMMARY && summaryContent && (
-          <ResultsView 
-            content={summaryContent} 
-            isLoading={loading} 
-            title={formData.chapterName}
-            type="Summary"
-            onBack={() => setSummaryContent('')}
-          />
-        )}
-        
-        {mode === AppMode.ESSAY && essayContent && (
-          <ResultsView 
-            content={essayContent} 
-            isLoading={loading} 
-            title={formData.chapterName} 
-            type="Essay"
-            onBack={() => setEssayContent('')}
-          />
-        )}
+      case AppMode.ESSAY:
+         if (essayContent) {
+          return (
+            <ResultsView
+              title={formData.chapterName}
+              content={essayContent}
+              type="Essay"
+              isLoading={false}
+              onBack={() => {
+                 setEssayContent('');
+                 setCurrentHistoryId(null);
+              }}
+            />
+          );
+        }
+        return (
+          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <InputForm
+              data={formData}
+              mode={AppMode.ESSAY}
+              onChange={handleFormChange}
+              onFillSample={handleFillSample}
+            />
+            {error && (
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+            <button
+              onClick={handleGenerate}
+              className="w-full py-4 bg-gradient-to-r from-primary-600 to-amber-600 hover:from-primary-700 hover:to-amber-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+            >
+              <BookOpen className="w-5 h-5 group-hover:animate-pulse" />
+              Write Essay
+            </button>
+          </div>
+        );
 
-        {mode === AppMode.QUIZ && quizData && (
-          <QuizView 
-            questions={quizData} 
-            onReset={() => setQuizData(null)}
-            onComplete={handleQuizComplete}
-            existingScore={existingQuizScore}
-          />
-        )}
-      </div>
-    );
+      case AppMode.QUIZ:
+        if (quizData) {
+          return (
+            <QuizView 
+              questions={quizData} 
+              onReset={() => {
+                setQuizData(null);
+                setExistingQuizScore(undefined);
+                setCurrentHistoryId(null);
+              }} 
+              onComplete={handleQuizComplete}
+              existingScore={existingQuizScore}
+            />
+          );
+        }
+        return (
+          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <InputForm
+              data={formData}
+              mode={AppMode.QUIZ}
+              onChange={handleFormChange}
+              onFillSample={handleFillSample}
+            />
+            {error && (
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+            <button
+              onClick={handleGenerate}
+              className="w-full py-4 bg-gradient-to-r from-primary-600 to-amber-600 hover:from-primary-700 hover:to-amber-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+            >
+              <BrainCircuit className="w-5 h-5 group-hover:animate-pulse" />
+              Generate Quiz
+            </button>
+          </div>
+        );
+
+      case AppMode.TUTOR:
+        return (
+          <div className="max-w-5xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <TutorChat 
+               onDeductCredit={deductCredit} 
+               currentCredits={userProfile.credits}
+            />
+          </div>
+        );
+      
+      case AppMode.NOTES:
+        return (
+          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <NotesView 
+               userId={user ? user.uid : null} 
+               onDeductCredit={deductCredit}
+            />
+          </div>
+        );
+
+      case AppMode.PROFILE:
+        return (
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <ProfileView 
+                profile={userProfile} 
+                email={user?.email || 'Guest'}
+                onSave={(p, r) => handleProfileSave(p, r)}
+              />
+           </div>
+        );
+
+      case AppMode.SETTINGS:
+        return (
+           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <SettingsView 
+                 userProfile={userProfile}
+                 onLogout={handleLogout}
+                 onNavigateToProfile={() => setMode(AppMode.PROFILE)}
+                 onOpenPremium={() => setShowPremiumModal(true)}
+              />
+           </div>
+        );
+
+      default:
+        return renderDashboard();
+    }
   };
 
   if (authLoading) {
