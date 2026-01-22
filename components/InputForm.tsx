@@ -37,16 +37,16 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
     placeholder: string
   ) => (
     <div className="space-y-1.5">
-      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">{label}</label>
+      <label className="text-sm font-bold text-slate-600 uppercase tracking-wider">{label}</label>
       <div className="relative group">
-        <Icon className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+        <Icon className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
         <input
           type="text"
           value={data[field] as string}
           onChange={(e) => onChange(field, e.target.value)}
           disabled={disabled}
           placeholder={placeholder}
-          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm"
+          className="w-full pl-10 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-base"
         />
       </div>
     </div>
@@ -83,7 +83,7 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5 mb-6 relative z-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6 mb-6 relative z-10">
         {renderInput("Subject", "subject", BookType, "e.g. History")}
         {renderInput("Class / Grade", "gradeClass", GraduationCap, "e.g. 10th Grade")}
         {renderInput("Board", "board", School, "e.g. CBSE")}
@@ -95,9 +95,9 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
         {mode === AppMode.QUIZ && (
           <>
             <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">No. of Questions</label>
+              <label className="text-sm font-bold text-slate-600 uppercase tracking-wider">No. of Questions</label>
               <div className="relative">
-                <HelpCircle className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                <HelpCircle className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
                 <input
                   type="number"
                   value={data.questionCount || ''}
@@ -109,20 +109,20 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
                   min="1"
                   max="50"
                   placeholder="e.g. 10"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm"
+                  className="w-full pl-10 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-base"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Difficulty</label>
+              <label className="text-sm font-bold text-slate-600 uppercase tracking-wider">Difficulty</label>
               <div className="relative">
-                <BarChart className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                <BarChart className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
                 <select
                   value={data.difficulty}
                   onChange={(e) => onChange('difficulty', e.target.value as DifficultyLevel)}
                   disabled={disabled}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 appearance-none text-slate-900 text-sm"
+                  className="w-full pl-10 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 appearance-none text-slate-900 text-base"
                 >
                   <option value="Easy">Easy</option>
                   <option value="Medium">Medium</option>

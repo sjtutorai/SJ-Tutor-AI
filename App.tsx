@@ -625,7 +625,7 @@ function App() {
                  <h2 className="text-3xl font-bold text-slate-800 dark:text-white mb-2 tracking-tight">
                    Welcome to <span className="text-primary-600 dark:text-primary-400">SJ Tutor AI</span>
                  </h2>
-                 <p className="text-slate-500 dark:text-slate-400 text-lg mb-6 max-w-xl">
+                 <p className="text-slate-500 dark:text-slate-400 text-lg mb-6 max-w-3xl">
                    {user 
                      ? `Welcome back, ${userProfile.displayName || 'Scholar'}! Ready to continue your learning journey?` 
                      : "Your intelligent study companion. Generate summaries, take quizzes, write essays, and chat with an AI Tutor."}
@@ -770,7 +770,7 @@ function App() {
             onBack={() => setSummaryContent('')} 
           />
         ) : (
-          <div className="w-full max-w-7xl mx-auto">
+          <div className="w-full h-full">
             <InputForm 
               data={formData} 
               mode={mode} 
@@ -794,7 +794,7 @@ function App() {
             onBack={() => setEssayContent('')} 
           />
         ) : (
-          <div className="w-full max-w-7xl mx-auto">
+          <div className="w-full h-full">
              <InputForm 
               data={formData} 
               mode={mode} 
@@ -820,7 +820,7 @@ function App() {
             existingScore={existingQuizScore}
           />
         ) : (
-          <div className="w-full max-w-7xl mx-auto">
+          <div className="w-full h-full">
              <InputForm 
               data={formData} 
               mode={mode} 
