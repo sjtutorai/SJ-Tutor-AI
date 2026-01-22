@@ -23,16 +23,16 @@
             },
             colors: {
               primary: {
-                50: '#FFFAF0',   /* Floral White - Very light gold/cream */
-                100: '#FDF5E6',  /* Old Lace - Light gold background */
-                200: '#FEEBC8',  /* Light Gold */
-                300: '#FBD38D',  /* Soft Gold */
-                400: '#F6AD55',  /* Warm Gold */
-                500: '#D4AF37',  /* Metallic Gold - Main Brand Color */
-                600: '#B7950B',  /* Darker Gold - For buttons/hover */
-                700: '#975A16',  /* Bronze/Dark Gold - For text */
-                800: '#744210',  /* Deep Bronze */
-                900: '#742A2A',
+                50: 'var(--color-primary-50)', 
+                100: 'var(--color-primary-100)',
+                200: 'var(--color-primary-200)',
+                300: 'var(--color-primary-300)',
+                400: 'var(--color-primary-400)',
+                500: 'var(--color-primary-500)',
+                600: 'var(--color-primary-600)',
+                700: 'var(--color-primary-700)',
+                800: 'var(--color-primary-800)',
+                900: 'var(--color-primary-900)',
               },
               slate: {
                 850: '#1a202c', /* Premium Dark for text */
@@ -60,6 +60,20 @@
       }
     </script>
     <style>
+      /* Default Gold Theme - matches the original hardcoded values */
+      :root {
+        --color-primary-50: #FFFAF0;
+        --color-primary-100: #FDF5E6;
+        --color-primary-200: #FEEBC8;
+        --color-primary-300: #FBD38D;
+        --color-primary-400: #F6AD55;
+        --color-primary-500: #D4AF37;
+        --color-primary-600: #B7950B;
+        --color-primary-700: #975A16;
+        --color-primary-800: #744210;
+        --color-primary-900: #742A2A;
+      }
+
       /* Custom scrollbar for cleaner look */
       ::-webkit-scrollbar {
         width: 6px;
@@ -76,7 +90,7 @@
         background: #cbd5e1;
       }
       body {
-        background-color: #FFFAF0; /* Warm Floral White for Premium Gold Theme */
+        background-color: var(--color-primary-50);
         transition: background-color 0.3s ease;
       }
       /* Dark mode body */
@@ -115,11 +129,11 @@
       }
       html.dark .markdown-body h1, html.dark .markdown-body h2, html.dark .markdown-body h3 { color: #f3f4f6; }
 
-      .markdown-body h1 { font-size: 1.5rem; border-bottom: 2px solid #FDF5E6; padding-bottom: 0.5rem; }
+      .markdown-body h1 { font-size: 1.5rem; border-bottom: 2px solid var(--color-primary-100); padding-bottom: 0.5rem; }
       html.dark .markdown-body h1 { border-bottom-color: #374151; }
 
-      .markdown-body h2 { font-size: 1.25rem; color: #B7950B; }
-      html.dark .markdown-body h2 { color: #F6AD55; }
+      .markdown-body h2 { font-size: 1.25rem; color: var(--color-primary-600); }
+      html.dark .markdown-body h2 { color: var(--color-primary-400); }
 
       .markdown-body h3 { font-size: 1.1rem; }
       .markdown-body strong { color: #2d3748; font-weight: 700; }
@@ -128,11 +142,11 @@
       .markdown-body ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.75rem; }
       .markdown-body ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.75rem; }
       .markdown-body blockquote {
-        border-left: 3px solid #D4AF37;
+        border-left: 3px solid var(--color-primary-500);
         padding-left: 0.75rem;
         font-style: italic;
         color: #718096;
-        background: #FFFAF0;
+        background: var(--color-primary-50);
         padding: 0.75rem;
         border-radius: 0 6px 6px 0;
         margin-bottom: 1rem;

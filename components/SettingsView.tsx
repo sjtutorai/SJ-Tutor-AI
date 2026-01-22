@@ -5,7 +5,7 @@ import { SettingsService } from '../services/settingsService';
 import { 
   User, BookOpen, Bot, MessageSquare, Bell, Moon, Lock, 
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, 
-  Save, LogOut, Trash2, Globe, Shield, Activity, Eye, Download, Info, Check, AlertTriangle, Mail, GraduationCap
+  Save, LogOut, Trash2, Globe, Shield, Activity, Eye, Download, Info, Check, AlertTriangle, Mail, GraduationCap, Palette, FileText, X
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -15,7 +15,7 @@ interface SettingsViewProps {
   onOpenPremium: () => void;
 }
 
-type SettingsTab = 'account' | 'learning' | 'aiTutor' | 'chat' | 'notifications' | 'appearance' | 'privacy' | 'system' | 'billing' | 'help';
+type SettingsTab = 'account' | 'learning' | 'aiTutor' | 'chat' | 'notifications' | 'appearance' | 'privacy' | 'system' | 'billing' | 'help' | 'legal';
 
 const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNavigateToProfile, onOpenPremium }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
@@ -96,11 +96,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
     { id: 'aiTutor', label: 'AI Tutor', icon: Bot },
     { id: 'chat', label: 'Chat', icon: MessageSquare },
     { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'appearance', label: 'Appearance', icon: Moon },
+    { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'privacy', label: 'Privacy', icon: Lock },
     { id: 'system', label: 'App & System', icon: Smartphone },
     { id: 'billing', label: 'Subscription', icon: CreditCard },
     { id: 'help', label: 'Help & Support', icon: HelpCircle },
+    { id: 'legal', label: 'Legal', icon: FileText },
   ];
 
   const renderContent = () => {
@@ -365,6 +366,33 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                    </div>
                 </div>
 
+                <div className="space-y-2">
+                   <label className="text-sm font-bold text-slate-600 dark:text-slate-400">Brand Color</label>
+                   <div className="grid grid-cols-5 gap-3">
+                      {[
+                        { name: 'Gold', color: '#D4AF37' },
+                        { name: 'Blue', color: '#3b82f6' },
+                        { name: 'Emerald', color: '#10b981' },
+                        { name: 'Violet', color: '#8b5cf6' },
+                        { name: 'Rose', color: '#f43f5e' },
+                      ].map((color) => (
+                         <button
+                           key={color.name}
+                           onClick={() => handleSettingChange('appearance', 'primaryColor', color.name)}
+                           className={`p-2 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${
+                             (settings.appearance.primaryColor || 'Gold') === color.name
+                             ? 'border-slate-900 dark:border-white scale-105'
+                             : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'
+                           }`}
+                           title={color.name}
+                         >
+                            <div className="w-8 h-8 rounded-full shadow-sm" style={{ backgroundColor: color.color }}></div>
+                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{color.name}</span>
+                         </button>
+                      ))}
+                   </div>
+                </div>
+
                 <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                    <span className="font-medium text-slate-700 dark:text-slate-300">UI Animations</span>
                    <label className="relative inline-flex items-center cursor-pointer">
@@ -379,6 +407,86 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                 </div>
              </div>
            </div>
+        );
+
+      case 'legal':
+        return (
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+             <div className="border-b border-slate-100 dark:border-slate-700 pb-2">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white">Terms & Conditions</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Please read our terms of service carefully.</p>
+             </div>
+             
+             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm max-h-[600px] overflow-y-auto custom-scrollbar">
+                <div className="prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
+                  <p className="text-xs text-slate-500 mb-4">Last Updated: January 2026</p>
+                  
+                  <p className="mb-4">By downloading, accessing, or using SJ Tutor AI, you agree to these Terms and Conditions. If you do not agree, please discontinue use of the application.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">1. About SJ Tutor AI</h4>
+                  <p>SJ Tutor AI is an AI-powered educational application designed to support students in learning, understanding concepts, and improving academic skills using artificial intelligence. The application is intended only for educational and learning support purposes.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">2. User Eligibility</h4>
+                  <p>SJ Tutor AI is intended for students and learners. Users below the legally permitted age should use the app with parent or guardian supervision. You agree to provide accurate and complete information when creating an account.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">3. Account Responsibility</h4>
+                  <p>You are responsible for maintaining the confidentiality of your account credentials. You must not share your login details with others. You are responsible for all activities conducted through your account. Notify us immediately if you suspect unauthorized access.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">4. Acceptable Use Policy</h4>
+                  <p>You agree to use SJ Tutor AI responsibly and ethically. You must NOT:</p>
+                  <ul className="list-disc pl-5 mb-2">
+                    <li>Use the app for illegal or harmful activities</li>
+                    <li>Upload or share abusive, misleading, or inappropriate content</li>
+                    <li>Attempt to hack, exploit, or disrupt the app or its services</li>
+                    <li>Use the AI for cheating, plagiarism, or violating academic rules</li>
+                    <li>Impersonate another person or entity</li>
+                  </ul>
+                  <p>Violation of these rules may result in account suspension or termination.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">5. AI-Generated Content Disclaimer</h4>
+                  <p>Content is generated by artificial intelligence and may not always be accurate. SJ Tutor AI does not replace teachers, schools, or professional educators. Users must independently verify critical academic or factual information. SJ Tutor AI is not responsible for decisions made based solely on AI responses.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">6. Learning Responsibility</h4>
+                  <p>The app is a learning support tool, not a guarantee of academic success. Learning outcomes depend on user effort and proper usage. SJ Tutor AI is not liable for exam results or academic performance.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">7. Privacy and Data Protection</h4>
+                  <p>Your privacy is important to us. User data is handled according to our Privacy Policy. Users can view, update, download, or delete their data. AI memory and chat history controls are available. We do not sell personal data. Please review the Privacy Policy for detailed information.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">8. Intellectual Property Rights</h4>
+                  <p>All content, design, branding, and AI systems are the property of SJ Tutor AI. Users may not copy, modify, distribute, or reverse engineer any part of the app without written permission. Unauthorized use of intellectual property may result in legal action.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">9. Service Availability</h4>
+                  <p>We aim to provide uninterrupted service, but availability is not guaranteed. Features may be updated, changed, or removed to improve the app. Temporary downtime may occur due to maintenance or technical issues.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">10. Third-Party Services</h4>
+                  <p>SJ Tutor AI may use trusted third-party services for: Authentication, Analytics, Cloud storage, Payments (if applicable). These services operate under their own terms and privacy policies.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">11. Account Termination</h4>
+                  <p>We reserve the right to: Suspend or terminate accounts violating these Terms, Remove content that breaches rules, Restrict access to protect users and the platform. Users may delete their account at any time from the app settings.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">12. Limitation of Liability</h4>
+                  <p>SJ Tutor AI is provided “as is” and “as available.” We are not liable for: Errors or inaccuracies in AI-generated content, Academic or personal decisions made using the app, Data loss caused by user actions or external technical failures.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">13. Changes to Terms</h4>
+                  <p>These Terms may be updated periodically. Significant changes will be communicated to users. Continued use of the app after updates means acceptance of revised Terms.</p>
+
+                  <h4 className="font-bold text-slate-900 dark:text-white mt-4 mb-2">14. Contact Information</h4>
+                  <p>If you have any questions or concerns regarding these Terms and Conditions:</p>
+                  <p>📧 Email: sjtutorai@gmail.com</p>
+                  <p>📱 In App: Settings → Help & Support</p>
+
+                  <div className="mt-8 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+                    <h5 className="font-bold text-slate-900 dark:text-white mb-2">Simple User Summary</h5>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>Use responsibly.</li>
+                      <li>Learn honestly.</li>
+                      <li>Your data remains under your control.</li>
+                      <li>Respect the rules and enjoy learning with SJ Tutor AI.</li>
+                    </ul>
+                  </div>
+                </div>
+             </div>
+          </div>
         );
 
       default:

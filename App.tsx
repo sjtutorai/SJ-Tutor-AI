@@ -41,6 +41,29 @@ const DEFAULT_PROFILE: UserProfile = {
   planType: 'Free'
 };
 
+const THEME_COLORS: Record<string, Record<string, string>> = {
+  Gold: {
+    50: '#FFFAF0', 100: '#FDF5E6', 200: '#FEEBC8', 300: '#FBD38D', 400: '#F6AD55',
+    500: '#D4AF37', 600: '#B7950B', 700: '#975A16', 800: '#744210', 900: '#742A2A'
+  },
+  Blue: {
+    50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
+    500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a'
+  },
+  Emerald: {
+    50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399',
+    500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b'
+  },
+  Violet: {
+    50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa',
+    500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95'
+  },
+  Rose: {
+    50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 300: '#fda4af', 400: '#fb7185',
+    500: '#f43f5e', 600: '#e11d48', 700: '#be123c', 800: '#9f1239', 900: '#881337'
+  }
+};
+
 function App() {
   // Auth & User State
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -73,14 +96,23 @@ function App() {
     const applyTheme = () => {
       const settings = SettingsService.getSettings();
       const theme = settings.appearance.theme;
-      const root = window.document.documentElement;
-      const isDark = theme === 'Dark' || (theme === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const primaryColorName = settings.appearance.primaryColor || 'Gold';
       
+      const root = window.document.documentElement;
+      
+      // Apply Dark/Light Mode
+      const isDark = theme === 'Dark' || (theme === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       if (isDark) {
         root.classList.add('dark');
       } else {
         root.classList.remove('dark');
       }
+
+      // Apply Color Variables
+      const palette = THEME_COLORS[primaryColorName] || THEME_COLORS['Gold'];
+      Object.entries(palette).forEach(([shade, value]) => {
+        root.style.setProperty(`--color-primary-${shade}`, value);
+      });
     };
 
     // Apply initially
