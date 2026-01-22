@@ -4,7 +4,7 @@ import { UserProfile, UserSettings, SJTUTOR_AVATAR } from '../types';
 import { SettingsService } from '../services/settingsService';
 import { 
   User, BookOpen, Bot, MessageSquare, Bell, Moon, Lock, 
-  Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, 
+  Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, ChevronDown, ChevronUp,
   Save, LogOut, Trash2, Globe, Shield, Activity, Eye, Type, Palette, Monitor, Zap
 } from 'lucide-react';
 
@@ -22,6 +22,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
   const [settings, setSettings] = useState<UserSettings>(SettingsService.getSettings());
   const [hasChanges, setHasChanges] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  
+  // Help Center State
+  const [helpTab, setHelpTab] = useState<'FAQ' | 'TERMS'>('FAQ');
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   const handleSettingChange = (category: keyof UserSettings, field: string, value: any) => {
     setSettings(prev => ({
@@ -56,6 +60,44 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
     { id: 'system', label: 'App & System', icon: Smartphone },
     { id: 'billing', label: 'Subscription', icon: CreditCard },
     { id: 'help', label: 'Help & Support', icon: HelpCircle },
+  ];
+
+  const faqs = [
+    { q: "What is SJ Tutor AI?", a: "SJ Tutor AI is an AI-powered learning app that helps students understand concepts, solve doubts, and improve learning using smart artificial intelligence." },
+    { q: "Who can use SJ Tutor AI?", a: "SJ Tutor AI is designed for students, learners, and anyone who wants academic support. Younger users should use the app with parent or guardian guidance." },
+    { q: "Is SJ Tutor AI free to use?", a: "SJ Tutor AI offers free features, and some advanced features may require a subscription. You can view your current plan in Settings → Subscription." },
+    { q: "Can SJ Tutor AI replace a teacher?", a: "No. SJ Tutor AI is a learning support tool, not a replacement for teachers, schools, or textbooks. It helps explain concepts and clear doubts, but human guidance is still important." },
+    { q: "Are AI answers always correct?", a: "AI responses are generated automatically and may not always be 100% accurate. Students should verify important information from trusted sources." },
+    { q: "Is my data safe in SJ Tutor AI?", a: "Yes. We take user privacy seriously. Data is securely stored, communication is encrypted, personal data is not sold, and users can control or delete their data." },
+    { q: "Does SJ Tutor AI store my chat messages?", a: "Chat messages may be stored to improve AI responses and remember user preferences (if enabled). You can clear chat history or turn off AI memory anytime in Settings → Privacy." },
+    { q: "Can I delete my account?", a: "Yes. You can permanently delete your account from Settings → Account → Delete Account. All associated data will be removed." },
+    { q: "Does SJ Tutor AI show ads?", a: "SJ Tutor AI does not show targeted or inappropriate ads, especially for students." },
+    { q: "Can I use SJ Tutor AI for exams or homework?", a: "SJ Tutor AI can help you understand concepts, but it should not be used for cheating or violating school or exam rules." },
+    { q: "What subjects does SJ Tutor AI support?", a: "SJ Tutor AI supports multiple subjects such as Math, Science, Coding, General knowledge, and AI & technology. Available subjects may expand over time." },
+    { q: "Can I change the AI tutor style?", a: "Yes. You can change the Tutor personality, Explanation style, and Answer format in Settings → AI Tutor Settings." },
+    { q: "Is SJ Tutor AI available offline?", a: "Some features may work offline, but AI chat requires an internet connection." },
+    { q: "How do I report a problem or bug?", a: "You can report issues via Settings → Help & Support or email us at sjtutorai@gmail.com" },
+    { q: "How do I contact SJ Tutor AI support?", a: "Email: sjtutorai@gmail.com or In App: Settings → Help & Support" },
+    { q: "Will SJ Tutor AI get new features?", a: "Yes. We regularly improve the app by adding new features, better AI responses, and performance updates." },
+    { q: "Can parents monitor student usage?", a: "Currently, parental monitoring is limited. Future updates may include parental controls." },
+    { q: "What happens if Terms or Privacy Policy change?", a: "Users will be notified of major updates. Continued use of the app means acceptance of updated policies." },
+  ];
+
+  const terms = [
+    { title: "1. About SJ Tutor AI", content: "SJ Tutor AI is an AI-powered educational application designed to support students in learning, understanding concepts, and improving academic skills using artificial intelligence. The application is intended only for educational and learning support purposes." },
+    { title: "2. User Eligibility", content: "SJ Tutor AI is intended for students and learners. Users below the legally permitted age should use the app with parent or guardian supervision. You agree to provide accurate and complete information when creating an account." },
+    { title: "3. Account Responsibility", content: "You are responsible for maintaining the confidentiality of your account credentials. You must not share your login details with others. You are responsible for all activities conducted through your account. Notify us immediately if you suspect unauthorized access." },
+    { title: "4. Acceptable Use Policy", content: "You agree to use SJ Tutor AI responsibly and ethically. You must NOT: Use the app for illegal or harmful activities; Upload or share abusive, misleading, or inappropriate content; Attempt to hack, exploit, or disrupt the app or its services; Use the AI for cheating, plagiarism, or violating academic rules; Impersonate another person or entity. Violation of these rules may result in account suspension or termination." },
+    { title: "5. AI-Generated Content Disclaimer", content: "Content is generated by artificial intelligence and may not always be accurate. SJ Tutor AI does not replace teachers, schools, or professional educators. Users must independently verify critical academic or factual information. SJ Tutor AI is not responsible for decisions made based solely on AI responses." },
+    { title: "6. Learning Responsibility", content: "The app is a learning support tool, not a guarantee of academic success. Learning outcomes depend on user effort and proper usage. SJ Tutor AI is not liable for exam results or academic performance." },
+    { title: "7. Privacy and Data Protection", content: "Your privacy is important to us. User data is handled according to our Privacy Policy. Users can view, update, download, or delete their data. AI memory and chat history controls are available. We do not sell personal data. Please review the Privacy Policy for detailed information." },
+    { title: "8. Intellectual Property Rights", content: "All content, design, branding, and AI systems are the property of SJ Tutor AI. Users may not copy, modify, distribute, or reverse engineer any part of the app without written permission. Unauthorized use of intellectual property may result in legal action." },
+    { title: "9. Service Availability", content: "We aim to provide uninterrupted service, but availability is not guaranteed. Features may be updated, changed, or removed to improve the app. Temporary downtime may occur due to maintenance or technical issues." },
+    { title: "10. Third-Party Services", content: "SJ Tutor AI may use trusted third-party services for Authentication, Analytics, Cloud storage, and Payments. These services operate under their own terms and privacy policies." },
+    { title: "11. Account Termination", content: "We reserve the right to Suspend or terminate accounts violating these Terms, Remove content that breaches rules, and Restrict access to protect users and the platform. Users may delete their account at any time from the app settings." },
+    { title: "12. Limitation of Liability", content: "SJ Tutor AI is provided 'as is' and 'as available'. We are not liable for Errors or inaccuracies in AI-generated content, Academic or personal decisions made using the app, or Data loss caused by user actions or external technical failures." },
+    { title: "13. Changes to Terms", content: "These Terms may be updated periodically. Significant changes will be communicated to users. Continued use of the app after updates means acceptance of revised Terms." },
+    { title: "14. Contact Information", content: "If you have any questions or concerns regarding these Terms and Conditions: Email: sjtutorai@gmail.com" },
   ];
 
   const renderContent = () => {
@@ -263,6 +305,76 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                 </div>
              </div>
            </div>
+        );
+
+      case 'help':
+        return (
+           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Help Center</h3>
+             
+             <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-fit">
+                <button
+                  onClick={() => setHelpTab('FAQ')}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${helpTab === 'FAQ' ? 'bg-white dark:bg-slate-700 text-primary-600 dark:text-primary-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                >
+                  FAQ
+                </button>
+                <button
+                  onClick={() => setHelpTab('TERMS')}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${helpTab === 'TERMS' ? 'bg-white dark:bg-slate-700 text-primary-600 dark:text-primary-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                >
+                  Terms & Conditions
+                </button>
+             </div>
+
+             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm h-[500px] overflow-y-auto custom-scrollbar">
+                {helpTab === 'FAQ' && (
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-lg text-slate-800 dark:text-white mb-4">Frequently Asked Questions</h4>
+                    {faqs.map((item, idx) => (
+                      <div key={idx} className="border-b border-slate-100 dark:border-slate-700 last:border-0 pb-4 last:pb-0">
+                        <button 
+                          onClick={() => setOpenFaqIndex(openFaqIndex === idx ? null : idx)}
+                          className="flex justify-between items-start w-full text-left font-medium text-slate-700 dark:text-slate-200 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                        >
+                          <span className="pr-4">{item.q}</span>
+                          {openFaqIndex === idx ? <ChevronUp className="w-4 h-4 flex-shrink-0 mt-1" /> : <ChevronDown className="w-4 h-4 flex-shrink-0 mt-1" />}
+                        </button>
+                        {openFaqIndex === idx && (
+                          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 leading-relaxed animate-in fade-in slide-in-from-top-1">
+                            {item.a}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {helpTab === 'TERMS' && (
+                  <div className="space-y-6">
+                    <div className="text-center border-b border-slate-100 dark:border-slate-700 pb-4">
+                       <h4 className="font-bold text-lg text-slate-800 dark:text-white">Terms and Conditions</h4>
+                       <p className="text-xs text-slate-400 mt-1">Last Updated: January 2026</p>
+                    </div>
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-slate-600 dark:text-slate-300">
+                       <p className="text-xs font-medium bg-slate-50 dark:bg-slate-900 p-3 rounded-lg">
+                         By downloading, accessing, or using SJ Tutor AI, you agree to these Terms and Conditions. If you do not agree, please discontinue use of the application.
+                       </p>
+                       {terms.map((item, idx) => (
+                         <div key={idx} className="mb-4">
+                           <h5 className="font-bold text-slate-800 dark:text-white mb-1">{item.title}</h5>
+                           <p className="text-sm leading-relaxed">{item.content}</p>
+                         </div>
+                       ))}
+                    </div>
+                  </div>
+                )}
+             </div>
+             
+             <div className="text-center text-xs text-slate-400 mt-4">
+                <p>Have more questions? Contact us at <a href="mailto:sjtutorai@gmail.com" className="text-primary-600 hover:underline">sjtutorai@gmail.com</a></p>
+             </div>
+          </div>
         );
 
       default:
