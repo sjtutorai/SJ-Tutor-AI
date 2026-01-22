@@ -7,9 +7,10 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   sendPasswordResetEmail,
-  updateProfile
+  updateProfile,
+  sendEmailVerification
 } from 'firebase/auth';
-import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone } from 'lucide-react';
+import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, CheckCircle, Inbox } from 'lucide-react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
 
@@ -18,7 +19,7 @@ interface AuthProps {
   onClose: () => void;
 }
 
-type AuthView = 'login' | 'signup' | 'forgot-password';
+type AuthView = 'login' | 'signup' | 'forgot-password' | 'verify-email';
 
 const AppleIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 384 512" fill="currentColor">
@@ -119,18 +120,13 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             await updateProfile(result.user, {
                 displayName: name
             });
+            
+            // Send Email Verification
+            await sendEmailVerification(result.user);
         }
 
-        if (onSignUpSuccess) {
-          onSignUpSuccess({
-              displayName: name,
-              institution: school,
-              grade: grade,
-              phoneNumber: phoneNumber
-          });
-        } else {
-          onClose();
-        }
+        // Instead of closing immediately, show email verification screen
+        setView('verify-email');
       }
     } catch (err: any) {
       console.error(err);
@@ -145,6 +141,19 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       setError(msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFinishSignup = () => {
+    if (onSignUpSuccess) {
+      onSignUpSuccess({
+          displayName: name,
+          institution: school,
+          grade: grade,
+          phoneNumber: phoneNumber
+      });
+    } else {
+      onClose();
     }
   };
 
@@ -165,6 +174,37 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             >
               Back to Login
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'verify-email') {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={handleFinishSignup}></div>
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div className="relative bg-white p-8 rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md text-center animate-in fade-in zoom-in duration-300">
+            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+              <Inbox className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Verify your email</h2>
+            <p className="text-slate-500 mb-6">
+              We've sent a verification link to <br/>
+              <span className="font-bold text-slate-700">{email}</span>.
+              <br/>Please check your inbox to activate your account fully.
+            </p>
+            <button 
+              onClick={handleFinishSignup}
+              className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+            >
+              Continue to App
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <p className="text-xs text-slate-400 mt-4">
+              Didn't receive it? Check your spam folder.
+            </p>
           </div>
         </div>
       </div>
