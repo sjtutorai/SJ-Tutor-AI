@@ -450,7 +450,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                         if (schedule) setTimetable(schedule);
                       } catch (e) { alert("Failed to generate."); } finally { setIsGenerating(false); }
                     }}
-                    className="w-full py-3.5 bg-gradient-to-r from-primary-600 to-amber-600 text-white rounded-xl font-bold shadow-lg"
+                    className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold shadow-lg"
                   >
                     Generate Timetable
                   </button>

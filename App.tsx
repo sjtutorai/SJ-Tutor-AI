@@ -852,7 +852,7 @@ const App: React.FC = () => {
             )}
             <button
               onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-600 to-amber-600 hover:from-primary-700 hover:to-amber-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
             >
               <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
               Generate Summary
@@ -891,7 +891,7 @@ const App: React.FC = () => {
             )}
             <button
               onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-600 to-amber-600 hover:from-primary-700 hover:to-amber-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
             >
               <BookOpen className="w-5 h-5 group-hover:animate-pulse" />
               Write Essay
@@ -930,7 +930,7 @@ const App: React.FC = () => {
             )}
             <button
               onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-600 to-amber-600 hover:from-primary-700 hover:to-amber-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
             >
               <BrainCircuit className="w-5 h-5 group-hover:animate-pulse" />
               Generate Quiz
