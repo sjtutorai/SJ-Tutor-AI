@@ -11,6 +11,7 @@ import PremiumModal from './components/PremiumModal';
 import LoadingState from './components/LoadingState'; 
 import NotesView from './components/NotesView';
 import SettingsView from './components/SettingsView';
+import AboutView from './components/AboutView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
@@ -36,7 +37,8 @@ import {
   Clock,
   Key,
   ExternalLink,
-  Settings
+  Settings,
+  Info
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -539,6 +541,7 @@ const App: React.FC = () => {
     { id: AppMode.ESSAY, label: 'Essay Writer', icon: BookOpen },
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
+    { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
   ];
 
@@ -893,6 +896,13 @@ const App: React.FC = () => {
            </div>
         );
 
+      case AppMode.ABOUT:
+        return (
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <AboutView />
+           </div>
+        );
+
       default:
         return renderDashboard();
     }
@@ -960,8 +970,8 @@ const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => {
-                    // Auth Check for nav items except Dashboard
-                    if (item.id !== AppMode.DASHBOARD && !user) {
+                    // Auth Check for nav items except Dashboard and About
+                    if (item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && !user) {
                       setShowAuthModal(true);
                       setIsSidebarOpen(false); // Close sidebar on mobile
                     } else {
@@ -984,7 +994,7 @@ const App: React.FC = () => {
                 >
                   <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
                   {item.label}
-                  {!user && item.id !== AppMode.DASHBOARD && (
+                  {!user && item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && (
                      <div className="ml-auto">
                         <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
                      </div>
