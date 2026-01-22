@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Target, Bot, Users, Sprout, Lock, Mail } from 'lucide-react';
+import { Target, Bot, Users, Sprout, Lock, Mail, Phone } from 'lucide-react';
 import Logo from './Logo';
 
 const AboutView: React.FC = () => {
@@ -14,7 +14,7 @@ const AboutView: React.FC = () => {
            </div>
         </div>
         <h1 className="text-4xl font-bold text-slate-800 dark:text-white tracking-tight">SJ Tutor AI</h1>
-        <p className="text-xl text-slate-500 dark:text-slate-400 font-medium uppercase tracking-widest text-sm">Who We Are</p>
+        <p className="text-xl text-slate-500 dark:text-slate-400 font-medium uppercase tracking-widest text-sm">Founded by Sadanand Jyoti</p>
         <p className="max-w-2xl mx-auto text-slate-600 dark:text-slate-300 leading-relaxed text-lg">
           SJ Tutor AI is an AI-powered learning platform created to help students learn smarter, understand concepts better, and study with confidence.
         </p>
@@ -147,9 +147,13 @@ const AboutView: React.FC = () => {
             <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Contact Us</h2>
             <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Questions, feedback, or suggestions? We'd love to hear from you.</p>
             <div className="space-y-3 w-full max-w-xs mx-auto">
-               <a href="mailto:sjtutorai@gmail.com" className="flex items-center justify-center gap-2 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600 text-primary-600 font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm hover:shadow">
+               <a href="mailto:sadanandj2011@gmail.com" className="flex items-center justify-center gap-2 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600 text-primary-600 font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm hover:shadow text-sm">
                   <Mail className="w-4 h-4" />
-                  sjtutorai@gmail.com
+                  sadanandj2011@gmail.com
+               </a>
+               <a href="tel:+918105423488" className="flex items-center justify-center gap-2 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm hover:shadow text-sm">
+                  <Phone className="w-4 h-4" />
+                  +91 8105423488
                </a>
                <p className="text-xs text-slate-400">Or check Settings → Help & Support</p>
             </div>
