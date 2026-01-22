@@ -1,7 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
-import { QuizQuestion } from '../types';
+import { QuizQuestion, SJTUTOR_AVATAR } from '../types';
 import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Instagram, Mail, Send, MessageCircle, Link } from 'lucide-react';
-import { SJTUTOR_AVATAR } from '../App';
 
 interface QuizViewProps {
   questions: QuizQuestion[];

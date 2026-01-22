@@ -1,11 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage } from '../types';
+import { ChatMessage, SJTUTOR_AVATAR } from '../types';
 import { GeminiService } from '../services/geminiService';
 import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle, ExternalLink } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Chat, GenerateContentResponse } from "@google/genai";
-import { SJTUTOR_AVATAR } from '../App';
 
 const SAMPLE_QUESTIONS = [
   "What is the difference between weather and climate?",

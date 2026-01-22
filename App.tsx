@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile } from './types';
+import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile, SJTUTOR_AVATAR } from './types';
 import InputForm from './components/InputForm';
 import ResultsView from './components/ResultsView';
 import QuizView from './components/QuizView';
@@ -10,6 +10,7 @@ import Auth from './components/Auth';
 import PremiumModal from './components/PremiumModal';
 import LoadingState from './components/LoadingState'; 
 import NotesView from './components/NotesView';
+import SettingsView from './components/SettingsView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { auth } from './firebaseConfig';
@@ -33,12 +34,10 @@ import {
   Plus,
   Clock,
   Key,
-  ExternalLink
+  ExternalLink,
+  Settings
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
-
-// SJTutor Avatar Constant
-export const SJTUTOR_AVATAR = "https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg";
 
 const SAMPLE_DATA: StudyRequestData = {
   subject: 'Science',
@@ -449,6 +448,7 @@ const App: React.FC = () => {
     { id: AppMode.ESSAY, label: 'Essay Writer', icon: BookOpen },
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
+    { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
   ];
 
   const renderDashboard = () => {
@@ -572,124 +572,62 @@ const App: React.FC = () => {
         </div>
       );
     }
-
-    // DASHBOARD OVERVIEW
+    
     return (
-      <div className="relative min-h-[500px]">
-        {/* Floating Background Blobs */}
-        <div className="absolute top-0 -left-4 w-72 h-72 bg-primary-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-0 -right-4 w-72 h-72 bg-amber-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-primary-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-slate-800">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
+          <p className="text-slate-500">Ready to learn something new today?</p>
+        </div>
 
-        <div className="relative z-10 space-y-6">
-          {/* API Key Warning (using required process.env.API_KEY) */}
-          {apiKeyMissing && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-4 shadow-sm">
-              <div className="bg-red-100 p-1.5 rounded-full">
-                <Key className="w-4 h-4 text-red-600" />
-              </div>
-              <div>
-                <h4 className="font-bold text-red-800 text-sm">API_KEY Missing</h4>
-                <p className="text-xs text-red-600 mt-0.5">
-                  The AI features will not work because the <code>API_KEY</code> environment variable is missing. 
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Welcome Card with Avatar */}
-          <div className="animate-fade-in-up bg-white/70 backdrop-blur-xl border border-white/50 rounded-2xl p-6 shadow-[0_4px_20px_rgb(0,0,0,0.03)] overflow-hidden relative group hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-500">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary-100/40 to-transparent rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-110 transition-transform duration-700"></div>
-              
-              <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
-                <div className="flex-1">
-                  <h3 className="text-2xl font-bold text-slate-800 mb-1 tracking-tight">
-                    Hey, I'm <span className="text-primary-600">SJ Tutor AI</span>!
-                  </h3>
-                  <h4 className="text-lg font-medium text-slate-600 mb-3">
-                    Welcome back, <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-400">{user ? (userProfile.displayName || 'Scholar') : 'Guest'}</span>
-                  </h4>
-                  <p className="text-slate-500 text-base leading-relaxed mb-5">
-                    {user ? "I'm ready to help you ace your studies. What are we working on today?" : "I'm your AI study companion. Sign in to unlock my full potential!"}
-                  </p>
-                  
-                  <div className="flex flex-wrap gap-3">
-                    <button 
-                        onClick={() => {
-                        if (!user) setShowAuthModal(true);
-                        else setMode(AppMode.TUTOR);
-                        }}
-                        className="group relative px-5 py-2.5 bg-slate-900 text-white rounded-lg font-medium overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-lg shadow-slate-900/20 text-sm"
-                    >
-                        <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                        <span className="flex items-center gap-2 relative z-10">
-                        <MessageCircle className="w-4 h-4" />
-                        Chat with Me
-                        </span>
-                    </button>
-                    {!user && (
-                        <button 
-                            onClick={() => setShowAuthModal(true)}
-                            className="px-5 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg font-medium hover:bg-slate-50 transition-colors shadow-sm text-sm"
-                        >
-                            Sign In / Sign Up
-                        </button>
-                    )}
-                  </div>
-
-                   {user && (
-                       <div className="mt-5 flex items-center gap-2 text-primary-700 bg-primary-50/80 backdrop-blur-sm px-3 py-1.5 rounded-lg w-fit border border-primary-100">
-                          <Zap className="w-3.5 h-3.5 fill-primary-500 text-primary-500" />
-                          <span className="font-semibold text-xs">{userProfile.credits} generations remaining</span>
-                       </div>
-                    )}
-                </div>
-                
-                {/* Avatar Display */}
-                <div className="relative w-40 h-40 md:w-56 md:h-56 flex-shrink-0 animate-blob">
-                     <div className="absolute inset-0 bg-primary-200 rounded-full blur-2xl opacity-50"></div>
-                     <Logo className="relative w-full h-full drop-shadow-xl hover:scale-105 transition-transform duration-500 rounded-none border-0 shadow-none bg-transparent" iconOnly />
-                </div>
-              </div>
-          </div>
-
-          {/* Stats List (Vertical) */}
-          <div className="flex flex-col gap-3">
-            <h3 className="text-base font-bold text-slate-700 ml-1">Quick Actions</h3>
-            {dashboardCards.map((stat, idx) => (
-              <button 
-                key={idx} 
-                onClick={() => {
-                    if (!user) setShowAuthModal(true);
-                    else if (stat.id === AppMode.NOTES) setMode(AppMode.NOTES);
-                    else setDashboardView(stat.id as AppMode);
-                }}
-                className={`group relative p-4 rounded-xl bg-[#FFFAF0] border border-stone-100/60 shadow-sm hover:shadow-md transition-all duration-300 text-left w-full overflow-hidden flex items-center justify-between`}
-                style={{ animationDelay: `${(idx + 1) * 150}ms` }}
-              >
-                 <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${stat.bg} shadow-sm border border-stone-100`}>
-                      <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{stat.label}</p>
-                      <span className="text-xl font-bold text-slate-800 tracking-tight">
-                        {stat.count}
-                      </span>
-                    </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {dashboardCards.map((card) => (
+            <button
+              key={card.id}
+              onClick={() => {
+                 if (card.id === AppMode.NOTES) {
+                    setMode(AppMode.NOTES);
+                 } else {
+                    setDashboardView(card.id as any);
+                 }
+              }}
+              className={`p-5 rounded-xl border border-transparent hover:border-amber-200 transition-all hover:shadow-md text-left group bg-white shadow-sm border-slate-100`}
+            >
+              <div className="flex justify-between items-start mb-3">
+                 <div className={`p-2.5 rounded-lg shadow-sm ${card.color} ${card.bg}`}>
+                    <card.icon className="w-5 h-5" />
                  </div>
-                 
-                 {user && (stat.id === AppMode.TUTOR || stat.id === AppMode.NOTES) ? (
-                     <div className="flex items-center gap-1 px-2.5 py-1 bg-primary-100/50 rounded-full text-[10px] font-semibold text-primary-700">
-                        <span>{stat.id === AppMode.NOTES ? 'Open Notes' : 'View History'}</span>
-                        <ChevronRight className="w-2.5 h-2.5" />
-                    </div>
-                 ) : user && (
-                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary-400 transition-colors" />
-                 )}
+                 <span className="text-2xl font-bold text-slate-800">{card.count}</span>
+              </div>
+              <h4 className="font-semibold text-slate-800 mb-1">{card.label}</h4>
+              <p className="text-xs text-slate-500 font-medium group-hover:text-amber-700 transition-colors flex items-center gap-1">
+                View Details <ChevronRight className="w-3 h-3" />
+              </p>
+            </button>
+          ))}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-in slide-in-from-bottom-6 duration-700">
+           <h3 className="font-bold text-slate-800 mb-4">Quick Actions</h3>
+           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <button onClick={() => setMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 hover:bg-amber-50 hover:text-amber-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-amber-100">
+                 <FileText className="w-6 h-6 text-amber-600" />
+                 New Summary
               </button>
-            ))}
-          </div>
+              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-emerald-100">
+                 <BrainCircuit className="w-6 h-6 text-emerald-600" />
+                 New Quiz
+              </button>
+               <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-blue-100">
+                 <BookOpen className="w-6 h-6 text-blue-600" />
+                 Write Essay
+              </button>
+              <button onClick={() => setMode(AppMode.TUTOR)} className="p-4 bg-slate-50 hover:bg-purple-50 hover:text-purple-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-purple-100">
+                 <MessageCircle className="w-6 h-6 text-purple-600" />
+                 Ask Tutor
+              </button>
+           </div>
         </div>
       </div>
     );
@@ -707,6 +645,17 @@ const App: React.FC = () => {
           email={user?.email || null} 
           onSave={handleProfileSave} 
           isOnboarding={isNewUser}
+        />
+      );
+    }
+
+    if (mode === AppMode.SETTINGS) {
+      return (
+        <SettingsView
+          userProfile={userProfile}
+          onLogout={handleLogout}
+          onNavigateToProfile={() => setMode(AppMode.PROFILE)}
+          onOpenPremium={() => setShowPremiumModal(true)}
         />
       );
     }
@@ -920,7 +869,22 @@ const App: React.FC = () => {
       {/* Sidebar */}
       <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
         <div className="h-full flex flex-col">
-          <div className="p-5 border-b border-slate-100">
+          {/* Logo Section - Clickable */}
+          <div 
+            className="p-5 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors"
+            onClick={() => {
+              setMode(AppMode.DASHBOARD);
+              setDashboardView('OVERVIEW');
+              setSummaryContent('');
+              setEssayContent('');
+              setQuizData(null);
+              setExistingQuizScore(undefined);
+              setCurrentHistoryId(null);
+              setError(null);
+              setFormData(INITIAL_FORM_DATA);
+              if (window.innerWidth < 1024) setIsSidebarOpen(false);
+            }}
+          >
              <div className="flex items-center gap-3">
                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0">
                  <Logo className="w-full h-full" iconOnly />
@@ -990,7 +954,7 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex-1 text-left overflow-hidden">
                     <p className="text-xs font-medium truncate">{userProfile.displayName || 'Scholar'}</p>
-                    <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+                    <p className="text-xs text-slate-400 truncate">{user.email}</p>
                   </div>
                 </button>
                 <button 

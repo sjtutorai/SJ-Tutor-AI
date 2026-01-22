@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
-import { NoteItem, ReminderItem, TimetableEntry } from '../types';
+import { NoteItem, ReminderItem, TimetableEntry, SJTUTOR_AVATAR } from '../types';
 import { Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, StickyNote, Bell, Edit3, Loader2, Edit } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
-import { SJTUTOR_AVATAR } from '../App';
 
 interface NotesViewProps {
   userId: string | null; // Use for local storage keys
