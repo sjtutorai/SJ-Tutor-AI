@@ -96,6 +96,7 @@ export interface UserSettings {
   privacy: {
     twoFactor: boolean;
     appLock: boolean;
+    analytics: boolean;
   };
 }
 
@@ -166,6 +167,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   privacy: {
     twoFactor: false,
     appLock: false,
+    analytics: true,
   },
 };
 

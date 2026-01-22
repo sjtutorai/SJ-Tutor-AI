@@ -1,309 +1,179 @@
 
 import React, { useState, useEffect } from 'react';
-import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile, SJTUTOR_AVATAR } from './types';
+import { 
+  AppMode, 
+  StudyRequestData, 
+  INITIAL_FORM_DATA, 
+  QuizQuestion, 
+  UserProfile,
+  HistoryItem,
+  SJTUTOR_AVATAR
+} from './types';
+import { GeminiService } from './services/geminiService';
+import { SettingsService } from './services/settingsService';
 import InputForm from './components/InputForm';
 import ResultsView from './components/ResultsView';
 import QuizView from './components/QuizView';
 import TutorChat from './components/TutorChat';
-import ProfileView from './components/ProfileView';
 import Auth from './components/Auth';
+import ProfileView from './components/ProfileView';
+import LoadingState from './components/LoadingState';
 import PremiumModal from './components/PremiumModal';
-import LoadingState from './components/LoadingState'; 
 import NotesView from './components/NotesView';
 import SettingsView from './components/SettingsView';
 import Logo from './components/Logo';
-import { GeminiService } from './services/geminiService';
-import { auth } from './firebaseConfig';
-import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { 
-  BookOpen, 
-  FileText, 
-  BrainCircuit, 
-  MessageCircle, 
-  Sparkles, 
-  AlertCircle, 
-  Menu, 
-  ChevronRight,
-  LayoutDashboard,
-  ArrowLeft,
-  Calendar,
-  Eye,
-  LogOut,
-  Zap,
-  Crown,
-  Plus,
-  Clock,
-  Key,
-  ExternalLink,
-  Settings
+  Menu, X, LogOut, User, Settings, LayoutDashboard, 
+  FileText, BrainCircuit, BookOpen, MessageCircle, 
+  Calendar, Zap, ChevronRight, Plus, ArrowLeft, Clock, Eye 
 } from 'lucide-react';
+import { auth } from './firebaseConfig';
+import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { GenerateContentResponse } from '@google/genai';
 
-const SAMPLE_DATA: StudyRequestData = {
-  subject: 'Science',
-  gradeClass: 'Class 8',
-  board: 'CBSE',
-  language: 'English',
-  chapterName: "Synthetic Fibres",
-  author: '',
-  questionCount: 5,
-  difficulty: 'Medium',
-  includeImages: false
+const DEFAULT_PROFILE: UserProfile = {
+  displayName: 'Scholar',
+  phoneNumber: '',
+  institution: '',
+  grade: '',
+  bio: 'Ready to learn!',
+  credits: 10, // Free starting credits
+  planType: 'Free'
 };
 
-const App: React.FC = () => {
-  // Auth State
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [isNewUser, setIsNewUser] = useState(false);
+function App() {
+  // Auth & User State
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
-  const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
-  // App State
+  // App Navigation State
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
-  const [formData, setFormData] = useState<StudyRequestData>(INITIAL_FORM_DATA);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
-  // Profile State
-  const initialProfileState: UserProfile = {
-    displayName: '',
-    phoneNumber: '',
-    institution: '',
-    grade: '',
-    bio: '',
-    photoURL: '',
-    learningGoal: '',
-    learningStyle: 'Visual',
-    credits: 100,
-    planType: 'Free'
-  };
-  const [userProfile, setUserProfile] = useState<UserProfile>(initialProfileState);
-
-  // History State
-  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [dashboardView, setDashboardView] = useState<AppMode | 'OVERVIEW'>('OVERVIEW');
-  const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Content Generation State
+  const [formData, setFormData] = useState<StudyRequestData>(INITIAL_FORM_DATA);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
-  // Content States
+  // Results State
   const [summaryContent, setSummaryContent] = useState('');
   const [essayContent, setEssayContent] = useState('');
   const [quizData, setQuizData] = useState<QuizQuestion[] | null>(null);
   const [existingQuizScore, setExistingQuizScore] = useState<number | undefined>(undefined);
   
-  // Loading States
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // History State
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
 
-  // Check API Key immediately (using required process.env.API_KEY)
+  // Theme Management
   useEffect(() => {
-    if (!process.env.API_KEY) {
-      console.warn("API_KEY is missing in environment variables!");
-      setApiKeyMissing(true);
-    }
-  }, []);
-
-  // Auth Listener with Safety Timeout
-  useEffect(() => {
-    // Safety timeout: If Firebase is blocked or slow, stop loading after 4 seconds
-    const timeoutId = setTimeout(() => {
-      if (authLoading) {
-        console.warn("Auth check timed out, defaulting to guest.");
-        setAuthLoading(false);
-      }
-    }, 4000);
-
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthLoading(false);
-      clearTimeout(timeoutId); // Clear timeout on success
+    const applyTheme = () => {
+      const settings = SettingsService.getSettings();
+      const theme = settings.appearance.theme;
+      const root = window.document.documentElement;
+      const isDark = theme === 'Dark' || (theme === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       
-      if (!currentUser) {
-        setIsNewUser(false);
-        setUserProfile(initialProfileState);
-        setMode(AppMode.DASHBOARD); // Reset to dashboard if logged out
-      }
-    }, (err) => {
-      console.error("Auth Error:", err);
-      setAuthLoading(false); // Stop loading on error
-      clearTimeout(timeoutId);
-    });
-
-    return () => {
-      unsubscribe();
-      clearTimeout(timeoutId);
-    };
-  }, []);
-
-  // Profile Persistence Listener
-  useEffect(() => {
-    if (user) {
-      const savedProfile = localStorage.getItem(`profile_${user.uid}`);
-      if (savedProfile) {
-        try {
-          const parsed = JSON.parse(savedProfile);
-          setUserProfile(prev => ({ 
-            ...initialProfileState, 
-            ...parsed,
-            displayName: parsed.displayName || user.displayName || '',
-            photoURL: parsed.photoURL || user.photoURL || '' 
-          }));
-        } catch (e) {
-          console.error("Failed to parse profile", e);
-        }
+      if (isDark) {
+        root.classList.add('dark');
       } else {
-        setUserProfile({
-           ...initialProfileState,
-           displayName: user.displayName || '',
-           photoURL: user.photoURL || '',
-           credits: 100
-        });
-      }
-    }
-  }, [user]);
-
-  // History Persistence: Load Logic
-  useEffect(() => {
-    const storageKey = user ? `history_${user.uid}` : 'history_guest';
-    const savedHistory = localStorage.getItem(storageKey);
-    if (savedHistory) {
-      try {
-        const parsedHistory = JSON.parse(savedHistory);
-        if (Array.isArray(parsedHistory)) {
-          setHistory(parsedHistory);
-        }
-      } catch (e) {
-        setHistory([]);
-      }
-    } else {
-      setHistory([]);
-    }
-  }, [user]);
-
-  // History Persistence: Save Logic
-  useEffect(() => {
-    const storageKey = user ? `history_${user.uid}` : 'history_guest';
-    localStorage.setItem(storageKey, JSON.stringify(history));
-  }, [history, user]);
-
-  // Close sidebar on mode change for mobile
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setIsSidebarOpen(false);
+        root.classList.remove('dark');
       }
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+
+    // Apply initially
+    applyTheme();
+
+    // Listen for settings changes from SettingsService
+    window.addEventListener('settings-changed', applyTheme);
+    
+    // Listen for system changes if needed
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemChange = () => {
+       if (SettingsService.getSettings().appearance.theme === 'System') applyTheme();
+    };
+    mediaQuery.addEventListener('change', handleSystemChange);
+    
+    return () => {
+      window.removeEventListener('settings-changed', applyTheme);
+      mediaQuery.removeEventListener('change', handleSystemChange);
+    };
   }, []);
 
-  const handleProfileSave = (newProfile: UserProfile, redirectDashboard = false) => {
-    setUserProfile(newProfile);
-    if (user) {
-      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
-    }
-    if (isNewUser) {
-      setIsNewUser(false);
-      setShowAuthModal(false);
-      if (redirectDashboard) {
+  // Auth Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        // Load user profile from local storage for now (would be DB in real app)
+        const savedProfile = localStorage.getItem(`profile_${currentUser.uid}`);
+        if (savedProfile) {
+          setUserProfile(JSON.parse(savedProfile));
+        } else {
+          // Initialize default profile for new user
+          setUserProfile(prev => ({ 
+             ...prev, 
+             displayName: currentUser.displayName || 'Scholar',
+             photoURL: currentUser.photoURL || undefined
+          }));
+        }
+
+        // Load History
+        const savedHistory = localStorage.getItem(`history_${currentUser.uid}`);
+        if (savedHistory) setHistory(JSON.parse(savedHistory));
+        
+        setShowAuthModal(false);
+      } else {
+        setUserProfile(DEFAULT_PROFILE);
+        setHistory([]);
         setMode(AppMode.DASHBOARD);
       }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Save profile changes
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(userProfile));
     }
-  };
+  }, [userProfile, user]);
 
-  const handleSignUpSuccess = (initialData?: Partial<UserProfile>) => {
-    setIsNewUser(true);
-    // Merge initial data (Name, School, Grade) with default profile
-    const newProfile = { ...initialProfileState, ...initialData };
-    setUserProfile(newProfile);
-    
-    // Save to local storage immediately in case they refresh
-    if (auth.currentUser) {
-        localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
+  // Save history changes
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem(`history_${user.uid}`, JSON.stringify(history));
     }
-    
-    setShowAuthModal(false);
-  };
+  }, [history, user]);
 
-  const handlePaymentSuccess = (creditsToAdd: number, planName: 'STARTER' | 'SCHOLAR' | 'ACHIEVER') => {
-    const planTypeMap: Record<string, 'Starter' | 'Scholar' | 'Achiever'> = {
-      'STARTER': 'Starter',
-      'SCHOLAR': 'Scholar',
-      'ACHIEVER': 'Achiever'
-    };
-    const updatedProfile: UserProfile = { 
-      ...userProfile, 
-      credits: userProfile.credits + creditsToAdd,
-      planType: planTypeMap[planName]
-    };
-    handleProfileSave(updatedProfile);
-  };
-
-  const handleFormChange = (field: keyof StudyRequestData, value: string | number | boolean) => {
+  const handleInputChange = (field: keyof StudyRequestData, value: string | number | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleFillSample = () => {
-    setFormData(SAMPLE_DATA);
-  };
-
-  const validateForm = () => {
-    if (!formData.subject || !formData.gradeClass || !formData.chapterName) {
-      setError("Please fill in at least Subject, Class, and Chapter Name.");
-      return false;
-    }
-    setError(null);
-    return true;
-  };
-
-  const addToHistory = (type: AppMode, content: any) => {
-    const newId = Date.now().toString();
-    const newItem: HistoryItem = {
-      id: newId,
-      type,
-      title: formData.chapterName || 'Untitled Chapter',
-      subtitle: `${formData.gradeClass} • ${formData.subject}`,
-      timestamp: Date.now(),
-      content,
-      formData: { ...formData }
-    };
-    setHistory(prev => [newItem, ...prev]);
-    setCurrentHistoryId(newId);
-  };
-
-  const handleQuizComplete = (score: number) => {
-    if (currentHistoryId) {
-      setHistory(prev => prev.map(item => 
-        item.id === currentHistoryId ? { ...item, score } : item
-      ));
-    }
-  };
-
-  const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
-    if (targetMode === AppMode.SUMMARY) return 10;
-    if (targetMode === AppMode.ESSAY) {
-      return data.includeImages ? 15 : 10;
-    }
-    if (targetMode === AppMode.QUIZ) {
-      let cost = 10; // Base cost
-      const qCount = data.questionCount || 5;
-      // 2 questions = 1 credit
-      cost += Math.ceil(qCount / 2); 
-      // Difficulty increase (Hard) = 5 credits
-      if (data.difficulty === 'Hard') cost += 5; 
-      return cost;
-    }
-    return 0;
-  };
-
-  const deductCredit = (amount: number) => {
+  const deductCredits = (amount: number): boolean => {
     if (userProfile.credits >= amount) {
-      const updatedProfile = { ...userProfile, credits: userProfile.credits - amount };
-      // Pass false to prevent redirect
-      handleProfileSave(updatedProfile, false);
+      setUserProfile(prev => ({ ...prev, credits: prev.credits - amount }));
       return true;
     }
+    setShowPremiumModal(true);
     return false;
+  };
+
+  const addToHistory = (type: AppMode, title: string, subtitle: string, content: any, score?: number) => {
+    const newItem: HistoryItem = {
+      id: Date.now().toString(),
+      type,
+      title,
+      subtitle,
+      timestamp: Date.now(),
+      content,
+      formData: { ...formData },
+      score
+    };
+    setHistory(prev => [newItem, ...prev]);
+    setCurrentHistoryId(newItem.id);
   };
 
   const handleGenerate = async () => {
@@ -312,144 +182,267 @@ const App: React.FC = () => {
       return;
     }
 
-    const cost = calculateCost(mode, formData);
-    if (userProfile.credits < cost) {
-      setError(`Insufficient credits. This generation requires ${cost} credits, but you have ${userProfile.credits}. Upgrade to Premium for more.`);
-      return;
-    }
-    
-    // Check required process.env.API_KEY before attempting generation
-    if (!process.env.API_KEY) {
-      setError("Configuration Error: API_KEY is missing. Please check your environment variables.");
+    if (!formData.subject || !formData.chapterName) {
+      setError("Please fill in at least the Subject and Chapter Name.");
       return;
     }
 
-    if (!validateForm()) return;
-    
-    setLoading(true);
     setError(null);
-    setExistingQuizScore(undefined);
-    setCurrentHistoryId(null);
+    setSummaryContent('');
+    setEssayContent('');
+    setQuizData(null);
+    setIsLoading(true);
 
     try {
       if (mode === AppMode.SUMMARY) {
-        setSummaryContent('');
-        const stream = await GeminiService.generateSummaryStream(formData);
+        if (!deductCredits(10)) { setIsLoading(false); return; }
         
+        const stream = await GeminiService.generateSummaryStream(formData);
         let text = '';
         for await (const chunk of stream) {
-            const c = chunk as GenerateContentResponse;
-            if (c.text) {
-                text += c.text;
+            const responseChunk = chunk as GenerateContentResponse;
+            if (responseChunk.text) {
+                text += responseChunk.text;
                 setSummaryContent(text);
             }
         }
-        addToHistory(AppMode.SUMMARY, text);
-        deductCredit(cost);
+        addToHistory(AppMode.SUMMARY, formData.chapterName, formData.subject, text);
 
       } else if (mode === AppMode.ESSAY) {
-        setEssayContent('');
+        const cost = formData.includeImages ? 15 : 10;
+        if (!deductCredits(cost)) { setIsLoading(false); return; }
+
         const stream = await GeminiService.generateEssayStream(formData);
-        
         let text = '';
-         for await (const chunk of stream) {
-            const c = chunk as GenerateContentResponse;
-            if (c.text) {
-                text += c.text;
+        for await (const chunk of stream) {
+            const responseChunk = chunk as GenerateContentResponse;
+            if (responseChunk.text) {
+                text += responseChunk.text;
                 setEssayContent(text);
             }
         }
-
-        // If user wants images, generate and append them after text is ready
+        
+        // Generate Image if requested
         if (formData.includeImages) {
-          const imageBase64 = await GeminiService.generateImage(`${formData.chapterName} - ${formData.subject}`);
-          if (imageBase64) {
-            text += `\n\n![${formData.chapterName}](${imageBase64})`;
-            setEssayContent(text);
-          }
+           const imageBase64 = await GeminiService.generateImage(`${formData.chapterName} - ${formData.subject}`);
+           if (imageBase64) {
+              const imageMarkdown = `\n\n![Generated Image](${imageBase64})\n\n`;
+              text = imageMarkdown + text;
+              setEssayContent(text);
+           }
         }
-
-        addToHistory(AppMode.ESSAY, text);
-        deductCredit(cost);
+        addToHistory(AppMode.ESSAY, formData.chapterName, formData.subject, text);
 
       } else if (mode === AppMode.QUIZ) {
-        setQuizData(null);
+        let cost = 10;
+        const qCount = formData.questionCount || 5;
+        cost += Math.ceil(qCount / 2);
+        if (formData.difficulty === 'Hard') cost += 5;
+
+        if (!deductCredits(cost)) { setIsLoading(false); return; }
+
         const questions = await GeminiService.generateQuiz(formData);
         setQuizData(questions);
-        addToHistory(AppMode.QUIZ, questions);
-        deductCredit(cost);
+        // History for quiz is added when completed/viewed results usually, 
+        // but here we add it initially. Score updated later.
+        // We'll handle saving quiz history on completion to include score.
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      
-      let errorMessage = err.message || "Failed to generate content. Please check your inputs and try again.";
-
-      // Try to parse JSON error message if it looks like one
-      try {
-         const parsed = JSON.parse(errorMessage);
-         if (parsed.error?.message) {
-            errorMessage = parsed.error.message;
-         }
-      } catch (e) {
-         // Not valid JSON, stick with original string
-      }
-      
-      // Handle known error patterns
-      if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
-        errorMessage = "QUOTA_EXHAUSTED";
-      } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
-        errorMessage = "API_DISABLED";
-      } else if (errorMessage.includes("API key not valid")) {
-        errorMessage = "API_KEY_INVALID_ERROR";
-      }
-
-      setError(errorMessage);
+      setError("Something went wrong. Please check your inputs or try again.");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuizComplete = (score: number) => {
+    if (!currentHistoryId) {
+      // New Quiz
+      addToHistory(AppMode.QUIZ, formData.chapterName, formData.subject, quizData, score);
+    } else {
+      // Update existing history item
+      addToHistory(AppMode.QUIZ, formData.chapterName, formData.subject, quizData, score);
     }
   };
 
   const loadHistoryItem = (item: HistoryItem) => {
-    if (item.formData) {
-      setFormData(item.formData);
-    }
+    setMode(item.type);
+    setFormData(item.formData || INITIAL_FORM_DATA);
     setCurrentHistoryId(item.id);
-
-    if (item.type === AppMode.SUMMARY) {
-      setSummaryContent(item.content);
-      setMode(AppMode.SUMMARY);
-    } else if (item.type === AppMode.ESSAY) {
-      setEssayContent(item.content);
-      setMode(AppMode.ESSAY);
-    } else if (item.type === AppMode.QUIZ) {
+    
+    if (item.type === AppMode.SUMMARY) setSummaryContent(item.content);
+    else if (item.type === AppMode.ESSAY) setEssayContent(item.content);
+    else if (item.type === AppMode.QUIZ) {
       setQuizData(item.content);
       setExistingQuizScore(item.score);
-      setMode(AppMode.QUIZ);
-    } else if (item.type === AppMode.TUTOR) {
-      setMode(AppMode.TUTOR);
     }
+    
+    setDashboardView('OVERVIEW'); // Reset dashboard view if navigating from there
   };
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setMode(AppMode.DASHBOARD);
-      setDashboardView('OVERVIEW');
-    } catch (error) {
-      console.error("Error signing out:", error);
-    }
+    await signOut(auth);
+    setMode(AppMode.DASHBOARD);
+    setUserProfile(DEFAULT_PROFILE);
   };
 
-  // Nav Items Configuration
-  const navItems = [
-    { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
-    { id: AppMode.SUMMARY, label: 'Summary Generator', icon: FileText },
-    { id: AppMode.QUIZ, label: 'Quiz Creator', icon: BrainCircuit },
-    { id: AppMode.ESSAY, label: 'Essay Writer', icon: BookOpen },
-    { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
-    { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
-    { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
-  ];
+  const fillSampleData = () => {
+    setFormData({
+      subject: 'Physics',
+      gradeClass: '10th',
+      board: 'CBSE',
+      language: 'English',
+      chapterName: 'Light - Reflection and Refraction',
+      author: 'NCERT',
+      questionCount: 5,
+      difficulty: 'Medium',
+      includeImages: false
+    });
+  };
+
+  const renderSidebar = () => (
+    <>
+      {/* Mobile Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
+          onClick={() => setIsSidebarOpen(false)}
+        ></div>
+      )}
+
+      {/* Sidebar Container */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transform transition-transform duration-300 ease-in-out flex flex-col
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        <div className="p-6 flex items-center justify-between">
+           <Logo showText textColor="text-slate-900 dark:text-white" />
+           <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-500 dark:text-slate-400">
+             <X className="w-6 h-6" />
+           </button>
+        </div>
+
+        <div className="px-4 mb-6">
+          <div className="bg-primary-50 dark:bg-slate-800 rounded-xl p-4 border border-primary-100 dark:border-slate-700">
+             <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center border border-primary-100 dark:border-slate-600 shadow-sm overflow-hidden">
+                   {user ? (
+                     <img src={userProfile.photoURL || SJTUTOR_AVATAR} alt="Profile" className="w-full h-full object-cover" />
+                   ) : (
+                     <User className="w-5 h-5 text-primary-300 dark:text-slate-400" />
+                   )}
+                </div>
+                <div className="overflow-hidden">
+                   <p className="font-bold text-slate-800 dark:text-white text-sm truncate">{user ? userProfile.displayName : 'Guest'}</p>
+                   <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user ? userProfile.planType : 'Sign in to save'}</p>
+                </div>
+             </div>
+             
+             {user ? (
+               <div className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-lg px-3 py-1.5 border border-primary-100 dark:border-slate-700">
+                  <div className="flex items-center gap-1.5">
+                     <Zap className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{userProfile.credits} Credits</span>
+                  </div>
+                  <button 
+                    onClick={() => setShowPremiumModal(true)}
+                    className="text-[10px] font-bold text-primary-600 hover:text-primary-700 dark:text-primary-400 uppercase"
+                  >
+                    + Add
+                  </button>
+               </div>
+             ) : (
+               <button 
+                 onClick={() => setShowAuthModal(true)}
+                 className="w-full py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-colors"
+               >
+                 Sign In / Join
+               </button>
+             )}
+          </div>
+        </div>
+
+        <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+           <button 
+             onClick={() => { setMode(AppMode.DASHBOARD); setIsSidebarOpen(false); }}
+             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === AppMode.DASHBOARD ? 'bg-slate-100 dark:bg-slate-800 text-primary-700 dark:text-primary-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}
+           >
+             <LayoutDashboard className="w-4 h-4" />
+             Dashboard
+           </button>
+           
+           <div className="pt-4 pb-2 px-3 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Create</div>
+           
+           <button 
+             onClick={() => { setMode(AppMode.SUMMARY); setIsSidebarOpen(false); }}
+             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === AppMode.SUMMARY ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}
+           >
+             <FileText className="w-4 h-4" />
+             Summary Generator
+           </button>
+           <button 
+             onClick={() => { setMode(AppMode.QUIZ); setIsSidebarOpen(false); }}
+             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === AppMode.QUIZ ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}
+           >
+             <BrainCircuit className="w-4 h-4" />
+             Quiz Maker
+           </button>
+           <button 
+             onClick={() => { setMode(AppMode.ESSAY); setIsSidebarOpen(false); }}
+             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === AppMode.ESSAY ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}
+           >
+             <BookOpen className="w-4 h-4" />
+             Essay Writer
+           </button>
+           <button 
+             onClick={() => { setMode(AppMode.TUTOR); setIsSidebarOpen(false); }}
+             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === AppMode.TUTOR ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}
+           >
+             <MessageCircle className="w-4 h-4" />
+             AI Tutor Chat
+           </button>
+
+           <div className="pt-4 pb-2 px-3 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tools</div>
+
+           <button 
+             onClick={() => { setMode(AppMode.NOTES); setIsSidebarOpen(false); }}
+             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === AppMode.NOTES ? 'bg-slate-100 dark:bg-slate-800 text-primary-700 dark:text-primary-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}
+           >
+             <Calendar className="w-4 h-4" />
+             Planner & Notes
+           </button>
+        </nav>
+
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-1">
+           {user && (
+             <button 
+               onClick={() => { setMode(AppMode.PROFILE); setIsSidebarOpen(false); }}
+               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === AppMode.PROFILE ? 'bg-slate-100 dark:bg-slate-800 text-primary-700 dark:text-primary-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}
+             >
+               <User className="w-4 h-4" />
+               Profile
+             </button>
+           )}
+           <button 
+             onClick={() => { setMode(AppMode.SETTINGS); setIsSidebarOpen(false); }}
+             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${mode === AppMode.SETTINGS ? 'bg-slate-100 dark:bg-slate-800 text-primary-700 dark:text-primary-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}
+           >
+             <Settings className="w-4 h-4" />
+             Settings
+           </button>
+           {user && (
+             <button 
+               onClick={handleLogout}
+               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+             >
+               <LogOut className="w-4 h-4" />
+               Sign Out
+             </button>
+           )}
+        </div>
+      </aside>
+    </>
+  );
 
   const renderDashboard = () => {
     // Determine the count for Notes locally
@@ -469,11 +462,11 @@ const App: React.FC = () => {
     };
 
     const dashboardCards = [
-      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700', bg: 'bg-[#FDF5E6]' },
+      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
     ];
 
     if (dashboardView !== 'OVERVIEW') {
@@ -493,25 +486,25 @@ const App: React.FC = () => {
         <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
           <button 
             onClick={() => setDashboardView('OVERVIEW')}
-            className="flex items-center text-slate-500 hover:text-primary-600 mb-6 transition-all hover:-translate-x-1 group text-sm"
+            className="flex items-center text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 mb-6 transition-all hover:-translate-x-1 group text-sm"
           >
-            <div className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center mr-2 border border-slate-100 group-hover:border-primary-200 transition-colors">
+            <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mr-2 border border-slate-100 dark:border-slate-700 group-hover:border-primary-200 transition-colors">
               <ArrowLeft className="w-3.5 h-3.5" />
             </div>
             <span className="font-medium">Back to Dashboard</span>
           </button>
 
-          <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+          <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
             <Clock className="w-6 h-6 text-primary-400" />
             {categoryLabel} History
           </h3>
 
           {filteredHistory.length === 0 ? (
-            <div className="text-center py-20 bg-white/60 backdrop-blur-md rounded-xl border border-slate-200/60 border-dashed animate-in zoom-in duration-500">
-              <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 p-1">
+            <div className="text-center py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 border-dashed animate-in zoom-in duration-500">
+              <div className="w-16 h-16 bg-primary-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 dark:border-slate-600 p-1">
                  <Logo className="w-full h-full" iconOnly />
               </div>
-              <p className="text-slate-500 font-medium mb-5 text-sm">No {categoryLabel.toLowerCase()} found yet.</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium mb-5 text-sm">No {categoryLabel.toLowerCase()} found yet.</p>
 
               <button
                 onClick={() => {
@@ -522,13 +515,13 @@ const App: React.FC = () => {
                   setCurrentHistoryId(null);
                   setError(null);
                   setFormData(INITIAL_FORM_DATA);
-                  setMode(dashboardView);
+                  setMode(dashboardView as AppMode);
                   setDashboardView('OVERVIEW');
                 }}
                 className="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 shadow-primary-500/20 text-sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Create New {getSingularName(dashboardView)}
+                Create New {getSingularName(dashboardView as AppMode)}
               </button>
             </div>
           ) : (
@@ -536,34 +529,34 @@ const App: React.FC = () => {
               {filteredHistory.map((item, idx) => (
                 <div 
                   key={item.id} 
-                  className="bg-white/80 backdrop-blur-sm p-5 rounded-xl border border-slate-200/60 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
+                  className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-5 rounded-xl border border-slate-200/60 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
                   style={{ animationDelay: `${idx * 50}ms` }}
                   onClick={() => loadHistoryItem(item)}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-100 text-primary-600`}>
+                    <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-100 dark:bg-slate-700 text-primary-600 dark:text-primary-400`}>
                       {item.type === AppMode.QUIZ ? <BrainCircuit className="w-4 h-4" /> :
                        item.type === AppMode.SUMMARY ? <FileText className="w-4 h-4" /> :
                        item.type === AppMode.ESSAY ? <BookOpen className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
                     </div>
                     <div>
-                      <h4 className="font-semibold text-slate-800 mb-0.5 group-hover:text-primary-700 transition-colors">{item.title}</h4>
-                      <p className="text-xs text-slate-500 flex items-center gap-3">
-                        <span className="font-medium bg-slate-100 px-1.5 py-0.5 rounded">{item.subtitle}</span>
+                      <h4 className="font-semibold text-slate-800 dark:text-white mb-0.5 group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors">{item.title}</h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-3">
+                        <span className="font-medium bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded">{item.subtitle}</span>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           {new Date(item.timestamp).toLocaleDateString()}
                         </span>
                         {item.type === AppMode.QUIZ && item.score !== undefined && (
-                          <span className="flex items-center gap-1 text-primary-600 font-bold bg-primary-50 px-2 py-0.5 rounded-full">
+                          <span className="flex items-center gap-1 text-primary-600 font-bold bg-primary-50 dark:bg-slate-900 px-2 py-0.5 rounded-full">
                             Score: {item.score}
                           </span>
                         )}
                       </p>
                     </div>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                    <Eye className="w-4 h-4 text-primary-600" />
+                  <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                    <Eye className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                   </div>
                 </div>
               ))}
@@ -575,9 +568,48 @@ const App: React.FC = () => {
     
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-800">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
-          <p className="text-slate-500">Ready to learn something new today?</p>
+        
+        {/* Hero Section */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200 dark:border-slate-700 mb-8 relative overflow-hidden group">
+           <div className="absolute top-0 right-0 w-64 h-64 bg-primary-50 dark:bg-slate-700 rounded-full -mr-16 -mt-16 blur-3xl opacity-60 group-hover:scale-110 transition-transform duration-700"></div>
+           
+           <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+              <div className="flex-1 text-center md:text-left">
+                 <h2 className="text-3xl font-bold text-slate-800 dark:text-white mb-2 tracking-tight">
+                   Welcome to <span className="text-primary-600 dark:text-primary-400">SJ Tutor AI</span>
+                 </h2>
+                 <p className="text-slate-500 dark:text-slate-400 text-lg mb-6 max-w-xl">
+                   {user 
+                     ? `Welcome back, ${userProfile.displayName || 'Scholar'}! Ready to continue your learning journey?` 
+                     : "Your intelligent study companion. Generate summaries, take quizzes, write essays, and chat with an AI Tutor."}
+                 </p>
+                 
+                 <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+                    {user ? (
+                       <button 
+                          onClick={() => setMode(AppMode.TUTOR)}
+                          className="px-6 py-2.5 bg-slate-900 dark:bg-slate-700 text-white rounded-xl font-bold shadow-lg shadow-slate-900/20 hover:bg-slate-800 dark:hover:bg-slate-600 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                       >
+                          <MessageCircle className="w-4 h-4" />
+                          Chat with Tutor
+                       </button>
+                    ) : (
+                       <button 
+                          onClick={() => setShowAuthModal(true)}
+                          className="px-8 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-600/20 hover:bg-primary-700 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                       >
+                          <LogOut className="w-4 h-4 rotate-180" />
+                          Sign In / Sign Up
+                       </button>
+                    )}
+                 </div>
+              </div>
+              
+              <div className="relative w-32 h-32 md:w-48 md:h-48 flex-shrink-0">
+                 <div className="absolute inset-0 bg-primary-200 dark:bg-primary-900 rounded-full blur-2xl opacity-40 animate-pulse"></div>
+                 <Logo className="w-full h-full shadow-xl" iconOnly />
+              </div>
+           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -585,22 +617,29 @@ const App: React.FC = () => {
             <button
               key={card.id}
               onClick={() => {
+                 if (!user) {
+                    setShowAuthModal(true);
+                    return;
+                 }
                  if (card.id === AppMode.NOTES) {
                     setMode(AppMode.NOTES);
                  } else {
-                    setDashboardView(card.id as any);
+                    setDashboardView(card.id);
                  }
               }}
-              className={`p-5 rounded-xl border border-transparent hover:border-amber-200 transition-all hover:shadow-md text-left group bg-white shadow-sm border-slate-100`}
+              className={`p-5 rounded-xl border border-transparent hover:border-amber-200 dark:hover:border-amber-800 transition-all hover:shadow-md text-left group bg-white dark:bg-slate-800 shadow-sm border-slate-100 dark:border-slate-700 relative overflow-hidden`}
             >
-              <div className="flex justify-between items-start mb-3">
+              <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${card.color}`}>
+                 <card.icon className="w-16 h-16" />
+              </div>
+              <div className="flex justify-between items-start mb-3 relative z-10">
                  <div className={`p-2.5 rounded-lg shadow-sm ${card.color} ${card.bg}`}>
                     <card.icon className="w-5 h-5" />
                  </div>
-                 <span className="text-2xl font-bold text-slate-800">{card.count}</span>
+                 <span className="text-2xl font-bold text-slate-800 dark:text-white">{card.count}</span>
               </div>
-              <h4 className="font-semibold text-slate-800 mb-1">{card.label}</h4>
-              <p className="text-xs text-slate-500 font-medium group-hover:text-amber-700 transition-colors flex items-center gap-1">
+              <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10">{card.label}</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1 relative z-10">
                 View Details <ChevronRight className="w-3 h-3" />
               </p>
             </button>
@@ -608,23 +647,58 @@ const App: React.FC = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-in slide-in-from-bottom-6 duration-700">
-           <h3 className="font-bold text-slate-800 mb-4">Quick Actions</h3>
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
+           <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+              <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+              Quick Actions
+           </h3>
            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <button onClick={() => setMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 hover:bg-amber-50 hover:text-amber-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-amber-100">
-                 <FileText className="w-6 h-6 text-amber-600" />
+              <button 
+                onClick={() => {
+                   if(!user) setShowAuthModal(true);
+                   else setMode(AppMode.SUMMARY);
+                }} 
+                className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900 group"
+              >
+                 <div className="p-2 bg-white dark:bg-slate-700 rounded-full shadow-sm group-hover:scale-110 transition-transform">
+                    <FileText className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                 </div>
                  New Summary
               </button>
-              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-emerald-100">
-                 <BrainCircuit className="w-6 h-6 text-emerald-600" />
+              <button 
+                onClick={() => {
+                   if(!user) setShowAuthModal(true);
+                   else setMode(AppMode.QUIZ);
+                }} 
+                className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900 group"
+              >
+                 <div className="p-2 bg-white dark:bg-slate-700 rounded-full shadow-sm group-hover:scale-110 transition-transform">
+                    <BrainCircuit className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                 </div>
                  New Quiz
               </button>
-               <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-blue-100">
-                 <BookOpen className="w-6 h-6 text-blue-600" />
+               <button 
+                onClick={() => {
+                   if(!user) setShowAuthModal(true);
+                   else setMode(AppMode.ESSAY);
+                }} 
+                className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-blue-100 dark:hover:border-blue-900 group"
+              >
+                 <div className="p-2 bg-white dark:bg-slate-700 rounded-full shadow-sm group-hover:scale-110 transition-transform">
+                    <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                 </div>
                  Write Essay
               </button>
-              <button onClick={() => setMode(AppMode.TUTOR)} className="p-4 bg-slate-50 hover:bg-purple-50 hover:text-purple-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-purple-100">
-                 <MessageCircle className="w-6 h-6 text-purple-600" />
+              <button 
+                onClick={() => {
+                   if(!user) setShowAuthModal(true);
+                   else setMode(AppMode.TUTOR);
+                }} 
+                className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900 group"
+              >
+                 <div className="p-2 bg-white dark:bg-slate-700 rounded-full shadow-sm group-hover:scale-110 transition-transform">
+                    <MessageCircle className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                 </div>
                  Ask Tutor
               </button>
            </div>
@@ -633,411 +707,180 @@ const App: React.FC = () => {
     );
   };
 
-  const renderContent = () => {
-    if (mode === AppMode.DASHBOARD) {
-      return renderDashboard();
-    }
+  const getMainContent = () => {
+    if (isLoading) return <LoadingState mode={mode} />;
 
-    if (mode === AppMode.PROFILE) {
-      return (
-        <ProfileView 
-          profile={userProfile} 
-          email={user?.email || null} 
-          onSave={handleProfileSave} 
-          isOnboarding={isNewUser}
-        />
-      );
-    }
-
-    if (mode === AppMode.SETTINGS) {
-      return (
-        <SettingsView
-          userProfile={userProfile}
-          onLogout={handleLogout}
-          onNavigateToProfile={() => setMode(AppMode.PROFILE)}
-          onOpenPremium={() => setShowPremiumModal(true)}
-        />
-      );
-    }
-
-    if (mode === AppMode.NOTES) {
-      return (
-        <NotesView 
-          userId={user?.uid || null} 
-          onDeductCredit={deductCredit}
-        />
-      );
-    }
-
-    if (mode === AppMode.TUTOR) {
-      return <TutorChat onDeductCredit={deductCredit} currentCredits={userProfile.credits} />;
-    }
-
-    // Loading View
-    if (loading) {
-      return <LoadingState mode={mode} />;
-    }
-
-    // Check if we have generated content
-    const hasResult = (mode === AppMode.SUMMARY && summaryContent) ||
-                      (mode === AppMode.ESSAY && essayContent) ||
-                      (mode === AppMode.QUIZ && quizData);
-
-    const showEmptyState = !loading && !hasResult;
-
-    // Hide input form if we have a result or if viewing a history quiz
-    const showInputForm = !hasResult && !(mode === AppMode.QUIZ && existingQuizScore !== undefined);
-
-    const renderError = () => {
-       if (error === "QUOTA_EXHAUSTED") {
-          return (
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 rounded-full">
-                  <AlertCircle className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">API Rate Limit Reached</h3>
-                  <p className="text-sm text-amber-800">You've made too many requests in a short period. This can happen on shared API keys.</p>
-                </div>
-              </div>
-              <div className="pl-12">
-                 <p className="text-xs mb-3">Please wait a moment and try again. For higher rate limits, consider upgrading your plan.</p>
-                 <button 
-                  onClick={() => setShowPremiumModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 transition-colors shadow-sm hover:shadow-md text-sm"
-                >
-                  <Crown className="w-3.5 h-3.5" />
-                  Upgrade Your Plan
-                </button>
-              </div>
-            </div>
-          );
-       }
-       
-       if (error === "API_DISABLED") {
-          return (
-            <div className="bg-red-50 border border-red-200 text-red-800 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-100 rounded-full">
-                  <AlertCircle className="w-5 h-5 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">API Not Enabled</h3>
-                  <p className="text-sm text-red-700">The Google Generative AI API is disabled for your project.</p>
-                </div>
-              </div>
-              
-              <div className="pl-12">
-                <p className="text-xs mb-3">To fix this, you need to enable the API in the Google Cloud Console:</p>
-                <a 
-                  href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm hover:shadow-md text-sm"
-                >
-                  Enable Generative Language API
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            </div>
-          );
-       } 
-       
-       if (error === "API_KEY_INVALID_ERROR") {
-          return (
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-5 rounded-xl shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 rounded-full">
-                  <Key className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">Invalid API Key</h3>
-                  <p className="text-sm text-amber-800">The API Key provided is not valid.</p>
-                </div>
-              </div>
-              <div className="pl-12">
-                <p className="text-xs">Please verify your <code>API_KEY</code> in the environment variables matches your Google AI Studio key.</p>
-              </div>
-            </div>
-          );
-       }
-
-       if (error) {
-         return (
-          <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-lg flex items-center gap-3 shadow-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p className="font-medium text-sm">{error}</p>
-          </div>
-         );
-       }
-       return null;
-    };
-
-    return (
-      <div className="space-y-5 animate-in fade-in duration-500">
-        {showInputForm && (
-            <InputForm 
-              data={formData} 
-              mode={mode}
-              onChange={handleFormChange}
-              onFillSample={handleFillSample}
-              disabled={loading}
-            />
-        )}
-
-        {renderError()}
-
-        {showEmptyState && !error && (
-          <div className="text-center py-12 bg-white rounded-xl border border-slate-100 shadow-sm">
-             <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-white shadow-lg overflow-hidden">
-                <Logo className="w-full h-full" iconOnly />
-             </div>
-             <h3 className="text-base font-semibold text-slate-800 mb-1">Ready to Start?</h3>
-             <p className="text-slate-500 mb-6 max-w-md mx-auto text-sm">
-               Enter your study details above and I'll generate your personalized content immediately.
-             </p>
-             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-               <button 
-                type="button"
-                onClick={handleGenerate}
-                className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-bold transition-colors shadow-lg shadow-primary-500/25 flex items-center gap-2 text-sm"
-               >
-                 <Sparkles className="w-4 h-4" />
-                 Generate Now
-               </button>
-             </div>
-          </div>
-        )}
-
-        {mode === AppMode.SUMMARY && summaryContent && (
+    switch (mode) {
+      case AppMode.DASHBOARD:
+        return renderDashboard();
+      case AppMode.SUMMARY:
+        return summaryContent ? (
           <ResultsView 
             content={summaryContent} 
-            isLoading={loading} 
+            isLoading={false} 
             title={formData.chapterName}
             type="Summary"
-            onBack={() => setSummaryContent('')}
+            onBack={() => setSummaryContent('')} 
           />
-        )}
-        
-        {mode === AppMode.ESSAY && essayContent && (
+        ) : (
+          <div className="max-w-3xl mx-auto">
+            <InputForm 
+              data={formData} 
+              mode={mode} 
+              onChange={handleInputChange} 
+              onFillSample={fillSampleData}
+            />
+            {error && <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-xl mb-4 text-sm">{error}</div>}
+            <button onClick={handleGenerate} className="w-full py-3.5 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-500/20 hover:bg-primary-700 transition-all flex justify-center items-center gap-2">
+              <Zap className="w-5 h-5" />
+              Generate Summary (10 Credits)
+            </button>
+          </div>
+        );
+      case AppMode.ESSAY:
+        return essayContent ? (
           <ResultsView 
             content={essayContent} 
-            isLoading={loading} 
-            title={formData.chapterName} 
+            isLoading={false} 
+            title={formData.chapterName}
             type="Essay"
-            onBack={() => setEssayContent('')}
+            onBack={() => setEssayContent('')} 
           />
-        )}
-
-        {mode === AppMode.QUIZ && quizData && (
+        ) : (
+          <div className="max-w-3xl mx-auto">
+             <InputForm 
+              data={formData} 
+              mode={mode} 
+              onChange={handleInputChange}
+              onFillSample={fillSampleData}
+            />
+            {error && <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-xl mb-4 text-sm">{error}</div>}
+            <button onClick={handleGenerate} className="w-full py-3.5 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-500/20 hover:bg-primary-700 transition-all flex justify-center items-center gap-2">
+              <Zap className="w-5 h-5" />
+              Generate Essay (10 Credits)
+            </button>
+          </div>
+        );
+      case AppMode.QUIZ:
+        return quizData ? (
           <QuizView 
             questions={quizData} 
-            onReset={() => setQuizData(null)}
+            onReset={() => {
+                setQuizData(null);
+                setExistingQuizScore(undefined);
+            }} 
             onComplete={handleQuizComplete}
             existingScore={existingQuizScore}
           />
-        )}
-      </div>
-    );
+        ) : (
+          <div className="max-w-3xl mx-auto">
+             <InputForm 
+              data={formData} 
+              mode={mode} 
+              onChange={handleInputChange}
+              onFillSample={fillSampleData}
+            />
+            {error && <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-xl mb-4 text-sm">{error}</div>}
+            <button onClick={handleGenerate} className="w-full py-3.5 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-500/20 hover:bg-primary-700 transition-all flex justify-center items-center gap-2">
+              <Zap className="w-5 h-5" />
+              Generate Quiz ({10 + Math.ceil((formData.questionCount || 5)/2) + (formData.difficulty === 'Hard' ? 5 : 0)} Credits)
+            </button>
+          </div>
+        );
+      case AppMode.TUTOR:
+        return <TutorChat onDeductCredit={deductCredits} currentCredits={userProfile.credits} />;
+      case AppMode.PROFILE:
+        return (
+           <ProfileView 
+              profile={userProfile} 
+              email={user?.email || null} 
+              onSave={(p, redirect) => {
+                 setUserProfile(p);
+                 if (redirect) setMode(AppMode.DASHBOARD);
+              }} 
+           />
+        );
+      case AppMode.NOTES:
+        return <NotesView userId={user?.uid || null} onDeductCredit={deductCredits} />;
+      case AppMode.SETTINGS:
+        return (
+          <SettingsView 
+             userProfile={userProfile} 
+             onLogout={handleLogout} 
+             onNavigateToProfile={() => setMode(AppMode.PROFILE)}
+             onOpenPremium={() => setShowPremiumModal(true)}
+          />
+        );
+      default:
+        return null;
+    }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-[#FFFAF0] flex items-center justify-center flex-col gap-4">
-        <div className="relative">
-             <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-500 animate-bounce">
-                <Logo className="w-full h-full" iconOnly />
-             </div>
-             <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
-        </div>
-        <p className="text-slate-800 font-bold animate-pulse">Authenticating...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#FFFAF0] font-sans selection:bg-primary-100 selection:text-primary-900 flex">
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        ></div>
-      )}
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300">
+      {renderSidebar()}
 
-      {/* Sidebar */}
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
-        <div className="h-full flex flex-col">
-          {/* Logo Section - Clickable */}
-          <div 
-            className="p-5 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors"
-            onClick={() => {
-              setMode(AppMode.DASHBOARD);
-              setDashboardView('OVERVIEW');
-              setSummaryContent('');
-              setEssayContent('');
-              setQuizData(null);
-              setExistingQuizScore(undefined);
-              setCurrentHistoryId(null);
-              setError(null);
-              setFormData(INITIAL_FORM_DATA);
-              if (window.innerWidth < 1024) setIsSidebarOpen(false);
-            }}
-          >
-             <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0">
-                 <Logo className="w-full h-full" iconOnly />
-               </div>
-               <div>
-                 <h1 className="text-lg font-bold text-slate-900 tracking-tight leading-tight">SJ Tutor AI</h1>
-                 <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">AI Study Buddy</p>
-               </div>
-             </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto py-5 px-3 space-y-1 custom-scrollbar">
-            {navItems.map((item) => {
-              const isActive = mode === item.id;
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    // Auth Check for nav items except Dashboard
-                    if (item.id !== AppMode.DASHBOARD && !user) {
-                      setShowAuthModal(true);
-                      setIsSidebarOpen(false); // Close sidebar on mobile
-                    } else {
-                      setMode(item.id);
-                      setDashboardView('OVERVIEW');
-                      setSummaryContent('');
-                      setEssayContent('');
-                      setQuizData(null);
-                      setExistingQuizScore(undefined);
-                      setCurrentHistoryId(null);
-                      setError(null);
-                      setFormData(INITIAL_FORM_DATA);
-                    }
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group text-sm ${
-                    isActive 
-                      ? 'bg-primary-50 text-primary-700 font-semibold shadow-sm' 
-                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
-                  {item.label}
-                  {!user && item.id !== AppMode.DASHBOARD && (
-                     <div className="ml-auto">
-                        <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
-                     </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="p-3 border-t border-slate-100 space-y-2">
-            {user ? (
-               <>
-                <button
-                   onClick={() => setMode(AppMode.PROFILE)} 
-                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mode === AppMode.PROFILE ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-slate-50'}`}
-                >
-                  <div className="w-7 h-7 rounded-full bg-primary-100 border border-primary-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {userProfile.photoURL ? (
-                      <img src={userProfile.photoURL} alt="User" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="font-bold text-primary-700 text-[10px]">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 text-left overflow-hidden">
-                    <p className="text-xs font-medium truncate">{userProfile.displayName || 'Scholar'}</p>
-                    <p className="text-xs text-slate-400 truncate">{user.email}</p>
-                  </div>
-                </button>
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  Sign Out
-                </button>
-               </>
-            ) : (
-              <button 
-                onClick={() => setShowAuthModal(true)}
-                className="w-full py-2.5 bg-slate-900 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-colors text-sm"
-              >
-                Sign In
-              </button>
-            )}
-             
-            {user && (
-              <button 
-                onClick={() => setShowPremiumModal(true)}
-                className="w-full py-2 bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
-              >
-                <Crown className="w-3.5 h-3.5" />
-                Upgrade Plan
-              </button>
-            )}
-          </div>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        {/* Header */}
-        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
-          <div className="flex items-center gap-3">
-             <button 
-              onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-1.5 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-             >
-               <Menu className="w-5 h-5" />
+      <main className="flex-1 lg:ml-64 p-4 lg:p-8 relative">
+        <header className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 -ml-2 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors">
+               <Menu className="w-6 h-6" />
              </button>
-             <h2 className="text-base font-bold text-slate-800">
-               {mode === AppMode.DASHBOARD ? 'SJ Tutor AI' : 
-                (navItems.find(n => n.id === mode)?.label || 'SJ Tutor AI')}
-             </h2>
+             <h1 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight hidden sm:block">
+               {mode === AppMode.DASHBOARD ? 'Dashboard' : 
+                mode === AppMode.SUMMARY ? 'Summary Generator' : 
+                mode === AppMode.QUIZ ? 'Quiz Master' : 
+                mode === AppMode.ESSAY ? 'Essay Writer' :
+                mode === AppMode.TUTOR ? 'AI Tutor' :
+                mode === AppMode.NOTES ? 'My Notes & Plans' :
+                mode === AppMode.PROFILE ? 'My Profile' : 'Settings'}
+             </h1>
           </div>
           
           <div className="flex items-center gap-3">
-            {user && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full">
-                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                <span className="text-xs font-bold text-slate-700">{userProfile.credits}</span>
-              </div>
-            )}
+             {mode !== AppMode.DASHBOARD && (
+               <button 
+                  onClick={() => setMode(AppMode.DASHBOARD)}
+                  className="hidden sm:flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-lg hover:border-slate-300 transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+               >
+                 <LayoutDashboard className="w-4 h-4" />
+                 Dashboard
+               </button>
+             )}
           </div>
         </header>
 
-        {/* Content Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
-          <div className="max-w-5xl mx-auto">
-             {renderContent()}
-          </div>
-        </div>
+        {getMainContent()}
       </main>
 
-      {/* Modals */}
+      {/* Auth Modal */}
       {showAuthModal && (
         <Auth 
-          onClose={() => setShowAuthModal(false)} 
-          onSignUpSuccess={handleSignUpSuccess}
+           onClose={() => setShowAuthModal(false)} 
+           onSignUpSuccess={(data) => {
+               if (data) {
+                   setUserProfile(prev => ({ ...prev, ...data }));
+               }
+               setShowAuthModal(false);
+           }} 
         />
       )}
-      
+
+      {/* Premium Modal */}
       {showPremiumModal && (
-        <PremiumModal 
-          onClose={() => setShowPremiumModal(false)}
-          onPaymentSuccess={handlePaymentSuccess}
-        />
+         <PremiumModal 
+            onClose={() => setShowPremiumModal(false)}
+            onPaymentSuccess={(credits, planName) => {
+               setUserProfile(prev => ({
+                   ...prev,
+                   credits: prev.credits + credits,
+                   planType: planName === 'STARTER' ? 'Starter' : planName === 'SCHOLAR' ? 'Scholar' : 'Achiever'
+               }));
+            }}
+         />
       )}
     </div>
   );
-};
+}
 
 export default App;

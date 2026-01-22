@@ -31,11 +31,13 @@ export const SettingsService = {
   },
 
   /**
-   * Saves settings to local storage.
+   * Saves settings to local storage and notifies listeners.
    */
   saveSettings: (settings: UserSettings): void => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      // Dispatch a custom event so the App can react immediately (e.g. for Dark Mode)
+      window.dispatchEvent(new Event('settings-changed'));
     } catch (e) {
       console.error("Failed to save settings", e);
     }
@@ -46,7 +48,9 @@ export const SettingsService = {
    */
   resetSettings: (): UserSettings => {
     localStorage.removeItem(STORAGE_KEY);
-    return DEFAULT_SETTINGS;
+    const defaults = DEFAULT_SETTINGS;
+    window.dispatchEvent(new Event('settings-changed'));
+    return defaults;
   },
 
   /**
