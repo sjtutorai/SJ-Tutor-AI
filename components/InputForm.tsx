@@ -150,7 +150,7 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
               <div className="col-span-full mt-1">
                  <p className="text-[10px] text-slate-400 flex items-center gap-1">
                    <Zap className="w-3 h-3" />
-                   Tip: Select <span className="font-bold text-primary-600">20 Questions</span> with <span className="font-bold text-primary-600">Hard</span> difficulty to earn <span className="font-bold text-emerald-600">50 Credits</span>!
+                   Tip: Select <span className="font-bold text-primary-600">20 Questions</span> with <span className="font-bold text-primary-600">Hard</span> difficulty and score <span className="font-bold text-emerald-600">75%+</span> to earn <span className="font-bold text-emerald-600">50 Credits</span>!
                  </p>
               </div>
             ) : null}

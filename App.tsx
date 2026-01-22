@@ -361,16 +361,25 @@ const App: React.FC = () => {
         item.id === currentHistoryId ? { ...item, score } : item
       ));
 
-      // Award 50 Credits for Completing 20 Hard Questions
+      // Award 50 Credits for Completing 20 Hard Questions if score >= 75%
       if (formData.questionCount === 20 && formData.difficulty === 'Hard') {
-        const bonus = 50;
-        const newCredits = userProfile.credits + bonus;
-        handleProfileSave({ ...userProfile, credits: newCredits }, false);
+        const percentage = (score / 20) * 100;
         
-        // Small delay to let the score screen show first, then show reward
-        setTimeout(() => {
-          alert(`🎉 CHALLENGE COMPLETE! 🎉\n\nYou've earned ${bonus} credits for completing the Hard Mode challenge!`);
-        }, 1000);
+        if (percentage >= 75) {
+            const bonus = 50;
+            const newCredits = userProfile.credits + bonus;
+            handleProfileSave({ ...userProfile, credits: newCredits }, false);
+            
+            // Small delay to let the score screen show first, then show reward
+            setTimeout(() => {
+              alert(`🎉 CHALLENGE MASTERED! 🎉\n\nYou scored ${score}/20 (${percentage}%) and earned ${bonus} credits!`);
+            }, 1000);
+        } else {
+             // Encourage user to try again
+             setTimeout(() => {
+              alert(`Challenge Attempted: You scored ${percentage}%. Score 75% or higher to earn the 50 credit bonus! Keep practicing!`);
+            }, 1000);
+        }
       }
     }
   };
