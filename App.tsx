@@ -38,7 +38,8 @@ import {
   Key,
   ExternalLink,
   Settings,
-  Info
+  Info,
+  Share2
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -146,7 +147,6 @@ const App: React.FC = () => {
             if (!item.completed && item.dueTime) {
               const dueTime = new Date(item.dueTime).getTime();
               // Check if the due time fell within the last check interval window
-              // e.g. last check was 10:00:00, now is 10:00:10. Task due at 10:00:05.
               if (dueTime > lastCheck && dueTime <= now) {
                 if (Notification.permission === "granted") {
                   new Notification("SJ Tutor AI Reminder", {
@@ -190,7 +190,6 @@ const App: React.FC = () => {
       const root = window.document.documentElement;
       const body = window.document.body;
       
-      // Apply Dark/Light Mode
       const isDark = theme === 'Dark' || (theme === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       if (isDark) {
         root.classList.add('dark');
@@ -198,18 +197,14 @@ const App: React.FC = () => {
         root.classList.remove('dark');
       }
 
-      // Apply Color Variables
       const palette = THEME_COLORS[primaryColorName] || THEME_COLORS['Gold'];
       Object.entries(palette).forEach(([shade, value]) => {
         root.style.setProperty(`--color-primary-${shade}`, value);
       });
 
-      // Apply Font Family
-      // Handle fonts with spaces like "Open Sans" by wrapping in quotes
       const formattedFont = fontFamily.includes(' ') ? `'${fontFamily}'` : fontFamily;
       root.style.setProperty('--font-sans', formattedFont);
 
-      // Apply Animations
       if (animationsEnabled) {
         body.classList.remove('reduce-motion');
       } else {
@@ -217,13 +212,8 @@ const App: React.FC = () => {
       }
     };
 
-    // Apply initially
     applyTheme();
-
-    // Listen for settings changes from SettingsService
     window.addEventListener('settings-changed', applyTheme);
-    
-    // Listen for system changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleSystemChange = () => {
        if (SettingsService.getSettings().appearance.theme === 'System') applyTheme();
@@ -236,7 +226,7 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Check API Key immediately
+  // Check API Key
   useEffect(() => {
     if (!process.env.API_KEY) {
       console.warn("API_KEY is missing in environment variables!");
@@ -244,9 +234,8 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Auth Listener with Safety Timeout
+  // Auth Listener
   useEffect(() => {
-    // Safety timeout: If Firebase is blocked or slow, stop loading after 4 seconds
     const timeoutId = setTimeout(() => {
       if (authLoading) {
         console.warn("Auth check timed out, defaulting to guest.");
@@ -257,16 +246,16 @@ const App: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
-      clearTimeout(timeoutId); // Clear timeout on success
+      clearTimeout(timeoutId); 
       
       if (!currentUser) {
         setIsNewUser(false);
         setUserProfile(initialProfileState);
-        setMode(AppMode.DASHBOARD); // Reset to dashboard if logged out
+        setMode(AppMode.DASHBOARD);
       }
     }, (err) => {
       console.error("Auth Error:", err);
-      setAuthLoading(false); // Stop loading on error
+      setAuthLoading(false); 
       clearTimeout(timeoutId);
     });
 
@@ -276,7 +265,7 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Profile Persistence Listener
+  // Profile Persistence
   useEffect(() => {
     if (user) {
       const savedProfile = localStorage.getItem(`profile_${user.uid}`);
@@ -303,7 +292,7 @@ const App: React.FC = () => {
     }
   }, [user]);
 
-  // History Persistence: Load Logic
+  // History Persistence
   useEffect(() => {
     const storageKey = user ? `history_${user.uid}` : 'history_guest';
     const savedHistory = localStorage.getItem(storageKey);
@@ -321,13 +310,11 @@ const App: React.FC = () => {
     }
   }, [user]);
 
-  // History Persistence: Save Logic
   useEffect(() => {
     const storageKey = user ? `history_${user.uid}` : 'history_guest';
     localStorage.setItem(storageKey, JSON.stringify(history));
   }, [history, user]);
 
-  // Close sidebar on mode change for mobile
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) {
@@ -354,11 +341,9 @@ const App: React.FC = () => {
 
   const handleSignUpSuccess = (initialData?: Partial<UserProfile>) => {
     setIsNewUser(true);
-    // Merge initial data (Name, School, Grade) with default profile
     const newProfile = { ...initialProfileState, ...initialData };
     setUserProfile(newProfile);
     
-    // Save to local storage immediately in case they refresh
     if (auth.currentUser) {
         localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
     }
@@ -418,7 +403,6 @@ const App: React.FC = () => {
         item.id === currentHistoryId ? { ...item, score } : item
       ));
 
-      // Award 50 Credits for Completing 20 Hard Questions if score >= 75%
       if (formData.questionCount === 20 && formData.difficulty === 'Hard') {
         const percentage = (score / 20) * 100;
         
@@ -427,12 +411,10 @@ const App: React.FC = () => {
             const newCredits = userProfile.credits + bonus;
             handleProfileSave({ ...userProfile, credits: newCredits }, false);
             
-            // Small delay to let the score screen show first, then show reward
             setTimeout(() => {
               alert(`🎉 CHALLENGE MASTERED! 🎉\n\nYou scored ${score}/20 (${percentage}%) and earned ${bonus} credits!`);
             }, 1000);
         } else {
-             // Encourage user to try again
              setTimeout(() => {
               alert(`Challenge Attempted: You scored ${percentage}%. Score 75% or higher to earn the 50 credit bonus! Keep practicing!`);
             }, 1000);
@@ -447,14 +429,10 @@ const App: React.FC = () => {
       return data.includeImages ? 15 : 10;
     }
     if (targetMode === AppMode.QUIZ) {
-      // Free generation for the 20 Hard Questions Challenge
       if (data.questionCount === 20 && data.difficulty === 'Hard') return 0;
-
-      let cost = 10; // Base cost
+      let cost = 10; 
       const qCount = data.questionCount || 5;
-      // 2 questions = 1 credit
       cost += Math.ceil(qCount / 2); 
-      // Difficulty increase (Hard) = 5 credits
       if (data.difficulty === 'Hard') cost += 5; 
       return cost;
     }
@@ -464,7 +442,6 @@ const App: React.FC = () => {
   const deductCredit = (amount: number) => {
     if (userProfile.credits >= amount) {
       const updatedProfile = { ...userProfile, credits: userProfile.credits - amount };
-      // Pass false to prevent redirect
       handleProfileSave(updatedProfile, false);
       return true;
     }
@@ -544,16 +521,11 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error(err);
-      
-      let errorMessage = err.message || "Failed to generate content. Please check your inputs and try again.";
-
+      let errorMessage = err.message || "Failed to generate content. Please try again.";
       try {
          const parsed = JSON.parse(errorMessage);
-         if (parsed.error?.message) {
-            errorMessage = parsed.error.message;
-         }
-      } catch (e) {
-      }
+         if (parsed.error?.message) errorMessage = parsed.error.message;
+      } catch (e) {}
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -562,7 +534,6 @@ const App: React.FC = () => {
       } else if (errorMessage.includes("API key not valid")) {
         errorMessage = "API_KEY_INVALID_ERROR";
       }
-
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -587,6 +558,46 @@ const App: React.FC = () => {
       setMode(AppMode.QUIZ);
     } else if (item.type === AppMode.TUTOR) {
       setMode(AppMode.TUTOR);
+    }
+  };
+
+  const handleShareHistoryItem = async (e: React.MouseEvent, item: HistoryItem) => {
+    e.stopPropagation();
+    let text = `${item.title} (${item.type})\n\n`;
+    
+    if (item.type === AppMode.QUIZ) {
+      const qData = item.content as QuizQuestion[];
+      qData.forEach((q, i) => {
+        text += `Q${i+1}: ${q.question}\n`;
+        q.options.forEach((opt, j) => {
+          text += `   ${String.fromCharCode(65+j)}) ${opt}\n`;
+        });
+        text += "\n";
+      });
+      if (item.score !== undefined) {
+        text += `I scored ${item.score}/${qData.length}!\n`;
+      }
+    } else if (typeof item.content === 'string') {
+      text += item.content;
+    }
+
+    text += `\nGenerated by SJ Tutor AI`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: item.title,
+          text: text,
+          url: window.location.href
+        });
+      } catch (err) {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('Content copied to clipboard!');
+      } catch (err) {
+        alert('Failed to copy content.');
+      }
     }
   };
 
@@ -684,7 +695,7 @@ const App: React.FC = () => {
                   setMode(dashboardView as AppMode);
                   setDashboardView('OVERVIEW');
                 }}
-                className="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 shadow-primary-500/20 text-sm"
+                className="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 text-sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create New {getSingularName(dashboardView as AppMode)}
@@ -721,8 +732,17 @@ const App: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                    <Eye className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                  <div className="flex items-center gap-2">
+                    <button 
+                        onClick={(e) => handleShareHistoryItem(e, item)}
+                        className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-primary-50 hover:text-primary-600"
+                        title="Share"
+                    >
+                        <Share2 className="w-4 h-4" />
+                    </button>
+                    <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                        <Eye className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -769,7 +789,6 @@ const App: React.FC = () => {
           ))}
         </div>
 
-        {/* Quick Actions */}
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
            <h3 className="font-bold text-slate-800 dark:text-white mb-4">Quick Actions</h3>
            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -990,7 +1009,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
-      {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
@@ -998,10 +1016,8 @@ const App: React.FC = () => {
         ></div>
       )}
 
-      {/* Sidebar */}
       <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
         <div className="h-full flex flex-col">
-          {/* Logo Section - Clickable */}
           <div 
             className="p-5 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             onClick={() => {
@@ -1036,10 +1052,9 @@ const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => {
-                    // Auth Check for nav items except Dashboard and About
                     if (item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && !user) {
                       setShowAuthModal(true);
-                      setIsSidebarOpen(false); // Close sidebar on mobile
+                      setIsSidebarOpen(false); 
                     } else {
                       setMode(item.id);
                       setDashboardView('OVERVIEW');
@@ -1119,9 +1134,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        {/* Header */}
         <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
           <div className="flex items-center gap-3">
              <button 
@@ -1146,7 +1159,6 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Content Scroll Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
           <div className="w-full h-full">
              {renderContent()}
@@ -1154,7 +1166,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Modals */}
       {showAuthModal && (
         <Auth 
           onClose={() => setShowAuthModal(false)} 
