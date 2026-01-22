@@ -382,12 +382,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                   onClick={() => {
                     if (!newReminder) return;
                     let dueTimeString = newDate ? `${newDate}T${newTime || '23:59'}` : '';
-                    // Fix: Add missing 'subject' and 'priority' properties to satisfy the ReminderItem interface
                     const item: ReminderItem = {
                       id: Date.now().toString(),
                       task: newReminder,
-                      subject: selectedSubject || 'General',
-                      priority: 'Medium',
                       dueTime: dueTimeString ? new Date(dueTimeString).toISOString() : '',
                       completed: false
                     };

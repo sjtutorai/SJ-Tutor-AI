@@ -12,7 +12,6 @@ export enum AppMode {
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
-export type PriorityLevel = 'Low' | 'Medium' | 'High';
 
 export interface StudyRequestData {
   subject: string;
@@ -53,7 +52,6 @@ export interface HistoryItem {
 
 export interface UserProfile {
   displayName: string;
-  customId?: string; // Unique Customized ID
   phoneNumber: string;
   institution: string;
   grade?: string;
@@ -118,18 +116,13 @@ export interface NoteItem {
   isFavorite: boolean;
   date: number;
   tags: string[];
-  difficulty?: DifficultyLevel;
 }
 
 export interface ReminderItem {
   id: string;
-  noteId?: string;
   task: string;
-  subject: string;
   dueTime: string;
   completed: boolean;
-  priority: PriorityLevel;
-  aiMessage?: string;
 }
 
 export interface TimetableEntry {
