@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile, SJTUTOR_AVATAR } from './types';
 import InputForm from './components/InputForm';
 import ResultsView from './components/ResultsView';
@@ -120,6 +120,63 @@ const App: React.FC = () => {
   // Loading States
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Notification Timer Ref
+  const lastNotificationCheck = useRef(Date.now());
+
+  // Notification Service
+  useEffect(() => {
+    // Request permission on mount
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const lastCheck = lastNotificationCheck.current;
+      const key = user ? `reminders_${user.uid}` : 'reminders_guest';
+      
+      try {
+        const storedReminders = localStorage.getItem(key);
+        if (storedReminders) {
+          const items = JSON.parse(storedReminders);
+          let hasNotified = false;
+
+          items.forEach((item: any) => {
+            if (!item.completed && item.dueTime) {
+              const dueTime = new Date(item.dueTime).getTime();
+              // Check if the due time fell within the last check interval window
+              // e.g. last check was 10:00:00, now is 10:00:10. Task due at 10:00:05.
+              if (dueTime > lastCheck && dueTime <= now) {
+                if (Notification.permission === "granted") {
+                  new Notification("SJ Tutor AI Reminder", {
+                    body: item.task,
+                    icon: SJTUTOR_AVATAR
+                  });
+                  hasNotified = true;
+                } else if (Notification.permission !== "denied") {
+                   Notification.requestPermission().then(permission => {
+                      if (permission === "granted") {
+                         new Notification("SJ Tutor AI Reminder", {
+                            body: item.task,
+                            icon: SJTUTOR_AVATAR
+                         });
+                      }
+                   });
+                }
+              }
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Error checking reminders", e);
+      }
+      
+      lastNotificationCheck.current = now;
+    }, 10000); // Check every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   // Theme Management
   useEffect(() => {

@@ -19,7 +19,10 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   // Reminders State
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [newReminder, setNewReminder] = useState('');
-  const [newReminderDate, setNewReminderDate] = useState('');
+  
+  // Split date and time for better control
+  const [newDate, setNewDate] = useState('');
+  const [newTime, setNewTime] = useState('');
 
   // Timetable State
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
@@ -105,15 +108,28 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   // --- Reminders Handlers ---
   const handleAddReminder = () => {
     if (!newReminder) return;
+    
+    let dueTimeString = '';
+    if (newDate) {
+       dueTimeString = newDate;
+       if (newTime) {
+         dueTimeString += `T${newTime}`;
+       } else {
+         // Default to end of day if time not specified
+         dueTimeString += 'T23:59';
+       }
+    }
+
     const item: ReminderItem = {
       id: Date.now().toString(),
       task: newReminder,
-      dueTime: newReminderDate,
+      dueTime: dueTimeString ? new Date(dueTimeString).toISOString() : '',
       completed: false
     };
     setReminders(prev => [...prev, item]);
     setNewReminder('');
-    setNewReminderDate('');
+    setNewDate('');
+    setNewTime('');
   };
 
   const toggleReminder = (id: string) => {
@@ -317,12 +333,20 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                    placeholder="What needs to be done?"
                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
                  />
-                 <input 
-                   type="datetime-local" 
-                   value={newReminderDate}
-                   onChange={e => setNewReminderDate(e.target.value)}
-                   className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-slate-600"
-                 />
+                 <div className="flex gap-2">
+                    <input 
+                      type="date" 
+                      value={newDate}
+                      onChange={e => setNewDate(e.target.value)}
+                      className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-slate-600 text-sm"
+                    />
+                    <input 
+                      type="time" 
+                      value={newTime}
+                      onChange={e => setNewTime(e.target.value)}
+                      className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-slate-600 text-sm"
+                    />
+                 </div>
                  <button 
                   onClick={handleAddReminder}
                   disabled={!newReminder}
