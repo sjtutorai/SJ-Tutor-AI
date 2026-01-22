@@ -146,7 +146,9 @@ const App: React.FC = () => {
       });
 
       // Apply Font Family
-      root.style.setProperty('--font-sans', fontFamily);
+      // Handle fonts with spaces like "Open Sans" by wrapping in quotes
+      const formattedFont = fontFamily.includes(' ') ? `'${fontFamily}'` : fontFamily;
+      root.style.setProperty('--font-sans', formattedFont);
 
       // Apply Animations
       if (animationsEnabled) {
@@ -647,7 +649,7 @@ const App: React.FC = () => {
     }
     
     return (
-      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
           <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>

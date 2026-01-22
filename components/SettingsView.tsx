@@ -5,7 +5,7 @@ import { SettingsService } from '../services/settingsService';
 import { 
   User, BookOpen, Bot, MessageSquare, Bell, Moon, Lock, 
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, 
-  Save, LogOut, Trash2, Globe, Shield, Activity, Eye, Type, Palette, Monitor
+  Save, LogOut, Trash2, Globe, Shield, Activity, Eye, Type, Palette, Monitor, Zap
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -118,11 +118,17 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
              
              <div className="space-y-6">
                 {/* Theme Section */}
-                <div className="space-y-3">
-                   <label className="text-sm font-bold text-slate-600 dark:text-slate-400 flex items-center gap-2">
-                      <Moon className="w-4 h-4" />
-                      App Theme
-                   </label>
+                <div className="space-y-4 p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                   <div className="flex justify-between items-start">
+                      <div>
+                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2 mb-1">
+                            <Moon className="w-4 h-4" />
+                            App Theme
+                        </label>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Choose your preferred visual mode.</p>
+                      </div>
+                   </div>
+                   
                    <div className="grid grid-cols-3 gap-3">
                       {['Light', 'Dark', 'System'].map((t) => (
                          <button
@@ -130,7 +136,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                            onClick={() => handleSettingChange('appearance', 'theme', t)}
                            className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
                              settings.appearance.theme === t
-                             ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 shadow-sm'
+                             ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 ring-1 ring-primary-500'
                              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
                            }`}
                          >
@@ -139,7 +145,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                                     <div className="w-4 h-4 bg-slate-200 rounded-full"></div>
                                 </div>
                             ) : t === 'Dark' ? (
-                                <div className="w-8 h-8 bg-slate-900 rounded-full flex items-center justify-center shadow-sm">
+                                <div className="w-8 h-8 bg-slate-900 rounded-full flex items-center justify-center shadow-sm border border-slate-700">
                                     <div className="w-4 h-4 bg-slate-700 rounded-full"></div>
                                 </div>
                             ) : (
@@ -151,22 +157,28 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                          </button>
                       ))}
                    </div>
+                   
                    {settings.appearance.theme === 'System' && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700 flex items-center gap-2">
-                         <Monitor className="w-3.5 h-3.5" />
-                         The app theme will automatically adapt to your device's operating system preferences.
-                      </p>
+                      <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                         <Monitor className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                         <p className="text-xs leading-relaxed">
+                           The app will automatically switch between Light and Dark modes to match your device's system settings.
+                         </p>
+                      </div>
                    )}
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-6">
                     {/* Brand Color */}
-                    <div className="space-y-3 p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                        <label className="text-sm font-bold text-slate-600 dark:text-slate-400 flex items-center gap-2">
-                            <Palette className="w-4 h-4" />
-                            Brand Color
-                        </label>
-                        <div className="flex flex-wrap gap-3">
+                    <div className="space-y-4 p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div>
+                            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2 mb-1">
+                                <Palette className="w-4 h-4" />
+                                Accent Color
+                            </label>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Personalize buttons and highlights.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-4">
                             {[
                                 { name: 'Gold', color: '#D4AF37' },
                                 { name: 'Blue', color: '#3b82f6' },
@@ -179,14 +191,15 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                                     onClick={() => handleSettingChange('appearance', 'primaryColor', color.name)}
                                     className={`relative w-10 h-10 rounded-full transition-all flex items-center justify-center shadow-sm hover:scale-110 ${
                                         (settings.appearance.primaryColor || 'Gold') === color.name
-                                        ? 'ring-2 ring-offset-2 ring-slate-900 dark:ring-white dark:ring-offset-slate-900'
-                                        : ''
+                                        ? 'ring-2 ring-offset-2 ring-slate-900 dark:ring-white dark:ring-offset-slate-900 scale-110'
+                                        : 'hover:ring-2 hover:ring-offset-1 hover:ring-slate-200 dark:hover:ring-slate-700'
                                     }`}
                                     style={{ backgroundColor: color.color }}
                                     title={color.name}
+                                    aria-label={`Select ${color.name} color`}
                                 >
                                     {(settings.appearance.primaryColor || 'Gold') === color.name && (
-                                        <div className="w-3 h-3 bg-white rounded-full"></div>
+                                        <div className="w-3 h-3 bg-white rounded-full shadow-sm"></div>
                                     )}
                                 </button>
                             ))}
@@ -194,11 +207,14 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                     </div>
 
                     {/* Font Style */}
-                    <div className="space-y-3 p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                        <label className="text-sm font-bold text-slate-600 dark:text-slate-400 flex items-center gap-2">
-                            <Type className="w-4 h-4" />
-                            Font Style
-                        </label>
+                    <div className="space-y-4 p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div>
+                            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2 mb-1">
+                                <Type className="w-4 h-4" />
+                                Typography
+                            </label>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Select the primary font family.</p>
+                        </div>
                         <div className="flex flex-col gap-2">
                             {['Inter', 'Roboto', 'Open Sans'].map((font) => (
                                 <label 
@@ -209,7 +225,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                                         : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
                                     }`}
                                 >
-                                    <span className="text-sm" style={{ fontFamily: font }}>{font}</span>
+                                    <span className="text-sm font-medium" style={{ fontFamily: font }}>{font}</span>
                                     <input 
                                         type="radio" 
                                         name="fontFamily"
@@ -225,10 +241,15 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                 </div>
 
                 {/* Animation Toggle */}
-                <div className="flex items-center justify-between p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                   <div>
-                       <span className="font-medium text-slate-700 dark:text-slate-300 block mb-1">UI Animations</span>
-                       <span className="text-xs text-slate-500 dark:text-slate-400">Enable subtle transitions and effects across the app.</span>
+                <div className="flex items-center justify-between p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                   <div className="flex items-start gap-3">
+                       <div className="p-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg">
+                          <Zap className="w-5 h-5" />
+                       </div>
+                       <div>
+                           <span className="font-bold text-slate-800 dark:text-white block text-sm">UI Animations</span>
+                           <span className="text-xs text-slate-500 dark:text-slate-400 block mt-0.5 max-w-xs">Enable subtle transitions and effects across the app for a smoother experience.</span>
+                       </div>
                    </div>
                    <label className="relative inline-flex items-center cursor-pointer">
                       <input 
@@ -237,7 +258,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                         onChange={(e) => handleSettingChange('appearance', 'animations', e.target.checked)}
                         className="sr-only peer" 
                       />
-                      <div className="w-11 h-6 bg-slate-200 dark:bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                      <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                    </label>
                 </div>
              </div>
