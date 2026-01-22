@@ -52,6 +52,7 @@ export interface UserProfile {
   displayName: string;
   phoneNumber: string;
   institution: string;
+  grade?: string; // Added Grade/Class field
   bio: string;
   photoURL?: string;
   learningGoal?: string;

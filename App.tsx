@@ -71,6 +71,7 @@ const App: React.FC = () => {
     displayName: '',
     phoneNumber: '',
     institution: '',
+    grade: '',
     bio: '',
     photoURL: '',
     learningGoal: '',
@@ -211,9 +212,17 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSignUpSuccess = () => {
+  const handleSignUpSuccess = (initialData?: Partial<UserProfile>) => {
     setIsNewUser(true);
-    setUserProfile(initialProfileState);
+    // Merge initial data (Name, School, Grade) with default profile
+    const newProfile = { ...initialProfileState, ...initialData };
+    setUserProfile(newProfile);
+    
+    // Save to local storage immediately in case they refresh
+    if (auth.currentUser) {
+        localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
+    }
+    
     setShowAuthModal(false);
   };
 
@@ -500,7 +509,7 @@ const App: React.FC = () => {
           {filteredHistory.length === 0 ? (
             <div className="text-center py-20 bg-white/60 backdrop-blur-md rounded-xl border border-slate-200/60 border-dashed animate-in zoom-in duration-500">
               <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 p-1">
-                 <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full rounded-full object-cover" />
+                 <Logo className="w-full h-full" iconOnly />
               </div>
               <p className="text-slate-500 font-medium mb-5 text-sm">No {categoryLabel.toLowerCase()} found yet.</p>
 
@@ -639,11 +648,7 @@ const App: React.FC = () => {
                 {/* Avatar Display */}
                 <div className="relative w-40 h-40 md:w-56 md:h-56 flex-shrink-0 animate-blob">
                      <div className="absolute inset-0 bg-primary-200 rounded-full blur-2xl opacity-50"></div>
-                     <img 
-                        src={SJTUTOR_AVATAR} 
-                        alt="SJ Tutor AI Mascot" 
-                        className="relative w-full h-full object-contain drop-shadow-xl hover:scale-105 transition-transform duration-500"
-                     />
+                     <Logo className="relative w-full h-full drop-shadow-xl hover:scale-105 transition-transform duration-500 rounded-none border-0 shadow-none bg-transparent" iconOnly />
                 </div>
               </div>
           </div>
@@ -837,7 +842,7 @@ const App: React.FC = () => {
         {showEmptyState && !error && (
           <div className="text-center py-12 bg-white rounded-xl border border-slate-100 shadow-sm">
              <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-white shadow-lg overflow-hidden">
-                <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
+                <Logo className="w-full h-full" iconOnly />
              </div>
              <h3 className="text-base font-semibold text-slate-800 mb-1">Ready to Start?</h3>
              <p className="text-slate-500 mb-6 max-w-md mx-auto text-sm">
@@ -893,7 +898,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-[#FFFAF0] flex items-center justify-center flex-col gap-4">
         <div className="relative">
              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-500 animate-bounce">
-                <img src={SJTUTOR_AVATAR} alt="Loading..." className="w-full h-full object-cover" />
+                <Logo className="w-full h-full" iconOnly />
              </div>
              <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
         </div>
@@ -918,7 +923,7 @@ const App: React.FC = () => {
           <div className="p-5 border-b border-slate-100">
              <div className="flex items-center gap-3">
                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0">
-                 <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
+                 <Logo className="w-full h-full" iconOnly />
                </div>
                <div>
                  <h1 className="text-lg font-bold text-slate-900 tracking-tight leading-tight">SJ Tutor AI</h1>
