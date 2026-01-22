@@ -92,12 +92,10 @@ export interface UserSettings {
   appearance: {
     theme: 'Light' | 'Dark' | 'System';
     animations: boolean;
-    primaryColor: 'Gold' | 'Blue' | 'Emerald' | 'Violet' | 'Rose';
   };
   privacy: {
     twoFactor: boolean;
     appLock: boolean;
-    analytics: boolean;
   };
 }
 
@@ -164,12 +162,10 @@ export const DEFAULT_SETTINGS: UserSettings = {
   appearance: {
     theme: 'Light',
     animations: true,
-    primaryColor: 'Gold',
   },
   privacy: {
     twoFactor: false,
     appLock: false,
-    analytics: true,
   },
 };
 
