@@ -38,7 +38,9 @@ import {
   Key,
   ExternalLink,
   Settings,
-  Info
+  Info,
+  ArrowRight,
+  X
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -734,9 +736,52 @@ const App: React.FC = () => {
     
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
-          <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
+        {/* Enhanced Welcome Banner */}
+        <div className="mb-8 bg-white dark:bg-slate-800 p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
+           {/* Decorative Elements */}
+           <div className="absolute top-0 right-0 w-64 h-64 bg-primary-50 dark:bg-primary-900/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+           
+           <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="space-y-4">
+                 {/* Branding */}
+                 <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center border-2 border-primary-100 dark:border-slate-600 shadow-sm overflow-hidden">
+                       <Logo className="w-full h-full" iconOnly />
+                    </div>
+                    <div>
+                       <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-none">SJ Tutor AI</h1>
+                       <p className="text-[10px] uppercase tracking-widest font-bold text-primary-600 dark:text-primary-400">Your Study Companion</p>
+                    </div>
+                 </div>
+                 
+                 {/* Greeting */}
+                 <div>
+                    <h2 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">
+                       Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-amber-600">{userProfile.displayName || 'Scholar'}</span>! 👋
+                    </h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-lg">Ready to learn something new today?</p>
+                 </div>
+              </div>
+
+              {/* Auth Buttons (Only if not logged in) */}
+              {!user && (
+                 <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                    <button
+                       onClick={() => setShowAuthModal(true)}
+                       className="px-6 py-3 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-white font-bold rounded-xl shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600 transition-all flex items-center justify-center gap-2"
+                    >
+                       Sign In
+                    </button>
+                    <button
+                       onClick={() => setShowAuthModal(true)}
+                       className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-lg shadow-primary-500/30 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                    >
+                       Sign Up Free
+                       <ArrowRight className="w-4 h-4" />
+                    </button>
+                 </div>
+              )}
+           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -797,371 +842,250 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (loading) return <LoadingState mode={mode} />;
-
+    
     switch (mode) {
-      case AppMode.DASHBOARD:
-        return renderDashboard();
-      
       case AppMode.SUMMARY:
-        if (summaryContent) {
-          return (
-            <ResultsView
-              title={formData.chapterName}
-              content={summaryContent}
-              type="Summary"
-              isLoading={false}
-              onBack={() => {
-                 setSummaryContent('');
-                 setCurrentHistoryId(null);
-              }}
-            />
-          );
-        }
         return (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <InputForm
-              data={formData}
-              mode={AppMode.SUMMARY}
-              onChange={handleFormChange}
+          <div className="space-y-6">
+            <InputForm 
+              data={formData} 
+              mode={AppMode.SUMMARY} 
+              onChange={handleFormChange} 
               onFillSample={handleFillSample}
             />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
+            {summaryContent && (
+               <ResultsView 
+                 content={summaryContent} 
+                 isLoading={loading} 
+                 title={formData.chapterName || 'Summary'} 
+                 type="Summary"
+                 onBack={() => { setSummaryContent(''); setMode(AppMode.DASHBOARD); }}
+               />
+            )}
+            {!summaryContent && (
+              <div className="flex justify-end">
+                <button 
+                  onClick={handleGenerate} 
+                  disabled={loading}
+                  className="px-6 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-500/30 hover:bg-primary-700 transition-all flex items-center gap-2"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  Generate Summary
+                </button>
               </div>
             )}
-            <button
-              onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-600 to-amber-600 hover:from-primary-700 hover:to-amber-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
-            >
-              <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
-              Generate Summary
-            </button>
           </div>
         );
-
       case AppMode.ESSAY:
-         if (essayContent) {
-          return (
-            <ResultsView
-              title={formData.chapterName}
-              content={essayContent}
-              type="Essay"
-              isLoading={false}
-              onBack={() => {
-                 setEssayContent('');
-                 setCurrentHistoryId(null);
-              }}
-            />
-          );
-        }
-        return (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <InputForm
-              data={formData}
-              mode={AppMode.ESSAY}
-              onChange={handleFormChange}
+         return (
+          <div className="space-y-6">
+            <InputForm 
+              data={formData} 
+              mode={AppMode.ESSAY} 
+              onChange={handleFormChange} 
               onFillSample={handleFillSample}
             />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
+            {essayContent && (
+               <ResultsView 
+                 content={essayContent} 
+                 isLoading={loading} 
+                 title={formData.chapterName || 'Essay'} 
+                 type="Essay"
+                 onBack={() => { setEssayContent(''); setMode(AppMode.DASHBOARD); }}
+               />
+            )}
+             {!essayContent && (
+              <div className="flex justify-end">
+                <button 
+                  onClick={handleGenerate} 
+                  disabled={loading}
+                  className="px-6 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-500/30 hover:bg-primary-700 transition-all flex items-center gap-2"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  Generate Essay
+                </button>
               </div>
             )}
-            <button
-              onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-600 to-amber-600 hover:from-primary-700 hover:to-amber-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
-            >
-              <BookOpen className="w-5 h-5 group-hover:animate-pulse" />
-              Write Essay
-            </button>
           </div>
-        );
-
+         );
       case AppMode.QUIZ:
         if (quizData) {
           return (
             <QuizView 
               questions={quizData} 
-              onReset={() => {
-                setQuizData(null);
-                setExistingQuizScore(undefined);
-                setCurrentHistoryId(null);
-              }} 
+              onReset={() => { setQuizData(null); setExistingQuizScore(undefined); }}
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
             />
           );
         }
         return (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <InputForm
-              data={formData}
-              mode={AppMode.QUIZ}
-              onChange={handleFormChange}
+           <div className="space-y-6">
+            <InputForm 
+              data={formData} 
+              mode={AppMode.QUIZ} 
+              onChange={handleFormChange} 
               onFillSample={handleFillSample}
             />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
-            )}
-            <button
-              onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-600 to-amber-600 hover:from-primary-700 hover:to-amber-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
-            >
-              <BrainCircuit className="w-5 h-5 group-hover:animate-pulse" />
-              Generate Quiz
-            </button>
+            <div className="flex justify-end">
+              <button 
+                onClick={handleGenerate} 
+                disabled={loading}
+                className="px-6 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-500/30 hover:bg-primary-700 transition-all flex items-center gap-2"
+              >
+                <Sparkles className="w-5 h-5" />
+                Generate Quiz
+              </button>
+            </div>
           </div>
         );
-
       case AppMode.TUTOR:
-        return (
-          <div className="max-w-5xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <TutorChat 
-               onDeductCredit={deductCredit} 
-               currentCredits={userProfile.credits}
-            />
-          </div>
-        );
-      
+        return <TutorChat onDeductCredit={deductCredit} currentCredits={userProfile.credits} />;
       case AppMode.NOTES:
-        return (
-          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <NotesView 
-               userId={user ? user.uid : null} 
-               onDeductCredit={deductCredit}
-            />
-          </div>
-        );
-
+        return <NotesView userId={user ? user.uid : null} onDeductCredit={deductCredit} />;
       case AppMode.PROFILE:
-        return (
-           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <ProfileView 
-                profile={userProfile} 
-                email={user?.email || 'Guest'}
-                onSave={(p, r) => handleProfileSave(p, r)}
-              />
-           </div>
-        );
-
+        return <ProfileView profile={userProfile} email={user?.email || ''} onSave={handleProfileSave} />;
       case AppMode.SETTINGS:
-        return (
-           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <SettingsView 
-                 userProfile={userProfile}
-                 onLogout={handleLogout}
-                 onNavigateToProfile={() => setMode(AppMode.PROFILE)}
-                 onOpenPremium={() => setShowPremiumModal(true)}
-              />
-           </div>
-        );
-
+        return <SettingsView userProfile={userProfile} onLogout={handleLogout} onNavigateToProfile={() => setMode(AppMode.PROFILE)} onOpenPremium={() => setShowPremiumModal(true)} />;
       case AppMode.ABOUT:
-        return (
-           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <AboutView />
-           </div>
-        );
-
+        return <AboutView />;
+      case AppMode.DASHBOARD:
       default:
         return renderDashboard();
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-primary-50 dark:bg-slate-900 flex items-center justify-center flex-col gap-4">
-        <div className="relative">
-             <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-500 animate-bounce">
-                <Logo className="w-full h-full" iconOnly />
-             </div>
-             <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
-        </div>
-        <p className="text-slate-800 dark:text-white font-bold animate-pulse">Authenticating...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        ></div>
-      )}
-
-      {/* Sidebar */}
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
-        <div className="h-full flex flex-col">
-          {/* Logo Section - Clickable */}
-          <div 
-            className="p-5 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            onClick={() => {
-              setMode(AppMode.DASHBOARD);
-              setDashboardView('OVERVIEW');
-              setSummaryContent('');
-              setEssayContent('');
-              setQuizData(null);
-              setExistingQuizScore(undefined);
-              setCurrentHistoryId(null);
-              setError(null);
-              setFormData(INITIAL_FORM_DATA);
-              if (window.innerWidth < 1024) setIsSidebarOpen(false);
-            }}
-          >
-             <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0 bg-white dark:bg-slate-800">
-                 <Logo className="w-full h-full" iconOnly />
-               </div>
-               <div>
-                 <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight">SJ Tutor AI</h1>
-                 <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">AI Study Buddy</p>
-               </div>
-             </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto py-5 px-3 space-y-1 custom-scrollbar">
-            {navItems.map((item) => {
-              const isActive = mode === item.id;
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    // Auth Check for nav items except Dashboard and About
-                    if (item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && !user) {
-                      setShowAuthModal(true);
-                      setIsSidebarOpen(false); // Close sidebar on mobile
-                    } else {
-                      setMode(item.id);
-                      setDashboardView('OVERVIEW');
-                      setSummaryContent('');
-                      setEssayContent('');
-                      setQuizData(null);
-                      setExistingQuizScore(undefined);
-                      setCurrentHistoryId(null);
-                      setError(null);
-                      setFormData(INITIAL_FORM_DATA);
-                    }
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group text-sm ${
-                    isActive 
-                      ? 'bg-primary-50 dark:bg-slate-800 text-primary-700 dark:text-primary-400 font-semibold shadow-sm' 
-                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                  {item.label}
-                  {!user && item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && (
-                     <div className="ml-auto">
-                        <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
-                     </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-            {user ? (
-               <>
-                <button
-                   onClick={() => setMode(AppMode.PROFILE)} 
-                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mode === AppMode.PROFILE ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                >
-                  <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-slate-700 border border-primary-200 dark:border-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {userProfile.photoURL ? (
-                      <img src={userProfile.photoURL} alt="User" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="font-bold text-primary-700 dark:text-primary-400 text-[10px]">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 text-left overflow-hidden">
-                    <p className="text-xs font-medium truncate text-slate-800 dark:text-white">{userProfile.displayName || 'Scholar'}</p>
-                    <p className="text-xs text-slate-400 truncate">{user.email}</p>
-                  </div>
-                </button>
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  Sign Out
-                </button>
-               </>
-            ) : (
-              <button 
-                onClick={() => setShowAuthModal(true)}
-                className="w-full py-2.5 bg-slate-900 dark:bg-slate-700 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors text-sm"
-              >
-                Sign In
-              </button>
-            )}
-             
-            {user && (
-              <button 
-                onClick={() => setShowPremiumModal(true)}
-                className="w-full py-2 bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
-              >
-                <Crown className="w-3.5 h-3.5" />
-                Upgrade Plan
-              </button>
-            )}
-          </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300">
+      {/* Mobile Header */}
+      <div className="lg:hidden flex items-center justify-between p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+        <div className="flex items-center gap-2">
+           <Logo className="w-8 h-8" />
+           <span className="font-bold text-lg text-slate-800 dark:text-white">SJ Tutor AI</span>
         </div>
-      </aside>
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-slate-600 dark:text-slate-300">
+          <Menu className="w-6 h-6" />
+        </button>
+      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        {/* Header */}
-        <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
-          <div className="flex items-center gap-3">
-             <button 
-              onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-1.5 -ml-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-             >
-               <Menu className="w-5 h-5" />
-             </button>
-             <h2 className="text-base font-bold text-slate-800 dark:text-white">
-               {mode === AppMode.DASHBOARD ? 'SJ Tutor AI' : 
-                (navItems.find(n => n.id === mode)?.label || 'SJ Tutor AI')}
-             </h2>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            {user && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
-                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{userProfile.credits}</span>
+      <div className="flex max-w-7xl mx-auto min-h-screen">
+        {/* Sidebar */}
+        <aside className={`
+          fixed lg:sticky top-0 left-0 z-40 h-screen w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transform transition-transform duration-300 ease-in-out overflow-y-auto
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}>
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-8">
+              <Logo className="w-10 h-10" />
+              <div>
+                <h1 className="font-bold text-xl tracking-tight text-slate-900 dark:text-white">SJ Tutor AI</h1>
+                <p className="text-[10px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-widest">Study Smarter</p>
               </div>
-            )}
-          </div>
-        </header>
+            </div>
 
-        {/* Content Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
-          <div className="w-full h-full">
-             {renderContent()}
+            {/* User Card */}
+            <div 
+              onClick={() => setMode(AppMode.PROFILE)}
+              className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl mb-6 flex items-center gap-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700 group"
+            >
+               <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-600 flex items-center justify-center border border-slate-200 dark:border-slate-500 overflow-hidden">
+                 {userProfile.photoURL ? (
+                    <img src={userProfile.photoURL} alt="User" className="w-full h-full object-cover" />
+                 ) : (
+                    <span className="font-bold text-primary-600 dark:text-primary-400 text-lg">
+                      {userProfile.displayName ? userProfile.displayName[0] : 'G'}
+                    </span>
+                 )}
+               </div>
+               <div className="flex-1 min-w-0">
+                 <p className="font-bold text-sm text-slate-800 dark:text-white truncate">{userProfile.displayName || 'Guest User'}</p>
+                 <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                    <Zap className="w-3 h-3 fill-amber-400 text-amber-500" />
+                    <span>{userProfile.credits} Credits</span>
+                 </div>
+               </div>
+               <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-primary-500" />
+            </div>
+
+            <nav className="space-y-1">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = mode === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setMode(item.id);
+                      if (item.id === AppMode.DASHBOARD) setDashboardView('OVERVIEW');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm ${
+                      isActive 
+                        ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30' 
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-700">
+               <button 
+                  onClick={() => setShowPremiumModal(true)}
+                  className="w-full p-4 rounded-xl bg-gradient-to-r from-amber-200 to-yellow-400 text-amber-900 font-bold shadow-lg transform transition-transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 mb-4"
+               >
+                  <Crown className="w-5 h-5" />
+                  Go Premium
+               </button>
+            </div>
           </div>
-        </div>
-      </main>
+        </aside>
+
+        {/* Overlay for mobile sidebar */}
+        {isSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-slate-900/50 z-30 lg:hidden backdrop-blur-sm"
+            onClick={() => setIsSidebarOpen(false)}
+          ></div>
+        )}
+
+        {/* Main Content */}
+        <main className="flex-1 p-4 lg:p-8 min-w-0">
+           {apiKeyMissing && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700">
+                 <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                 <div>
+                    <h4 className="font-bold">API Key Missing</h4>
+                    <p className="text-sm">The <code>API_KEY</code> environment variable is not set. Please add it to your <code>.env</code> file or environment configuration to use AI features.</p>
+                 </div>
+              </div>
+           )}
+
+           {error && (
+             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-700 animate-in slide-in-from-top-2">
+               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+               <p className="text-sm font-medium">{error}</p>
+               <button onClick={() => setError(null)} className="ml-auto p-1 hover:bg-red-100 rounded">
+                 <X className="w-4 h-4" />
+               </button>
+             </div>
+           )}
+
+           {renderContent()}
+        </main>
+      </div>
 
       {/* Modals */}
       {showAuthModal && (
         <Auth 
-          onClose={() => setShowAuthModal(false)} 
           onSignUpSuccess={handleSignUpSuccess}
+          onClose={() => setShowAuthModal(false)} 
         />
       )}
-      
+
       {showPremiumModal && (
         <PremiumModal 
           onClose={() => setShowPremiumModal(false)}
