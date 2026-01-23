@@ -8,7 +8,8 @@ export enum AppMode {
   PROFILE = 'PROFILE',
   NOTES = 'NOTES',
   SETTINGS = 'SETTINGS',
-  ABOUT = 'ABOUT'
+  ABOUT = 'ABOUT',
+  TIMER = 'TIMER'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';

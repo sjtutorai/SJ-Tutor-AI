@@ -13,6 +13,7 @@ import NotesView from './components/NotesView';
 import SettingsView from './components/SettingsView';
 import AboutView from './components/AboutView';
 import Logo from './components/Logo';
+import SidebarTimer from './components/SidebarTimer';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
 import { auth, db } from './firebaseConfig';
@@ -40,7 +41,8 @@ import {
   ExternalLink,
   Settings,
   Info,
-  Share2
+  Share2,
+  Timer
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -658,6 +660,7 @@ const App: React.FC = () => {
     { id: AppMode.ESSAY, label: 'Essay Writer', icon: BookOpen },
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
+    { id: AppMode.TIMER, label: 'Focus Timer', icon: Clock },
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
   ];
@@ -855,178 +858,157 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
-    if (loading) return <LoadingState mode={mode} />;
-
     switch (mode) {
       case AppMode.DASHBOARD:
         return renderDashboard();
-      
-      case AppMode.SUMMARY:
-        if (summaryContent) {
-          return (
-            <ResultsView
-              title={formData.chapterName}
-              content={summaryContent}
-              type="Summary"
-              isLoading={false}
-              onBack={() => {
-                 setSummaryContent('');
-                 setCurrentHistoryId(null);
-              }}
-            />
-          );
-        }
-        return (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <InputForm
-              data={formData}
-              mode={AppMode.SUMMARY}
-              onChange={handleFormChange}
-              onFillSample={handleFillSample}
-            />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
-            )}
-            <button
-              onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
-            >
-              <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
-              Generate Summary
-            </button>
-          </div>
-        );
 
+      case AppMode.SUMMARY:
       case AppMode.ESSAY:
-         if (essayContent) {
+        if (loading) return <LoadingState mode={mode} />;
+        if (mode === AppMode.SUMMARY && summaryContent) {
           return (
             <ResultsView
-              title={formData.chapterName}
-              content={essayContent}
-              type="Essay"
+              content={summaryContent}
               isLoading={false}
-              onBack={() => {
-                 setEssayContent('');
-                 setCurrentHistoryId(null);
-              }}
+              title={formData.chapterName || 'Summary'}
+              type="Summary"
+              onBack={() => { setSummaryContent(''); }}
+            />
+          );
+        }
+        if (mode === AppMode.ESSAY && essayContent) {
+           return (
+            <ResultsView
+              content={essayContent}
+              isLoading={false}
+              title={formData.chapterName || 'Essay'}
+              type="Essay"
+              onBack={() => { setEssayContent(''); }}
             />
           );
         }
         return (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="mb-6 text-center">
+               <h2 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">{mode === AppMode.SUMMARY ? 'AI Summary Generator' : 'AI Essay Writer'}</h2>
+               <p className="text-slate-500 dark:text-slate-400">Generate high-quality academic content in seconds.</p>
+            </div>
             <InputForm
               data={formData}
-              mode={AppMode.ESSAY}
+              mode={mode}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
             />
             {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
+               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-xl flex items-center gap-2 text-red-600 dark:text-red-400 text-sm animate-pulse">
+                 <AlertCircle className="w-4 h-4" />
+                 {error}
+               </div>
             )}
-            <button
-              onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
-            >
-              <BookOpen className="w-5 h-5 group-hover:animate-pulse" />
-              Write Essay
-            </button>
+            <div className="flex justify-end">
+              <button
+                onClick={handleGenerate}
+                className="px-8 py-3.5 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white rounded-xl font-bold shadow-lg shadow-primary-500/25 transition-all hover:scale-[1.02] active:scale-95 flex items-center gap-2"
+              >
+                <Sparkles className="w-5 h-5" />
+                Generate {mode === AppMode.SUMMARY ? 'Summary' : 'Essay'}
+              </button>
+            </div>
           </div>
         );
 
       case AppMode.QUIZ:
+        if (loading) return <LoadingState mode={mode} />;
         if (quizData) {
           return (
-            <QuizView 
-              questions={quizData} 
-              onReset={() => {
-                setQuizData(null);
-                setExistingQuizScore(undefined);
-                setCurrentHistoryId(null);
-              }} 
+            <QuizView
+              questions={quizData}
+              onReset={() => { setQuizData(null); setExistingQuizScore(undefined); }}
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
             />
           );
         }
         return (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="mb-6 text-center">
+               <h2 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">AI Quiz Creator</h2>
+               <p className="text-slate-500 dark:text-slate-400">Challenge yourself with custom-generated questions.</p>
+            </div>
             <InputForm
               data={formData}
-              mode={AppMode.QUIZ}
+              mode={mode}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
             />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
+             {error && (
+               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-xl flex items-center gap-2 text-red-600 dark:text-red-400 text-sm animate-pulse">
+                 <AlertCircle className="w-4 h-4" />
+                 {error}
+               </div>
             )}
-            <button
-              onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
-            >
-              <BrainCircuit className="w-5 h-5 group-hover:animate-pulse" />
-              Generate Quiz
-            </button>
+            <div className="flex justify-end">
+              <button
+                onClick={handleGenerate}
+                className="px-8 py-3.5 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white rounded-xl font-bold shadow-lg shadow-primary-500/25 transition-all hover:scale-[1.02] active:scale-95 flex items-center gap-2"
+              >
+                <Sparkles className="w-5 h-5" />
+                Start Quiz
+              </button>
+            </div>
           </div>
         );
 
       case AppMode.TUTOR:
         return (
-          <div className="max-w-5xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <TutorChat 
-               onDeductCredit={deductCredit} 
-               currentCredits={userProfile.credits}
-            />
-          </div>
+           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <TutorChat onDeductCredit={deductCredit} currentCredits={userProfile.credits} />
+           </div>
         );
-      
+
       case AppMode.NOTES:
         return (
-          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <NotesView 
-               userId={user ? user.uid : null} 
-               onDeductCredit={deductCredit}
-            />
+           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <NotesView userId={user ? user.uid : null} onDeductCredit={deductCredit} />
+           </div>
+        );
+
+      case AppMode.TIMER:
+        return (
+          <div className="max-w-md mx-auto mt-10 animate-in fade-in zoom-in duration-300">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Focus Timer</h2>
+              <p className="text-slate-500 dark:text-slate-400">Stay productive with the Pomodoro technique. The timer will auto-pause if you leave the tab.</p>
+            </div>
+            <SidebarTimer />
           </div>
         );
 
       case AppMode.PROFILE:
         return (
-           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <ProfileView 
                 profile={userProfile} 
-                email={user?.email || 'Guest'}
-                onSave={(p, r) => handleProfileSave(p, r)}
+                email={user?.email || null} 
+                onSave={handleProfileSave} 
               />
            </div>
         );
 
       case AppMode.SETTINGS:
         return (
-           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <SettingsView 
-                 userProfile={userProfile}
-                 onLogout={handleLogout}
-                 onNavigateToProfile={() => setMode(AppMode.PROFILE)}
-                 onOpenPremium={() => setShowPremiumModal(true)}
+                userProfile={userProfile} 
+                onLogout={handleLogout} 
+                onNavigateToProfile={() => setMode(AppMode.PROFILE)}
+                onOpenPremium={() => setShowPremiumModal(true)}
               />
            </div>
         );
-
+        
       case AppMode.ABOUT:
-        return (
-           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <AboutView />
-           </div>
-        );
+         return <AboutView />;
 
       default:
         return renderDashboard();

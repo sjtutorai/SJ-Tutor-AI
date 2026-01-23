@@ -61,10 +61,26 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
       recognition.lang = 'en-US';
 
       recognition.onstart = () => setIsListening(true);
+      
       recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(prev => prev + (prev ? ' ' : '') + transcript);
+        let transcript = '';
+        // Only process final results to avoid duplication
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            transcript += event.results[i][0].transcript;
+          }
+        }
+        
+        if (transcript) {
+          setInput(prev => prev + (prev ? ' ' : '') + transcript);
+        }
       };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        setIsListening(false);
+      };
+
       recognition.onend = () => setIsListening(false);
       recognition.start();
     } else {
