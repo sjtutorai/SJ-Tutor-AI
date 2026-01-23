@@ -15,8 +15,9 @@ import AboutView from './components/AboutView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
-import { auth } from './firebaseConfig';
+import { auth, db } from './firebaseConfig';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { 
   BookOpen, 
   FileText, 
@@ -125,9 +126,50 @@ const App: React.FC = () => {
   // Notification Timer Ref
   const lastNotificationCheck = useRef(Date.now());
 
+  // Check for shared content on load
+  useEffect(() => {
+    const checkSharedContent = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const shareId = params.get('shareId');
+      
+      if (shareId) {
+        setLoading(true);
+        try {
+          const docRef = doc(db, 'shared_content', shareId);
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setMode(data.type as AppMode);
+            if (data.type === AppMode.SUMMARY) {
+              setSummaryContent(data.content);
+            } else if (data.type === AppMode.ESSAY) {
+              setEssayContent(data.content);
+            } else if (data.type === AppMode.QUIZ) {
+              setQuizData(data.content);
+            }
+            if (data.title) {
+              setFormData(prev => ({...prev, chapterName: data.title}));
+            }
+            // Clear URL param to avoid stuck state
+            window.history.replaceState({}, '', window.location.pathname);
+          } else {
+            setError("Shared content not found.");
+          }
+        } catch (e) {
+          console.error("Error fetching shared content:", e);
+          setError("Failed to load shared content.");
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    checkSharedContent();
+  }, []);
+
   // Notification Service
   useEffect(() => {
-    // Request permission on mount
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
@@ -146,7 +188,6 @@ const App: React.FC = () => {
           items.forEach((item: any) => {
             if (!item.completed && item.dueTime) {
               const dueTime = new Date(item.dueTime).getTime();
-              // Check if the due time fell within the last check interval window
               if (dueTime > lastCheck && dueTime <= now) {
                 if (Notification.permission === "granted") {
                   new Notification("SJ Tutor AI Reminder", {
@@ -173,7 +214,7 @@ const App: React.FC = () => {
       }
       
       lastNotificationCheck.current = now;
-    }, 10000); // Check every 10 seconds
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [user]);
@@ -226,7 +267,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Check API Key
   useEffect(() => {
     if (!process.env.API_KEY) {
       console.warn("API_KEY is missing in environment variables!");
@@ -234,7 +274,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Auth Listener
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (authLoading) {
@@ -251,7 +290,7 @@ const App: React.FC = () => {
       if (!currentUser) {
         setIsNewUser(false);
         setUserProfile(initialProfileState);
-        setMode(AppMode.DASHBOARD);
+        // Only reset to dashboard if not loading shared content (handled in other useEffect)
       }
     }, (err) => {
       console.error("Auth Error:", err);
@@ -502,6 +541,7 @@ const App: React.FC = () => {
         }
 
         if (formData.includeImages) {
+          // Use chapter and subject for image prompt
           const imageBase64 = await GeminiService.generateImage(`${formData.chapterName} - ${formData.subject}`);
           if (imageBase64) {
             text += `\n\n![${formData.chapterName}](${imageBase64})`;
@@ -736,7 +776,7 @@ const App: React.FC = () => {
                     <button 
                         onClick={(e) => handleShareHistoryItem(e, item)}
                         className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-primary-50 hover:text-primary-600"
-                        title="Share"
+                        title="Copy Text"
                     >
                         <Share2 className="w-4 h-4" />
                     </button>
@@ -1016,7 +1056,7 @@ const App: React.FC = () => {
         ></div>
       )}
 
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
+      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none print:hidden`}>
         <div className="h-full flex flex-col">
           <div 
             className="p-5 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
@@ -1134,8 +1174,8 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
+      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
+        <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30 print:hidden">
           <div className="flex items-center gap-3">
              <button 
               onClick={() => setIsSidebarOpen(true)}
@@ -1159,7 +1199,7 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar print:overflow-visible print:p-0">
           <div className="w-full h-full">
              {renderContent()}
           </div>
