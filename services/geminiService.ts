@@ -1,158 +1,197 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
-import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
+import {
+  StudyRequestData,
+  QuizQuestion,
+  TimetableEntry,
+  NoteTemplate
+} from "../types";
 import { SettingsService } from "./settingsService";
 
+/**
+ * IMPORTANT:
+ * Frontend (Vite / React):
+ * Use import.meta.env.VITE_GEMINI_API_KEY
+ *
+ * Backend (Next.js API / Server):
+ * Use process.env.GEMINI_API_KEY
+ */
+
+const MODEL = "gemini-1.5-flash";
+
+const getAI = () =>
+  new GoogleGenAI({
+    apiKey: import.meta.env.VITE_GEMINI_API_KEY
+  });
+
 export const GeminiService = {
-  /**
-   * Enhances existing note content based on specific tasks.
-   */
-  processNoteAI: async (content: string, task: 'summarize' | 'simplify' | 'mcq' | 'translate', targetLang?: string) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  /* ---------------------------------------------------
+   NOTE AI PROCESSING
+  --------------------------------------------------- */
+  processNoteAI: async (
+    content: string,
+    task: "summarize" | "simplify" | "mcq" | "translate",
+    targetLang?: string
+  ): Promise<string> => {
+    const ai = getAI();
     const settings = SettingsService.getSettings();
 
     const taskPrompts = {
-      summarize: "Create a bulleted 'Revision Box' summary for the following note. Focus on key definitions and dates.",
-      simplify: "Rewrite this note in very simple English (and Hindi if relevant) so a younger student can understand it perfectly.",
-      mcq: "Generate 5 high-quality Multiple Choice Questions with answers based ONLY on this note content. Return as Markdown list.",
-      translate: `Translate this note professionally into ${targetLang || 'Hindi'}, maintaining academic terminology where appropriate.`
+      summarize:
+        "Create a bulleted Revision Box summary focusing on definitions, dates, and keywords.",
+      simplify:
+        "Rewrite in very simple English (and Hindi if helpful) for younger students.",
+      mcq:
+        "Generate exactly 5 MCQs with answers based ONLY on the note. Use Markdown.",
+      translate: `Translate professionally into ${
+        targetLang || "Hindi"
+      }, keeping academic terms.`
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
+      model: MODEL,
+      contents: `
+${taskPrompts[task]}
+
+NOTE:
+${content}
+      `,
       config: {
-        systemInstruction: "You are an AI study assistant. Help students organize and understand their notes better."
+        systemInstruction:
+          "You are an AI study assistant helping students understand notes clearly."
       }
     });
 
-    return response.text;
+    return response.text || "";
   },
 
-  /**
-   * Generates a structural template for a specific topic.
-   */
-  generateNoteTemplate: async (subject: string, chapter: string, templateType: NoteTemplate) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
-    const prompt = `
-      Create a highly structured academic template for a study note.
-      Subject: ${subject}
-      Chapter: ${chapter}
-      Template Type: ${templateType}
+  /* ---------------------------------------------------
+   NOTE TEMPLATE GENERATOR
+  --------------------------------------------------- */
+  generateNoteTemplate: async (
+    subject: string,
+    chapter: string,
+    templateType: NoteTemplate
+  ): Promise<string> => {
+    const ai = getAI();
 
-      Requirements:
-      - Use Markdown headings (# , ##).
-      - Include placeholders like [WRITE HERE].
-      - For "Formula Sheet", use a table format.
-      - For "Q&A", list 5 most important questions for this chapter based on standard board exams (CBSE/ICSE).
-      - Include a "Key Points" and "Summary" section.
+    const prompt = `
+Create a structured academic note template.
+
+Subject: ${subject}
+Chapter: ${chapter}
+Template Type: ${templateType}
+
+Rules:
+- Use Markdown headings
+- Use [WRITE HERE] placeholders
+- Formula Sheet must use tables
+- Q&A: 5 board-exam important questions
+- Include Key Points & Summary
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
+      model: MODEL,
+      contents: prompt
     });
 
-    return response.text;
+    return response.text || "";
   },
 
-  generateSummaryStream: async (data: StudyRequestData) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  /* ---------------------------------------------------
+   SUMMARY GENERATOR
+  --------------------------------------------------- */
+  generateSummary: async (data: StudyRequestData): Promise<string> => {
+    const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
     const prompt = `
-      Create a comprehensive, structured summary for the following study material.
-      Use clear headings, bullet points for key concepts, and a bold conclusion.
-      
-      Subject: ${data.subject}
-      Class/Grade: ${data.gradeClass || settings.learning.grade}
-      Education Board: ${data.board}
-      Language: ${language}
-      Chapter Name: ${data.chapterName}
-      ${data.author ? `Author: ${data.author}` : ''}
-      
-      Style Preference: ${settings.aiTutor.explanationStyle}
+Create a structured study summary.
+
+Subject: ${data.subject}
+Class: ${data.gradeClass || settings.learning.grade}
+Board: ${data.board}
+Language: ${language}
+Chapter: ${data.chapterName}
+${data.author ? `Author: ${data.author}` : ""}
+
+Use headings, bullet points, and a clear conclusion.
     `;
 
-    const response = await ai.models.generateContentStream({
-      model: 'gemini-3-flash-preview',
+    const response = await ai.models.generateContent({
+      model: MODEL,
       contents: prompt,
       config: {
-        systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}.`,
+        systemInstruction: `Tutor personality: ${settings.aiTutor.personality}`
       }
     });
 
-    return response;
+    return response.text || "";
   },
 
-  generateEssayStream: async (data: StudyRequestData) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  /* ---------------------------------------------------
+   ESSAY GENERATOR
+  --------------------------------------------------- */
+  generateEssay: async (data: StudyRequestData): Promise<string> => {
+    const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
     const prompt = `
-      Write a detailed, academic essay based on the topics covered in this chapter.
-      The essay should have a proper introduction, body paragraphs analyzing key themes, and a conclusion.
-      
-      Subject: ${data.subject}
-      Class/Grade: ${data.gradeClass || settings.learning.grade}
-      Board: ${data.board}
-      Language: ${language}
-      Chapter: ${data.chapterName}
-      ${data.author ? `Author: ${data.author}` : ''}
+Write a detailed academic essay.
+
+Subject: ${data.subject}
+Class: ${data.gradeClass || settings.learning.grade}
+Board: ${data.board}
+Language: ${language}
+Chapter: ${data.chapterName}
+${data.author ? `Author: ${data.author}` : ""}
+
+Include introduction, analysis, and conclusion.
     `;
 
-    const response = await ai.models.generateContentStream({
-      model: 'gemini-3-flash-preview',
+    const response = await ai.models.generateContent({
+      model: MODEL,
       contents: prompt,
       config: {
-        systemInstruction: `You are an academic essay writer. Tone: ${settings.aiTutor.personality}.`,
+        systemInstruction: `Tone: ${settings.aiTutor.personality}`
       }
     });
 
-    return response;
+    return response.text || "";
   },
 
-  generateImage: async (promptText: string): Promise<string | null> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [{ text: `A high-quality, academic-style educational illustration for an essay about: ${promptText}. The style should be professional, clear, and informative.` }]
-        },
-        config: { imageConfig: { aspectRatio: "16:9" } }
-      });
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
-      }
-    } catch (error) { console.error("Image generation error:", error); }
-    return null;
-  },
-
+  /* ---------------------------------------------------
+   QUIZ GENERATOR (STRICT JSON)
+  --------------------------------------------------- */
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const settings = SettingsService.getSettings();
+
     const count = data.questionCount || 5;
-    const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
+    const difficulty =
+      data.difficulty || settings.learning.difficulty || "Medium";
 
     const prompt = `
-      Create a ${count}-question multiple-choice quiz based on the following chapter details.
-      The difficulty level of the questions should be: ${difficulty}.
-      Return the result as a JSON array.
-      
-      IMPORTANT: Randomize the position of the correct answer for every question.
-      
-      Subject: ${data.subject}
-      Chapter: ${data.chapterName}
-      Class: ${data.gradeClass || settings.learning.grade}
-      Board: ${data.board}
+Return ONLY valid JSON.
+No markdown.
+No explanation.
+
+Create ${count} MCQs.
+
+Difficulty: ${difficulty}
+
+Each object must contain:
+question, options (array), correctAnswerIndex, explanation
+
+Subject: ${data.subject}
+Chapter: ${data.chapterName}
+Class: ${data.gradeClass || settings.learning.grade}
+Board: ${data.board}
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: MODEL,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -166,127 +205,89 @@ export const GeminiService = {
               correctAnswerIndex: { type: Type.INTEGER },
               explanation: { type: Type.STRING }
             },
-            required: ["question", "options", "correctAnswerIndex", "explanation"]
+            required: [
+              "question",
+              "options",
+              "correctAnswerIndex",
+              "explanation"
+            ]
           }
         }
       }
     });
 
-    if (response.text) return JSON.parse(response.text.trim());
-    throw new Error("Failed to generate quiz data");
+    return JSON.parse(response.text || "[]");
   },
 
-  generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const today = new Date().toDateString();
-    const prompt = `Current Date: ${today}. Goal: Create a study timetable up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
+  /* ---------------------------------------------------
+   STUDY TIMETABLE
+  --------------------------------------------------- */
+  generateStudyTimetable: async (
+    examDate: string,
+    subjects: string,
+    hoursPerDay: number
+  ): Promise<TimetableEntry[]> => {
+    const ai = getAI();
+
+    const prompt = `
+Return ONLY valid JSON.
+
+Create a study timetable until ${examDate}.
+Subjects: ${subjects}
+Daily hours limit: ${hoursPerDay}
+
+Each day must include:
+day, date, slots[]
+    `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: MODEL,
       contents: prompt,
       config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              day: { type: Type.STRING },
-              date: { type: Type.STRING },
-              slots: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    time: { type: Type.STRING },
-                    activity: { type: Type.STRING },
-                    subject: { type: Type.STRING }
-                  },
-                  required: ["time", "activity", "subject"]
-                }
-              }
-            },
-            required: ["day", "date", "slots"]
-          }
-        }
+        responseMimeType: "application/json"
       }
     });
 
-    if (response.text) return JSON.parse(response.text.trim());
-    throw new Error("Failed to generate timetable");
+    return JSON.parse(response.text || "[]");
   },
 
-  updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Update the timetable based on: "${instruction}"\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
+  updateStudyTimetable: async (
+    currentTimetable: TimetableEntry[],
+    instruction: string
+  ): Promise<TimetableEntry[]> => {
+    const ai = getAI();
+
+    const prompt = `
+Return ONLY valid JSON.
+
+Instruction: ${instruction}
+
+Current Timetable:
+${JSON.stringify(currentTimetable)}
+    `;
+
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: MODEL,
       contents: prompt,
       config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              day: { type: Type.STRING },
-              date: { type: Type.STRING },
-              slots: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    time: { type: Type.STRING },
-                    activity: { type: Type.STRING },
-                    subject: { type: Type.STRING }
-                  },
-                  required: ["time", "activity", "subject"]
-                }
-              }
-            },
-            required: ["day", "date", "slots"]
-          }
-        }
+        responseMimeType: "application/json"
       }
     });
-    if (response.text) return JSON.parse(response.text.trim());
-    throw new Error("Failed to update timetable");
+
+    return JSON.parse(response.text || "[]");
   },
 
+  /* ---------------------------------------------------
+   CHATBOT
+  --------------------------------------------------- */
   createTutorChat: () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const systemInstruction = SettingsService.getTutorSystemInstruction();
-    return ai.chats.create({
-      model: 'gemini-3-flash-preview',
-      config: { systemInstruction: systemInstruction }
-    });
-  },
+    const ai = getAI();
+    const systemInstruction =
+      SettingsService.getTutorSystemInstruction();
 
-  validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-    const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: {
-        parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
-          { text: prompt }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            isValid: { type: Type.BOOLEAN },
-            reason: { type: Type.STRING }
-          },
-          required: ["isValid", "reason"]
-        }
-      }
+    return ai.chats.create({
+      model: MODEL,
+      config: { systemInstruction }
     });
-    if (response.text) return JSON.parse(response.text.trim());
-    throw new Error("Failed to analyze image");
   }
 };

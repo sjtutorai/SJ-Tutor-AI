@@ -528,7 +528,7 @@ const App: React.FC = () => {
       } catch (e) {}
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
-        errorMessage = "QUOTA_EXHAUSTED";
+        errorMessage = "Usage limit reached. AI service is busy, please try again in a moment.";
       } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
         errorMessage = "API_DISABLED";
       } else if (errorMessage.includes("API key not valid")) {
