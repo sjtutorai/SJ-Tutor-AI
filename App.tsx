@@ -639,11 +639,11 @@ const App: React.FC = () => {
     };
 
     const dashboardCards = [
-      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
+      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText },
+      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit },
+      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen },
+      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle },
+      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar },
     ];
 
     if (dashboardView !== 'OVERVIEW') {
@@ -770,19 +770,19 @@ const App: React.FC = () => {
                     setDashboardView(card.id as any);
                  }
               }}
-              className={`p-5 rounded-xl border border-transparent hover:border-amber-200 dark:hover:border-amber-800 transition-all hover:shadow-md text-left group bg-white dark:bg-slate-800 shadow-sm border-slate-100 dark:border-slate-700 relative overflow-hidden`}
+              className={`p-5 rounded-xl border border-transparent hover:border-primary-200 dark:hover:border-primary-800 transition-all hover:shadow-md text-left group bg-white dark:bg-slate-800 shadow-sm border-slate-100 dark:border-slate-700 relative overflow-hidden`}
             >
-              <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${card.color}`}>
+              <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity text-primary-800 dark:text-primary-300`}>
                  <card.icon className="w-16 h-16" />
               </div>
               <div className="flex justify-between items-start mb-3 relative z-10">
-                 <div className={`p-2.5 rounded-lg shadow-sm ${card.color} ${card.bg}`}>
+                 <div className={`p-2.5 rounded-lg shadow-sm text-primary-700 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30`}>
                     <card.icon className="w-5 h-5" />
                  </div>
                  <span className="text-2xl font-bold text-slate-800 dark:text-white">{card.count}</span>
               </div>
               <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10">{card.label}</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1 relative z-10">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors flex items-center gap-1 relative z-10">
                 View Details <ChevronRight className="w-3 h-3" />
               </p>
             </button>
@@ -792,20 +792,20 @@ const App: React.FC = () => {
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
            <h3 className="font-bold text-slate-800 dark:text-white mb-4">Quick Actions</h3>
            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <button onClick={() => setMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900">
-                 <FileText className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+              <button onClick={() => setMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-primary-50 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-primary-100 dark:hover:border-primary-900">
+                 <FileText className="w-6 h-6 text-primary-600 dark:text-primary-400" />
                  New Summary
               </button>
-              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900">
-                 <BrainCircuit className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-primary-50 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-primary-100 dark:hover:border-primary-900">
+                 <BrainCircuit className="w-6 h-6 text-primary-600 dark:text-primary-400" />
                  New Quiz
               </button>
-               <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-blue-100 dark:hover:border-blue-900">
-                 <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+               <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-primary-50 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-primary-100 dark:hover:border-primary-900">
+                 <BookOpen className="w-6 h-6 text-primary-600 dark:text-primary-400" />
                  Write Essay
               </button>
-              <button onClick={() => setMode(AppMode.TUTOR)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900">
-                 <MessageCircle className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              <button onClick={() => setMode(AppMode.TUTOR)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-primary-50 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-primary-100 dark:hover:border-primary-900">
+                 <MessageCircle className="w-6 h-6 text-primary-600 dark:text-primary-400" />
                  Ask Tutor
               </button>
            </div>
@@ -1124,7 +1124,7 @@ const App: React.FC = () => {
             {user && (
               <button 
                 onClick={() => setShowPremiumModal(true)}
-                className="w-full py-2 bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
+                className="w-full py-2 bg-gradient-to-r from-primary-200 to-primary-400 hover:from-primary-300 hover:to-primary-500 text-primary-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
               >
                 <Crown className="w-3.5 h-3.5" />
                 Upgrade Plan
@@ -1152,7 +1152,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3">
             {user && (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
-                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                <Zap className="w-3.5 h-3.5 text-primary-500 fill-primary-500" />
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{userProfile.credits}</span>
               </div>
             )}

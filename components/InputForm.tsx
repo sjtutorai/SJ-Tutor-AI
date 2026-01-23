@@ -69,7 +69,7 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
         </h2>
 
         <div className="flex items-center gap-2">
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wide ${isRewardMode ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wide ${isRewardMode ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-primary-50 text-primary-700 border-primary-100'}`}>
             {isRewardMode ? (
               <>
                 <Crown className="w-3 h-3 fill-emerald-500 text-emerald-500" />
@@ -77,7 +77,7 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
               </>
             ) : (
               <>
-                <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
+                <Zap className="w-3 h-3 fill-primary-500 text-primary-500" />
                 Cost: {cost} Credits
               </>
             )}
