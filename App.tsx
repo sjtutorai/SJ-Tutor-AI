@@ -88,6 +88,7 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
+  const [apiDisabled, setApiDisabled] = useState(false);
 
   // App State
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -509,6 +510,7 @@ const App: React.FC = () => {
     
     setLoading(true);
     setError(null);
+    setApiDisabled(false);
     setExistingQuizScore(undefined);
     setCurrentHistoryId(null);
 
@@ -572,8 +574,11 @@ const App: React.FC = () => {
         errorMessage = "QUOTA_EXHAUSTED";
       } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
         errorMessage = "API_DISABLED";
+        setApiDisabled(true);
       } else if (errorMessage.includes("API key not valid")) {
         errorMessage = "API_KEY_INVALID_ERROR";
+      } else if (errorMessage.includes("Safety") || errorMessage.includes("blocked")) {
+        errorMessage = "SAFETY_BLOCK";
       }
       setError(errorMessage);
     } finally {
@@ -899,9 +904,21 @@ const App: React.FC = () => {
               onFillSample={handleFillSample}
             />
             {error && (
-               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-xl flex items-center gap-2 text-red-600 dark:text-red-400 text-sm animate-pulse">
-                 <AlertCircle className="w-4 h-4" />
-                 {error}
+               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-xl flex items-start gap-2 text-red-600 dark:text-red-400 text-sm animate-pulse">
+                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                 <div className="flex-1">
+                    {error === "API_DISABLED" ? (
+                      <div>
+                        <p className="font-bold">API Not Enabled</p>
+                        <p className="mb-2">The "Generative Language API" needs to be enabled in your Google Cloud project.</p>
+                        <a href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview" target="_blank" className="underline font-bold">Enable API</a>
+                      </div>
+                    ) : error === "SAFETY_BLOCK" ? (
+                      <p>The content generation was blocked by safety filters. Please try rephrasing your topic or request.</p>
+                    ) : (
+                      <p>{error}</p>
+                    )}
+                 </div>
                </div>
             )}
             <div className="flex justify-end">
@@ -941,9 +958,21 @@ const App: React.FC = () => {
               onFillSample={handleFillSample}
             />
              {error && (
-               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-xl flex items-center gap-2 text-red-600 dark:text-red-400 text-sm animate-pulse">
-                 <AlertCircle className="w-4 h-4" />
-                 {error}
+               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-xl flex items-start gap-2 text-red-600 dark:text-red-400 text-sm animate-pulse">
+                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                 <div className="flex-1">
+                    {error === "API_DISABLED" ? (
+                      <div>
+                        <p className="font-bold">API Not Enabled</p>
+                        <p className="mb-2">The "Generative Language API" needs to be enabled in your Google Cloud project.</p>
+                        <a href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview" target="_blank" className="underline font-bold">Enable API</a>
+                      </div>
+                    ) : error === "SAFETY_BLOCK" ? (
+                      <p>The quiz generation was blocked by safety filters. Please try a different topic.</p>
+                    ) : (
+                      <p>{error}</p>
+                    )}
+                 </div>
                </div>
             )}
             <div className="flex justify-end">
