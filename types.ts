@@ -7,7 +7,8 @@ export enum AppMode {
   TUTOR = 'TUTOR',
   PROFILE = 'PROFILE',
   NOTES = 'NOTES',
-  SETTINGS = 'SETTINGS'
+  SETTINGS = 'SETTINGS',
+  ABOUT = 'ABOUT'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
