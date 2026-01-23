@@ -4,7 +4,7 @@ import { getAuth, GoogleAuthProvider, GithubAuthProvider, OAuthProvider } from "
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyApvrjOz196Z3feFfkW6y3W7r4OQiM6oIY",
+  apiKey: "AIzaSyB1wRK6kjhV6R8ZUt1qavuXbuO-0MeVpBA",
   authDomain: "sj-tutorai.firebaseapp.com",
   projectId: "sj-tutorai",
   storageBucket: "sj-tutorai.firebasestorage.app",

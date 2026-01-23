@@ -1,9 +1,10 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry } from "../types";
 import { SettingsService } from "./settingsService";
 
 // Hardcoded fallback key as requested by user, though process.env is preferred
-const API_KEY = process.env.API_KEY || "AIzaSyApvrjOz196Z3feFfkW6y3W7r4OQiM6oIY";
+const API_KEY = process.env.API_KEY || "AIzaSyB1wRK6kjhV6R8ZUt1qavuXbuO-0MeVpBA";
 
 // Model configuration with fallback
 // If gemini-3-flash-preview is busy, we fallback to other models
