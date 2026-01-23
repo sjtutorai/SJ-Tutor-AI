@@ -11,18 +11,21 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      // Polyfill process.env.API_KEY for the browser environment
-      // Add the user-provided key as a fallback
-      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || env.API_KEY || 'AIzaSyAr-bTwUtZaBsziyPy939q4ObqY4sxltu4'),
+      // Polyfill process.env.API_KEY for the browser environment as per global guidelines
+      // We explicitly check process.env (for CI/Hosting providers) and env (for local .env files)
+      // JSON.stringify is essential to wrap the value in quotes for the browser bundle
+      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || env.API_KEY || ''),
     },
     server: {
       port: 3000,
     },
     build: {
       outDir: 'dist',
+      // Increase the warning limit slightly to reduce noise
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {
+          // Manually split vendor chunks to improve caching and reduce single bundle size
           manualChunks(id) {
             if (id.includes('node_modules')) {
               if (id.includes('firebase')) {

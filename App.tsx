@@ -13,6 +13,7 @@ import NotesView from './components/NotesView';
 import SettingsView from './components/SettingsView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
+import { SettingsService } from './services/settingsService';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { 
@@ -49,6 +50,29 @@ const SAMPLE_DATA: StudyRequestData = {
   questionCount: 5,
   difficulty: 'Medium',
   includeImages: false
+};
+
+const THEME_COLORS: Record<string, Record<string, string>> = {
+  Gold: {
+    50: '#FFFAF0', 100: '#FDF5E6', 200: '#FEEBC8', 300: '#FBD38D', 400: '#F6AD55',
+    500: '#D4AF37', 600: '#B7950B', 700: '#975A16', 800: '#744210', 900: '#742A2A'
+  },
+  Blue: {
+    50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
+    500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a'
+  },
+  Emerald: {
+    50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399',
+    500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b'
+  },
+  Violet: {
+    50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa',
+    500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95'
+  },
+  Rose: {
+    50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 300: '#fda4af', 400: '#fb7185',
+    500: '#f43f5e', 600: '#e11d48', 700: '#be123c', 800: '#9f1239', 900: '#881337'
+  }
 };
 
 const App: React.FC = () => {
@@ -95,7 +119,65 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check API Key immediately (using required process.env.API_KEY)
+  // Theme Management
+  useEffect(() => {
+    const applyTheme = () => {
+      const settings = SettingsService.getSettings();
+      const theme = settings.appearance.theme;
+      const primaryColorName = settings.appearance.primaryColor || 'Gold';
+      const fontFamily = settings.appearance.fontFamily || 'Inter';
+      const animationsEnabled = settings.appearance.animations;
+      
+      const root = window.document.documentElement;
+      const body = window.document.body;
+      
+      // Apply Dark/Light Mode
+      const isDark = theme === 'Dark' || (theme === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (isDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+
+      // Apply Color Variables
+      const palette = THEME_COLORS[primaryColorName] || THEME_COLORS['Gold'];
+      Object.entries(palette).forEach(([shade, value]) => {
+        root.style.setProperty(`--color-primary-${shade}`, value);
+      });
+
+      // Apply Font Family
+      // Handle fonts with spaces like "Open Sans" by wrapping in quotes
+      const formattedFont = fontFamily.includes(' ') ? `'${fontFamily}'` : fontFamily;
+      root.style.setProperty('--font-sans', formattedFont);
+
+      // Apply Animations
+      if (animationsEnabled) {
+        body.classList.remove('reduce-motion');
+      } else {
+        body.classList.add('reduce-motion');
+      }
+    };
+
+    // Apply initially
+    applyTheme();
+
+    // Listen for settings changes from SettingsService
+    window.addEventListener('settings-changed', applyTheme);
+    
+    // Listen for system changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemChange = () => {
+       if (SettingsService.getSettings().appearance.theme === 'System') applyTheme();
+    };
+    mediaQuery.addEventListener('change', handleSystemChange);
+    
+    return () => {
+      window.removeEventListener('settings-changed', applyTheme);
+      mediaQuery.removeEventListener('change', handleSystemChange);
+    };
+  }, []);
+
+  // Check API Key immediately
   useEffect(() => {
     if (!process.env.API_KEY) {
       console.warn("API_KEY is missing in environment variables!");
@@ -318,7 +400,6 @@ const App: React.FC = () => {
       return;
     }
     
-    // Check required process.env.API_KEY before attempting generation
     if (!process.env.API_KEY) {
       setError("Configuration Error: API_KEY is missing. Please check your environment variables.");
       return;
@@ -360,7 +441,6 @@ const App: React.FC = () => {
             }
         }
 
-        // If user wants images, generate and append them after text is ready
         if (formData.includeImages) {
           const imageBase64 = await GeminiService.generateImage(`${formData.chapterName} - ${formData.subject}`);
           if (imageBase64) {
@@ -384,17 +464,14 @@ const App: React.FC = () => {
       
       let errorMessage = err.message || "Failed to generate content. Please check your inputs and try again.";
 
-      // Try to parse JSON error message if it looks like one
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) {
             errorMessage = parsed.error.message;
          }
       } catch (e) {
-         // Not valid JSON, stick with original string
       }
       
-      // Handle known error patterns
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
       } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
@@ -440,7 +517,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Nav Items Configuration
   const navItems = [
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: AppMode.SUMMARY, label: 'Summary Generator', icon: FileText },
@@ -452,7 +528,6 @@ const App: React.FC = () => {
   ];
 
   const renderDashboard = () => {
-    // Determine the count for Notes locally
     const noteCount = (() => {
        try {
          const key = user ? `notes_${user.uid}` : 'notes_guest';
@@ -469,11 +544,11 @@ const App: React.FC = () => {
     };
 
     const dashboardCards = [
-      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900', bg: 'bg-[#FDF5E6]' },
-      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700', bg: 'bg-[#FDF5E6]' },
+      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
     ];
 
     if (dashboardView !== 'OVERVIEW') {
@@ -493,25 +568,25 @@ const App: React.FC = () => {
         <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
           <button 
             onClick={() => setDashboardView('OVERVIEW')}
-            className="flex items-center text-slate-500 hover:text-primary-600 mb-6 transition-all hover:-translate-x-1 group text-sm"
+            className="flex items-center text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 mb-6 transition-all hover:-translate-x-1 group text-sm"
           >
-            <div className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center mr-2 border border-slate-100 group-hover:border-primary-200 transition-colors">
+            <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mr-2 border border-slate-100 dark:border-slate-700 group-hover:border-primary-200 transition-colors">
               <ArrowLeft className="w-3.5 h-3.5" />
             </div>
             <span className="font-medium">Back to Dashboard</span>
           </button>
 
-          <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+          <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
             <Clock className="w-6 h-6 text-primary-400" />
             {categoryLabel} History
           </h3>
 
           {filteredHistory.length === 0 ? (
-            <div className="text-center py-20 bg-white/60 backdrop-blur-md rounded-xl border border-slate-200/60 border-dashed animate-in zoom-in duration-500">
-              <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 p-1">
+            <div className="text-center py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 border-dashed animate-in zoom-in duration-500">
+              <div className="w-16 h-16 bg-primary-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 dark:border-slate-600 p-1">
                  <Logo className="w-full h-full" iconOnly />
               </div>
-              <p className="text-slate-500 font-medium mb-5 text-sm">No {categoryLabel.toLowerCase()} found yet.</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium mb-5 text-sm">No {categoryLabel.toLowerCase()} found yet.</p>
 
               <button
                 onClick={() => {
@@ -522,13 +597,13 @@ const App: React.FC = () => {
                   setCurrentHistoryId(null);
                   setError(null);
                   setFormData(INITIAL_FORM_DATA);
-                  setMode(dashboardView);
+                  setMode(dashboardView as AppMode);
                   setDashboardView('OVERVIEW');
                 }}
                 className="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 shadow-primary-500/20 text-sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Create New {getSingularName(dashboardView)}
+                Create New {getSingularName(dashboardView as AppMode)}
               </button>
             </div>
           ) : (
@@ -536,34 +611,34 @@ const App: React.FC = () => {
               {filteredHistory.map((item, idx) => (
                 <div 
                   key={item.id} 
-                  className="bg-white/80 backdrop-blur-sm p-5 rounded-xl border border-slate-200/60 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
+                  className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-5 rounded-xl border border-slate-200/60 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
                   style={{ animationDelay: `${idx * 50}ms` }}
                   onClick={() => loadHistoryItem(item)}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-100 text-primary-600`}>
+                    <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-100 dark:bg-slate-700 text-primary-600 dark:text-primary-400`}>
                       {item.type === AppMode.QUIZ ? <BrainCircuit className="w-4 h-4" /> :
                        item.type === AppMode.SUMMARY ? <FileText className="w-4 h-4" /> :
                        item.type === AppMode.ESSAY ? <BookOpen className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
                     </div>
                     <div>
-                      <h4 className="font-semibold text-slate-800 mb-0.5 group-hover:text-primary-700 transition-colors">{item.title}</h4>
-                      <p className="text-xs text-slate-500 flex items-center gap-3">
-                        <span className="font-medium bg-slate-100 px-1.5 py-0.5 rounded">{item.subtitle}</span>
+                      <h4 className="font-semibold text-slate-800 dark:text-white mb-0.5 group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors">{item.title}</h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-3">
+                        <span className="font-medium bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded">{item.subtitle}</span>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           {new Date(item.timestamp).toLocaleDateString()}
                         </span>
                         {item.type === AppMode.QUIZ && item.score !== undefined && (
-                          <span className="flex items-center gap-1 text-primary-600 font-bold bg-primary-50 px-2 py-0.5 rounded-full">
+                          <span className="flex items-center gap-1 text-primary-600 font-bold bg-primary-50 dark:bg-slate-900 px-2 py-0.5 rounded-full">
                             Score: {item.score}
                           </span>
                         )}
                       </p>
                     </div>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                    <Eye className="w-4 h-4 text-primary-600" />
+                  <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                    <Eye className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                   </div>
                 </div>
               ))}
@@ -574,10 +649,10 @@ const App: React.FC = () => {
     }
     
     return (
-      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-800">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
-          <p className="text-slate-500">Ready to learn something new today?</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
+          <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -591,16 +666,19 @@ const App: React.FC = () => {
                     setDashboardView(card.id as any);
                  }
               }}
-              className={`p-5 rounded-xl border border-transparent hover:border-amber-200 transition-all hover:shadow-md text-left group bg-white shadow-sm border-slate-100`}
+              className={`p-5 rounded-xl border border-transparent hover:border-amber-200 dark:hover:border-amber-800 transition-all hover:shadow-md text-left group bg-white dark:bg-slate-800 shadow-sm border-slate-100 dark:border-slate-700 relative overflow-hidden`}
             >
-              <div className="flex justify-between items-start mb-3">
+              <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${card.color}`}>
+                 <card.icon className="w-16 h-16" />
+              </div>
+              <div className="flex justify-between items-start mb-3 relative z-10">
                  <div className={`p-2.5 rounded-lg shadow-sm ${card.color} ${card.bg}`}>
                     <card.icon className="w-5 h-5" />
                  </div>
-                 <span className="text-2xl font-bold text-slate-800">{card.count}</span>
+                 <span className="text-2xl font-bold text-slate-800 dark:text-white">{card.count}</span>
               </div>
-              <h4 className="font-semibold text-slate-800 mb-1">{card.label}</h4>
-              <p className="text-xs text-slate-500 font-medium group-hover:text-amber-700 transition-colors flex items-center gap-1">
+              <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10">{card.label}</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1 relative z-10">
                 View Details <ChevronRight className="w-3 h-3" />
               </p>
             </button>
@@ -608,23 +686,23 @@ const App: React.FC = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-in slide-in-from-bottom-6 duration-700">
-           <h3 className="font-bold text-slate-800 mb-4">Quick Actions</h3>
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
+           <h3 className="font-bold text-slate-800 dark:text-white mb-4">Quick Actions</h3>
            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <button onClick={() => setMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 hover:bg-amber-50 hover:text-amber-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-amber-100">
-                 <FileText className="w-6 h-6 text-amber-600" />
+              <button onClick={() => setMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900">
+                 <FileText className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                  New Summary
               </button>
-              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-emerald-100">
-                 <BrainCircuit className="w-6 h-6 text-emerald-600" />
+              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900">
+                 <BrainCircuit className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                  New Quiz
               </button>
-               <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-blue-100">
-                 <BookOpen className="w-6 h-6 text-blue-600" />
+               <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-blue-100 dark:hover:border-blue-900">
+                 <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                  Write Essay
               </button>
-              <button onClick={() => setMode(AppMode.TUTOR)} className="p-4 bg-slate-50 hover:bg-purple-50 hover:text-purple-700 rounded-xl text-sm font-medium transition-colors text-slate-600 flex flex-col items-center gap-2 border border-slate-100 hover:border-purple-100">
-                 <MessageCircle className="w-6 h-6 text-purple-600" />
+              <button onClick={() => setMode(AppMode.TUTOR)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900">
+                 <MessageCircle className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                  Ask Tutor
               </button>
            </div>
@@ -775,7 +853,7 @@ const App: React.FC = () => {
     };
 
     return (
-      <div className="space-y-5 animate-in fade-in duration-500">
+      <div className="space-y-5 animate-in fade-in duration-500 w-full h-full">
         {showInputForm && (
             <InputForm 
               data={formData} 
@@ -789,12 +867,12 @@ const App: React.FC = () => {
         {renderError()}
 
         {showEmptyState && !error && (
-          <div className="text-center py-12 bg-white rounded-xl border border-slate-100 shadow-sm">
-             <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-white shadow-lg overflow-hidden">
+          <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
+             <div className="w-20 h-20 bg-primary-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-white dark:border-slate-600 shadow-lg overflow-hidden p-1">
                 <Logo className="w-full h-full" iconOnly />
              </div>
-             <h3 className="text-base font-semibold text-slate-800 mb-1">Ready to Start?</h3>
-             <p className="text-slate-500 mb-6 max-w-md mx-auto text-sm">
+             <h3 className="text-base font-semibold text-slate-800 dark:text-white mb-1">Ready to Start?</h3>
+             <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-md mx-auto text-sm">
                Enter your study details above and I'll generate your personalized content immediately.
              </p>
              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -844,20 +922,20 @@ const App: React.FC = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#FFFAF0] flex items-center justify-center flex-col gap-4">
+      <div className="min-h-screen bg-primary-50 dark:bg-slate-900 flex items-center justify-center flex-col gap-4">
         <div className="relative">
              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-500 animate-bounce">
                 <Logo className="w-full h-full" iconOnly />
              </div>
              <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
         </div>
-        <p className="text-slate-800 font-bold animate-pulse">Authenticating...</p>
+        <p className="text-slate-800 dark:text-white font-bold animate-pulse">Authenticating...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#FFFAF0] font-sans selection:bg-primary-100 selection:text-primary-900 flex">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
@@ -867,11 +945,11 @@ const App: React.FC = () => {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white border-r border-slate-200 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
+      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
         <div className="h-full flex flex-col">
           {/* Logo Section - Clickable */}
           <div 
-            className="p-5 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors"
+            className="p-5 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             onClick={() => {
               setMode(AppMode.DASHBOARD);
               setDashboardView('OVERVIEW');
@@ -886,12 +964,12 @@ const App: React.FC = () => {
             }}
           >
              <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0">
+               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0 bg-white dark:bg-slate-800">
                  <Logo className="w-full h-full" iconOnly />
                </div>
                <div>
-                 <h1 className="text-lg font-bold text-slate-900 tracking-tight leading-tight">SJ Tutor AI</h1>
-                 <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">AI Study Buddy</p>
+                 <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight">SJ Tutor AI</h1>
+                 <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">AI Study Buddy</p>
                </div>
              </div>
           </div>
@@ -922,11 +1000,11 @@ const App: React.FC = () => {
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group text-sm ${
                     isActive 
-                      ? 'bg-primary-50 text-primary-700 font-semibold shadow-sm' 
-                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-primary-50 dark:bg-slate-800 text-primary-700 dark:text-primary-400 font-semibold shadow-sm' 
+                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
                   {item.label}
                   {!user && item.id !== AppMode.DASHBOARD && (
                      <div className="ml-auto">
@@ -938,28 +1016,28 @@ const App: React.FC = () => {
             })}
           </div>
 
-          <div className="p-3 border-t border-slate-100 space-y-2">
+          <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
             {user ? (
                <>
                 <button
                    onClick={() => setMode(AppMode.PROFILE)} 
-                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mode === AppMode.PROFILE ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-slate-50'}`}
+                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mode === AppMode.PROFILE ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
-                  <div className="w-7 h-7 rounded-full bg-primary-100 border border-primary-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-slate-700 border border-primary-200 dark:border-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
                     {userProfile.photoURL ? (
                       <img src={userProfile.photoURL} alt="User" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="font-bold text-primary-700 text-[10px]">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
+                      <span className="font-bold text-primary-700 dark:text-primary-400 text-[10px]">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
                     )}
                   </div>
                   <div className="flex-1 text-left overflow-hidden">
-                    <p className="text-xs font-medium truncate">{userProfile.displayName || 'Scholar'}</p>
+                    <p className="text-xs font-medium truncate text-slate-800 dark:text-white">{userProfile.displayName || 'Scholar'}</p>
                     <p className="text-xs text-slate-400 truncate">{user.email}</p>
                   </div>
                 </button>
                 <button 
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   Sign Out
@@ -968,7 +1046,7 @@ const App: React.FC = () => {
             ) : (
               <button 
                 onClick={() => setShowAuthModal(true)}
-                className="w-full py-2.5 bg-slate-900 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 transition-colors text-sm"
+                className="w-full py-2.5 bg-slate-900 dark:bg-slate-700 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors text-sm"
               >
                 Sign In
               </button>
@@ -990,15 +1068,15 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         {/* Header */}
-        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
+        <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
           <div className="flex items-center gap-3">
              <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-1.5 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg"
+              className="lg:hidden p-1.5 -ml-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
              >
                <Menu className="w-5 h-5" />
              </button>
-             <h2 className="text-base font-bold text-slate-800">
+             <h2 className="text-base font-bold text-slate-800 dark:text-white">
                {mode === AppMode.DASHBOARD ? 'SJ Tutor AI' : 
                 (navItems.find(n => n.id === mode)?.label || 'SJ Tutor AI')}
              </h2>
@@ -1006,9 +1084,9 @@ const App: React.FC = () => {
           
           <div className="flex items-center gap-3">
             {user && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-full">
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
                 <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                <span className="text-xs font-bold text-slate-700">{userProfile.credits}</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{userProfile.credits}</span>
               </div>
             )}
           </div>
@@ -1016,7 +1094,7 @@ const App: React.FC = () => {
 
         {/* Content Scroll Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
-          <div className="max-w-5xl mx-auto">
+          <div className="w-full h-full">
              {renderContent()}
           </div>
         </div>
