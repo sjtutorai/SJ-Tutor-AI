@@ -6,7 +6,8 @@ export enum AppMode {
   ESSAY = 'ESSAY',
   TUTOR = 'TUTOR',
   PROFILE = 'PROFILE',
-  NOTES = 'NOTES'
+  NOTES = 'NOTES',
+  SETTINGS = 'SETTINGS'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
@@ -80,6 +81,41 @@ export interface TimetableEntry {
   day: string;
   date: string;
   slots: { time: string; activity: string; subject: string }[];
+}
+
+// Detailed Settings Interface
+export interface AppSettings {
+  learning: {
+    grade: string;
+    board: string;
+    language: string;
+    difficulty: DifficultyLevel;
+    style: 'Standard' | 'Socratic' | 'Analogy-based' | 'Bullet Points';
+    speed: 'Slow' | 'Normal' | 'Fast';
+  };
+  aiTutor: {
+    personality: 'Friendly' | 'Strict' | 'Academic' | 'Humorous';
+    responseLength: 'Short' | 'Medium' | 'Long';
+    explanationStyle: 'Simple' | 'Detailed' | 'Scientific';
+    giveHints: boolean;
+  };
+  study: {
+    timerDuration: number; // minutes
+    autoPause: boolean;
+    subjects: string[];
+  };
+  appearance: {
+    theme: 'Light' | 'Dark';
+    fontSize: 'Small' | 'Medium' | 'Large';
+  };
+  notifications: {
+    studyReminders: boolean;
+    breakReminders: boolean;
+  };
+  privacy: {
+    saveHistory: boolean;
+    analytics: boolean;
+  };
 }
 
 export const INITIAL_FORM_DATA: StudyRequestData = {

@@ -10,6 +10,7 @@ import Auth from './components/Auth';
 import PremiumModal from './components/PremiumModal';
 import LoadingState from './components/LoadingState'; 
 import NotesView from './components/NotesView';
+import SettingsView from './components/SettingsView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { auth } from './firebaseConfig';
@@ -33,7 +34,8 @@ import {
   Plus,
   Clock,
   Key,
-  ExternalLink
+  ExternalLink,
+  Settings
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -449,6 +451,7 @@ const App: React.FC = () => {
     { id: AppMode.ESSAY, label: 'Essay Writer', icon: BookOpen },
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
+    { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
   ];
 
   const renderDashboard = () => {
@@ -722,6 +725,10 @@ const App: React.FC = () => {
 
     if (mode === AppMode.TUTOR) {
       return <TutorChat onDeductCredit={deductCredit} currentCredits={userProfile.credits} />;
+    }
+
+    if (mode === AppMode.SETTINGS) {
+      return <SettingsView />;
     }
 
     // Loading View
