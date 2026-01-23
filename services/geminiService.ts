@@ -3,6 +3,27 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry } from "../types";
 import { SettingsService } from "./settingsService";
 
+// Helper for retry logic with exponential backoff
+// This fixes "QUOTA_EXHAUSTED" by waiting and retrying automatically
+async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    const msg = error?.message || JSON.stringify(error);
+    // Check for common quota/rate limit errors
+    if (retries > 0 && (
+      msg.includes('429') || 
+      msg.includes('RESOURCE_EXHAUSTED') || 
+      msg.includes('quota')
+    )) {
+      console.warn(`Quota hit, retrying in ${delay}ms... (${retries} retries left)`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return retryWithBackoff(fn, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+}
+
 /**
  * Service to interact with Google Gemini API for academic content generation.
  */
@@ -14,7 +35,6 @@ export const GeminiService = {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const settings = SettingsService.getSettings();
     
-    // Override form language if not specified, otherwise default to settings language
     const language = data.language || settings.learning.language;
 
     const prompt = `
@@ -31,15 +51,14 @@ export const GeminiService = {
       Style Preference: ${settings.aiTutor.explanationStyle}
     `;
 
-    const response = await ai.models.generateContentStream({
+    // We wrap the initial connection in retry logic
+    return retryWithBackoff(() => ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}.`,
       }
-    });
-
-    return response;
+    }));
   },
 
   /**
@@ -62,15 +81,13 @@ export const GeminiService = {
       ${data.author ? `Author: ${data.author}` : ''}
     `;
 
-    const response = await ai.models.generateContentStream({
+    return retryWithBackoff(() => ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         systemInstruction: `You are an academic essay writer. Tone: ${settings.aiTutor.personality}.`,
       }
-    });
-
-    return response;
+    }));
   },
 
   /**
@@ -80,7 +97,7 @@ export const GeminiService = {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
-      const response = await ai.models.generateContent({
+      const response = await retryWithBackoff(() => ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
           parts: [{ text: `A high-quality, academic-style educational illustration for an essay about: ${promptText}. The style should be professional, clear, and informative.` }]
@@ -90,7 +107,7 @@ export const GeminiService = {
             aspectRatio: "16:9"
           }
         }
-      });
+      }));
 
       for (const part of response.candidates[0].content.parts) {
         if (part.inlineData) {
@@ -126,7 +143,7 @@ export const GeminiService = {
       Board: ${data.board}
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await retryWithBackoff(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
@@ -151,7 +168,7 @@ export const GeminiService = {
           }
         }
       }
-    });
+    }));
 
     if (response.text) {
       try {
@@ -183,7 +200,7 @@ export const GeminiService = {
       4. Output strict JSON.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await retryWithBackoff(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
@@ -212,7 +229,7 @@ export const GeminiService = {
           }
         }
       }
-    });
+    }));
 
     if (response.text) {
       try {
@@ -246,7 +263,7 @@ export const GeminiService = {
       4. Output strict JSON only.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await retryWithBackoff(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
@@ -275,7 +292,7 @@ export const GeminiService = {
           }
         }
       }
-    });
+    }));
 
     if (response.text) {
       try {
@@ -293,7 +310,6 @@ export const GeminiService = {
    */
   createTutorChat: () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    // Use dynamic settings for the system instruction
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     
     return ai.chats.create({
@@ -311,7 +327,6 @@ export const GeminiService = {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     
-    // Strict Verification Prompt
     const prompt = `
       Analyze this image. It is submitted as proof of payment for a subscription plan "${planName}".
       
@@ -328,7 +343,7 @@ export const GeminiService = {
       - reason: string (Specific explanation of what matched or failed. E.g. "Name mismatch: found X instead of SHIVABASAVARAJ...", "Amount mismatch: found 100 instead of ${price}")
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await retryWithBackoff(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
         parts: [
@@ -352,7 +367,7 @@ export const GeminiService = {
           required: ["isValid", "reason"]
         }
       }
-    });
+    }));
 
     if (response.text) {
       try {
