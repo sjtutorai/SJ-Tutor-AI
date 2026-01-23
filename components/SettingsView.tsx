@@ -91,7 +91,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
 
   const tabs: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
     { id: 'account', label: 'Account', icon: User },
-    { id: 'learning', label: 'Learning Prefs', icon: BookOpen },
+    { id: 'learning', label: 'Learning Preference', icon: BookOpen },
     { id: 'aiTutor', label: 'AI Tutor', icon: Bot },
     { id: 'chat', label: 'Chat', icon: MessageSquare },
     { id: 'notifications', label: 'Notifications', icon: Bell },
