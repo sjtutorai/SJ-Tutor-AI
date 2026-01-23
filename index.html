@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -8,33 +7,30 @@
     <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg" />
     <!-- Tailwind CSS via CDN kept for simplicity in this setup -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
       // Safety polyfill for process.env to prevent "process is not defined" errors in browser
       window.process = window.process || { env: {} };
     </script>
     <script>
       tailwind.config = {
-        darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
-              sans: ['var(--font-sans)', 'Inter', 'system-ui', 'sans-serif'],
+              sans: ['Inter', 'system-ui', 'sans-serif'],
             },
             colors: {
               primary: {
-                50: 'var(--color-primary-50)', 
-                100: 'var(--color-primary-100)',
-                200: 'var(--color-primary-200)',
-                300: 'var(--color-primary-300)',
-                400: 'var(--color-primary-400)',
-                500: 'var(--color-primary-500)',
-                600: 'var(--color-primary-600)',
-                700: 'var(--color-primary-700)',
-                800: 'var(--color-primary-800)',
-                900: 'var(--color-primary-900)',
+                50: '#FFFAF0',   /* Floral White - Very light gold/cream */
+                100: '#FDF5E6',  /* Old Lace - Light gold background */
+                200: '#FEEBC8',  /* Light Gold */
+                300: '#FBD38D',  /* Soft Gold */
+                400: '#F6AD55',  /* Warm Gold */
+                500: '#D4AF37',  /* Metallic Gold - Main Brand Color */
+                600: '#B7950B',  /* Darker Gold - For buttons/hover */
+                700: '#975A16',  /* Bronze/Dark Gold - For text */
+                800: '#744210',  /* Deep Bronze */
+                900: '#742A2A',
               },
               slate: {
                 850: '#1a202c', /* Premium Dark for text */
@@ -62,21 +58,6 @@
       }
     </script>
     <style>
-      /* Default Variables to prevent flash */
-      :root {
-        --font-sans: 'Inter';
-        --color-primary-50: #FFFAF0;
-        --color-primary-100: #FDF5E6;
-        --color-primary-200: #FEEBC8;
-        --color-primary-300: #FBD38D;
-        --color-primary-400: #F6AD55;
-        --color-primary-500: #D4AF37;
-        --color-primary-600: #B7950B;
-        --color-primary-700: #975A16;
-        --color-primary-800: #744210;
-        --color-primary-900: #742A2A;
-      }
-
       /* Custom scrollbar for cleaner look */
       ::-webkit-scrollbar {
         width: 6px;
@@ -93,32 +74,8 @@
         background: #cbd5e1;
       }
       body {
-        background-color: var(--color-primary-50);
-        transition: background-color 0.3s ease, color 0.3s ease;
+        background-color: #FFFAF0; /* Warm Floral White for Premium Gold Theme */
       }
-      
-      /* Dark Mode Overrides */
-      html.dark body {
-        background-color: #111827;
-        color: #f3f4f6;
-      }
-      html.dark ::-webkit-scrollbar-thumb {
-        background: #374151;
-      }
-      html.dark ::-webkit-scrollbar-thumb:hover {
-        background: #4b5563;
-      }
-
-      /* Reduce Motion Class */
-      .reduce-motion *,
-      .reduce-motion *::before,
-      .reduce-motion *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-        scroll-behavior: auto !important;
-      }
-
       /* Utility for staggering animations */
       .animation-delay-2000 {
         animation-delay: 2s;
@@ -133,8 +90,6 @@
         line-height: 1.6;
         color: #4a5568;
       }
-      html.dark .markdown-body p { color: #d1d5db; }
-
       .markdown-body h1, .markdown-body h2, .markdown-body h3 {
         font-weight: 700;
         margin-top: 1.5rem;
@@ -142,33 +97,21 @@
         color: #1a202c;
         letter-spacing: -0.015em;
       }
-      html.dark .markdown-body h1, html.dark .markdown-body h2, html.dark .markdown-body h3 { color: #f3f4f6; }
-
-      .markdown-body h1 { font-size: 1.5rem; border-bottom: 2px solid var(--color-primary-100); padding-bottom: 0.5rem; }
-      html.dark .markdown-body h1 { border-bottom-color: #374151; }
-
-      .markdown-body h2 { font-size: 1.25rem; color: var(--color-primary-600); }
-      html.dark .markdown-body h2 { color: var(--color-primary-400); }
-
+      .markdown-body h1 { font-size: 1.5rem; border-bottom: 2px solid #FDF5E6; padding-bottom: 0.5rem; }
+      .markdown-body h2 { font-size: 1.25rem; color: #B7950B; }
       .markdown-body h3 { font-size: 1.1rem; }
       .markdown-body strong { color: #2d3748; font-weight: 700; }
-      html.dark .markdown-body strong { color: #e5e7eb; }
-
       .markdown-body ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.75rem; }
       .markdown-body ol { list-style-type: decimal; padding-left: 1.25rem; margin-bottom: 0.75rem; }
       .markdown-body blockquote {
-        border-left: 3px solid var(--color-primary-500);
+        border-left: 3px solid #D4AF37;
         padding-left: 0.75rem;
         font-style: italic;
         color: #718096;
-        background: var(--color-primary-50);
+        background: #FFFAF0;
         padding: 0.75rem;
         border-radius: 0 6px 6px 0;
         margin-bottom: 1rem;
-      }
-      html.dark .markdown-body blockquote {
-        background: #1f2937;
-        color: #9ca3af;
       }
     </style>
   <script type="importmap">

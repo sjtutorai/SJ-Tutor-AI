@@ -1,61 +1,6 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry } from "../types";
-import { SettingsService } from "./settingsService";
-
-// Hardcoded fallback key as requested by user, though process.env is preferred
-const API_KEY = process.env.API_KEY || "AIzaSyB1wRK6kjhV6R8ZUt1qavuXbuO-0MeVpBA";
-
-// Model configuration with fallback
-// If gemini-3-flash-preview is busy, we fallback to other models
-const MODELS = {
-  primary: 'gemini-3-flash-preview',
-  fallback: 'gemini-2.0-flash-exp', 
-  image: 'gemini-2.5-flash-image'
-};
-
-// Helper for retry logic with exponential backoff
-async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
-  try {
-    return await fn();
-  } catch (error: any) {
-    const msg = (error?.message || JSON.stringify(error)).toLowerCase();
-    
-    // Check for common retryable errors (Rate limits, Overloaded, Service Unavailable)
-    const isRetryable = 
-      msg.includes('429') || 
-      msg.includes('resource_exhausted') || 
-      msg.includes('quota') ||
-      msg.includes('503') ||
-      msg.includes('service unavailable');
-
-    if (retries > 0 && isRetryable) {
-      console.warn(`API Busy/Quota hit. Retrying in ${delay}ms... (${retries} attempts left)`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      // Exponential backoff: 1s, 2s, 4s...
-      return retryWithBackoff(fn, retries - 1, delay * 2);
-    }
-    throw error;
-  }
-}
-
-// Helper to attempt generation with primary model, then fallback
-async function withModelFallback<T>(
-  operation: (model: string) => Promise<T>
-): Promise<T> {
-  try {
-    // Try primary model
-    return await retryWithBackoff(() => operation(MODELS.primary), 2, 1000);
-  } catch (error: any) {
-    const msg = (error?.message || "").toLowerCase();
-    // If it's a quota/availability issue, try fallback model
-    if (msg.includes('429') || msg.includes('quota') || msg.includes('exhausted')) {
-      console.warn(`Primary model (${MODELS.primary}) exhausted. Switching to fallback (${MODELS.fallback})...`);
-      return await retryWithBackoff(() => operation(MODELS.fallback), 2, 1500);
-    }
-    throw error;
-  }
-}
 
 /**
  * Service to interact with Google Gemini API for academic content generation.
@@ -65,79 +10,70 @@ export const GeminiService = {
    * Generates a summary for a specific chapter.
    */
   generateSummaryStream: async (data: StudyRequestData) => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
-    const settings = SettingsService.getSettings();
-    
-    // Override form language if not specified, otherwise default to settings language
-    const language = data.language || settings.learning.language;
-
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `
       Create a comprehensive, structured summary for the following study material.
       Use clear headings, bullet points for key concepts, and a bold conclusion.
       
       Subject: ${data.subject}
-      Class/Grade: ${data.gradeClass || settings.learning.grade}
+      Class/Grade: ${data.gradeClass}
       Education Board: ${data.board}
-      Language: ${language}
+      Language: ${data.language}
       Chapter Name: ${data.chapterName}
       ${data.author ? `Author: ${data.author}` : ''}
-      
-      Style Preference: ${settings.aiTutor.explanationStyle}
     `;
 
-    // Use fallback strategy
-    return withModelFallback((model) => 
-      ai.models.generateContentStream({
-        model: model,
-        contents: prompt,
-        config: {
-          systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}.`,
-        }
-      })
-    ) as Promise<any>;
+    const response = await ai.models.generateContentStream({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        systemInstruction: "You are an expert academic tutor creating high-quality study summaries.",
+      }
+    });
+
+    return response;
   },
 
   /**
    * Generates an essay based on the chapter.
    */
   generateEssayStream: async (data: StudyRequestData) => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
-    const settings = SettingsService.getSettings();
-    const language = data.language || settings.learning.language;
-
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `
       Write a detailed, academic essay based on the topics covered in this chapter.
       The essay should have a proper introduction, body paragraphs analyzing key themes, and a conclusion.
       
       Subject: ${data.subject}
-      Class/Grade: ${data.gradeClass || settings.learning.grade}
+      Class/Grade: ${data.gradeClass}
       Board: ${data.board}
-      Language: ${language}
+      Language: ${data.language}
       Chapter: ${data.chapterName}
       ${data.author ? `Author: ${data.author}` : ''}
     `;
 
-    return withModelFallback((model) => 
-      ai.models.generateContentStream({
-        model: model,
-        contents: prompt,
-        config: {
-          systemInstruction: `You are an academic essay writer. Tone: ${settings.aiTutor.personality}.`,
-        }
-      })
-    ) as Promise<any>;
+    // Switched to gemini-3-flash-preview to avoid 'Resource Exhausted' (429) errors common with the Pro model on free tier
+    const response = await ai.models.generateContentStream({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        systemInstruction: "You are an academic essay writer. Maintain a formal and educational tone.",
+      }
+    });
+
+    return response;
   },
 
   /**
    * Generates a relevant image based on content description.
    */
   generateImage: async (promptText: string): Promise<string | null> => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
-      // Images use a specialized model, so we stick to retryWithBackoff without model switching
-      const response = await retryWithBackoff(() => ai.models.generateContent({
-        model: MODELS.image,
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
         contents: {
           parts: [{ text: `A high-quality, academic-style educational illustration for an essay about: ${promptText}. The style should be professional, clear, and informative.` }]
         },
@@ -146,13 +82,11 @@ export const GeminiService = {
             aspectRatio: "16:9"
           }
         }
-      }), 3, 2000) as GenerateContentResponse;
+      });
 
-      if (response.candidates && response.candidates[0].content && response.candidates[0].content.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-            return `data:image/png;base64,${part.inlineData.data}`;
-          }
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          return `data:image/png;base64,${part.inlineData.data}`;
         }
       }
     } catch (error) {
@@ -165,11 +99,10 @@ export const GeminiService = {
    * Generates a quiz in JSON format.
    */
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
-    const settings = SettingsService.getSettings();
-    
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const count = data.questionCount || 5;
-    const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
+    const difficulty = data.difficulty || 'Medium';
 
     const prompt = `
       Create a ${count}-question multiple-choice quiz based on the following chapter details.
@@ -180,38 +113,36 @@ export const GeminiService = {
       
       Subject: ${data.subject}
       Chapter: ${data.chapterName}
-      Class: ${data.gradeClass || settings.learning.grade}
+      Class: ${data.gradeClass}
       Board: ${data.board}
     `;
 
-    const response = await withModelFallback((model) => 
-      ai.models.generateContent({
-        model: model,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                question: { type: Type.STRING },
-                options: { 
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING }
-                },
-                correctAnswerIndex: { 
-                  type: Type.INTEGER,
-                  description: "Zero-based index of the correct option (0-3)"
-                },
-                explanation: { type: Type.STRING, description: "Explanation of why the answer is correct" }
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              options: { 
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
               },
-              required: ["question", "options", "correctAnswerIndex", "explanation"]
-            }
+              correctAnswerIndex: { 
+                type: Type.INTEGER,
+                description: "Zero-based index of the correct option (0-3)"
+              },
+              explanation: { type: Type.STRING, description: "Explanation of why the answer is correct" }
+            },
+            required: ["question", "options", "correctAnswerIndex", "explanation"]
           }
         }
-      })
-    ) as GenerateContentResponse;
+      }
+    });
 
     if (response.text) {
       try {
@@ -228,7 +159,8 @@ export const GeminiService = {
    * Generates a study timetable.
    */
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const today = new Date().toDateString();
     const prompt = `
       Current Date: ${today}.
@@ -243,38 +175,36 @@ export const GeminiService = {
       4. Output strict JSON.
     `;
 
-    const response = await withModelFallback((model) => 
-      ai.models.generateContent({
-        model: model,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                day: { type: Type.STRING, description: "Day of the week (e.g., Monday)" },
-                date: { type: Type.STRING, description: "Date string (YYYY-MM-DD)" },
-                slots: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      time: { type: Type.STRING, description: "Time range (e.g. 10:00 AM - 11:00 AM)" },
-                      activity: { type: Type.STRING, description: "Specific topic or activity" },
-                      subject: { type: Type.STRING, description: "Subject category" }
-                    },
-                    required: ["time", "activity", "subject"]
-                  }
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              day: { type: Type.STRING, description: "Day of the week (e.g., Monday)" },
+              date: { type: Type.STRING, description: "Date string (YYYY-MM-DD)" },
+              slots: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    time: { type: Type.STRING, description: "Time range (e.g. 10:00 AM - 11:00 AM)" },
+                    activity: { type: Type.STRING, description: "Specific topic or activity" },
+                    subject: { type: Type.STRING, description: "Subject category" }
+                  },
+                  required: ["time", "activity", "subject"]
                 }
-              },
-              required: ["day", "date", "slots"]
-            }
+              }
+            },
+            required: ["day", "date", "slots"]
           }
         }
-      })
-    ) as GenerateContentResponse;
+      }
+    });
 
     if (response.text) {
       try {
@@ -291,7 +221,8 @@ export const GeminiService = {
    * Updates an existing study timetable based on user instructions.
    */
   updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `
       You are an intelligent study planner.
       
@@ -308,38 +239,36 @@ export const GeminiService = {
       4. Output strict JSON only.
     `;
 
-    const response = await withModelFallback((model) => 
-      ai.models.generateContent({
-        model: model,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                day: { type: Type.STRING },
-                date: { type: Type.STRING },
-                slots: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      time: { type: Type.STRING },
-                      activity: { type: Type.STRING },
-                      subject: { type: Type.STRING }
-                    },
-                    required: ["time", "activity", "subject"]
-                  }
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              day: { type: Type.STRING },
+              date: { type: Type.STRING },
+              slots: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    time: { type: Type.STRING },
+                    activity: { type: Type.STRING },
+                    subject: { type: Type.STRING }
+                  },
+                  required: ["time", "activity", "subject"]
                 }
-              },
-              required: ["day", "date", "slots"]
-            }
+              }
+            },
+            required: ["day", "date", "slots"]
           }
         }
-      })
-    ) as GenerateContentResponse;
+      }
+    });
 
     if (response.text) {
       try {
@@ -356,17 +285,12 @@ export const GeminiService = {
    * Creates a chat session for the AI Tutor.
    */
   createTutorChat: () => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
-    // Use dynamic settings for the system instruction
-    const systemInstruction = SettingsService.getTutorSystemInstruction();
-    
-    // Use primary model for chat consistency, but wrapped in standard creation
-    // Chat doesn't support the simple fallback logic easily because of session state,
-    // so we just instantiate it with the primary model.
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return ai.chats.create({
-      model: MODELS.primary,
+      model: 'gemini-3-flash-preview',
       config: {
-        systemInstruction: systemInstruction,
+        systemInstruction: "You are a helpful, encouraging, and knowledgeable AI Tutor. Help the student with their questions using the Socratic method where appropriate.",
       }
     });
   },
@@ -375,7 +299,8 @@ export const GeminiService = {
    * Analyzes a payment screenshot to verify the transaction.
    */
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    // Correctly initialize GoogleGenAI with the required process.env.API_KEY as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     
     // Strict Verification Prompt
@@ -395,9 +320,8 @@ export const GeminiService = {
       - reason: string (Specific explanation of what matched or failed. E.g. "Name mismatch: found X instead of SHIVABASAVARAJ...", "Amount mismatch: found 100 instead of ${price}")
     `;
 
-    // High importance call, use aggressive retry
-    const response = await retryWithBackoff(() => ai.models.generateContent({
-      model: MODELS.primary,
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           {
@@ -420,7 +344,7 @@ export const GeminiService = {
           required: ["isValid", "reason"]
         }
       }
-    })) as GenerateContentResponse;
+    });
 
     if (response.text) {
       try {
