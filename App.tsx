@@ -13,12 +13,10 @@ import NotesView from './components/NotesView';
 import SettingsView from './components/SettingsView';
 import AboutView from './components/AboutView';
 import Logo from './components/Logo';
-import SidebarTimer from './components/SidebarTimer';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
-import { auth, db } from './firebaseConfig';
+import { auth } from './firebaseConfig';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 import { 
   BookOpen, 
   FileText, 
@@ -127,50 +125,9 @@ const App: React.FC = () => {
   // Notification Timer Ref
   const lastNotificationCheck = useRef(Date.now());
 
-  // Check for shared content on load
-  useEffect(() => {
-    const checkSharedContent = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const shareId = params.get('shareId');
-      
-      if (shareId) {
-        setLoading(true);
-        try {
-          const docRef = doc(db, 'shared_content', shareId);
-          const docSnap = await getDoc(docRef);
-          
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            setMode(data.type as AppMode);
-            if (data.type === AppMode.SUMMARY) {
-              setSummaryContent(data.content);
-            } else if (data.type === AppMode.ESSAY) {
-              setEssayContent(data.content);
-            } else if (data.type === AppMode.QUIZ) {
-              setQuizData(data.content);
-            }
-            if (data.title) {
-              setFormData(prev => ({...prev, chapterName: data.title}));
-            }
-            // Clear URL param to avoid stuck state
-            window.history.replaceState({}, '', window.location.pathname);
-          } else {
-            setError("Shared content not found.");
-          }
-        } catch (e) {
-          console.error("Error fetching shared content:", e);
-          setError("Failed to load shared content.");
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-    
-    checkSharedContent();
-  }, []);
-
   // Notification Service
   useEffect(() => {
+    // Request permission on mount
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
@@ -189,6 +146,7 @@ const App: React.FC = () => {
           items.forEach((item: any) => {
             if (!item.completed && item.dueTime) {
               const dueTime = new Date(item.dueTime).getTime();
+              // Check if the due time fell within the last check interval window
               if (dueTime > lastCheck && dueTime <= now) {
                 if (Notification.permission === "granted") {
                   new Notification("SJ Tutor AI Reminder", {
@@ -215,7 +173,7 @@ const App: React.FC = () => {
       }
       
       lastNotificationCheck.current = now;
-    }, 10000);
+    }, 10000); // Check every 10 seconds
 
     return () => clearInterval(interval);
   }, [user]);
@@ -268,6 +226,7 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Check API Key
   useEffect(() => {
     if (!process.env.API_KEY) {
       console.warn("API_KEY is missing in environment variables!");
@@ -275,6 +234,7 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Auth Listener
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (authLoading) {
@@ -291,7 +251,7 @@ const App: React.FC = () => {
       if (!currentUser) {
         setIsNewUser(false);
         setUserProfile(initialProfileState);
-        // Only reset to dashboard if not loading shared content (handled in other useEffect)
+        setMode(AppMode.DASHBOARD);
       }
     }, (err) => {
       console.error("Auth Error:", err);
@@ -542,7 +502,6 @@ const App: React.FC = () => {
         }
 
         if (formData.includeImages) {
-          // Use chapter and subject for image prompt
           const imageBase64 = await GeminiService.generateImage(`${formData.chapterName} - ${formData.subject}`);
           if (imageBase64) {
             text += `\n\n![${formData.chapterName}](${imageBase64})`;
@@ -659,7 +618,6 @@ const App: React.FC = () => {
     { id: AppMode.ESSAY, label: 'Essay Writer', icon: BookOpen },
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
-    // Removed separate TIMER page, integrated into sidebar
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
   ];
@@ -681,11 +639,11 @@ const App: React.FC = () => {
     };
 
     const dashboardCards = [
-      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText },
-      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit },
-      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen },
-      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle },
-      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar },
+      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
     ];
 
     if (dashboardView !== 'OVERVIEW') {
@@ -778,7 +736,7 @@ const App: React.FC = () => {
                     <button 
                         onClick={(e) => handleShareHistoryItem(e, item)}
                         className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-primary-50 hover:text-primary-600"
-                        title="Copy Text"
+                        title="Share"
                     >
                         <Share2 className="w-4 h-4" />
                     </button>
@@ -812,19 +770,19 @@ const App: React.FC = () => {
                     setDashboardView(card.id as any);
                  }
               }}
-              className={`p-5 rounded-xl border border-transparent hover:border-primary-200 dark:hover:border-primary-800 transition-all hover:shadow-md text-left group bg-white dark:bg-slate-800 shadow-sm border-slate-100 dark:border-slate-700 relative overflow-hidden`}
+              className={`p-5 rounded-xl border border-transparent hover:border-amber-200 dark:hover:border-amber-800 transition-all hover:shadow-md text-left group bg-white dark:bg-slate-800 shadow-sm border-slate-100 dark:border-slate-700 relative overflow-hidden`}
             >
-              <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity text-primary-800 dark:text-primary-300`}>
+              <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${card.color}`}>
                  <card.icon className="w-16 h-16" />
               </div>
               <div className="flex justify-between items-start mb-3 relative z-10">
-                 <div className={`p-2.5 rounded-lg shadow-sm text-primary-700 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30`}>
+                 <div className={`p-2.5 rounded-lg shadow-sm ${card.color} ${card.bg}`}>
                     <card.icon className="w-5 h-5" />
                  </div>
                  <span className="text-2xl font-bold text-slate-800 dark:text-white">{card.count}</span>
               </div>
               <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10">{card.label}</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors flex items-center gap-1 relative z-10">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1 relative z-10">
                 View Details <ChevronRight className="w-3 h-3" />
               </p>
             </button>
@@ -834,20 +792,20 @@ const App: React.FC = () => {
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
            <h3 className="font-bold text-slate-800 dark:text-white mb-4">Quick Actions</h3>
            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <button onClick={() => setMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-primary-50 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-primary-100 dark:hover:border-primary-900">
-                 <FileText className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+              <button onClick={() => setMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900">
+                 <FileText className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                  New Summary
               </button>
-              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-primary-50 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-primary-100 dark:hover:border-primary-900">
-                 <BrainCircuit className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900">
+                 <BrainCircuit className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                  New Quiz
               </button>
-               <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-primary-50 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-primary-100 dark:hover:border-primary-900">
-                 <BookOpen className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+               <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-blue-100 dark:hover:border-blue-900">
+                 <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                  Write Essay
               </button>
-              <button onClick={() => setMode(AppMode.TUTOR)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-primary-50 dark:hover:bg-primary-900/30 hover:text-primary-700 dark:hover:text-primary-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-primary-100 dark:hover:border-primary-900">
-                 <MessageCircle className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+              <button onClick={() => setMode(AppMode.TUTOR)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900">
+                 <MessageCircle className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                  Ask Tutor
               </button>
            </div>
@@ -857,146 +815,178 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
+    if (loading) return <LoadingState mode={mode} />;
+
     switch (mode) {
       case AppMode.DASHBOARD:
         return renderDashboard();
-
+      
       case AppMode.SUMMARY:
-      case AppMode.ESSAY:
-        if (loading) return <LoadingState mode={mode} />;
-        if (mode === AppMode.SUMMARY && summaryContent) {
+        if (summaryContent) {
           return (
             <ResultsView
+              title={formData.chapterName}
               content={summaryContent}
-              isLoading={false}
-              title={formData.chapterName || 'Summary'}
               type="Summary"
-              onBack={() => { setSummaryContent(''); }}
-            />
-          );
-        }
-        if (mode === AppMode.ESSAY && essayContent) {
-           return (
-            <ResultsView
-              content={essayContent}
               isLoading={false}
-              title={formData.chapterName || 'Essay'}
-              type="Essay"
-              onBack={() => { setEssayContent(''); }}
+              onBack={() => {
+                 setSummaryContent('');
+                 setCurrentHistoryId(null);
+              }}
             />
           );
         }
         return (
-          <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="mb-6 text-center">
-               <h2 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">{mode === AppMode.SUMMARY ? 'AI Summary Generator' : 'AI Essay Writer'}</h2>
-               <p className="text-slate-500 dark:text-slate-400">Generate high-quality academic content in seconds.</p>
-            </div>
+          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <InputForm
               data={formData}
-              mode={mode}
+              mode={AppMode.SUMMARY}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
             />
             {error && (
-               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-xl flex items-center gap-2 text-red-600 dark:text-red-400 text-sm animate-pulse">
-                 <AlertCircle className="w-4 h-4" />
-                 {error}
-               </div>
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
+              </div>
             )}
-            <div className="flex justify-end">
-              <button
-                onClick={handleGenerate}
-                className="px-8 py-3.5 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white rounded-xl font-bold shadow-lg shadow-primary-500/25 transition-all hover:scale-[1.02] active:scale-95 flex items-center gap-2"
-              >
-                <Sparkles className="w-5 h-5" />
-                Generate {mode === AppMode.SUMMARY ? 'Summary' : 'Essay'}
-              </button>
-            </div>
+            <button
+              onClick={handleGenerate}
+              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+            >
+              <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
+              Generate Summary
+            </button>
+          </div>
+        );
+
+      case AppMode.ESSAY:
+         if (essayContent) {
+          return (
+            <ResultsView
+              title={formData.chapterName}
+              content={essayContent}
+              type="Essay"
+              isLoading={false}
+              onBack={() => {
+                 setEssayContent('');
+                 setCurrentHistoryId(null);
+              }}
+            />
+          );
+        }
+        return (
+          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <InputForm
+              data={formData}
+              mode={AppMode.ESSAY}
+              onChange={handleFormChange}
+              onFillSample={handleFillSample}
+            />
+            {error && (
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+            <button
+              onClick={handleGenerate}
+              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+            >
+              <BookOpen className="w-5 h-5 group-hover:animate-pulse" />
+              Write Essay
+            </button>
           </div>
         );
 
       case AppMode.QUIZ:
-        if (loading) return <LoadingState mode={mode} />;
         if (quizData) {
           return (
-            <QuizView
-              questions={quizData}
-              onReset={() => { setQuizData(null); setExistingQuizScore(undefined); }}
+            <QuizView 
+              questions={quizData} 
+              onReset={() => {
+                setQuizData(null);
+                setExistingQuizScore(undefined);
+                setCurrentHistoryId(null);
+              }} 
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
             />
           );
         }
         return (
-          <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <div className="mb-6 text-center">
-               <h2 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">AI Quiz Creator</h2>
-               <p className="text-slate-500 dark:text-slate-400">Challenge yourself with custom-generated questions.</p>
-            </div>
+          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <InputForm
               data={formData}
-              mode={mode}
+              mode={AppMode.QUIZ}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
             />
-             {error && (
-               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-xl flex items-center gap-2 text-red-600 dark:text-red-400 text-sm animate-pulse">
-                 <AlertCircle className="w-4 h-4" />
-                 {error}
-               </div>
+            {error && (
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
+              </div>
             )}
-            <div className="flex justify-end">
-              <button
-                onClick={handleGenerate}
-                className="px-8 py-3.5 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white rounded-xl font-bold shadow-lg shadow-primary-500/25 transition-all hover:scale-[1.02] active:scale-95 flex items-center gap-2"
-              >
-                <Sparkles className="w-5 h-5" />
-                Start Quiz
-              </button>
-            </div>
+            <button
+              onClick={handleGenerate}
+              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+            >
+              <BrainCircuit className="w-5 h-5 group-hover:animate-pulse" />
+              Generate Quiz
+            </button>
           </div>
         );
 
       case AppMode.TUTOR:
         return (
-           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <TutorChat onDeductCredit={deductCredit} currentCredits={userProfile.credits} />
-           </div>
+          <div className="max-w-5xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <TutorChat 
+               onDeductCredit={deductCredit} 
+               currentCredits={userProfile.credits}
+            />
+          </div>
         );
-
+      
       case AppMode.NOTES:
         return (
-           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <NotesView userId={user ? user.uid : null} onDeductCredit={deductCredit} />
-           </div>
+          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <NotesView 
+               userId={user ? user.uid : null} 
+               onDeductCredit={deductCredit}
+            />
+          </div>
         );
 
       case AppMode.PROFILE:
         return (
-           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <ProfileView 
                 profile={userProfile} 
-                email={user?.email || null} 
-                onSave={handleProfileSave} 
+                email={user?.email || 'Guest'}
+                onSave={(p, r) => handleProfileSave(p, r)}
               />
            </div>
         );
 
       case AppMode.SETTINGS:
         return (
-           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <SettingsView 
-                userProfile={userProfile} 
-                onLogout={handleLogout} 
-                onNavigateToProfile={() => setMode(AppMode.PROFILE)}
-                onOpenPremium={() => setShowPremiumModal(true)}
+                 userProfile={userProfile}
+                 onLogout={handleLogout}
+                 onNavigateToProfile={() => setMode(AppMode.PROFILE)}
+                 onOpenPremium={() => setShowPremiumModal(true)}
               />
            </div>
         );
-        
+
       case AppMode.ABOUT:
-         return <AboutView />;
+        return (
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <AboutView />
+           </div>
+        );
 
       default:
         return renderDashboard();
@@ -1026,7 +1016,8 @@ const App: React.FC = () => {
         ></div>
       )}
 
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none print:hidden flex flex-col`}>
+      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
+        <div className="h-full flex flex-col">
           <div 
             className="p-5 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             onClick={() => {
@@ -1094,9 +1085,7 @@ const App: React.FC = () => {
             })}
           </div>
 
-          <div className="mt-auto">
-             <SidebarTimer />
-             <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+          <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
             {user ? (
                <>
                 <button
@@ -1135,18 +1124,18 @@ const App: React.FC = () => {
             {user && (
               <button 
                 onClick={() => setShowPremiumModal(true)}
-                className="w-full py-2 bg-gradient-to-r from-primary-200 to-primary-400 hover:from-primary-300 hover:to-primary-500 text-primary-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
+                className="w-full py-2 bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
               >
                 <Crown className="w-3.5 h-3.5" />
                 Upgrade Plan
               </button>
             )}
           </div>
-          </div>
+        </div>
       </aside>
 
-      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
-        <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30 print:hidden">
+      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+        <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
           <div className="flex items-center gap-3">
              <button 
               onClick={() => setIsSidebarOpen(true)}
@@ -1163,14 +1152,14 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3">
             {user && (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
-                <Zap className="w-3.5 h-3.5 text-primary-500 fill-primary-500" />
+                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{userProfile.credits}</span>
               </div>
             )}
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar print:overflow-visible print:p-0">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
           <div className="w-full h-full">
              {renderContent()}
           </div>
