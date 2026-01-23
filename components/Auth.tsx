@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { auth, googleProvider, githubProvider, appleProvider } from '../firebaseConfig';
 import { 
   signInWithPopup, 
@@ -7,9 +7,10 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   sendPasswordResetEmail,
-  updateProfile
+  updateProfile,
+  sendEmailVerification
 } from 'firebase/auth';
-import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone } from 'lucide-react';
+import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, CheckCircle, Inbox, RefreshCw } from 'lucide-react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
 
@@ -18,7 +19,7 @@ interface AuthProps {
   onClose: () => void;
 }
 
-type AuthView = 'login' | 'signup' | 'forgot-password';
+type AuthView = 'login' | 'signup' | 'forgot-password' | 'verify-email';
 
 const AppleIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 384 512" fill="currentColor">
@@ -43,6 +44,20 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState(false);
+  
+  // Resend Verification State
+  const [resendTimer, setResendTimer] = useState(0);
+  const [resendStatus, setResendStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    let interval: any;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
 
   const handleProviderSignIn = async (provider: any, providerName: string) => {
     setLoading(true);
@@ -65,6 +80,23 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (resendTimer > 0) return;
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        await sendEmailVerification(user, {
+          url: window.location.origin
+        });
+        setResendStatus("New verification link sent!");
+        setResendTimer(60);
+        setTimeout(() => setResendStatus(null), 5000);
+      } catch (err: any) {
+        setError("Could not resend email. Please try again later.");
+      }
     }
   };
 
@@ -119,18 +151,16 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             await updateProfile(result.user, {
                 displayName: name
             });
+            
+            // Send Email Verification
+            await sendEmailVerification(result.user, {
+              url: window.location.origin
+            });
         }
 
-        if (onSignUpSuccess) {
-          onSignUpSuccess({
-              displayName: name,
-              institution: school,
-              grade: grade,
-              phoneNumber: phoneNumber
-          });
-        } else {
-          onClose();
-        }
+        // Instead of closing immediately, show email verification screen
+        setView('verify-email');
+        setResendTimer(60);
       }
     } catch (err: any) {
       console.error(err);
@@ -145,6 +175,19 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       setError(msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFinishSignup = () => {
+    if (onSignUpSuccess) {
+      onSignUpSuccess({
+          displayName: name,
+          institution: school,
+          grade: grade,
+          phoneNumber: phoneNumber
+      });
+    } else {
+      onClose();
     }
   };
 
@@ -165,6 +208,56 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             >
               Back to Login
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'verify-email') {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={handleFinishSignup}></div>
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div className="relative bg-white p-8 rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md text-center animate-in fade-in zoom-in duration-300">
+            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+              <Inbox className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Verify your email</h2>
+            <p className="text-slate-500 mb-6">
+              We've sent a verification link to <br/>
+              <span className="font-bold text-slate-700">{email}</span>.
+              <br/>Please check your inbox to activate your account fully.
+            </p>
+            
+            <div className="space-y-3 mb-6">
+              <button 
+                onClick={handleFinishSignup}
+                className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+              >
+                Continue to App
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              
+              <button 
+                onClick={handleResendVerification}
+                disabled={resendTimer > 0}
+                className="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${resendTimer > 0 ? 'animate-spin opacity-50' : ''}`} />
+                {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Verification Email"}
+              </button>
+            </div>
+
+            {resendStatus && (
+               <div className="mb-4 text-emerald-600 font-bold text-sm bg-emerald-50 py-2 rounded-lg animate-in fade-in slide-in-from-top-1">
+                 {resendStatus}
+               </div>
+            )}
+
+            <p className="text-xs text-slate-400">
+              Didn't receive it? Check your spam folder or try resending.
+            </p>
           </div>
         </div>
       </div>
@@ -220,16 +313,8 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      {/* 
-         FIX: Changed from absolute to fixed to ensure backdrop covers 
-         the entire screen even when scrolling 
-      */}
       <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
 
-      {/* 
-         FIX: Added flex container with min-h-full to ensure modal 
-         centers correctly but allows scrolling when content is tall 
-      */}
       <div className="flex min-h-full items-center justify-center p-4">
         <div className="relative bg-white p-8 rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md animate-in fade-in zoom-in duration-300">
           <button 
@@ -323,8 +408,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* Sign Up Extra Fields */}
             {view === 'signup' && (
               <>
                  <div className="space-y-1 animate-in fade-in slide-in-from-top-2">

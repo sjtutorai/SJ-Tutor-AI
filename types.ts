@@ -7,7 +7,8 @@ export enum AppMode {
   TUTOR = 'TUTOR',
   PROFILE = 'PROFILE',
   NOTES = 'NOTES',
-  SETTINGS = 'SETTINGS'
+  SETTINGS = 'SETTINGS',
+  ABOUT = 'ABOUT'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
@@ -29,7 +30,7 @@ export interface QuizQuestion {
   options: string[];
   correctAnswerIndex: number;
   explanation: string;
-  answerKeyExplanation?: string; // Optional field if generated differently
+  answerKeyExplanation?: string;
 }
 
 export interface ChatMessage {
@@ -44,16 +45,16 @@ export interface HistoryItem {
   title: string;
   subtitle: string;
   timestamp: number;
-  content?: any; // string for summary/essay, QuizQuestion[] for quiz
+  content?: any;
   formData?: StudyRequestData;
-  score?: number; // Score achieved if it was a quiz
+  score?: number;
 }
 
 export interface UserProfile {
   displayName: string;
   phoneNumber: string;
   institution: string;
-  grade?: string; // Added Grade/Class field
+  grade?: string;
   bio: string;
   photoURL?: string;
   learningGoal?: string;
@@ -101,10 +102,18 @@ export interface UserSettings {
   };
 }
 
+export type NoteStatus = 'New' | 'Revised' | 'Mastered';
+export type NoteTemplate = 'Theory' | 'Formula' | 'Q&A' | 'Revision' | 'Blank';
+
 export interface NoteItem {
   id: string;
   title: string;
   content: string;
+  subject: string;
+  chapter: string;
+  template: NoteTemplate;
+  status: NoteStatus;
+  isFavorite: boolean;
   date: number;
   tags: string[];
 }
@@ -112,7 +121,7 @@ export interface NoteItem {
 export interface ReminderItem {
   id: string;
   task: string;
-  dueTime: string; // ISO string or simple time string
+  dueTime: string;
   completed: boolean;
 }
 

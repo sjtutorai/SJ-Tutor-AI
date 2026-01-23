@@ -2,11 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, UserSettings, SJTUTOR_AVATAR } from '../types';
 import { SettingsService } from '../services/settingsService';
+import { auth } from '../firebaseConfig';
+import { sendPasswordResetEmail, verifyBeforeUpdateEmail } from 'firebase/auth';
 import { 
   User, BookOpen, Bot, MessageSquare, Bell, Moon, Lock, 
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, ChevronDown, ChevronUp,
   Save, LogOut, Trash2, Globe, Shield, Activity, Eye, Type, Palette, Monitor, Zap,
-  Volume2, Terminal, Crown, Check, AlertTriangle, Clock
+  Volume2, Terminal, Crown, Check, AlertTriangle, Clock, Mail
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -50,6 +52,43 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
     setTimeout(() => setShowSaveSuccess(false), 3000);
   };
 
+  const handlePasswordChange = async () => {
+    const user = auth.currentUser;
+    if (user && user.email) {
+       const confirmReset = window.confirm(`Send password reset email to ${user.email}?`);
+       if (confirmReset) {
+         try {
+           await sendPasswordResetEmail(auth, user.email);
+           alert("Password reset email sent! Please check your inbox to create a new password.");
+         } catch (e: any) {
+           alert("Error sending reset email: " + e.message);
+         }
+       }
+    } else {
+      alert("You need to be logged in to change your password.");
+    }
+  };
+
+  const handleEmailChange = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const newEmail = window.prompt("Enter your new email address:");
+      if (newEmail && newEmail !== user.email) {
+         try {
+           // This triggers the security requirement: Verify new email + Notify old email
+           await verifyBeforeUpdateEmail(user, newEmail);
+           alert(`Verification email sent to ${newEmail}. Please verify it to complete the update. For security, a notification has also been sent to your current email.`);
+         } catch (e: any) {
+           if (e.code === 'auth/requires-recent-login') {
+              alert("For security, please log out and log back in before changing your email.");
+           } else {
+              alert("Error updating email: " + e.message);
+           }
+         }
+      }
+    }
+  };
+
   const tabs: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
     { id: 'account', label: 'Account', icon: User },
     { id: 'learning', label: 'Learning Prefs', icon: BookOpen },
@@ -63,6 +102,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
     { id: 'help', label: 'Help & Support', icon: HelpCircle },
   ];
 
+  // ... (Keep existing FAQs and Terms) ...
   const faqs = [
     { q: "What is SJ Tutor AI?", a: "SJ Tutor AI is an AI-powered learning app that helps students understand concepts, solve doubts, and improve learning using smart artificial intelligence." },
     { q: "Who can use SJ Tutor AI?", a: "SJ Tutor AI is designed for students, learners, and anyone who wants academic support. Younger users should use the app with parent or guardian guidance." },
@@ -125,17 +165,27 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                <div className="p-4 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer" onClick={onNavigateToProfile}>
                   <div>
                     <p className="font-medium text-slate-700 dark:text-slate-200">Personal Information</p>
-                    <p className="text-xs text-slate-400">Name, Email, Phone</p>
+                    <p className="text-xs text-slate-400">Name, Phone</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                </div>
-               <div className="p-4 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer">
+
+               <div className="p-4 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer" onClick={handleEmailChange}>
+                  <div>
+                    <p className="font-medium text-slate-700 dark:text-slate-200">Change Email</p>
+                    <p className="text-xs text-slate-400">Update your registered email</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+               </div>
+
+               <div className="p-4 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer" onClick={handlePasswordChange}>
                   <div>
                     <p className="font-medium text-slate-700 dark:text-slate-200">Change Password</p>
                     <p className="text-xs text-slate-400">Update your security credentials</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                </div>
+               
                <div className="p-4 flex justify-between items-center hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer group" onClick={onLogout}>
                   <div>
                     <p className="font-medium text-red-600 group-hover:text-red-700">Log Out</p>
@@ -155,6 +205,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'learning':
+        // ... (Keep existing Learning content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Learning Preferences</h3>
@@ -216,6 +267,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'aiTutor':
+        // ... (Keep existing AI Tutor content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">AI Tutor Settings</h3>
@@ -290,11 +342,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'chat':
+        // ... (Keep existing Chat content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Chat Preferences</h3>
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
-               
                <div className="space-y-3">
                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Font Size</label>
                  <div className="grid grid-cols-3 gap-3">
@@ -313,7 +365,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                    ))}
                  </div>
                </div>
-
                <div className="flex items-center justify-between">
                  <div className="flex items-center gap-3">
                     <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"><Save className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
@@ -324,7 +375,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                  </label>
                </div>
-
                <div className="flex items-center justify-between">
                  <div className="flex items-center gap-3">
                     <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"><Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
@@ -335,7 +385,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                  </label>
                </div>
-
                <div className="flex items-center justify-between">
                  <div className="flex items-center gap-3">
                     <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"><Terminal className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
@@ -346,12 +395,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                  </label>
                </div>
-
             </div>
           </div>
         );
 
       case 'notifications':
+        // ... (Keep existing Notifications content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Notifications</h3>
@@ -383,6 +432,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'appearance':
+        // ... (Keep existing Appearance content) ...
         return (
            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Appearance</h3>
@@ -428,15 +478,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
                          </button>
                       ))}
                    </div>
-                   
-                   {settings.appearance.theme === 'System' && (
-                      <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-400">
-                         <Monitor className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                         <p className="text-xs leading-relaxed">
-                           The app will automatically switch between Light and Dark modes to match your device's system settings.
-                         </p>
-                      </div>
-                   )}
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-6">
@@ -537,6 +578,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'privacy':
+        // ... (Keep existing Privacy content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Privacy & Security</h3>
@@ -587,6 +629,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'system':
+        // ... (Keep existing System content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">App & System</h3>
@@ -619,6 +662,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'billing':
+        // ... (Keep existing Billing content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Subscription & Credits</h3>
@@ -665,6 +709,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'help':
+        // ... (Keep existing Help content) ...
         return (
            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Help Center</h3>
