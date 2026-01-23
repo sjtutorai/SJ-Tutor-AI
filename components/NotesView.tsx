@@ -229,22 +229,13 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                     <div 
                       key={note.id}
                       onClick={() => { setEditingNote(note); setViewMode('EDITOR'); }}
-                      className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all cursor-pointer group relative"
+                      className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all cursor-pointer group"
                     >
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm("Delete this note?")) {
-                            setNotes(prev => prev.filter(n => n.id !== note.id));
-                          }
-                        }}
-                        className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-
                       <div className="flex justify-between items-start mb-3">
-                        <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600`}>
+                        <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          note.template === 'Formula' ? 'bg-blue-50 text-blue-600' :
+                          note.template === 'Q&A' ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-600'
+                        }`}>
                           {note.template}
                         </div>
                         <StatusIcon status={note.status} />
@@ -285,7 +276,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={handleSaveNote} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-primary-500/20">
+                    <button onClick={handleSaveNote} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20">
                       <Save className="w-4 h-4" /> Save
                     </button>
                   </div>

@@ -180,8 +180,8 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
                 <Share2 className="w-3.5 h-3.5" />
             </button>
         </div>
-        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-primary-50 text-primary-700 rounded-full border border-primary-100 text-[10px] font-bold">
-          <Sparkles className="w-2.5 h-2.5 fill-primary-500 text-primary-500" />
+        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 text-[10px] font-bold">
+          <Sparkles className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
           1 Credit / Msg
         </div>
       </div>
