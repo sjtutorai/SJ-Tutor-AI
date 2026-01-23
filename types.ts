@@ -62,6 +62,45 @@ export interface UserProfile {
   planType?: 'Free' | 'Starter' | 'Scholar' | 'Achiever';
 }
 
+export interface UserSettings {
+  learning: {
+    preferredSubject: string;
+    grade: string;
+    difficulty: DifficultyLevel;
+    language: string;
+    dailyGoalMins: number;
+  };
+  aiTutor: {
+    personality: 'Friendly' | 'Professional' | 'Strict';
+    explanationStyle: 'Short & Simple' | 'Detailed' | 'Step-by-step';
+    answerFormat: 'Text Only' | 'Text + Examples' | 'Text + Code';
+    followUp: boolean;
+    memory: boolean;
+  };
+  chat: {
+    autoSave: boolean;
+    fontSize: 'Small' | 'Medium' | 'Large';
+    voiceOutput: boolean;
+    typingIndicator: boolean;
+  };
+  notifications: {
+    studyReminders: boolean;
+    examAlerts: boolean;
+    aiTips: boolean;
+    push: boolean;
+  };
+  appearance: {
+    theme: 'Light' | 'Dark' | 'System';
+    animations: boolean;
+    primaryColor: 'Gold' | 'Blue' | 'Emerald' | 'Violet' | 'Rose';
+    fontFamily: 'Inter' | 'Roboto' | 'Open Sans';
+  };
+  privacy: {
+    twoFactor: boolean;
+    appLock: boolean;
+  };
+}
+
 export interface NoteItem {
   id: string;
   title: string;
@@ -83,41 +122,6 @@ export interface TimetableEntry {
   slots: { time: string; activity: string; subject: string }[];
 }
 
-// Detailed Settings Interface
-export interface AppSettings {
-  learning: {
-    grade: string;
-    board: string;
-    language: string;
-    difficulty: DifficultyLevel;
-    style: 'Standard' | 'Socratic' | 'Analogy-based' | 'Bullet Points';
-    speed: 'Slow' | 'Normal' | 'Fast';
-  };
-  aiTutor: {
-    personality: 'Friendly' | 'Strict' | 'Academic' | 'Humorous';
-    responseLength: 'Short' | 'Medium' | 'Long';
-    explanationStyle: 'Simple' | 'Detailed' | 'Scientific';
-    giveHints: boolean;
-  };
-  study: {
-    timerDuration: number; // minutes
-    autoPause: boolean;
-    subjects: string[];
-  };
-  appearance: {
-    theme: 'Light' | 'Dark';
-    fontSize: 'Small' | 'Medium' | 'Large';
-  };
-  notifications: {
-    studyReminders: boolean;
-    breakReminders: boolean;
-  };
-  privacy: {
-    saveHistory: boolean;
-    analytics: boolean;
-  };
-}
-
 export const INITIAL_FORM_DATA: StudyRequestData = {
   subject: '',
   gradeClass: '',
@@ -129,3 +133,44 @@ export const INITIAL_FORM_DATA: StudyRequestData = {
   difficulty: 'Medium',
   includeImages: false,
 };
+
+export const DEFAULT_SETTINGS: UserSettings = {
+  learning: {
+    preferredSubject: 'Science',
+    grade: '10th',
+    difficulty: 'Medium',
+    language: 'English',
+    dailyGoalMins: 30,
+  },
+  aiTutor: {
+    personality: 'Friendly',
+    explanationStyle: 'Detailed',
+    answerFormat: 'Text + Examples',
+    followUp: true,
+    memory: true,
+  },
+  chat: {
+    autoSave: true,
+    fontSize: 'Medium',
+    voiceOutput: false,
+    typingIndicator: true,
+  },
+  notifications: {
+    studyReminders: true,
+    examAlerts: true,
+    aiTips: true,
+    push: true,
+  },
+  appearance: {
+    theme: 'Light',
+    animations: true,
+    primaryColor: 'Gold',
+    fontFamily: 'Inter',
+  },
+  privacy: {
+    twoFactor: false,
+    appLock: false,
+  },
+};
+
+export const SJTUTOR_AVATAR = "https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg";

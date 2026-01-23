@@ -1,84 +1,71 @@
 
-import { AppSettings } from '../types';
+import { UserSettings, DEFAULT_SETTINGS } from '../types';
 
-const DEFAULT_SETTINGS: AppSettings = {
-  learning: {
-    grade: '',
-    board: '',
-    language: 'English',
-    difficulty: 'Medium',
-    style: 'Standard',
-    speed: 'Normal'
-  },
-  aiTutor: {
-    personality: 'Friendly',
-    responseLength: 'Medium',
-    explanationStyle: 'Detailed',
-    giveHints: false
-  },
-  study: {
-    timerDuration: 25,
-    autoPause: false,
-    subjects: ['Math', 'Science', 'English', 'History']
-  },
-  appearance: {
-    theme: 'Light',
-    fontSize: 'Medium'
-  },
-  notifications: {
-    studyReminders: true,
-    breakReminders: true
-  },
-  privacy: {
-    saveHistory: true,
-    analytics: true
-  }
-};
+const STORAGE_KEY = 'sjtutor_user_settings';
 
 export const SettingsService = {
-  getSettings: (): AppSettings => {
+  /**
+   * Retrieves the current settings from storage or returns defaults.
+   */
+  getSettings: (): UserSettings => {
     try {
-      const saved = localStorage.getItem('sj_tutor_settings');
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
-    } catch {
-      return DEFAULT_SETTINGS;
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        // Merge stored settings with defaults to ensure new fields are present
+        const parsed = JSON.parse(stored);
+        return {
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          learning: { ...DEFAULT_SETTINGS.learning, ...parsed.learning },
+          aiTutor: { ...DEFAULT_SETTINGS.aiTutor, ...parsed.aiTutor },
+          chat: { ...DEFAULT_SETTINGS.chat, ...parsed.chat },
+          notifications: { ...DEFAULT_SETTINGS.notifications, ...parsed.notifications },
+          appearance: { ...DEFAULT_SETTINGS.appearance, ...parsed.appearance },
+          privacy: { ...DEFAULT_SETTINGS.privacy, ...parsed.privacy },
+        };
+      }
+    } catch (e) {
+      console.error("Failed to load settings", e);
     }
-  },
-
-  saveSettings: (settings: AppSettings) => {
-    localStorage.setItem('sj_tutor_settings', JSON.stringify(settings));
-    // Dispatch event for real-time updates if needed
-    window.dispatchEvent(new Event('settingsChanged'));
-  },
-
-  resetSettings: () => {
-    localStorage.setItem('sj_tutor_settings', JSON.stringify(DEFAULT_SETTINGS));
     return DEFAULT_SETTINGS;
   },
 
   /**
-   * Generates a system instruction string for the Gemini API based on current settings.
+   * Saves settings to local storage.
+   */
+  saveSettings: (settings: UserSettings): void => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    } catch (e) {
+      console.error("Failed to save settings", e);
+    }
+  },
+
+  /**
+   * Resets settings to default.
+   */
+  resetSettings: (): UserSettings => {
+    localStorage.removeItem(STORAGE_KEY);
+    return DEFAULT_SETTINGS;
+  },
+
+  /**
+   * Generates a system instruction string for Gemini based on current settings.
    */
   getTutorSystemInstruction: (): string => {
     const s = SettingsService.getSettings();
     return `
-      You are an advanced AI Tutor named SJ Tutor AI.
+      You are an AI Tutor in the "SJ Tutor AI" app.
       
-      User Profile:
-      - Grade/Class: ${s.learning.grade || 'Not specified'}
-      - Education Board: ${s.learning.board || 'General'}
-      - Language: ${s.learning.language}
+      Your Personality: ${s.aiTutor.personality} ${s.aiTutor.personality === 'Friendly' ? '😊' : s.aiTutor.personality === 'Professional' ? '🎓' : '🧠'}.
+      Explanation Style: ${s.aiTutor.explanationStyle}.
+      Answer Format: ${s.aiTutor.answerFormat}.
+      Language Preference: ${s.learning.language}.
+      Student Grade/Class: ${s.learning.grade}.
       
-      Teaching Style Preferences:
-      - Difficulty Level: ${s.learning.difficulty}
-      - Explanation Style: ${s.aiTutor.explanationStyle} (Style: ${s.learning.style})
-      - Tutor Personality: ${s.aiTutor.personality}
-      - Response Length: ${s.aiTutor.responseLength}
+      ${s.aiTutor.followUp ? "Always ask a relevant follow-up question to check understanding." : ""}
       
-      Instructions:
-      ${s.aiTutor.giveHints ? '- Do not give the direct answer immediately. Provide hints first.' : '- Provide direct and clear answers.'}
-      - If the user asks for a summary, ensure it matches the '${s.aiTutor.explanationStyle}' style.
-      - Adapt your vocabulary to match the '${s.learning.difficulty}' difficulty level.
+      Goal: Help the student learn effectively.
     `;
   }
 };
