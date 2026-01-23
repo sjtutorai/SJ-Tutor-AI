@@ -3,8 +3,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
 import { SettingsService } from "./settingsService";
 
-// Use the provided key as a fallback if process.env.API_KEY is empty or undefined
-const API_KEY = process.env.API_KEY || "AIzaSyB1wRK6kjhV6R8ZUt1qavuXbuO-0MeVpBA";
+// Hardcoded key to ensure correct project usage
+const API_KEY = "AIzaSyB1wRK6kjhV6R8ZUt1qavuXbuO-0MeVpBA";
 
 export const GeminiService = {
   /**
