@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage, SJTUTOR_AVATAR } from '../types';
+import { ChatMessage } from '../types';
 import { GeminiService } from '../services/geminiService';
-import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle, ExternalLink, Share2 } from 'lucide-react';
+import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle, ExternalLink } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Chat, GenerateContentResponse } from "@google/genai";
+import { SJTUTOR_AVATAR } from '../App';
 
 const SAMPLE_QUESTIONS = [
   "What is the difference between weather and climate?",
@@ -69,29 +70,6 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
       recognition.start();
     } else {
       alert("Voice input is not supported in this browser.");
-    }
-  };
-
-  const handleShareChat = async () => {
-    const transcript = messages.map(m => `${m.role === 'user' ? 'You' : 'SJ Tutor AI'}: ${m.text}`).join('\n\n');
-    const shareData = {
-        title: 'SJ Tutor AI Chat',
-        text: `Check out my conversation with SJ Tutor AI:\n\n${transcript}`,
-    };
-
-    if (navigator.share) {
-        try {
-            await navigator.share(shareData);
-        } catch (err) {
-            console.log("Share canceled");
-        }
-    } else {
-        try {
-            await navigator.clipboard.writeText(shareData.text);
-            alert("Chat transcript copied to clipboard!");
-        } catch (e) {
-            alert("Failed to copy chat.");
-        }
     }
   };
 
@@ -174,12 +152,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
     <div className="h-[calc(100vh-140px)] flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
       {/* Header Info */}
       <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SJ Tutor AI Session</span>
-            <button onClick={handleShareChat} className="p-1 text-slate-400 hover:text-primary-600 rounded hover:bg-slate-100 transition-colors" title="Share Chat Transcript">
-                <Share2 className="w-3.5 h-3.5" />
-            </button>
-        </div>
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SJ Tutor AI Session</span>
         <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 text-[10px] font-bold">
           <Sparkles className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
           1 Credit / Msg

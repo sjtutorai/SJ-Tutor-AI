@@ -1,7 +1,6 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { User, Phone, School, FileText, Camera, Save, X, Edit2, ArrowRight, Mail, BookOpen, Layers, Briefcase, Zap, GraduationCap } from 'lucide-react';
+import { User, Phone, School, FileText, Camera, Save, X, Edit2, ArrowRight, Mail, BookOpen, Layers, Briefcase, Zap } from 'lucide-react';
 
 interface ProfileViewProps {
   profile: UserProfile;
@@ -208,21 +207,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                       onChange={(e) => handleInputChange('institution', e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
                       placeholder="e.g. Stanford University"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
-                  <div className="relative">
-                     <GraduationCap className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
-                     <input
-                      type="text"
-                      disabled={!isEditing}
-                      value={formData.grade || ''}
-                      onChange={(e) => handleInputChange('grade', e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
-                      placeholder="e.g. 10th Grade"
                     />
                   </div>
                 </div>

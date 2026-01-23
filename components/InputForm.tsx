@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { StudyRequestData, AppMode, DifficultyLevel } from '../types';
-import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Image as ImageIcon, Crown } from 'lucide-react';
+import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Image as ImageIcon } from 'lucide-react';
 
 interface InputFormProps {
   data: StudyRequestData;
@@ -13,17 +13,12 @@ interface InputFormProps {
 
 const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSample, disabled }) => {
 
-  const isRewardMode = mode === AppMode.QUIZ && data.questionCount === 20 && data.difficulty === 'Hard';
-
   const getEstimatedCost = () => {
     if (mode === AppMode.SUMMARY) return 10;
     if (mode === AppMode.ESSAY) {
       return data.includeImages ? 15 : 10;
     }
     if (mode === AppMode.QUIZ) {
-      // Reward Challenge: Free generation for 20 Hard Questions
-      if (isRewardMode) return 0;
-
       let cost = 10;
       const qCount = data.questionCount || 5;
       cost += Math.ceil(qCount / 2);
@@ -69,18 +64,9 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
         </h2>
 
         <div className="flex items-center gap-2">
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wide ${isRewardMode ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
-            {isRewardMode ? (
-              <>
-                <Crown className="w-3 h-3 fill-emerald-500 text-emerald-500" />
-                Reward: +50 Credits (Free Gen)
-              </>
-            ) : (
-              <>
-                <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
-                Cost: {cost} Credits
-              </>
-            )}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full border border-amber-100 text-[10px] font-bold uppercase tracking-wide">
+            <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
+            Cost: {cost} Credits
           </div>
           
           {onFillSample && (
@@ -144,16 +130,6 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
                 </select>
               </div>
             </div>
-            
-            {/* Helper text for the challenge */}
-            {data.questionCount !== 20 || data.difficulty !== 'Hard' ? (
-              <div className="col-span-full mt-1">
-                 <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                   <Zap className="w-3 h-3" />
-                   Tip: Select <span className="font-bold text-primary-600">20 Questions</span> with <span className="font-bold text-primary-600">Hard</span> difficulty and score <span className="font-bold text-emerald-600">75%+</span> to earn <span className="font-bold text-emerald-600">50 Credits</span>!
-                 </p>
-              </div>
-            ) : null}
           </>
         )}
       </div>

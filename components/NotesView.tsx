@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
-import { NoteItem, ReminderItem, TimetableEntry, SJTUTOR_AVATAR } from '../types';
-import { Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, StickyNote, Bell, Edit3, Loader2, Edit, Share2 } from 'lucide-react';
+import { NoteItem, ReminderItem, TimetableEntry } from '../types';
+import { Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, StickyNote, Bell, Edit3, Loader2, Edit } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
+import { SJTUTOR_AVATAR } from '../App';
 
 interface NotesViewProps {
   userId: string | null; // Use for local storage keys
@@ -19,10 +19,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   // Reminders State
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [newReminder, setNewReminder] = useState('');
-  
-  // Split date and time for better control
-  const [newDate, setNewDate] = useState('');
-  const [newTime, setNewTime] = useState('');
+  const [newReminderDate, setNewReminderDate] = useState('');
 
   // Timetable State
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
@@ -88,48 +85,18 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
     }
   };
 
-  const handleShareNote = async (note: NoteItem) => {
-    const text = `${note.title}\n\n${note.content}`;
-    if (navigator.share) {
-        try {
-            await navigator.share({
-                title: note.title,
-                text: text
-            });
-        } catch (e) { console.log('Share canceled'); }
-    } else {
-        try {
-            await navigator.clipboard.writeText(text);
-            alert('Note copied to clipboard');
-        } catch (e) { alert('Failed to copy'); }
-    }
-  };
-
   // --- Reminders Handlers ---
   const handleAddReminder = () => {
     if (!newReminder) return;
-    
-    let dueTimeString = '';
-    if (newDate) {
-       dueTimeString = newDate;
-       if (newTime) {
-         dueTimeString += `T${newTime}`;
-       } else {
-         // Default to end of day if time not specified
-         dueTimeString += 'T23:59';
-       }
-    }
-
     const item: ReminderItem = {
       id: Date.now().toString(),
       task: newReminder,
-      dueTime: dueTimeString ? new Date(dueTimeString).toISOString() : '',
+      dueTime: newReminderDate,
       completed: false
     };
     setReminders(prev => [...prev, item]);
     setNewReminder('');
-    setNewDate('');
-    setNewTime('');
+    setNewReminderDate('');
   };
 
   const toggleReminder = (id: string) => {
@@ -188,27 +155,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
         alert("Failed to update timetable. Please try again.");
     } finally {
         setIsGenerating(false);
-    }
-  };
-
-  const handleShareTimetable = async () => {
-    const text = timetable.map(day => 
-        `${day.day} (${day.date}):\n` + 
-        day.slots.map(s => `  • ${s.time}: ${s.subject} - ${s.activity}`).join('\n')
-    ).join('\n\n');
-    
-    if (navigator.share) {
-        try {
-            await navigator.share({
-                title: 'My Study Timetable',
-                text: `Here is my study plan from SJ Tutor AI:\n\n${text}`
-            });
-        } catch (e) { console.log('Share canceled'); }
-    } else {
-        try {
-            await navigator.clipboard.writeText(text);
-            alert('Timetable copied to clipboard');
-        } catch (e) { alert('Failed to copy'); }
     }
   };
 
@@ -292,20 +238,15 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                 {/* Note Cards */}
                 {notes.map(note => (
                   <div key={note.id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow relative group">
-                    <div className="flex justify-between items-start mb-2">
-                         <h4 className="font-bold text-slate-800 truncate flex-1">{note.title}</h4>
-                    </div>
+                    <h4 className="font-bold text-slate-800 mb-2 truncate">{note.title}</h4>
                     <p className="text-slate-500 text-sm line-clamp-4 mb-4">{note.content}</p>
                     <div className="flex justify-between items-center text-xs text-slate-400 mt-auto pt-3 border-t border-slate-50">
                       <span>{new Date(note.date).toLocaleDateString()}</span>
                       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={(e) => { e.stopPropagation(); handleShareNote(note); }} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-blue-600" title="Share Note">
-                           <Share2 className="w-4 h-4" />
-                         </button>
-                         <button onClick={() => setEditingNote(note)} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-primary-600" title="Edit">
+                         <button onClick={() => setEditingNote(note)} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-primary-600">
                            <Edit3 className="w-4 h-4" />
                          </button>
-                         <button onClick={() => handleDeleteNote(note.id)} className="p-1.5 hover:bg-red-50 rounded text-slate-500 hover:text-red-500" title="Delete">
+                         <button onClick={() => handleDeleteNote(note.id)} className="p-1.5 hover:bg-red-50 rounded text-slate-500 hover:text-red-500">
                            <Trash2 className="w-4 h-4" />
                          </button>
                       </div>
@@ -333,20 +274,12 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                    placeholder="What needs to be done?"
                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
                  />
-                 <div className="flex gap-2">
-                    <input 
-                      type="date" 
-                      value={newDate}
-                      onChange={e => setNewDate(e.target.value)}
-                      className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-slate-600 text-sm"
-                    />
-                    <input 
-                      type="time" 
-                      value={newTime}
-                      onChange={e => setNewTime(e.target.value)}
-                      className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-slate-600 text-sm"
-                    />
-                 </div>
+                 <input 
+                   type="datetime-local" 
+                   value={newReminderDate}
+                   onChange={e => setNewReminderDate(e.target.value)}
+                   className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-slate-600"
+                 />
                  <button 
                   onClick={handleAddReminder}
                   disabled={!newReminder}
@@ -459,7 +392,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                   <h3 className="text-2xl font-bold text-slate-800">Your Study Plan</h3>
                   <div className="flex items-center gap-3">
                      {!showEditTimetable && (
-                        <>
                         <button
                           onClick={() => setShowEditTimetable(true)}
                           className="flex items-center gap-2 px-4 py-2 bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-lg font-medium transition-colors text-sm"
@@ -467,14 +399,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                            <Edit className="w-4 h-4" />
                            Edit with AI
                         </button>
-                        <button
-                          onClick={handleShareTimetable}
-                          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg font-medium transition-colors text-sm"
-                        >
-                           <Share2 className="w-4 h-4" />
-                           Share
-                        </button>
-                        </>
                      )}
                      <button 
                         onClick={() => {

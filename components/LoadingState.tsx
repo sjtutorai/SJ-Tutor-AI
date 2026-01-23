@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
-import { AppMode, SJTUTOR_AVATAR } from '../types';
+import { AppMode } from '../types';
 import { Sparkles } from 'lucide-react';
+import { SJTUTOR_AVATAR } from '../App';
 
 interface LoadingStateProps {
   mode: AppMode;

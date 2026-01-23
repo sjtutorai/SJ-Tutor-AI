@@ -1,8 +1,7 @@
-
 import React, { useState, useRef } from 'react';
 import { X, Check, Crown, Zap, Shield, Smartphone, Upload, Loader2, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
-import { SJTUTOR_AVATAR } from '../types';
+import { SJTUTOR_AVATAR } from '../App';
 
 interface PremiumModalProps {
   onClose: () => void;
