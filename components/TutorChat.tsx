@@ -61,26 +61,10 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
       recognition.lang = 'en-US';
 
       recognition.onstart = () => setIsListening(true);
-      
       recognition.onresult = (event: any) => {
-        let transcript = '';
-        // Only process final results to avoid duplication
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            transcript += event.results[i][0].transcript;
-          }
-        }
-        
-        if (transcript) {
-          setInput(prev => prev + (prev ? ' ' : '') + transcript);
-        }
+        const transcript = event.results[0][0].transcript;
+        setInput(prev => prev + (prev ? ' ' : '') + transcript);
       };
-
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error", event.error);
-        setIsListening(false);
-      };
-
       recognition.onend = () => setIsListening(false);
       recognition.start();
     } else {
@@ -152,10 +136,9 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
       }
     } catch (error: any) {
       console.error("Chat error:", error);
+      let errorText = "I'm sorry, I encountered an error. Please try asking again or check your connection.";
+      let rawMsg = error.message || "";
       
-      let rawMsg = error.message || String(error);
-      let errorText = `I'm sorry, I encountered an error: ${rawMsg}`; // Default to actual error
-
       try {
         const parsed = JSON.parse(rawMsg);
         if (parsed.error?.message) rawMsg = parsed.error.message;
@@ -166,24 +149,9 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
         errorText = "API_DISABLED_BLOCK";
       } else if (rawMsg.includes("API key not valid")) {
         errorText = "⚠️ Config Error: The API Key provided is invalid.";
-      } else if (rawMsg.includes("429") || rawMsg.includes("quota") || rawMsg.includes("RESOURCE_EXHAUSTED")) {
-        errorText = "⚠️ Usage Limit Exceeded. Please try again later.";
-      } else if (rawMsg.includes("Safety") || rawMsg.includes("blocked")) {
-        errorText = "⚠️ Response blocked by safety filters. Please try rephrasing your question.";
-      } else if (rawMsg.includes("Failed to fetch")) {
-        errorText = "⚠️ Network Error. Please check your internet connection.";
       }
       
-      setMessages(prev => {
-        // If the last message was the empty loading one, replace it. Otherwise append.
-        const lastMsg = prev[prev.length - 1];
-        if (lastMsg.role === 'model' && lastMsg.text === '') {
-            const newArr = [...prev];
-            newArr[newArr.length - 1].text = errorText;
-            return newArr;
-        }
-        return [...prev, { role: 'model', text: errorText, timestamp: Date.now() }];
-      });
+      setMessages(prev => [...prev, { role: 'model', text: errorText, timestamp: Date.now() }]);
     } finally {
       setIsTyping(false);
     }
