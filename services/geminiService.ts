@@ -1,10 +1,9 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
 import { SettingsService } from "./settingsService";
 
 // Hardcoded key to ensure correct project usage
-const API_KEY = "AIzaSyBBLZX-uJNSQIXUdOqqfwuBdnY5aiUqs6g";
+const API_KEY = "AIzaSyCjtv7yr53BNmtch6BPKcMCfxcOQEjdVPI";
 
 export const GeminiService = {
   /**
