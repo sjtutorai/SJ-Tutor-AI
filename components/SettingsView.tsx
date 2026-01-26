@@ -91,7 +91,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
 
   const tabs: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
     { id: 'account', label: 'Account', icon: User },
-    { id: 'learning', label: 'Learning Prefs', icon: BookOpen },
+    { id: 'learning', label: 'Learning Preference', icon: BookOpen },
     { id: 'aiTutor', label: 'AI Tutor', icon: Bot },
     { id: 'chat', label: 'Chat', icon: MessageSquare },
     { id: 'notifications', label: 'Notifications', icon: Bell },
@@ -205,7 +205,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'learning':
-        // ... (Keep existing Learning content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Learning Preferences</h3>
@@ -267,7 +266,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'aiTutor':
-        // ... (Keep existing AI Tutor content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">AI Tutor Settings</h3>
@@ -342,7 +340,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'chat':
-        // ... (Keep existing Chat content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Chat Preferences</h3>
@@ -400,7 +397,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'notifications':
-        // ... (Keep existing Notifications content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Notifications</h3>
@@ -432,7 +428,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'appearance':
-        // ... (Keep existing Appearance content) ...
         return (
            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Appearance</h3>
@@ -578,7 +573,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'privacy':
-        // ... (Keep existing Privacy content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Privacy & Security</h3>
@@ -629,7 +623,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'system':
-        // ... (Keep existing System content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">App & System</h3>
@@ -662,7 +655,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'billing':
-        // ... (Keep existing Billing content) ...
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Subscription & Credits</h3>
@@ -709,7 +701,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
         );
 
       case 'help':
-        // ... (Keep existing Help content) ...
         return (
            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Help Center</h3>
