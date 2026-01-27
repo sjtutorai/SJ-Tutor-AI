@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Loader2, Volume2, Square, ArrowLeft, Download, FileText, Image as ImageIcon, FileType, Share2, Facebook, Mail, MessageCircle, Link, Check, RefreshCw } from 'lucide-react';
+import { Loader2, Volume2, Square, ArrowLeft, Download, FileText, Image as ImageIcon, FileType, Share2, Facebook, Mail, MessageCircle, Link, RefreshCw } from 'lucide-react';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -261,51 +261,28 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
       
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const widthRatio = pageWidth / canvas.width;
+      const canvasHeight = canvas.height * widthRatio;
       
-      let heightLeft = imgHeight;
+      let heightLeft = canvasHeight;
       let position = 0;
 
       // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
-      heightLeft -= pdfHeight;
+      pdf.addImage(imgData, 'PNG', 0, position, pageWidth, canvasHeight);
+      heightLeft -= pageHeight;
 
       // Add subsequent pages if content overflows
       while (heightLeft > 0) {
-        position = heightLeft - imgHeight; // Position for next page
+        position -= pageHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position - heightLeft - pdfHeight, pdfWidth, imgHeight); // Simplified logic needed often for proper pagination
-        // Better pagination logic:
-        // Actually for simple image-based PDF, calculating position is tricky.
-        // Standard approach for long content image:
-        // Page 1: y=0. Page 2: y=-297mm.
-        // Resetting position variable logic:
-      }
-      
-      // Robust multi-page logic for image-based PDF
-      const pdf2 = new jsPDF('p', 'mm', 'a4');
-      const pageHeight = pdf2.internal.pageSize.getHeight();
-      const pageWidth = pdf2.internal.pageSize.getWidth();
-      const ratio = pageWidth / canvas.width;
-      const canvasHeight = canvas.height * ratio;
-      let heightLeft2 = canvasHeight;
-      let position2 = 0;
-
-      pdf2.addImage(imgData, 'PNG', 0, position2, pageWidth, canvasHeight);
-      heightLeft2 -= pageHeight;
-
-      while (heightLeft2 >= 0) {
-        position2 = heightLeft2 - canvasHeight;
-        pdf2.addPage();
-        pdf2.addImage(imgData, 'PNG', 0, position2, pageWidth, canvasHeight);
-        heightLeft2 -= pageHeight;
+        pdf.addImage(imgData, 'PNG', 0, position, pageWidth, canvasHeight);
+        heightLeft -= pageHeight;
       }
 
-      pdf2.save(getFilename('pdf'));
+      pdf.save(getFilename('pdf'));
     } catch (e) {
       console.error("PDF download failed", e);
       alert("Failed to generate PDF. Try downloading as Text or Word.");
