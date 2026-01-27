@@ -768,6 +768,11 @@ const App: React.FC = () => {
             <button
               key={card.id}
               onClick={() => {
+                 if (card.id === AppMode.ID_CARD && !user) {
+                    setShowAuthModal(true);
+                    return;
+                 }
+                 
                  if (card.id === AppMode.NOTES) {
                     setMode(AppMode.NOTES);
                  } else if (card.id === AppMode.ID_CARD) {
