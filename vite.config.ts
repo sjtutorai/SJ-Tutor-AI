@@ -1,3 +1,4 @@
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -13,7 +14,8 @@ export default defineConfig(({ mode }) => {
       // Polyfill process.env.API_KEY for the browser environment as per global guidelines
       // We explicitly check process.env (for CI/Hosting providers) and env (for local .env files)
       // JSON.stringify is essential to wrap the value in quotes for the browser bundle
-      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || env.API_KEY || 'AIzaSyCjtv7yr53BNmtch6BPKcMCfxcOQEjdVPI'),
+      // Updated to specific user key for Gemini 1.5 Flash access
+      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || env.API_KEY || 'AIzaSyDKIBHKk5-D-Szb4unzxH9vRale0uo-oKw'),
     },
     server: {
       port: 3000,

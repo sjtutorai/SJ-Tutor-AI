@@ -1,4 +1,5 @@
 
+// @ts-ignore
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, GithubAuthProvider, OAuthProvider } from "firebase/auth";
 
