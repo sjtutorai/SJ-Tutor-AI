@@ -6,7 +6,7 @@ import { SettingsService } from "./settingsService";
 export const GeminiService = {
   /**
    * Enhances existing note content based on specific tasks.
-   * Model: gemini-flash-latest
+   * Model: gemini-flash-latest (1.5 Flash)
    */
   processNoteAI: async (content: string, task: 'summarize' | 'simplify' | 'mcq' | 'translate', targetLang?: string) => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -30,7 +30,7 @@ export const GeminiService = {
 
   /**
    * Generates a structural template for a specific topic.
-   * Model: gemini-flash-latest
+   * Model: gemini-flash-latest (1.5 Flash)
    */
   generateNoteTemplate: async (subject: string, chapter: string, templateType: NoteTemplate) => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -58,7 +58,7 @@ export const GeminiService = {
   },
 
   /**
-   * Model: gemini-flash-latest
+   * Model: gemini-flash-latest (1.5 Flash)
    */
   generateSummaryStream: async (data: StudyRequestData) => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -76,16 +76,14 @@ export const GeminiService = {
       Chapter Name: ${data.chapterName}
       ${data.author ? `Author: ${data.author}` : ''}
       
-      Style Preference: ${settings.aiTutor.explanationStyle}
-      
-      Ensure the complexity level is appropriate for the specified Class and Board curriculum.
+      Ensure the difficulty and depth are exactly appropriate for the ${data.gradeClass || settings.learning.grade} ${data.board || settings.learning.board} curriculum.
     `;
 
     const response = await ai.models.generateContentStream({
       model: 'gemini-flash-latest',
       contents: prompt,
       config: {
-        systemInstruction: `You are an expert academic tutor for the ${data.board || settings.learning.board} curriculum. Personality: ${settings.aiTutor.personality}.`,
+        systemInstruction: `You are an expert academic tutor for the ${data.board || settings.learning.board} education system.`,
       }
     });
 
@@ -93,7 +91,7 @@ export const GeminiService = {
   },
 
   /**
-   * Model: gemini-flash-latest
+   * Model: gemini-flash-latest (1.5 Flash)
    */
   generateEssayStream: async (data: StudyRequestData) => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -110,15 +108,13 @@ export const GeminiService = {
       Language: ${language}
       Chapter: ${data.chapterName}
       ${data.author ? `Author: ${data.author}` : ''}
-      
-      Tone: ${settings.aiTutor.personality}
     `;
 
     const response = await ai.models.generateContentStream({
       model: 'gemini-flash-latest',
       contents: prompt,
       config: {
-        systemInstruction: `You are an academic essay writer specializing in ${data.board || settings.learning.board} standards.`,
+        systemInstruction: `You are an academic essay writer. Follow ${data.board || settings.learning.board} academic guidelines.`,
       }
     });
 
@@ -126,27 +122,33 @@ export const GeminiService = {
   },
 
   /**
-   * Model: gemini-2.5-flash-image
+   * Model: imagen-4.0-generate-001
+   * Used for generating educational visuals.
    */
   generateImage: async (promptText: string): Promise<string | null> => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [{ text: `A high-quality, academic-style educational illustration for an essay about: ${promptText}. The style should be professional, clear, and informative.` }]
+      const response = await ai.models.generateImages({
+        model: 'imagen-4.0-generate-001',
+        prompt: `A high-quality educational illustration for: ${promptText}. Professional, clean academic style, 4k resolution.`,
+        config: {
+          numberOfImages: 1,
+          outputMimeType: 'image/jpeg',
+          aspectRatio: '1:1',
         },
-        config: { imageConfig: { aspectRatio: "16:9" } }
       });
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+
+      if (response.generatedImages && response.generatedImages.length > 0) {
+        return `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`;
       }
-    } catch (error) { console.error("Image generation error:", error); }
+    } catch (error) {
+      console.error("Image generation error:", error);
+    }
     return null;
   },
 
   /**
-   * Model: gemini-flash-latest
+   * Model: gemini-flash-latest (1.5 Flash)
    */
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -155,16 +157,14 @@ export const GeminiService = {
     const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
 
     const prompt = `
-      Create a ${count}-question multiple-choice quiz based on the following chapter details.
-      The difficulty level of the questions should be: ${difficulty}.
-      Return the result as a JSON array.
-      
-      IMPORTANT: Randomize the position of the correct answer for every question.
-      
+      Create a ${count}-question multiple-choice quiz based on:
       Subject: ${data.subject}
       Chapter: ${data.chapterName}
       Class: ${data.gradeClass || settings.learning.grade}
-      Education Board: ${data.board || settings.learning.board}
+      Board: ${data.board || settings.learning.board}
+      Difficulty: ${difficulty}
+      
+      Return as a JSON array of objects.
     `;
 
     const response = await ai.models.generateContent({
@@ -193,12 +193,23 @@ export const GeminiService = {
   },
 
   /**
-   * Model: gemini-flash-latest
+   * Model: gemini-flash-latest (1.5 Flash)
+   */
+  createTutorChat: () => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const systemInstruction = SettingsService.getTutorSystemInstruction();
+    return ai.chats.create({
+      model: 'gemini-flash-latest',
+      config: { systemInstruction: systemInstruction }
+    });
+  },
+
+  /**
+   * Model: gemini-flash-latest (1.5 Flash)
    */
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const today = new Date().toDateString();
-    const prompt = `Current Date: ${today}. Goal: Create a study timetable up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
+    const prompt = `Create a study timetable up to ${examDate} for: ${subjects}. Daily limit: ${hoursPerDay} hours. JSON format.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-flash-latest',
@@ -236,59 +247,7 @@ export const GeminiService = {
   },
 
   /**
-   * Model: gemini-flash-latest
-   */
-  updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Update the timetable based on: "${instruction}"\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
-    const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              day: { type: Type.STRING },
-              date: { type: Type.STRING },
-              slots: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    time: { type: Type.STRING },
-                    activity: { type: Type.STRING },
-                    subject: { type: Type.STRING }
-                  },
-                  required: ["time", "activity", "subject"]
-                }
-              }
-            },
-            required: ["day", "date", "slots"]
-          }
-        }
-      }
-    });
-    if (response.text) return JSON.parse(response.text.trim());
-    throw new Error("Failed to update timetable");
-  },
-
-  /**
-   * Model: gemini-flash-latest
-   */
-  createTutorChat: () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const systemInstruction = SettingsService.getTutorSystemInstruction();
-    return ai.chats.create({
-      model: 'gemini-flash-latest',
-      config: { systemInstruction: systemInstruction }
-    });
-  },
-
-  /**
-   * Model: gemini-flash-latest
+   * Model: gemini-flash-latest (1.5 Flash)
    */
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });

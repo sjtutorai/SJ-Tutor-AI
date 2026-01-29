@@ -535,6 +535,8 @@ const App: React.FC = () => {
         errorMessage = "API_DISABLED";
       } else if (errorMessage.includes("API key not valid")) {
         errorMessage = "API_KEY_INVALID_ERROR";
+      } else if (errorMessage.includes("not found")) {
+        errorMessage = "MODEL_NOT_FOUND";
       }
       setError(errorMessage);
     } finally {
@@ -618,22 +620,24 @@ const App: React.FC = () => {
     
     if (error === "API_DISABLED") {
       return (
-        <div className="bg-red-50 border border-red-100 p-4 rounded-lg mb-4 flex flex-col gap-3 animate-in slide-in-from-top-2">
-          <div className="flex items-start gap-2 text-red-800">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+        <div className="bg-red-50 border border-red-100 p-6 rounded-2xl mb-4 flex flex-col gap-4 animate-in slide-in-from-top-2 shadow-sm">
+          <div className="flex items-start gap-3 text-red-800">
+            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+               <AlertCircle className="w-6 h-6" />
+            </div>
             <div>
-              <p className="font-bold text-sm">API Not Enabled</p>
-              <p className="text-xs text-red-600 mt-1">The "Generative Language API" is not enabled in your Google Cloud project.</p>
+              <p className="font-bold text-lg">API Not Enabled</p>
+              <p className="text-sm text-red-600 mt-1">The "Generative Language API" is not enabled in your Google Cloud project. You must enable it to use AI features.</p>
             </div>
           </div>
           <a 
             href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full py-2 bg-red-600 text-white text-xs font-bold rounded-md hover:bg-red-700 transition-colors shadow-sm"
+            className="flex items-center justify-center gap-2 w-full py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-500/20"
           >
             Enable API Now
-            <ExternalLink className="w-3 h-3" />
+            <ExternalLink className="w-4 h-4" />
           </a>
         </div>
       );
@@ -641,20 +645,36 @@ const App: React.FC = () => {
 
     if (error === "API_KEY_INVALID_ERROR") {
       return (
-        <div className="bg-amber-50 border border-amber-100 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 text-amber-800">
-           <AlertCircle className="w-5 h-5 flex-shrink-0" />
+        <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl mb-4 flex items-center gap-3 animate-in slide-in-from-top-2 text-amber-800">
+           <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <Key className="w-4 h-4" />
+           </div>
            <div>
              <p className="font-bold text-sm">Invalid API Key</p>
-             <p className="text-xs mt-1">Please check your configuration or contact support.</p>
+             <p className="text-xs mt-0.5">Please check your configuration or contact support.</p>
+           </div>
+        </div>
+      );
+    }
+
+    if (error === "MODEL_NOT_FOUND") {
+       return (
+        <div className="bg-slate-100 border border-slate-200 p-4 rounded-xl mb-4 flex items-center gap-3 animate-in slide-in-from-top-2 text-slate-800">
+           <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-4 h-4" />
+           </div>
+           <div>
+             <p className="font-bold text-sm">Model Not Accessible</p>
+             <p className="text-xs mt-0.5">Gemini 1.5 Flash is not available in your region or for your API key.</p>
            </div>
         </div>
       );
     }
 
     return (
-      <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+      <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-4 flex items-center gap-3 animate-in slide-in-from-top-2 border border-red-100">
         <AlertCircle className="w-5 h-5 flex-shrink-0" />
-        <p className="text-sm">{error}</p>
+        <p className="text-sm font-medium">{error}</p>
       </div>
     );
   };
@@ -905,13 +925,13 @@ const App: React.FC = () => {
         }
         return (
           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {renderError()}
             <InputForm
               data={formData}
               mode={AppMode.SUMMARY}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
             />
-            {renderError()}
             <button
               onClick={handleGenerate}
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
@@ -939,13 +959,13 @@ const App: React.FC = () => {
         }
         return (
           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {renderError()}
             <InputForm
               data={formData}
               mode={AppMode.ESSAY}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
             />
-            {renderError()}
             <button
               onClick={handleGenerate}
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
@@ -973,13 +993,13 @@ const App: React.FC = () => {
         }
         return (
           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {renderError()}
             <InputForm
               data={formData}
               mode={AppMode.QUIZ}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
             />
-            {renderError()}
             <button
               onClick={handleGenerate}
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
