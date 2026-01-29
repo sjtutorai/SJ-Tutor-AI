@@ -9,7 +9,7 @@ const API_KEY = 'AIzaSyDKIBHKk5-D-Szb4unzxH9vRale0uo-oKw';
 export const GeminiService = {
   /**
    * Enhances existing note content based on specific tasks.
-   * Model: gemini-1.5-flash
+   * Model: gemini-2.0-flash-exp
    */
   processNoteAI: async (content: string, task: 'summarize' | 'simplify' | 'mcq' | 'translate', targetLang?: string) => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -23,7 +23,7 @@ export const GeminiService = {
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
       config: {
         systemInstruction: "You are an AI study assistant. Help students organize and understand their notes better."
@@ -35,7 +35,7 @@ export const GeminiService = {
 
   /**
    * Generates a structural template for a specific topic.
-   * Model: gemini-1.5-flash
+   * Model: gemini-2.0-flash-exp
    */
   generateNoteTemplate: async (subject: string, chapter: string, templateType: NoteTemplate) => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -55,7 +55,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: prompt,
     });
 
@@ -63,7 +63,7 @@ export const GeminiService = {
   },
 
   /**
-   * Model: gemini-1.5-flash
+   * Model: gemini-2.0-flash-exp
    */
   generateSummaryStream: async (data: StudyRequestData) => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -85,7 +85,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: prompt,
       config: {
         systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}.`,
@@ -96,7 +96,7 @@ export const GeminiService = {
   },
 
   /**
-   * Model: gemini-1.5-flash
+   * Model: gemini-2.0-flash-exp
    */
   generateEssayStream: async (data: StudyRequestData) => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -116,7 +116,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: prompt,
       config: {
         systemInstruction: `You are an academic essay writer. Tone: ${settings.aiTutor.personality}.`,
@@ -147,7 +147,7 @@ export const GeminiService = {
   },
 
   /**
-   * Model: gemini-1.5-flash
+   * Model: gemini-2.0-flash-exp
    */
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -169,7 +169,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -194,7 +194,7 @@ export const GeminiService = {
   },
 
   /**
-   * Model: gemini-1.5-flash
+   * Model: gemini-2.0-flash-exp
    */
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -202,7 +202,7 @@ export const GeminiService = {
     const prompt = `Current Date: ${today}. Goal: Create a study timetable up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -237,13 +237,13 @@ export const GeminiService = {
   },
 
   /**
-   * Model: gemini-1.5-flash
+   * Model: gemini-2.0-flash-exp
    */
   updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     const prompt = `Update the timetable based on: "${instruction}"\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -277,26 +277,26 @@ export const GeminiService = {
   },
 
   /**
-   * Model: gemini-1.5-flash
+   * Model: gemini-2.0-flash-exp
    */
   createTutorChat: () => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-exp',
       config: { systemInstruction: systemInstruction }
     });
   },
 
   /**
-   * Model: gemini-1.5-flash
+   * Model: gemini-2.0-flash-exp
    */
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
