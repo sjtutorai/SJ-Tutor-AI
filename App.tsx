@@ -613,6 +613,52 @@ const App: React.FC = () => {
     }
   };
 
+  const renderError = () => {
+    if (!error) return null;
+    
+    if (error === "API_DISABLED") {
+      return (
+        <div className="bg-red-50 border border-red-100 p-4 rounded-lg mb-4 flex flex-col gap-3 animate-in slide-in-from-top-2">
+          <div className="flex items-start gap-2 text-red-800">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-sm">API Not Enabled</p>
+              <p className="text-xs text-red-600 mt-1">The "Generative Language API" is not enabled in your Google Cloud project.</p>
+            </div>
+          </div>
+          <a 
+            href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full py-2 bg-red-600 text-white text-xs font-bold rounded-md hover:bg-red-700 transition-colors shadow-sm"
+          >
+            Enable API Now
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      );
+    }
+
+    if (error === "API_KEY_INVALID_ERROR") {
+      return (
+        <div className="bg-amber-50 border border-amber-100 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 text-amber-800">
+           <AlertCircle className="w-5 h-5 flex-shrink-0" />
+           <div>
+             <p className="font-bold text-sm">Invalid API Key</p>
+             <p className="text-xs mt-1">Please check your configuration or contact support.</p>
+           </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+        <AlertCircle className="w-5 h-5 flex-shrink-0" />
+        <p className="text-sm">{error}</p>
+      </div>
+    );
+  };
+
   const navItems = [
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: AppMode.ID_CARD, label: 'Student ID Card', icon: CreditCard },
@@ -865,12 +911,7 @@ const App: React.FC = () => {
               onChange={handleFormChange}
               onFillSample={handleFillSample}
             />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
-            )}
+            {renderError()}
             <button
               onClick={handleGenerate}
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
@@ -904,12 +945,7 @@ const App: React.FC = () => {
               onChange={handleFormChange}
               onFillSample={handleFillSample}
             />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
-            )}
+            {renderError()}
             <button
               onClick={handleGenerate}
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
@@ -943,12 +979,7 @@ const App: React.FC = () => {
               onChange={handleFormChange}
               onFillSample={handleFillSample}
             />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
-            )}
+            {renderError()}
             <button
               onClick={handleGenerate}
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
