@@ -3,18 +3,13 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
 import { SettingsService } from "./settingsService";
 
-// Explicitly using the user provided key to prevent environment variable issues
-const API_KEY = 'AIzaSyDKIBHKk5-D-Szb4unzxH9vRale0uo-oKw';
-
 export const GeminiService = {
   /**
    * Enhances existing note content based on specific tasks.
    * Model: gemini-3-flash-preview
    */
   processNoteAI: async (content: string, task: 'summarize' | 'simplify' | 'mcq' | 'translate', targetLang?: string) => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
-    const settings = SettingsService.getSettings();
-
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const taskPrompts = {
       summarize: "Create a bulleted 'Revision Box' summary for the following note. Focus on key definitions and dates.",
       simplify: "Rewrite this note in very simple English (and Hindi if relevant) so a younger student can understand it perfectly.",
@@ -38,7 +33,7 @@ export const GeminiService = {
    * Model: gemini-3-flash-preview
    */
   generateNoteTemplate: async (subject: string, chapter: string, templateType: NoteTemplate) => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const prompt = `
       Create a highly structured academic template for a study note.
@@ -66,7 +61,7 @@ export const GeminiService = {
    * Model: gemini-3-flash-preview
    */
   generateSummaryStream: async (data: StudyRequestData) => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
@@ -76,7 +71,7 @@ export const GeminiService = {
       
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
-      Education Board: ${data.board}
+      Education Board: ${data.board || settings.learning.board}
       Language: ${language}
       Chapter Name: ${data.chapterName}
       ${data.author ? `Author: ${data.author}` : ''}
@@ -99,7 +94,7 @@ export const GeminiService = {
    * Model: gemini-3-flash-preview
    */
   generateEssayStream: async (data: StudyRequestData) => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
@@ -109,7 +104,7 @@ export const GeminiService = {
       
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
-      Board: ${data.board}
+      Board: ${data.board || settings.learning.board}
       Language: ${language}
       Chapter: ${data.chapterName}
       ${data.author ? `Author: ${data.author}` : ''}
@@ -130,7 +125,7 @@ export const GeminiService = {
    * Model: gemini-2.5-flash-image
    */
   generateImage: async (promptText: string): Promise<string | null> => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
@@ -150,7 +145,7 @@ export const GeminiService = {
    * Model: gemini-3-flash-preview
    */
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const settings = SettingsService.getSettings();
     const count = data.questionCount || 5;
     const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
@@ -165,7 +160,7 @@ export const GeminiService = {
       Subject: ${data.subject}
       Chapter: ${data.chapterName}
       Class: ${data.gradeClass || settings.learning.grade}
-      Board: ${data.board}
+      Board: ${data.board || settings.learning.board}
     `;
 
     const response = await ai.models.generateContent({
@@ -197,7 +192,7 @@ export const GeminiService = {
    * Model: gemini-3-flash-preview
    */
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const today = new Date().toDateString();
     const prompt = `Current Date: ${today}. Goal: Create a study timetable up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
@@ -240,7 +235,7 @@ export const GeminiService = {
    * Model: gemini-3-flash-preview
    */
   updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `Update the timetable based on: "${instruction}"\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -280,7 +275,7 @@ export const GeminiService = {
    * Model: gemini-3-flash-preview
    */
   createTutorChat: () => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
       model: 'gemini-3-flash-preview',
@@ -292,7 +287,7 @@ export const GeminiService = {
    * Model: gemini-3-flash-preview
    */
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
