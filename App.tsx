@@ -531,7 +531,7 @@ const App: React.FC = () => {
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
-      } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
+      } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED") || errorMessage.includes("Forbidden")) {
         errorMessage = "API_DISABLED";
       } else if (errorMessage.includes("API key not valid")) {
         errorMessage = "API_KEY_INVALID_ERROR";
