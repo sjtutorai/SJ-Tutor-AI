@@ -3,30 +3,29 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
 import { SettingsService } from "./settingsService";
 
+// Hardcoded key to ensure correct project usage
+const API_KEY = "AIzaSyB1wRK6kjhV6R8ZUt1qavuXbuO-0MeVpBA";
+
 export const GeminiService = {
   /**
    * Enhances existing note content based on specific tasks.
-   * Model: gemini-3-flash-preview
    */
   processNoteAI: async (content: string, task: 'summarize' | 'simplify' | 'mcq' | 'translate', targetLang?: string) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     const settings = SettingsService.getSettings();
-    
-    const context = `Subject: ${settings.learning.preferredSubject}, Class: ${settings.learning.grade}, Board: ${settings.learning.board}`;
-    
+
     const taskPrompts = {
-      summarize: `Create a bulleted 'Revision Box' summary. Context: ${context}. Focus on definitions and board-relevant facts.`,
-      simplify: `Rewrite in simple English for a student in ${settings.learning.grade}. Context: ${context}.`,
-      mcq: `Generate 5 high-quality MCQs based on ${settings.learning.board} board patterns. Context: ${context}.`,
-      translate: `Translate to ${targetLang || 'Hindi'} while keeping academic terms from the ${settings.learning.board} curriculum.`
+      summarize: "Create a bulleted 'Revision Box' summary for the following note. Focus on key definitions and dates.",
+      simplify: "Rewrite this note in very simple English (and Hindi if relevant) so a younger student can understand it perfectly.",
+      mcq: "Generate 5 high-quality Multiple Choice Questions with answers based ONLY on this note content. Return as Markdown list.",
+      translate: `Translate this note professionally into ${targetLang || 'Hindi'}, maintaining academic terminology where appropriate.`
     };
 
-    // Use gemini-3-flash-preview for text tasks as per guidelines
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
       config: {
-        systemInstruction: `You are an AI study assistant specializing in the ${settings.learning.board} curriculum for ${settings.learning.grade}.`
+        systemInstruction: "You are an AI study assistant. Help students organize and understand their notes better."
       }
     });
 
@@ -35,27 +34,24 @@ export const GeminiService = {
 
   /**
    * Generates a structural template for a specific topic.
-   * Model: gemini-3-flash-preview
    */
   generateNoteTemplate: async (subject: string, chapter: string, templateType: NoteTemplate) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const settings = SettingsService.getSettings();
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     
     const prompt = `
       Create a highly structured academic template for a study note.
       Subject: ${subject}
       Chapter: ${chapter}
       Template Type: ${templateType}
-      Target Class: ${settings.learning.grade}
-      Education Board: ${settings.learning.board}
 
       Requirements:
-      - Use Markdown headings.
+      - Use Markdown headings (# , ##).
       - Include placeholders like [WRITE HERE].
-      - Align content with ${settings.learning.board} board standards.
+      - For "Formula Sheet", use a table format.
+      - For "Q&A", list 5 most important questions for this chapter based on standard board exams (CBSE/ICSE).
+      - Include a "Key Points" and "Summary" section.
     `;
 
-    // Updated model to gemini-3-flash-preview
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -64,113 +60,100 @@ export const GeminiService = {
     return response.text;
   },
 
-  /**
-   * Model: gemini-3-flash-preview
-   */
   generateSummaryStream: async (data: StudyRequestData) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
     const prompt = `
-      Create a comprehensive, structured summary for:
+      Create a comprehensive, structured summary for the following study material.
+      Use clear headings, bullet points for key concepts, and a bold conclusion.
+      
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
-      Education Board: ${data.board || settings.learning.board}
+      Education Board: ${data.board}
       Language: ${language}
       Chapter Name: ${data.chapterName}
-      ${data.author ? `Author/Publisher: ${data.author}` : ''}
+      ${data.author ? `Author: ${data.author}` : ''}
       
-      Ensure the summary follows the depth and pattern required by the ${data.board || settings.learning.board} board for ${data.gradeClass || settings.learning.grade}.
+      Style Preference: ${settings.aiTutor.explanationStyle}
     `;
 
-    // Updated model to gemini-3-flash-preview
-    return await ai.models.generateContentStream({
+    const response = await ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: `You are a high-level academic summary generator specializing in the ${data.board || settings.learning.board} system.`,
+        systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}.`,
       }
     });
+
+    return response;
   },
 
-  /**
-   * Model: gemini-3-flash-preview
-   */
   generateEssayStream: async (data: StudyRequestData) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
     const prompt = `
-      Write a detailed, academic essay.
+      Write a detailed, academic essay based on the topics covered in this chapter.
+      The essay should have a proper introduction, body paragraphs analyzing key themes, and a conclusion.
+      
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
-      Education Board: ${data.board || settings.learning.board}
+      Board: ${data.board}
       Language: ${language}
-      Topic/Chapter: ${data.chapterName}
-      
-      Structure: Introduction, Body Paragraphs, and Conclusion.
-      Standard: Professional academic writing for ${data.board || settings.learning.board} Board.
+      Chapter: ${data.chapterName}
+      ${data.author ? `Author: ${data.author}` : ''}
     `;
 
-    // Updated model to gemini-3-flash-preview
-    return await ai.models.generateContentStream({
+    const response = await ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: `You are an expert essayist for school students in the ${data.board || settings.learning.board} board.`,
+        systemInstruction: `You are an academic essay writer. Tone: ${settings.aiTutor.personality}.`,
       }
     });
+
+    return response;
   },
 
-  /**
-   * Model: imagen-4.0-generate-001
-   */
   generateImage: async (promptText: string): Promise<string | null> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     try {
-      // Use generateImages for Imagen models as per guidelines
-      const response = await ai.models.generateImages({
-        model: 'imagen-4.0-generate-001',
-        prompt: `A high-quality educational illustration for an academic study on: ${promptText}. Professional, clean, and textbook-style.`,
-        config: {
-          numberOfImages: 1,
-          outputMimeType: 'image/jpeg',
-          aspectRatio: '1:1',
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [{ text: `A high-quality, academic-style educational illustration for an essay about: ${promptText}. The style should be professional, clear, and informative.` }]
         },
+        config: { imageConfig: { aspectRatio: "16:9" } }
       });
-
-      if (response.generatedImages?.[0]?.image?.imageBytes) {
-        return `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`;
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
       }
-    } catch (error) {
-      console.error("Image generation error:", error);
-    }
+    } catch (error) { console.error("Image generation error:", error); }
     return null;
   },
 
-  /**
-   * Model: gemini-3-flash-preview
-   */
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     const settings = SettingsService.getSettings();
     const count = data.questionCount || 5;
     const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
 
     const prompt = `
-      Create a ${count}-question MCQ quiz.
+      Create a ${count}-question multiple-choice quiz based on the following chapter details.
+      The difficulty level of the questions should be: ${difficulty}.
+      Return the result as a JSON array.
+      
+      IMPORTANT: Randomize the position of the correct answer for every question.
+      
       Subject: ${data.subject}
       Chapter: ${data.chapterName}
       Class: ${data.gradeClass || settings.learning.grade}
-      Education Board: ${data.board || settings.learning.board}
-      Difficulty Level: ${difficulty}
-      
-      Return the response strictly as a JSON array of objects.
+      Board: ${data.board}
     `;
 
-    // Updated model to gemini-3-flash-preview
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -193,37 +176,14 @@ export const GeminiService = {
     });
 
     if (response.text) return JSON.parse(response.text.trim());
-    throw new Error("Failed to generate quiz data.");
+    throw new Error("Failed to generate quiz data");
   },
 
-  /**
-   * Model: gemini-3-flash-preview
-   */
-  createTutorChat: () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const systemInstruction = SettingsService.getTutorSystemInstruction();
-    // Updated model to gemini-3-flash-preview
-    return ai.chats.create({
-      model: 'gemini-3-flash-preview',
-      config: { systemInstruction: systemInstruction }
-    });
-  },
-
-  /**
-   * Model: gemini-3-flash-preview
-   */
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const settings = SettingsService.getSettings();
-    const prompt = `
-      Create a study schedule for a student in ${settings.learning.grade} (${settings.learning.board} Board).
-      Exam Date: ${examDate}.
-      Subjects: ${subjects}.
-      Hours/Day: ${hoursPerDay}.
-      Output JSON format.
-    `;
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const today = new Date().toDateString();
+    const prompt = `Current Date: ${today}. Goal: Create a study timetable up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
-    // Updated model to gemini-3-flash-preview
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -256,18 +216,59 @@ export const GeminiService = {
     });
 
     if (response.text) return JSON.parse(response.text.trim());
-    throw new Error("Failed to generate timetable.");
+    throw new Error("Failed to generate timetable");
   },
 
-  /**
-   * Model: gemini-3-flash-preview
-   */
+  updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const prompt = `Update the timetable based on: "${instruction}"\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              day: { type: Type.STRING },
+              date: { type: Type.STRING },
+              slots: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    time: { type: Type.STRING },
+                    activity: { type: Type.STRING },
+                    subject: { type: Type.STRING }
+                  },
+                  required: ["time", "activity", "subject"]
+                }
+              }
+            },
+            required: ["day", "date", "slots"]
+          }
+        }
+      }
+    });
+    if (response.text) return JSON.parse(response.text.trim());
+    throw new Error("Failed to update timetable");
+  },
+
+  createTutorChat: () => {
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const systemInstruction = SettingsService.getTutorSystemInstruction();
+    return ai.chats.create({
+      model: 'gemini-3-flash-preview',
+      config: { systemInstruction: systemInstruction }
+    });
+  },
+
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-    const prompt = `Analyze this payment screenshot for the ${planName} plan. Check for: Payee SHIVABASAVARAJ SADASHIVAPPA JYOTI, Amount ₹${price}, and Status SUCCESS. Return JSON {isValid, reason}.`;
-    
-    // Updated model to gemini-3-flash-preview
+    const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
@@ -289,6 +290,6 @@ export const GeminiService = {
       }
     });
     if (response.text) return JSON.parse(response.text.trim());
-    throw new Error("Payment verification failed.");
+    throw new Error("Failed to analyze image");
   }
 };

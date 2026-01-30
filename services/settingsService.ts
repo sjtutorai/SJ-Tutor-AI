@@ -62,11 +62,10 @@ export const SettingsService = {
       Answer Format: ${s.aiTutor.answerFormat}.
       Language Preference: ${s.learning.language}.
       Student Grade/Class: ${s.learning.grade}.
-      Education Board: ${s.learning.board}.
       
       ${s.aiTutor.followUp ? "Always ask a relevant follow-up question to check understanding." : ""}
       
-      Goal: Help the student learn effectively based on their specific curriculum.
+      Goal: Help the student learn effectively.
     `;
   }
 };
