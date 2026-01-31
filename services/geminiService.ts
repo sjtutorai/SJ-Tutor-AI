@@ -4,7 +4,7 @@ import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "..
 import { SettingsService } from "./settingsService";
 
 // Hardcoded key to ensure correct project usage
-const API_KEY = "AIzaSyB1wRK6kjhV6R8ZUt1qavuXbuO-0MeVpBA";
+const API_KEY = "AIzaSyAWUUjJoFFlpZAyVcCNUEIzFE4ojeeHMsM";
 
 export const GeminiService = {
   /**
