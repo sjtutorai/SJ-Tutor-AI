@@ -64,10 +64,20 @@ export const GeminiService = {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
+    const summaryType = data.summaryType || 'Detailed';
+
+    let specificInstruction = "";
+    if (summaryType === 'Brief') {
+        specificInstruction = "Keep it concise. Focus only on the absolute core concepts. Maximum 300 words. Use bullet points.";
+    } else if (summaryType === 'Paragraph') {
+        specificInstruction = "Write in continuous, well-structured paragraphs. Tell a flowing narrative of the concepts. Avoid bullet points where possible.";
+    } else {
+        specificInstruction = "Create a comprehensive, detailed summary. Use clear headings, bullet points for key concepts, definitions, and in-depth analysis of main topics.";
+    }
 
     const prompt = `
-      Create a comprehensive, structured summary for the following study material.
-      Use clear headings, bullet points for key concepts, and a bold conclusion.
+      Task: Create a ${summaryType} Summary for the following study material.
+      Instruction: ${specificInstruction}
       
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
