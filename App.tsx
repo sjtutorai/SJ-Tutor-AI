@@ -12,6 +12,7 @@ import LoadingState from './components/LoadingState';
 import NotesView from './components/NotesView';
 import SettingsView from './components/SettingsView';
 import AboutView from './components/AboutView';
+import IdCardView from './components/IdCardView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
@@ -39,7 +40,8 @@ import {
   ExternalLink,
   Settings,
   Info,
-  Share2
+  Share2,
+  CreditCard
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -613,6 +615,7 @@ const App: React.FC = () => {
 
   const navItems = [
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
+    { id: AppMode.ID_CARD, label: 'Student ID Card', icon: CreditCard },
     { id: AppMode.SUMMARY, label: 'Summary Generator', icon: FileText },
     { id: AppMode.QUIZ, label: 'Quiz Creator', icon: BrainCircuit },
     { id: AppMode.ESSAY, label: 'Essay Writer', icon: BookOpen },
@@ -639,6 +642,7 @@ const App: React.FC = () => {
     };
 
     const dashboardCards = [
+      { id: AppMode.ID_CARD, label: 'My ID Card', count: null, icon: CreditCard, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-[#FDF5E6] dark:bg-indigo-900/30' },
       { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
@@ -764,8 +768,15 @@ const App: React.FC = () => {
             <button
               key={card.id}
               onClick={() => {
+                 if (card.id === AppMode.ID_CARD && !user) {
+                    setShowAuthModal(true);
+                    return;
+                 }
+                 
                  if (card.id === AppMode.NOTES) {
                     setMode(AppMode.NOTES);
+                 } else if (card.id === AppMode.ID_CARD) {
+                    setMode(AppMode.ID_CARD);
                  } else {
                     setDashboardView(card.id as any);
                  }
@@ -779,7 +790,7 @@ const App: React.FC = () => {
                  <div className={`p-2.5 rounded-lg shadow-sm ${card.color} ${card.bg}`}>
                     <card.icon className="w-5 h-5" />
                  </div>
-                 <span className="text-2xl font-bold text-slate-800 dark:text-white">{card.count}</span>
+                 {card.count !== null && <span className="text-2xl font-bold text-slate-800 dark:text-white">{card.count}</span>}
               </div>
               <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10">{card.label}</h4>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1 relative z-10">
@@ -821,6 +832,16 @@ const App: React.FC = () => {
       case AppMode.DASHBOARD:
         return renderDashboard();
       
+      case AppMode.ID_CARD:
+        return (
+          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <IdCardView 
+              userProfile={userProfile}
+              email={user?.email || 'Guest User'}
+            />
+          </div>
+        );
+
       case AppMode.SUMMARY:
         if (summaryContent) {
           return (

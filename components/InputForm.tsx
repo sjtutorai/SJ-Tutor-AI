@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { StudyRequestData, AppMode, DifficultyLevel, SummaryType } from '../types';
-import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Image as ImageIcon, Crown, FileText } from 'lucide-react';
+import { StudyRequestData, AppMode, DifficultyLevel } from '../types';
+import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Image as ImageIcon, Crown } from 'lucide-react';
 
 interface InputFormProps {
   data: StudyRequestData;
@@ -104,26 +104,6 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
         {renderInput("Language", "language", Languages, "e.g. English")}
         {renderInput("Chapter Name", "chapterName", BookOpen, "e.g. The French Revolution")}
         {renderInput("Author (Optional)", "author", User, "e.g. NCERT")}
-
-        {/* Summary Specific Options */}
-        {mode === AppMode.SUMMARY && (
-           <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Summary Style</label>
-              <div className="relative">
-                <FileText className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                <select
-                  value={data.summaryType || 'Detailed'}
-                  onChange={(e) => onChange('summaryType', e.target.value as SummaryType)}
-                  disabled={disabled}
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 appearance-none text-slate-900 text-sm"
-                >
-                  <option value="Detailed">Detailed Summary (Bulleted)</option>
-                  <option value="Paragraph">Paragraph Summary (Narrative)</option>
-                  <option value="Brief">Brief Summary (Concise)</option>
-                </select>
-              </div>
-            </div>
-        )}
 
         {/* Quiz Specific Options */}
         {mode === AppMode.QUIZ && (

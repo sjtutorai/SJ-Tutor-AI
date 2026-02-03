@@ -1,10 +1,9 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
 import { SettingsService } from "./settingsService";
 
 // Hardcoded key to ensure correct project usage
-const API_KEY = "AIzaSyAWUUjJoFFlpZAyVcCNUEIzFE4ojeeHMsM";
+const API_KEY = "AIzaSyAHVct6JwrWek6SXPquDEReG4qHKmo0-d4";
 
 export const GeminiService = {
   /**
@@ -64,20 +63,10 @@ export const GeminiService = {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
-    const summaryType = data.summaryType || 'Detailed';
-
-    let specificInstruction = "";
-    if (summaryType === 'Brief') {
-        specificInstruction = "Keep it concise. Focus only on the absolute core concepts. Maximum 300 words. Use bullet points.";
-    } else if (summaryType === 'Paragraph') {
-        specificInstruction = "Write in continuous, well-structured paragraphs. Tell a flowing narrative of the concepts. Avoid bullet points where possible.";
-    } else {
-        specificInstruction = "Create a comprehensive, detailed summary. Use clear headings, bullet points for key concepts, definitions, and in-depth analysis of main topics.";
-    }
 
     const prompt = `
-      Task: Create a ${summaryType} Summary for the following study material.
-      Instruction: ${specificInstruction}
+      Create a comprehensive, structured summary for the following study material.
+      Use clear headings, bullet points for key concepts, and a bold conclusion.
       
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}

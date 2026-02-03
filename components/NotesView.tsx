@@ -5,11 +5,10 @@ import {
   Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, 
   StickyNote, Bell, Edit3, Loader2, Edit, Share2, Folder, 
   ChevronRight, Star, Tag, Book, Lightbulb, Languages, Download, MoreVertical,
-  CheckCircle2, Circle, Timer
+  CheckCircle2, Circle
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
-import StudyTimer from './StudyTimer';
 
 interface NotesViewProps {
   userId: string | null;
@@ -17,7 +16,7 @@ interface NotesViewProps {
 }
 
 const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
-  const [activeTab, setActiveTab] = useState<'NOTES' | 'REMINDERS' | 'TIMETABLE' | 'TIMER'>('NOTES');
+  const [activeTab, setActiveTab] = useState<'NOTES' | 'REMINDERS' | 'TIMETABLE'>('NOTES');
   const [viewMode, setViewMode] = useState<'SUBJECTS' | 'LIST' | 'EDITOR'>('SUBJECTS');
   
   // States
@@ -37,6 +36,8 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   const [examSubjects, setExamSubjects] = useState('');
   const [studyHours, setStudyHours] = useState(4);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showEditTimetable, setShowEditTimetable] = useState(false);
+  const [editInstruction, setEditInstruction] = useState('');
 
   // Load/Persist
   useEffect(() => {
@@ -141,17 +142,16 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Navigation Tabs */}
-      <div className="flex p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm overflow-x-auto">
-        {['NOTES', 'REMINDERS', 'TIMETABLE', 'TIMER'].map((tab) => (
+      <div className="flex p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
+        {['NOTES', 'REMINDERS', 'TIMETABLE'].map((tab) => (
           <button 
             key={tab}
             onClick={() => setActiveTab(tab as any)}
-            className={`flex-1 min-w-[80px] py-3 text-xs font-bold flex items-center justify-center gap-2 rounded-lg transition-all ${activeTab === tab ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+            className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 rounded-lg transition-all ${activeTab === tab ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 shadow-sm' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
           >
             {tab === 'NOTES' && <StickyNote className="w-4 h-4" />}
             {tab === 'REMINDERS' && <Bell className="w-4 h-4" />}
             {tab === 'TIMETABLE' && <Calendar className="w-4 h-4" />}
-            {tab === 'TIMER' && <Timer className="w-4 h-4" />}
             {tab}
           </button>
         ))}
@@ -348,7 +348,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
           </div>
         )}
 
-        {/* --- REMINDERS TAB --- */}
+        {/* --- REMINDERS TAB --- (Preserved Logic) */}
         {activeTab === 'REMINDERS' && (
           <div className="max-w-3xl mx-auto animate-in fade-in duration-300">
              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-6">
@@ -418,7 +418,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
           </div>
         )}
 
-        {/* --- TIMETABLE TAB --- */}
+        {/* --- TIMETABLE TAB --- (Preserved Logic) */}
         {activeTab === 'TIMETABLE' && (
           <div className="animate-in fade-in duration-300">
             {timetable.length === 0 && !isGenerating ? (
@@ -483,13 +483,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                 ))}
               </div>
             )}
-          </div>
-        )}
-
-        {/* --- TIMER TAB (NEW) --- */}
-        {activeTab === 'TIMER' && (
-          <div className="animate-in fade-in duration-300 flex justify-center py-10">
-             <StudyTimer />
           </div>
         )}
       </div>
