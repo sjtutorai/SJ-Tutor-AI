@@ -3,12 +3,15 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
 import { SettingsService } from "./settingsService";
 
+// Helper to initialize AI client, ensuring a fresh instance for each call.
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+
 export const GeminiService = {
   /**
    * Enhances existing note content based on specific tasks.
    */
   processNoteAI: async (content: string, task: 'summarize' | 'simplify' | 'mcq' | 'translate', targetLang?: string) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const settings = SettingsService.getSettings();
 
     const taskPrompts = {
@@ -33,7 +36,7 @@ export const GeminiService = {
    * Generates a structural template for a specific topic.
    */
   generateNoteTemplate: async (subject: string, chapter: string, templateType: NoteTemplate) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     
     const prompt = `
       Create a highly structured academic template for a study note.
@@ -58,7 +61,7 @@ export const GeminiService = {
   },
 
   generateSummaryStream: async (data: StudyRequestData) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
@@ -88,7 +91,7 @@ export const GeminiService = {
   },
 
   generateEssayStream: async (data: StudyRequestData) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
@@ -116,7 +119,7 @@ export const GeminiService = {
   },
 
   generateImage: async (promptText: string): Promise<string | null> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
@@ -133,7 +136,7 @@ export const GeminiService = {
   },
 
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const settings = SettingsService.getSettings();
     const count = data.questionCount || 5;
     const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
@@ -177,7 +180,7 @@ export const GeminiService = {
   },
 
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const today = new Date().toDateString();
     const prompt = `Current Date: ${today}. Goal: Create a study timetable up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
@@ -217,7 +220,7 @@ export const GeminiService = {
   },
 
   updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const prompt = `Update the timetable based on: "${instruction}"\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -254,7 +257,7 @@ export const GeminiService = {
   },
 
   createTutorChat: () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
       model: 'gemini-3-flash-preview',
@@ -263,7 +266,7 @@ export const GeminiService = {
   },
 
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
