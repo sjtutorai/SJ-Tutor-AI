@@ -1,3 +1,4 @@
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -13,7 +14,7 @@ export default defineConfig(({ mode }) => {
       // Polyfill process.env.API_KEY for the browser environment as per global guidelines
       // We explicitly check process.env (for CI/Hosting providers) and env (for local .env files)
       // JSON.stringify is essential to wrap the value in quotes for the browser bundle
-      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || env.API_KEY || 'AIzaSyCjtv7yr53BNmtch6BPKcMCfxcOQEjdVPI'),
+      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || env.API_KEY || 'AIzaSyADJY5NT5HYizMDSYOn0slxEgG1ulk-TB8'),
     },
     server: {
       port: 3000,
