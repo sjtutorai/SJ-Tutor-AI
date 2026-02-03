@@ -13,7 +13,6 @@ export enum AppMode {
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
-export type SummaryType = 'Detailed' | 'Paragraph' | 'Brief';
 
 export interface StudyRequestData {
   subject: string;
@@ -25,7 +24,6 @@ export interface StudyRequestData {
   questionCount?: number;
   difficulty?: DifficultyLevel;
   includeImages?: boolean;
-  summaryType?: SummaryType;
 }
 
 export interface QuizQuestion {
@@ -144,7 +142,6 @@ export const INITIAL_FORM_DATA: StudyRequestData = {
   questionCount: 5,
   difficulty: 'Medium',
   includeImages: false,
-  summaryType: 'Detailed',
 };
 
 export const DEFAULT_SETTINGS: UserSettings = {
