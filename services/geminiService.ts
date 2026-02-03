@@ -61,10 +61,20 @@ export const GeminiService = {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
+    const summaryType = data.summaryType || 'Detailed';
+
+    let specificInstruction = "";
+    if (summaryType === 'Brief') {
+        specificInstruction = "Keep it extremely concise. Focus only on the absolute core concepts. Maximum 200-300 words. Use minimal bullet points.";
+    } else if (summaryType === 'Paragraph') {
+        specificInstruction = "Write in continuous, well-structured paragraphs. Tell a flowing narrative of the concepts. Avoid bullet points entirely.";
+    } else {
+        specificInstruction = "Create a comprehensive, detailed summary. Use clear headings, bullet points for key concepts, definitions, and in-depth analysis of main topics.";
+    }
 
     const prompt = `
-      Create a comprehensive, structured summary for the following study material.
-      Use clear headings, bullet points for key concepts, and a bold conclusion.
+      Task: Create a ${summaryType} Summary for the following study material.
+      Instruction: ${specificInstruction}
       
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
@@ -253,9 +263,14 @@ export const GeminiService = {
     throw new Error("Failed to update timetable");
   },
 
-  createTutorChat: () => {
+  createTutorChat: (context?: StudyRequestData) => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const systemInstruction = SettingsService.getTutorSystemInstruction();
+    let systemInstruction = SettingsService.getTutorSystemInstruction();
+    
+    if (context && context.subject) {
+      systemInstruction += `\n\nCURRENT ACADEMIC CONTEXT:\nSubject: ${context.subject}\nGrade: ${context.gradeClass}\nBoard: ${context.board}\nChapter: ${context.chapterName}`;
+    }
+    
     return ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: { systemInstruction: systemInstruction }

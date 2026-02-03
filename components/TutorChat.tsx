@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage, SJTUTOR_AVATAR } from '../types';
+import { ChatMessage, StudyRequestData, SJTUTOR_AVATAR } from '../types';
 import { GeminiService } from '../services/geminiService';
-import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle, ExternalLink, Share2 } from 'lucide-react';
+import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle, ExternalLink, Share2, BookOpen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Chat, GenerateContentResponse } from "@google/genai";
 
@@ -22,13 +22,16 @@ const SAMPLE_QUESTIONS = [
 interface TutorChatProps {
   onDeductCredit: (amount: number) => boolean;
   currentCredits: number;
+  context: StudyRequestData;
 }
 
-const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits }) => {
+const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, context }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'model',
-      text: "Hi there! I'm SJ Tutor AI. I can help you understand complex topics, solve problems, or just clarify your doubts. What are we studying today?",
+      text: context.subject 
+        ? `Hi! I'm SJ Tutor AI. I'm ready to help you with **${context.subject}** (${context.gradeClass}). What specific part of **${context.chapterName || 'the syllabus'}** would you like to discuss?`
+        : "Hi there! I'm SJ Tutor AI. I can help you understand complex topics, solve problems, or just clarify your doubts. What are we studying today?",
       timestamp: Date.now()
     }
   ]);
@@ -40,11 +43,10 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
   const chatSessionRef = useRef<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Re-initialize chat when context changes significantly
   useEffect(() => {
-    if (!chatSessionRef.current) {
-      chatSessionRef.current = GeminiService.createTutorChat();
-    }
-  }, []);
+    chatSessionRef.current = GeminiService.createTutorChat(context);
+  }, [context.subject, context.chapterName, context.gradeClass]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -171,16 +173,22 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
   };
 
   return (
-    <div className="h-[calc(100vh-140px)] flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="h-[calc(100vh-140px)] flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
       {/* Header Info */}
-      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+      <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
         <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SJ Tutor AI Session</span>
-            <button onClick={handleShareChat} className="p-1 text-slate-400 hover:text-primary-600 rounded hover:bg-slate-100 transition-colors" title="Share Chat Transcript">
+            {context.subject && (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded-full border border-primary-100 dark:border-primary-800 text-[10px] font-bold">
+                 <BookOpen className="w-2.5 h-2.5" />
+                 {context.subject}
+              </div>
+            )}
+            <button onClick={handleShareChat} className="p-1 text-slate-400 hover:text-primary-600 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Share Chat Transcript">
                 <Share2 className="w-3.5 h-3.5" />
             </button>
         </div>
-        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 text-[10px] font-bold">
+        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full border border-amber-100 dark:border-amber-800 text-[10px] font-bold">
           <Sparkles className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
           1 Credit / Msg
         </div>
@@ -202,16 +210,16 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
               className={`max-w-[85%] rounded-xl px-4 py-2.5 shadow-sm text-sm ${
                 msg.role === 'user'
                   ? 'bg-primary-600 text-white rounded-br-none'
-                  : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-bl-none'
+                  : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-bl-none'
               }`}
             >
               {msg.text === "API_DISABLED_BLOCK" ? (
-                <div className="bg-red-50 border border-red-100 p-4 rounded-lg space-y-3">
-                  <div className="flex items-start gap-2 text-red-800">
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 p-4 rounded-lg space-y-3">
+                  <div className="flex items-start gap-2 text-red-800 dark:text-red-400">
                     <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold">API Not Enabled</p>
-                      <p className="text-xs text-red-600">The "Generative Language API" needs to be enabled in your Google Cloud project.</p>
+                      <p className="text-xs text-red-600 dark:text-red-400">The "Generative Language API" needs to be enabled in your Google Cloud project.</p>
                     </div>
                   </div>
                   <a 
@@ -234,8 +242,8 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
             </div>
 
             {msg.role === 'user' && (
-              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                <UserIcon className="w-4 h-4 text-slate-500" />
+              <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                <UserIcon className="w-4 h-4 text-slate-500 dark:text-slate-400" />
               </div>
             )}
           </div>
@@ -245,7 +253,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
                <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-100 flex-shrink-0">
                 <img src={SJTUTOR_AVATAR} alt="AI" className="w-full h-full object-cover" />
               </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl rounded-bl-none px-4 py-2.5 flex items-center">
+              <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl rounded-bl-none px-4 py-2.5 flex items-center">
                 <Loader2 className="w-4 h-4 text-primary-400 animate-spin" />
               </div>
            </div>
@@ -259,7 +267,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
                 <button
                   key={idx}
                   onClick={() => sendMessageToAi(q)}
-                  className="text-left text-xs bg-white text-slate-600 px-3 py-2 rounded-lg border border-slate-200 hover:border-primary-400 hover:bg-primary-50 transition-all shadow-sm"
+                  className="text-left text-xs bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-all shadow-sm"
                 >
                   {q}
                 </button>
@@ -271,9 +279,9 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-3 bg-white border-t border-slate-100">
+      <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700">
         {error && (
-          <div className="mb-2 p-2 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 text-xs text-red-600 animate-in fade-in slide-in-from-bottom-2">
+          <div className="mb-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 rounded-lg flex items-center gap-2 text-xs text-red-600 dark:text-red-400 animate-in fade-in slide-in-from-bottom-2">
             <AlertCircle className="w-3.5 h-3.5" />
             {error}
           </div>
@@ -281,7 +289,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
         <div className="relative flex items-center gap-2">
            <button
             onClick={toggleVoiceInput}
-            className={`p-2.5 rounded-lg transition-colors ${isListening ? 'bg-red-50 text-red-500 animate-pulse' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+            className={`p-2.5 rounded-lg transition-colors ${isListening ? 'bg-red-50 text-red-500 animate-pulse' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
             title="Voice Input"
           >
             {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -291,7 +299,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={isListening ? "Listening..." : "Ask SJ Tutor AI anything..."}
-            className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-sm max-h-32 text-slate-900"
+            className="w-full pl-3 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-sm max-h-32 text-slate-900 dark:text-slate-100"
             rows={1}
           />
           <button

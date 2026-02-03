@@ -54,7 +54,8 @@ const SAMPLE_DATA: StudyRequestData = {
   author: '',
   questionCount: 5,
   difficulty: 'Medium',
-  includeImages: false
+  includeImages: false,
+  summaryType: 'Detailed'
 };
 
 const THEME_COLORS: Record<string, Record<string, string>> = {
@@ -143,28 +144,15 @@ const App: React.FC = () => {
         const storedReminders = localStorage.getItem(key);
         if (storedReminders) {
           const items = JSON.parse(storedReminders);
-          let hasNotified = false;
-
           items.forEach((item: any) => {
             if (!item.completed && item.dueTime) {
               const dueTime = new Date(item.dueTime).getTime();
-              // Check if the due time fell within the last check interval window
               if (dueTime > lastCheck && dueTime <= now) {
                 if (Notification.permission === "granted") {
                   new Notification("SJ Tutor AI Reminder", {
                     body: item.task,
                     icon: SJTUTOR_AVATAR
                   });
-                  hasNotified = true;
-                } else if (Notification.permission !== "denied") {
-                   Notification.requestPermission().then(permission => {
-                      if (permission === "granted") {
-                         new Notification("SJ Tutor AI Reminder", {
-                            body: item.task,
-                            icon: SJTUTOR_AVATAR
-                         });
-                      }
-                   });
                 }
               }
             }
@@ -175,7 +163,7 @@ const App: React.FC = () => {
       }
       
       lastNotificationCheck.current = now;
-    }, 10000); // Check every 10 seconds
+    }, 10000); 
 
     return () => clearInterval(interval);
   }, [user]);
@@ -965,6 +953,7 @@ const App: React.FC = () => {
             <TutorChat 
                onDeductCredit={deductCredit} 
                currentCredits={userProfile.credits}
+               context={formData}
             />
           </div>
         );
