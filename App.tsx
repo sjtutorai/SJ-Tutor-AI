@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile, SJTUTOR_AVATAR } from './types';
 import InputForm from './components/InputForm';
@@ -27,7 +26,7 @@ import {
   AlertCircle, 
   Menu, 
   ChevronRight,
-  LayoutDashboard,
+  LayoutDashboard, 
   ArrowLeft,
   Calendar,
   Eye,
@@ -41,7 +40,8 @@ import {
   Settings,
   Info,
   Share2,
-  CreditCard
+  CreditCard,
+  Loader2
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -52,7 +52,7 @@ const SAMPLE_DATA: StudyRequestData = {
   language: 'English',
   chapterName: "Synthetic Fibres",
   author: '',
-  questionCount: 5,
+  questionCount: 10,
   difficulty: 'Medium',
   includeImages: false
 };
@@ -88,6 +88,7 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
+  const [needsKeySelection, setNeedsKeySelection] = useState(false);
 
   // App State
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -127,56 +128,55 @@ const App: React.FC = () => {
   // Notification Timer Ref
   const lastNotificationCheck = useRef(Date.now());
 
+  // Check API Key Status
+  useEffect(() => {
+    const checkKey = async () => {
+        if (!process.env.API_KEY) {
+            setApiKeyMissing(true);
+        }
+        // Use aistudio global if available for "private" key selection
+        if ((window as any).aistudio) {
+            const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+            setNeedsKeySelection(!hasKey);
+        }
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    if ((window as any).aistudio) {
+        await (window as any).aistudio.openSelectKey();
+        setNeedsKeySelection(false);
+    }
+  };
+
   // Notification Service
   useEffect(() => {
-    // Request permission on mount
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
-
     const interval = setInterval(() => {
       const now = Date.now();
       const lastCheck = lastNotificationCheck.current;
       const key = user ? `reminders_${user.uid}` : 'reminders_guest';
-      
       try {
         const storedReminders = localStorage.getItem(key);
         if (storedReminders) {
           const items = JSON.parse(storedReminders);
-          let hasNotified = false;
-
           items.forEach((item: any) => {
             if (!item.completed && item.dueTime) {
               const dueTime = new Date(item.dueTime).getTime();
-              // Check if the due time fell within the last check interval window
               if (dueTime > lastCheck && dueTime <= now) {
                 if (Notification.permission === "granted") {
-                  new Notification("SJ Tutor AI Reminder", {
-                    body: item.task,
-                    icon: SJTUTOR_AVATAR
-                  });
-                  hasNotified = true;
-                } else if (Notification.permission !== "denied") {
-                   Notification.requestPermission().then(permission => {
-                      if (permission === "granted") {
-                         new Notification("SJ Tutor AI Reminder", {
-                            body: item.task,
-                            icon: SJTUTOR_AVATAR
-                         });
-                      }
-                   });
+                  new Notification("SJ Tutor AI Reminder", { body: item.task, icon: SJTUTOR_AVATAR });
                 }
               }
             }
           });
         }
-      } catch (e) {
-        console.error("Error checking reminders", e);
-      }
-      
+      } catch (e) { console.error("Error checking reminders", e); }
       lastNotificationCheck.current = now;
-    }, 10000); // Check every 10 seconds
-
+    }, 10000); 
     return () => clearInterval(interval);
   }, [user]);
 
@@ -188,83 +188,41 @@ const App: React.FC = () => {
       const primaryColorName = settings.appearance.primaryColor || 'Gold';
       const fontFamily = settings.appearance.fontFamily || 'Inter';
       const animationsEnabled = settings.appearance.animations;
-      
       const root = window.document.documentElement;
       const body = window.document.body;
-      
       const isDark = theme === 'Dark' || (theme === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      if (isDark) {
-        root.classList.add('dark');
-      } else {
-        root.classList.remove('dark');
-      }
-
+      if (isDark) root.classList.add('dark'); else root.classList.remove('dark');
       const palette = THEME_COLORS[primaryColorName] || THEME_COLORS['Gold'];
-      Object.entries(palette).forEach(([shade, value]) => {
-        root.style.setProperty(`--color-primary-${shade}`, value);
-      });
-
+      Object.entries(palette).forEach(([shade, value]) => root.style.setProperty(`--color-primary-${shade}`, value));
       const formattedFont = fontFamily.includes(' ') ? `'${fontFamily}'` : fontFamily;
       root.style.setProperty('--font-sans', formattedFont);
-
-      if (animationsEnabled) {
-        body.classList.remove('reduce-motion');
-      } else {
-        body.classList.add('reduce-motion');
-      }
+      if (animationsEnabled) body.classList.remove('reduce-motion'); else body.classList.add('reduce-motion');
     };
-
     applyTheme();
     window.addEventListener('settings-changed', applyTheme);
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleSystemChange = () => {
-       if (SettingsService.getSettings().appearance.theme === 'System') applyTheme();
-    };
+    const handleSystemChange = () => { if (SettingsService.getSettings().appearance.theme === 'System') applyTheme(); };
     mediaQuery.addEventListener('change', handleSystemChange);
-    
     return () => {
       window.removeEventListener('settings-changed', applyTheme);
       mediaQuery.removeEventListener('change', handleSystemChange);
     };
   }, []);
 
-  // Check API Key
-  useEffect(() => {
-    if (!process.env.API_KEY) {
-      console.warn("API_KEY is missing in environment variables!");
-      setApiKeyMissing(true);
-    }
-  }, []);
-
   // Auth Listener
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (authLoading) {
-        console.warn("Auth check timed out, defaulting to guest.");
-        setAuthLoading(false);
-      }
-    }, 4000);
-
+    const timeoutId = setTimeout(() => { if (authLoading) setAuthLoading(false); }, 4000);
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
       clearTimeout(timeoutId); 
-      
       if (!currentUser) {
         setIsNewUser(false);
         setUserProfile(initialProfileState);
         setMode(AppMode.DASHBOARD);
       }
-    }, (err) => {
-      console.error("Auth Error:", err);
-      setAuthLoading(false); 
-      clearTimeout(timeoutId);
-    });
-
-    return () => {
-      unsubscribe();
-      clearTimeout(timeoutId);
-    };
+    }, (err) => { setAuthLoading(false); clearTimeout(timeoutId); });
+    return () => { unsubscribe(); clearTimeout(timeoutId); };
   }, []);
 
   // Profile Persistence
@@ -280,16 +238,9 @@ const App: React.FC = () => {
             displayName: parsed.displayName || user.displayName || '',
             photoURL: parsed.photoURL || user.photoURL || '' 
           }));
-        } catch (e) {
-          console.error("Failed to parse profile", e);
-        }
+        } catch (e) { console.error("Failed to parse profile", e); }
       } else {
-        setUserProfile({
-           ...initialProfileState,
-           displayName: user.displayName || '',
-           photoURL: user.photoURL || '',
-           credits: 100
-        });
+        setUserProfile({ ...initialProfileState, displayName: user.displayName || '', photoURL: user.photoURL || '', credits: 100 });
       }
     }
   }, [user]);
@@ -301,15 +252,9 @@ const App: React.FC = () => {
     if (savedHistory) {
       try {
         const parsedHistory = JSON.parse(savedHistory);
-        if (Array.isArray(parsedHistory)) {
-          setHistory(parsedHistory);
-        }
-      } catch (e) {
-        setHistory([]);
-      }
-    } else {
-      setHistory([]);
-    }
+        if (Array.isArray(parsedHistory)) setHistory(parsedHistory);
+      } catch (e) { setHistory([]); }
+    } else setHistory([]);
   }, [user]);
 
   useEffect(() => {
@@ -317,27 +262,13 @@ const App: React.FC = () => {
     localStorage.setItem(storageKey, JSON.stringify(history));
   }, [history, user]);
 
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setIsSidebarOpen(false);
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
   const handleProfileSave = (newProfile: UserProfile, redirectDashboard = false) => {
     setUserProfile(newProfile);
-    if (user) {
-      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
-    }
+    if (user) localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
     if (isNewUser) {
       setIsNewUser(false);
       setShowAuthModal(false);
-      if (redirectDashboard) {
-        setMode(AppMode.DASHBOARD);
-      }
+      if (redirectDashboard) setMode(AppMode.DASHBOARD);
     }
   };
 
@@ -345,175 +276,123 @@ const App: React.FC = () => {
     setIsNewUser(true);
     const newProfile = { ...initialProfileState, ...initialData };
     setUserProfile(newProfile);
-    
-    if (auth.currentUser) {
-        localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
-    }
-    
+    if (auth.currentUser) localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
     setShowAuthModal(false);
   };
 
   const handlePaymentSuccess = (creditsToAdd: number, planName: 'STARTER' | 'SCHOLAR' | 'ACHIEVER') => {
-    const planTypeMap: Record<string, 'Starter' | 'Scholar' | 'Achiever'> = {
-      'STARTER': 'Starter',
-      'SCHOLAR': 'Scholar',
-      'ACHIEVER': 'Achiever'
-    };
-    const updatedProfile: UserProfile = { 
-      ...userProfile, 
-      credits: userProfile.credits + creditsToAdd,
-      planType: planTypeMap[planName]
-    };
+    const planTypeMap: Record<string, 'Starter' | 'Scholar' | 'Achiever'> = { 'STARTER': 'Starter', 'SCHOLAR': 'Scholar', 'ACHIEVER': 'Achiever' };
+    const updatedProfile: UserProfile = { ...userProfile, credits: userProfile.credits + creditsToAdd, planType: planTypeMap[planName] };
     handleProfileSave(updatedProfile);
   };
 
-  const handleFormChange = (field: keyof StudyRequestData, value: string | number | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleFillSample = () => {
-    setFormData(SAMPLE_DATA);
-  };
-
-  const validateForm = () => {
-    if (!formData.subject || !formData.gradeClass || !formData.chapterName) {
-      setError("Please fill in at least Subject, Class, and Chapter Name.");
-      return false;
+  const deductCredit = (amount: number) => {
+    if (userProfile.credits >= amount) {
+      handleProfileSave({ ...userProfile, credits: userProfile.credits - amount }, false);
+      return true;
     }
-    setError(null);
-    return true;
+    return false;
+  };
+
+  const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
+    if (targetMode === AppMode.SUMMARY) return 10;
+    
+    if (targetMode === AppMode.ESSAY) {
+      return 10 + (data.includeImages ? 5 : 0);
+    }
+    
+    if (targetMode === AppMode.QUIZ) {
+      // Challenge Mode: 10+ Hard questions is Free to enter
+      if ((data.questionCount || 0) >= 10 && data.difficulty === 'Hard') return 0;
+      
+      let cost = 10;
+      const qCount = data.questionCount || 5;
+      if (qCount > 10) cost += 5;
+      if (data.difficulty === 'Hard') cost += 5;
+      return cost;
+    }
+    return 0;
   };
 
   const addToHistory = (type: AppMode, content: any) => {
     const newId = Date.now().toString();
-    const newItem: HistoryItem = {
-      id: newId,
-      type,
-      title: formData.chapterName || 'Untitled Chapter',
-      subtitle: `${formData.gradeClass} • ${formData.subject}`,
-      timestamp: Date.now(),
-      content,
-      formData: { ...formData }
-    };
-    setHistory(prev => [newItem, ...prev]);
+    setHistory(prev => [{ id: newId, type, title: formData.chapterName || 'Untitled', subtitle: `${formData.gradeClass} • ${formData.subject}`, timestamp: Date.now(), content, formData: { ...formData } }, ...prev]);
     setCurrentHistoryId(newId);
   };
 
   const handleQuizComplete = (score: number) => {
     if (currentHistoryId) {
-      setHistory(prev => prev.map(item => 
-        item.id === currentHistoryId ? { ...item, score } : item
-      ));
+      setHistory(prev => prev.map(item => item.id === currentHistoryId ? { ...item, score } : item));
 
-      if (formData.questionCount === 20 && formData.difficulty === 'Hard') {
-        const percentage = (score / 20) * 100;
+      // Challenge Logic: 10+ Questions, Hard Difficulty, >75% Score
+      if ((formData.questionCount || 0) >= 10 && formData.difficulty === 'Hard') {
+        const total = formData.questionCount || 10;
+        const percentage = (score / total) * 100;
         
-        if (percentage >= 75) {
+        if (percentage > 75) {
             const bonus = 50;
             const newCredits = userProfile.credits + bonus;
             handleProfileSave({ ...userProfile, credits: newCredits }, false);
             
             setTimeout(() => {
-              alert(`🎉 CHALLENGE MASTERED! 🎉\n\nYou scored ${score}/20 (${percentage}%) and earned ${bonus} credits!`);
+              alert(`🎉 CHALLENGE MASTERED! 🎉\n\nYou scored ${score}/${total} (${percentage.toFixed(0)}%) and earned ${bonus} credits!`);
             }, 1000);
         } else {
              setTimeout(() => {
-              alert(`Challenge Attempted: You scored ${percentage}%. Score 75% or higher to earn the 50 credit bonus! Keep practicing!`);
+              alert(`Challenge Attempted: You scored ${percentage.toFixed(0)}%. Score >75% to earn the 50 credit bonus! Keep practicing!`);
             }, 1000);
         }
       }
     }
   };
 
-  const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
-    if (targetMode === AppMode.SUMMARY) return 10;
-    if (targetMode === AppMode.ESSAY) {
-      return data.includeImages ? 15 : 10;
-    }
-    if (targetMode === AppMode.QUIZ) {
-      if (data.questionCount === 20 && data.difficulty === 'Hard') return 0;
-      let cost = 10; 
-      const qCount = data.questionCount || 5;
-      cost += Math.ceil(qCount / 2); 
-      if (data.difficulty === 'Hard') cost += 5; 
-      return cost;
-    }
-    return 0;
-  };
-
-  const deductCredit = (amount: number) => {
-    if (userProfile.credits >= amount) {
-      const updatedProfile = { ...userProfile, credits: userProfile.credits - amount };
-      handleProfileSave(updatedProfile, false);
-      return true;
-    }
-    return false;
-  };
-
   const handleGenerate = async () => {
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
-
-    const cost = calculateCost(mode, formData);
-    if (userProfile.credits < cost) {
-      setError(`Insufficient credits. This generation requires ${cost} credits, but you have ${userProfile.credits}. Upgrade to Premium for more.`);
-      return;
-    }
+    if (!user) { setShowAuthModal(true); return; }
     
-    if (!process.env.API_KEY) {
-      setError("Configuration Error: API_KEY is missing. Please check your environment variables.");
-      return;
-    }
-
-    if (!validateForm()) return;
+    const cost = calculateCost(mode, formData);
+    if (userProfile.credits < cost) { setError(`Insufficient credits. Requires ${cost}, you have ${userProfile.credits}.`); return; }
+    if (!process.env.API_KEY && needsKeySelection) { setError("Please select an API Key from Settings to continue."); return; }
+    if (!formData.subject || !formData.gradeClass || !formData.chapterName) { setError("Fill in Subject, Class, and Chapter."); return; }
     
     setLoading(true);
     setError(null);
-    setExistingQuizScore(undefined);
-    setCurrentHistoryId(null);
-
     try {
       if (mode === AppMode.SUMMARY) {
         setSummaryContent('');
         const stream = await GeminiService.generateSummaryStream(formData);
-        
         let text = '';
         for await (const chunk of stream) {
             const c = chunk as GenerateContentResponse;
-            if (c.text) {
-                text += c.text;
-                setSummaryContent(text);
-            }
+            if (c.text) { text += c.text; setSummaryContent(text); }
         }
         addToHistory(AppMode.SUMMARY, text);
         deductCredit(cost);
-
       } else if (mode === AppMode.ESSAY) {
         setEssayContent('');
         const stream = await GeminiService.generateEssayStream(formData);
-        
         let text = '';
          for await (const chunk of stream) {
             const c = chunk as GenerateContentResponse;
-            if (c.text) {
-                text += c.text;
-                setEssayContent(text);
-            }
+            if (c.text) { text += c.text; setEssayContent(text); }
         }
-
+        
+        // Handle Essay Image Generation
         if (formData.includeImages) {
-          const imageBase64 = await GeminiService.generateImage(`${formData.chapterName} - ${formData.subject}`);
-          if (imageBase64) {
-            text += `\n\n![${formData.chapterName}](${imageBase64})`;
-            setEssayContent(text);
+          try {
+             const imageBase64 = await GeminiService.generateImage(`${formData.chapterName} - ${formData.subject}`);
+             if (imageBase64) { 
+               text += `\n\n![${formData.chapterName} Illustration](${imageBase64})`; 
+               setEssayContent(text); 
+             }
+          } catch (e) {
+             console.error("Image gen failed", e);
+             text += `\n\n*(Image generation failed, but here is your essay)*`;
+             setEssayContent(text); 
           }
         }
-
+        
         addToHistory(AppMode.ESSAY, text);
         deductCredit(cost);
-
       } else if (mode === AppMode.QUIZ) {
         setQuizData(null);
         const questions = await GeminiService.generateQuiz(formData);
@@ -522,96 +401,25 @@ const App: React.FC = () => {
         deductCredit(cost);
       }
     } catch (err: any) {
-      console.error(err);
-      let errorMessage = err.message || "Failed to generate content. Please try again.";
-      try {
-         const parsed = JSON.parse(errorMessage);
-         if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {}
-      
-      if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
-        errorMessage = "QUOTA_EXHAUSTED";
-      } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
-        errorMessage = "API_DISABLED";
-      } else if (errorMessage.includes("API key not valid")) {
-        errorMessage = "API_KEY_INVALID_ERROR";
+      let errorMessage = err.message || "Failed to generate content.";
+      if (errorMessage.includes("Requested entity was not found")) {
+         setNeedsKeySelection(true);
+         errorMessage = "API key configuration issue. Please re-select your API key in Settings.";
       }
       setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const loadHistoryItem = (item: HistoryItem) => {
-    if (item.formData) {
-      setFormData(item.formData);
-    }
+    if (item.formData) setFormData(item.formData);
     setCurrentHistoryId(item.id);
-
-    if (item.type === AppMode.SUMMARY) {
-      setSummaryContent(item.content);
-      setMode(AppMode.SUMMARY);
-    } else if (item.type === AppMode.ESSAY) {
-      setEssayContent(item.content);
-      setMode(AppMode.ESSAY);
-    } else if (item.type === AppMode.QUIZ) {
-      setQuizData(item.content);
-      setExistingQuizScore(item.score);
-      setMode(AppMode.QUIZ);
-    } else if (item.type === AppMode.TUTOR) {
-      setMode(AppMode.TUTOR);
-    }
+    if (item.type === AppMode.SUMMARY) { setSummaryContent(item.content); setMode(AppMode.SUMMARY); }
+    else if (item.type === AppMode.ESSAY) { setEssayContent(item.content); setMode(AppMode.ESSAY); }
+    else if (item.type === AppMode.QUIZ) { setQuizData(item.content); setExistingQuizScore(item.score); setMode(AppMode.QUIZ); }
+    else if (item.type === AppMode.TUTOR) setMode(AppMode.TUTOR);
   };
 
-  const handleShareHistoryItem = async (e: React.MouseEvent, item: HistoryItem) => {
-    e.stopPropagation();
-    let text = `${item.title} (${item.type})\n\n`;
-    
-    if (item.type === AppMode.QUIZ) {
-      const qData = item.content as QuizQuestion[];
-      qData.forEach((q, i) => {
-        text += `Q${i+1}: ${q.question}\n`;
-        q.options.forEach((opt, j) => {
-          text += `   ${String.fromCharCode(65+j)}) ${opt}\n`;
-        });
-        text += "\n";
-      });
-      if (item.score !== undefined) {
-        text += `I scored ${item.score}/${qData.length}!\n`;
-      }
-    } else if (typeof item.content === 'string') {
-      text += item.content;
-    }
-
-    text += `\nGenerated by SJ Tutor AI`;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: item.title,
-          text: text,
-          url: window.location.href
-        });
-      } catch (err) {}
-    } else {
-      try {
-        await navigator.clipboard.writeText(text);
-        alert('Content copied to clipboard!');
-      } catch (err) {
-        alert('Failed to copy content.');
-      }
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setMode(AppMode.DASHBOARD);
-      setDashboardView('OVERVIEW');
-    } catch (error) {
-      console.error("Error signing out:", error);
-    }
-  };
+  const handleLogout = async () => { try { await signOut(auth); setMode(AppMode.DASHBOARD); setDashboardView('OVERVIEW'); } catch (error) { } };
 
   const navItems = [
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
@@ -625,581 +433,170 @@ const App: React.FC = () => {
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
   ];
 
-  const renderDashboard = () => {
-    const noteCount = (() => {
-       try {
-         const key = user ? `notes_${user.uid}` : 'notes_guest';
-         const saved = localStorage.getItem(key);
-         return saved ? JSON.parse(saved).length : 0;
-       } catch { return 0; }
-    })();
+  const renderDashboard = () => (
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
+      <div className="mb-8 flex justify-between items-end">
+        <div>
+           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
+           <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
+        </div>
+        {needsKeySelection && (
+           <button onClick={handleSelectKey} className="flex items-center gap-2 px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold animate-pulse">
+              <Key className="w-3.5 h-3.5" /> Re-link API Key
+           </button>
+        )}
+      </div>
 
-    const stats = {
-      summaries: history.filter(h => h.type === AppMode.SUMMARY).length,
-      quizzes: history.filter(h => h.type === AppMode.QUIZ).length,
-      essays: history.filter(h => h.type === AppMode.ESSAY).length,
-      chats: history.filter(h => h.type === AppMode.TUTOR).length,
-    };
-
-    const dashboardCards = [
-      { id: AppMode.ID_CARD, label: 'My ID Card', count: null, icon: CreditCard, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-[#FDF5E6] dark:bg-indigo-900/30' },
-      { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
-    ];
-
-    if (dashboardView !== 'OVERVIEW') {
-      const filteredHistory = history.filter(h => h.type === dashboardView);
-      const categoryLabel = dashboardCards.find(c => c.id === dashboardView)?.label || 'History';
-      const getSingularName = (view: AppMode) => {
-        switch(view) {
-            case AppMode.SUMMARY: return 'Summary';
-            case AppMode.QUIZ: return 'Quiz';
-            case AppMode.ESSAY: return 'Essay';
-            case AppMode.TUTOR: return 'Chat';
-            default: return 'Item';
-        }
-      };
-
-      return (
-        <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
-          <button 
-            onClick={() => setDashboardView('OVERVIEW')}
-            className="flex items-center text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 mb-6 transition-all hover:-translate-x-1 group text-sm"
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {navItems.filter(i => ![AppMode.DASHBOARD, AppMode.ABOUT, AppMode.SETTINGS].includes(i.id)).map((card) => (
+          <button
+            key={card.id}
+            onClick={() => {
+               if (card.id === AppMode.ID_CARD && !user) { setShowAuthModal(true); return; }
+               setMode(card.id as AppMode);
+            }}
+            className="p-5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-all text-left group overflow-hidden relative"
           >
-            <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mr-2 border border-slate-100 dark:border-slate-700 group-hover:border-primary-200 transition-colors">
-              <ArrowLeft className="w-3.5 h-3.5" />
-            </div>
-            <span className="font-medium">Back to Dashboard</span>
-          </button>
-
-          <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-            <Clock className="w-6 h-6 text-primary-400" />
-            {categoryLabel} History
-          </h3>
-
-          {filteredHistory.length === 0 ? (
-            <div className="text-center py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 border-dashed animate-in zoom-in duration-500">
-              <div className="w-16 h-16 bg-primary-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 dark:border-slate-600 p-1">
-                 <Logo className="w-full h-full" iconOnly />
-              </div>
-              <p className="text-slate-500 dark:text-slate-400 font-medium mb-5 text-sm">No {categoryLabel.toLowerCase()} found yet.</p>
-
-              <button
-                onClick={() => {
-                  setSummaryContent('');
-                  setEssayContent('');
-                  setQuizData(null);
-                  setExistingQuizScore(undefined);
-                  setCurrentHistoryId(null);
-                  setError(null);
-                  setFormData(INITIAL_FORM_DATA);
-                  setMode(dashboardView as AppMode);
-                  setDashboardView('OVERVIEW');
-                }}
-                className="inline-flex items-center px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20 text-sm"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create New {getSingularName(dashboardView as AppMode)}
-              </button>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              {filteredHistory.map((item, idx) => (
-                <div 
-                  key={item.id} 
-                  className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-5 rounded-xl border border-slate-200/60 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
-                  style={{ animationDelay: `${idx * 50}ms` }}
-                  onClick={() => loadHistoryItem(item)}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-100 dark:bg-slate-700 text-primary-600 dark:text-primary-400`}>
-                      {item.type === AppMode.QUIZ ? <BrainCircuit className="w-4 h-4" /> :
-                       item.type === AppMode.SUMMARY ? <FileText className="w-4 h-4" /> :
-                       item.type === AppMode.ESSAY ? <BookOpen className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-slate-800 dark:text-white mb-0.5 group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors">{item.title}</h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-3">
-                        <span className="font-medium bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded">{item.subtitle}</span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(item.timestamp).toLocaleDateString()}
-                        </span>
-                        {item.type === AppMode.QUIZ && item.score !== undefined && (
-                          <span className="flex items-center gap-1 text-primary-600 font-bold bg-primary-50 dark:bg-slate-900 px-2 py-0.5 rounded-full">
-                            Score: {item.score}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                        onClick={(e) => handleShareHistoryItem(e, item)}
-                        className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-primary-50 hover:text-primary-600"
-                        title="Share"
-                    >
-                        <Share2 className="w-4 h-4" />
-                    </button>
-                    <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                        <Eye className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-                    </div>
-                  </div>
+             <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                <card.icon className="w-16 h-16" />
+             </div>
+             <div className="flex justify-between items-start mb-3 relative z-10">
+                <div className="p-2.5 rounded-lg bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400">
+                   <card.icon className="w-5 h-5" />
                 </div>
-              ))}
-            </div>
-          )}
+             </div>
+             <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1">{card.label}</h4>
+             <p className="text-xs text-slate-500 flex items-center gap-1">Open tool <ChevronRight className="w-3 h-3" /></p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderContent = () => {
+    if (loading && mode !== AppMode.TUTOR && !summaryContent && !essayContent && !quizData) {
+      return <LoadingState mode={mode} />;
+    }
+
+    if (error && !loading) {
+      return (
+        <div className="bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/50 p-6 rounded-2xl mb-6 flex items-start gap-4 animate-in fade-in slide-in-from-top-4">
+          <div className="p-2 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-bold text-rose-800 dark:text-rose-200">Something went wrong</h3>
+            <p className="text-rose-600 dark:text-rose-400 text-sm mt-1">{error}</p>
+            <button 
+              onClick={() => setError(null)}
+              className="mt-4 px-4 py-2 bg-rose-600 text-white text-xs font-bold rounded-lg hover:bg-rose-700 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       );
     }
-    
-    return (
-      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
-          <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {dashboardCards.map((card) => (
-            <button
-              key={card.id}
-              onClick={() => {
-                 if (card.id === AppMode.ID_CARD && !user) {
-                    setShowAuthModal(true);
-                    return;
-                 }
-                 
-                 if (card.id === AppMode.NOTES) {
-                    setMode(AppMode.NOTES);
-                 } else if (card.id === AppMode.ID_CARD) {
-                    setMode(AppMode.ID_CARD);
-                 } else {
-                    setDashboardView(card.id as any);
-                 }
-              }}
-              className={`p-5 rounded-xl border border-transparent hover:border-amber-200 dark:hover:border-amber-800 transition-all hover:shadow-md text-left group bg-white dark:bg-slate-800 shadow-sm border-slate-100 dark:border-slate-700 relative overflow-hidden`}
-            >
-              <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${card.color}`}>
-                 <card.icon className="w-16 h-16" />
-              </div>
-              <div className="flex justify-between items-start mb-3 relative z-10">
-                 <div className={`p-2.5 rounded-lg shadow-sm ${card.color} ${card.bg}`}>
-                    <card.icon className="w-5 h-5" />
-                 </div>
-                 {card.count !== null && <span className="text-2xl font-bold text-slate-800 dark:text-white">{card.count}</span>}
-              </div>
-              <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10">{card.label}</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1 relative z-10">
-                View Details <ChevronRight className="w-3 h-3" />
-              </p>
-            </button>
-          ))}
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
-           <h3 className="font-bold text-slate-800 dark:text-white mb-4">Quick Actions</h3>
-           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <button onClick={() => setMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900">
-                 <FileText className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                 New Summary
-              </button>
-              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900">
-                 <BrainCircuit className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
-                 New Quiz
-              </button>
-               <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-blue-100 dark:hover:border-blue-900">
-                 <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                 Write Essay
-              </button>
-              <button onClick={() => setMode(AppMode.TUTOR)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900">
-                 <MessageCircle className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                 Ask Tutor
-              </button>
-           </div>
-        </div>
+    const renderInputSection = (modeLabel: string) => (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <InputForm 
+          data={formData} 
+          mode={mode} 
+          onChange={(field, value) => setFormData(prev => ({ ...prev, [field]: value }))} 
+          onFillSample={() => setFormData(SAMPLE_DATA)} 
+          disabled={loading} 
+        />
+        <button 
+          onClick={handleGenerate} 
+          disabled={loading}
+          className="w-full py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold shadow-lg shadow-primary-500/20 transition-all flex items-center justify-center gap-2 group active:scale-[0.98]"
+        >
+          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform" />}
+          Generate {modeLabel}
+        </button>
       </div>
     );
-  };
-
-  const renderContent = () => {
-    if (loading) return <LoadingState mode={mode} />;
 
     switch (mode) {
       case AppMode.DASHBOARD:
         return renderDashboard();
-      
-      case AppMode.ID_CARD:
-        return (
-          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <IdCardView 
-              userProfile={userProfile}
-              email={user?.email || 'Guest User'}
-            />
-          </div>
-        );
-
       case AppMode.SUMMARY:
-        if (summaryContent) {
-          return (
-            <ResultsView
-              title={formData.chapterName}
-              content={summaryContent}
-              type="Summary"
-              isLoading={false}
-              onBack={() => {
-                 setSummaryContent('');
-                 setCurrentHistoryId(null);
-              }}
-            />
-          );
-        }
-        return (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <InputForm
-              data={formData}
-              mode={AppMode.SUMMARY}
-              onChange={handleFormChange}
-              onFillSample={handleFillSample}
-            />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
-            )}
-            <button
-              onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
-            >
-              <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
-              Generate Summary
-            </button>
-          </div>
-        );
-
+        return summaryContent ? (
+          <ResultsView content={summaryContent} isLoading={loading} title={formData.chapterName || 'Summary'} type="Summary" onBack={() => { setSummaryContent(''); setMode(AppMode.SUMMARY); }} />
+        ) : renderInputSection("Summary");
       case AppMode.ESSAY:
-         if (essayContent) {
-          return (
-            <ResultsView
-              title={formData.chapterName}
-              content={essayContent}
-              type="Essay"
-              isLoading={false}
-              onBack={() => {
-                 setEssayContent('');
-                 setCurrentHistoryId(null);
-              }}
-            />
-          );
-        }
-        return (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <InputForm
-              data={formData}
-              mode={AppMode.ESSAY}
-              onChange={handleFormChange}
-              onFillSample={handleFillSample}
-            />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
-            )}
-            <button
-              onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
-            >
-              <BookOpen className="w-5 h-5 group-hover:animate-pulse" />
-              Write Essay
-            </button>
-          </div>
-        );
-
+        return essayContent ? (
+          <ResultsView content={essayContent} isLoading={loading} title={formData.chapterName || 'Essay'} type="Essay" onBack={() => { setEssayContent(''); setMode(AppMode.ESSAY); }} />
+        ) : renderInputSection("Essay");
       case AppMode.QUIZ:
-        if (quizData) {
-          return (
-            <QuizView 
-              questions={quizData} 
-              onReset={() => {
-                setQuizData(null);
-                setExistingQuizScore(undefined);
-                setCurrentHistoryId(null);
-              }} 
-              onComplete={handleQuizComplete}
-              existingScore={existingQuizScore}
-            />
-          );
-        }
-        return (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <InputForm
-              data={formData}
-              mode={AppMode.QUIZ}
-              onChange={handleFormChange}
-              onFillSample={handleFillSample}
-            />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
-            )}
-            <button
-              onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
-            >
-              <BrainCircuit className="w-5 h-5 group-hover:animate-pulse" />
-              Generate Quiz
-            </button>
-          </div>
-        );
-
+        return quizData ? (
+          <QuizView 
+            questions={quizData} 
+            onReset={() => { setQuizData(null); setExistingQuizScore(undefined); }} 
+            onComplete={(score) => handleQuizComplete(score)}
+            existingScore={existingQuizScore}
+          />
+        ) : renderInputSection("Quiz");
       case AppMode.TUTOR:
-        return (
-          <div className="max-w-5xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <TutorChat 
-               onDeductCredit={deductCredit} 
-               currentCredits={userProfile.credits}
-            />
-          </div>
-        );
-      
-      case AppMode.NOTES:
-        return (
-          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <NotesView 
-               userId={user ? user.uid : null} 
-               onDeductCredit={deductCredit}
-            />
-          </div>
-        );
-
+        return <TutorChat onDeductCredit={deductCredit} currentCredits={userProfile.credits} />;
       case AppMode.PROFILE:
-        return (
-           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <ProfileView 
-                profile={userProfile} 
-                email={user?.email || 'Guest'}
-                onSave={(p, r) => handleProfileSave(p, r)}
-              />
-           </div>
-        );
-
+        return <ProfileView profile={userProfile} email={user?.email || null} onSave={handleProfileSave} isOnboarding={isNewUser} />;
+      case AppMode.NOTES:
+        return <NotesView userId={user?.uid || null} onDeductCredit={deductCredit} />;
       case AppMode.SETTINGS:
-        return (
-           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <SettingsView 
-                 userProfile={userProfile}
-                 onLogout={handleLogout}
-                 onNavigateToProfile={() => setMode(AppMode.PROFILE)}
-                 onOpenPremium={() => setShowPremiumModal(true)}
-              />
-           </div>
-        );
-
+        return <SettingsView userProfile={userProfile} onLogout={handleLogout} onNavigateToProfile={() => setMode(AppMode.PROFILE)} onOpenPremium={() => setShowPremiumModal(true)} />;
       case AppMode.ABOUT:
-        return (
-           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <AboutView />
-           </div>
-        );
-
+        return <AboutView />;
+      case AppMode.ID_CARD:
+        return <IdCardView userProfile={userProfile} email={user?.email || null} />;
       default:
         return renderDashboard();
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-primary-50 dark:bg-slate-900 flex items-center justify-center flex-col gap-4">
-        <div className="relative">
-             <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-500 animate-bounce">
-                <Logo className="w-full h-full" iconOnly />
-             </div>
-             <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
-        </div>
-        <p className="text-slate-800 dark:text-white font-bold animate-pulse">Authenticating...</p>
-      </div>
-    );
-  }
+  if (authLoading) return <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center"><Logo className="animate-bounce" iconOnly /></div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        ></div>
-      )}
-
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}>
-        <div className="h-full flex flex-col">
-          <div 
-            className="p-5 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            onClick={() => {
-              setMode(AppMode.DASHBOARD);
-              setDashboardView('OVERVIEW');
-              setSummaryContent('');
-              setEssayContent('');
-              setQuizData(null);
-              setExistingQuizScore(undefined);
-              setCurrentHistoryId(null);
-              setError(null);
-              setFormData(INITIAL_FORM_DATA);
-              if (window.innerWidth < 1024) setIsSidebarOpen(false);
-            }}
-          >
-             <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0 bg-white dark:bg-slate-800">
-                 <Logo className="w-full h-full" iconOnly />
-               </div>
-               <div>
-                 <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight">SJ Tutor AI</h1>
-                 <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">AI Study Buddy</p>
-               </div>
-             </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans flex text-slate-900 dark:text-slate-100">
+      {isSidebarOpen && <div className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden" onClick={() => setIsSidebarOpen(false)}></div>}
+      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="h-full flex flex-col p-4">
+          <div className="mb-8 cursor-pointer" onClick={() => setMode(AppMode.DASHBOARD)}>
+            <Logo showText />
           </div>
-
-          <div className="flex-1 overflow-y-auto py-5 px-3 space-y-1 custom-scrollbar">
-            {navItems.map((item) => {
-              const isActive = mode === item.id;
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    if (item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && !user) {
-                      setShowAuthModal(true);
-                      setIsSidebarOpen(false); 
-                    } else {
-                      setMode(item.id);
-                      setDashboardView('OVERVIEW');
-                      setSummaryContent('');
-                      setEssayContent('');
-                      setQuizData(null);
-                      setExistingQuizScore(undefined);
-                      setCurrentHistoryId(null);
-                      setError(null);
-                      setFormData(INITIAL_FORM_DATA);
-                    }
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group text-sm ${
-                    isActive 
-                      ? 'bg-primary-50 dark:bg-slate-800 text-primary-700 dark:text-primary-400 font-semibold shadow-sm' 
-                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
-                  {item.label}
-                  {!user && item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && (
-                     <div className="ml-auto">
-                        <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
-                     </div>
-                  )}
-                </button>
-              );
-            })}
+          <div className="flex-1 space-y-1">
+            {navItems.map((item) => (
+              <button key={item.id} onClick={() => { if (item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && !user) setShowAuthModal(true); else setMode(item.id); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${mode === item.id ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 font-bold' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                <item.icon className="w-4 h-4" /> {item.label}
+              </button>
+            ))}
           </div>
-
-          <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
             {user ? (
-               <>
-                <button
-                   onClick={() => setMode(AppMode.PROFILE)} 
-                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mode === AppMode.PROFILE ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                >
-                  <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-slate-700 border border-primary-200 dark:border-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {userProfile.photoURL ? (
-                      <img src={userProfile.photoURL} alt="User" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="font-bold text-primary-700 dark:text-primary-400 text-[10px]">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 text-left overflow-hidden">
-                    <p className="text-xs font-medium truncate text-slate-800 dark:text-white">{userProfile.displayName || 'Scholar'}</p>
-                    <p className="text-xs text-slate-400 truncate">{user.email}</p>
-                  </div>
-                </button>
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  Sign Out
-                </button>
-               </>
-            ) : (
-              <button 
-                onClick={() => setShowAuthModal(true)}
-                className="w-full py-2.5 bg-slate-900 dark:bg-slate-700 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors text-sm"
-              >
-                Sign In
-              </button>
-            )}
-             
-            {user && (
-              <button 
-                onClick={() => setShowPremiumModal(true)}
-                className="w-full py-2 bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
-              >
-                <Crown className="w-3.5 h-3.5" />
-                Upgrade Plan
-              </button>
-            )}
+               <button onClick={() => setMode(AppMode.PROFILE)} className="w-full flex items-center gap-2 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">
+                  <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">{(userProfile.displayName || 'U').charAt(0)}</div>
+                  <div className="text-left"><p className="text-xs font-bold">{userProfile.displayName || 'Scholar'}</p></div>
+               </button>
+            ) : <button onClick={() => setShowAuthModal(true)} className="w-full py-2 bg-slate-900 text-white rounded-lg text-sm font-bold">Sign In</button>}
           </div>
         </div>
       </aside>
-
-      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        <header className="h-14 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-5 sticky top-0 z-30">
+          <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2"><Menu className="w-5 h-5" /></button>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">{navItems.find(n => n.id === mode)?.label || 'SJ Tutor AI'}</h2>
           <div className="flex items-center gap-3">
-             <button 
-              onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-1.5 -ml-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-             >
-               <Menu className="w-5 h-5" />
-             </button>
-             <h2 className="text-base font-bold text-slate-800 dark:text-white">
-               {mode === AppMode.DASHBOARD ? 'SJ Tutor AI' : 
-                (navItems.find(n => n.id === mode)?.label || 'SJ Tutor AI')}
-             </h2>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            {user && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
-                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{userProfile.credits}</span>
-              </div>
-            )}
+             {needsKeySelection && <button onClick={handleSelectKey} className="p-2 text-amber-500 hover:bg-amber-50 rounded-full" title="Set API Key"><Key className="w-5 h-5" /></button>}
+             {user && <div className="flex items-center gap-1 px-3 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded-full text-xs font-bold"><Zap className="w-3 h-3 fill-current" /> {userProfile.credits}</div>}
           </div>
         </header>
-
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
-          <div className="w-full h-full">
-             {renderContent()}
-          </div>
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8">
+           <div className="max-w-4xl mx-auto">{renderContent()}</div>
         </div>
       </main>
-
-      {showAuthModal && (
-        <Auth 
-          onClose={() => setShowAuthModal(false)} 
-          onSignUpSuccess={handleSignUpSuccess}
-        />
-      )}
-      
-      {showPremiumModal && (
-        <PremiumModal 
-          onClose={() => setShowPremiumModal(false)}
-          onPaymentSuccess={handlePaymentSuccess}
-        />
-      )}
+      {showAuthModal && <Auth onClose={() => setShowAuthModal(false)} onSignUpSuccess={handleSignUpSuccess} />}
+      {showPremiumModal && <PremiumModal onClose={() => setShowPremiumModal(false)} onPaymentSuccess={handlePaymentSuccess} />}
     </div>
   );
 };
