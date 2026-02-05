@@ -13,7 +13,6 @@ import NotesView from './components/NotesView';
 import SettingsView from './components/SettingsView';
 import AboutView from './components/AboutView';
 import IdCardView from './components/IdCardView';
-import WelcomeView from './components/WelcomeView'; // Import Welcome View
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
@@ -89,9 +88,6 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
-
-  // Welcome Screen State
-  const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
 
   // App State
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -254,9 +250,7 @@ const App: React.FC = () => {
       setAuthLoading(false);
       clearTimeout(timeoutId); 
       
-      if (currentUser) {
-        setHasSeenWelcome(true); // If logged in, skip welcome
-      } else {
+      if (!currentUser) {
         setIsNewUser(false);
         setUserProfile(initialProfileState);
         setMode(AppMode.DASHBOARD);
@@ -614,7 +608,6 @@ const App: React.FC = () => {
       await signOut(auth);
       setMode(AppMode.DASHBOARD);
       setDashboardView('OVERVIEW');
-      setHasSeenWelcome(false); // Reset welcome screen on logout
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -1032,27 +1025,6 @@ const App: React.FC = () => {
         </div>
         <p className="text-slate-800 dark:text-white font-bold animate-pulse">Authenticating...</p>
       </div>
-    );
-  }
-
-  // Welcome Screen Logic: Show if not logged in AND hasn't seen welcome screen
-  if (!user && !hasSeenWelcome) {
-    return (
-      <>
-        <WelcomeView 
-          onGetStarted={() => setHasSeenWelcome(true)} 
-          onSignIn={() => {
-            setHasSeenWelcome(true);
-            setShowAuthModal(true);
-          }} 
-        />
-        {showAuthModal && (
-          <Auth 
-            onClose={() => setShowAuthModal(false)} 
-            onSignUpSuccess={handleSignUpSuccess}
-          />
-        )}
-      </>
     );
   }
 
