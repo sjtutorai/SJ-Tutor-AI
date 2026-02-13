@@ -20,4 +20,3 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const githubProvider = new GithubAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
-export const yahooProvider = new OAuthProvider('yahoo.com');

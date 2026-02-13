@@ -4,7 +4,6 @@ import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "..
 import { SettingsService } from "./settingsService";
 
 // Helper to initialize AI client, ensuring a fresh instance for each call.
-// Added fallback key directly here as requested to ensure connectivity.
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || 'AIzaSyAqaZAP5IfwJrYKFyYnQDf5_1-EB58xrrE' });
 
 export const GeminiService = {
