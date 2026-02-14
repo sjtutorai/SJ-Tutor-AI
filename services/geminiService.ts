@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
 import { SettingsService } from "./settingsService";
@@ -13,19 +14,20 @@ export const GeminiService = {
   processNoteAI: async (content: string, task: 'summarize' | 'simplify' | 'mcq' | 'translate', targetLang?: string) => {
     const ai = getAI();
     const settings = SettingsService.getSettings();
+    const language = targetLang || settings.learning.language;
 
     const taskPrompts = {
-      summarize: "Create a bulleted 'Revision Box' summary for the following note. Focus on key definitions and dates.",
-      simplify: "Rewrite this note in very simple English (and Hindi if relevant) so a younger student can understand it perfectly.",
-      mcq: "Generate 5 high-quality Multiple Choice Questions with answers based ONLY on this note content. Return as Markdown list.",
-      translate: `Translate this note professionally into ${targetLang || 'Hindi'}, maintaining academic terminology where appropriate.`
+      summarize: `Create a bulleted 'Revision Box' summary for the following note in ${language}. Focus on key definitions and dates.`,
+      simplify: `Rewrite this note in very simple ${language} so a younger student can understand it perfectly.`,
+      mcq: `Generate 5 high-quality Multiple Choice Questions with answers in ${language} based ONLY on this note content. Return as Markdown list.`,
+      translate: `Translate this note professionally into ${language}, maintaining academic terminology where appropriate.`
     };
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
       config: {
-        systemInstruction: "You are an AI study assistant. Help students organize and understand their notes better."
+        systemInstruction: `You are an AI study assistant. You must communicate and generate content strictly in ${language}.`
       }
     });
 
@@ -37,9 +39,11 @@ export const GeminiService = {
    */
   generateNoteTemplate: async (subject: string, chapter: string, templateType: NoteTemplate) => {
     const ai = getAI();
+    const settings = SettingsService.getSettings();
+    const language = settings.learning.language;
     
     const prompt = `
-      Create a highly structured academic template for a study note.
+      Create a highly structured academic template for a study note in ${language}.
       Subject: ${subject}
       Chapter: ${chapter}
       Template Type: ${templateType}
@@ -50,6 +54,7 @@ export const GeminiService = {
       - For "Formula Sheet", use a table format.
       - For "Q&A", list 5 most important questions for this chapter based on standard board exams (CBSE/ICSE).
       - Include a "Key Points" and "Summary" section.
+      - ALL TEXT MUST BE IN ${language.toUpperCase()}.
     `;
 
     const response = await ai.models.generateContent({
@@ -67,7 +72,7 @@ export const GeminiService = {
 
     const prompt = `
       Create a comprehensive, structured summary for the following study material.
-      Use clear headings, bullet points for key concepts, and a bold conclusion.
+      THE ENTIRE SUMMARY MUST BE WRITTEN IN ${language.toUpperCase()}.
       
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
@@ -83,7 +88,7 @@ export const GeminiService = {
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}.`,
+        systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
       }
     });
 
@@ -97,7 +102,7 @@ export const GeminiService = {
 
     const prompt = `
       Write a detailed, academic essay based on the topics covered in this chapter.
-      The essay should have a proper introduction, body paragraphs analyzing key themes, and a conclusion.
+      THE ENTIRE ESSAY MUST BE WRITTEN IN ${language.toUpperCase()}.
       
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
@@ -111,7 +116,7 @@ export const GeminiService = {
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        systemInstruction: `You are an academic essay writer. Tone: ${settings.aiTutor.personality}.`,
+        systemInstruction: `You are an academic essay writer. Tone: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
       }
     });
 
@@ -138,11 +143,14 @@ export const GeminiService = {
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
     const ai = getAI();
     const settings = SettingsService.getSettings();
+    const language = data.language || settings.learning.language;
     const count = data.questionCount || 5;
     const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
 
     const prompt = `
       Create a ${count}-question multiple-choice quiz based on the following chapter details.
+      EVERYTHING INCLUDING QUESTIONS, OPTIONS, AND EXPLANATIONS MUST BE IN ${language.toUpperCase()}.
+      
       The difficulty level of the questions should be: ${difficulty}.
       Return the result as a JSON array.
       
@@ -152,6 +160,7 @@ export const GeminiService = {
       Chapter: ${data.chapterName}
       Class: ${data.gradeClass || settings.learning.grade}
       Board: ${data.board}
+      Language: ${language}
     `;
 
     const response = await ai.models.generateContent({
@@ -181,8 +190,11 @@ export const GeminiService = {
 
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
     const ai = getAI();
+    const settings = SettingsService.getSettings();
+    const language = settings.learning.language;
     const today = new Date().toDateString();
-    const prompt = `Current Date: ${today}. Goal: Create a study timetable up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
+    
+    const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -221,7 +233,10 @@ export const GeminiService = {
 
   updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
     const ai = getAI();
-    const prompt = `Update the timetable based on: "${instruction}"\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
+    const settings = SettingsService.getSettings();
+    const language = settings.learning.language;
+    
+    const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,

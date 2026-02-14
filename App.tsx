@@ -91,7 +91,16 @@ const App: React.FC = () => {
 
   // App State
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
-  const [formData, setFormData] = useState<StudyRequestData>(INITIAL_FORM_DATA);
+  
+  // Initialize form data with language from settings
+  const [formData, setFormData] = useState<StudyRequestData>(() => {
+    const settings = SettingsService.getSettings();
+    return {
+      ...INITIAL_FORM_DATA,
+      language: settings.learning.language || INITIAL_FORM_DATA.language
+    };
+  });
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Profile State
@@ -179,6 +188,21 @@ const App: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [user]);
+
+  // Sync formData language with settings whenever settings change
+  useEffect(() => {
+    const syncLanguage = () => {
+      const settings = SettingsService.getSettings();
+      setFormData(prev => ({
+        ...prev,
+        language: settings.learning.language || prev.language
+      }));
+    };
+    
+    syncLanguage();
+    window.addEventListener('settings-changed', syncLanguage);
+    return () => window.removeEventListener('settings-changed', syncLanguage);
+  }, []);
 
   // Theme Management
   useEffect(() => {
@@ -372,7 +396,11 @@ const App: React.FC = () => {
   };
 
   const handleFillSample = () => {
-    setFormData(SAMPLE_DATA);
+    const settings = SettingsService.getSettings();
+    setFormData({
+      ...SAMPLE_DATA,
+      language: settings.learning.language || SAMPLE_DATA.language
+    });
   };
 
   const validateForm = () => {
@@ -695,7 +723,11 @@ const App: React.FC = () => {
                   setExistingQuizScore(undefined);
                   setCurrentHistoryId(null);
                   setError(null);
-                  setFormData(INITIAL_FORM_DATA);
+                  const settings = SettingsService.getSettings();
+                  setFormData({
+                    ...INITIAL_FORM_DATA,
+                    language: settings.learning.language || INITIAL_FORM_DATA.language
+                  });
                   setMode(dashboardView as AppMode);
                   setDashboardView('OVERVIEW');
                 }}
@@ -1050,7 +1082,11 @@ const App: React.FC = () => {
               setExistingQuizScore(undefined);
               setCurrentHistoryId(null);
               setError(null);
-              setFormData(INITIAL_FORM_DATA);
+              const settings = SettingsService.getSettings();
+              setFormData({
+                ...INITIAL_FORM_DATA,
+                language: settings.learning.language || INITIAL_FORM_DATA.language
+              });
               if (window.innerWidth < 1024) setIsSidebarOpen(false);
             }}
           >
@@ -1085,7 +1121,11 @@ const App: React.FC = () => {
                       setExistingQuizScore(undefined);
                       setCurrentHistoryId(null);
                       setError(null);
-                      setFormData(INITIAL_FORM_DATA);
+                      const settings = SettingsService.getSettings();
+                      setFormData({
+                        ...INITIAL_FORM_DATA,
+                        language: settings.learning.language || INITIAL_FORM_DATA.language
+                      });
                     }
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group text-sm ${
