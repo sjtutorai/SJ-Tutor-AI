@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
       // Polyfill process.env.API_KEY for the browser environment as per global guidelines
       // We explicitly check process.env (for CI/Hosting providers) and env (for local .env files)
       // JSON.stringify is essential to wrap the value in quotes for the browser bundle
-      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || env.API_KEY || 'AIzaSyAqaZAP5IfwJrYKFyYnQDf5_1-EB58xrrE'),
+      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || env.API_KEY || 'AIzaSyCEVeqMcKIovgnIBETXgXbAPXanA4SWghc'),
     },
     server: {
       port: 3000,
