@@ -1,9 +1,9 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
 import { SettingsService } from "./settingsService";
 
 // Helper to initialize AI client, ensuring a fresh instance for each call.
+// The API key is centralized here as per user request.
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || 'AIzaSyCEVeqMcKIovgnIBETXgXbAPXanA4SWghc' });
 
 export const GeminiService = {
