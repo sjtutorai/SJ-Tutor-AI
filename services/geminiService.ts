@@ -1,11 +1,17 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
 import { SettingsService } from "./settingsService";
 
-// Helper to initialize AI client, ensuring a fresh instance for each call.
-// Using the new API key provided by the user as the primary fallback.
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || 'AIzaSyBafBxAmhg9dGjNdqpnmro1tN0oeCly2RA' });
+// Helper to initialize AI client.
+// The API key is retrieved exclusively from the environment variable process.env.API_KEY.
+// This variable is mapped in vite.config.ts from your .env file or Vercel settings.
+const getAI = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API_KEY_MISSING: Please set the API_KEY environment variable.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 export const GeminiService = {
   /**
