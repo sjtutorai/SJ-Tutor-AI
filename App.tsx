@@ -41,7 +41,8 @@ import {
   Settings,
   Info,
   Share2,
-  CreditCard
+  CreditCard,
+  ShieldAlert
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -557,7 +558,9 @@ const App: React.FC = () => {
          if (parsed.error?.message) errorMessage = parsed.error.message;
       } catch (e) {}
       
-      if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
+      if (errorMessage.toLowerCase().includes("leaked")) {
+        errorMessage = "API_KEY_LEAKED_ERROR";
+      } else if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
       } else if (errorMessage.includes("Generative Language API has not been used") || errorMessage.includes("PERMISSION_DENIED")) {
         errorMessage = "API_DISABLED";
@@ -898,9 +901,12 @@ const App: React.FC = () => {
               onFillSample={handleFillSample}
             />
             {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
+              <div className={`p-4 rounded-lg mb-4 flex items-start gap-3 animate-in slide-in-from-top-2 border ${error === 'API_KEY_LEAKED_ERROR' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                {error === 'API_KEY_LEAKED_ERROR' ? <ShieldAlert className="w-5 h-5 flex-shrink-0 mt-0.5" /> : <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
+                <div className="text-sm">
+                  <p className="font-bold">{error === 'API_KEY_LEAKED_ERROR' ? 'Security Alert: API Key Leaked' : 'Error Occurred'}</p>
+                  <p>{error === 'API_KEY_LEAKED_ERROR' ? 'Google has disabled your API key because it was detected in source code. To fix: 1) Go to AI Studio 2) Delete & Rotate your key 3) Set it in your Hosting Environment Variables.' : error}</p>
+                </div>
               </div>
             )}
             <button
@@ -937,9 +943,12 @@ const App: React.FC = () => {
               onFillSample={handleFillSample}
             />
             {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
+              <div className={`p-4 rounded-lg mb-4 flex items-start gap-3 animate-in slide-in-from-top-2 border ${error === 'API_KEY_LEAKED_ERROR' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                {error === 'API_KEY_LEAKED_ERROR' ? <ShieldAlert className="w-5 h-5 flex-shrink-0 mt-0.5" /> : <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
+                <div className="text-sm">
+                  <p className="font-bold">{error === 'API_KEY_LEAKED_ERROR' ? 'Security Alert: API Key Leaked' : 'Error Occurred'}</p>
+                  <p>{error === 'API_KEY_LEAKED_ERROR' ? 'Your API key was flagged as leaked and disabled. Please rotate your key in Google AI Studio and update your environment variables.' : error}</p>
+                </div>
               </div>
             )}
             <button
@@ -976,9 +985,12 @@ const App: React.FC = () => {
               onFillSample={handleFillSample}
             />
             {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
+              <div className={`p-4 rounded-lg mb-4 flex items-start gap-3 animate-in slide-in-from-top-2 border ${error === 'API_KEY_LEAKED_ERROR' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                {error === 'API_KEY_LEAKED_ERROR' ? <ShieldAlert className="w-5 h-5 flex-shrink-0 mt-0.5" /> : <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
+                <div className="text-sm">
+                  <p className="font-bold">{error === 'API_KEY_LEAKED_ERROR' ? 'Security Alert: API Key Leaked' : 'Error Occurred'}</p>
+                  <p>{error === 'API_KEY_LEAKED_ERROR' ? 'The current API key is compromised. Please generate a new one in AI Studio and set it in your hosting platform variables.' : error}</p>
+                </div>
               </div>
             )}
             <button
