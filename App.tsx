@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile, SJTUTOR_AVATAR } from './types';
 import InputForm from './components/InputForm';
@@ -44,18 +43,6 @@ import {
   CreditCard
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
-
-const SAMPLE_DATA: StudyRequestData = {
-  subject: 'Science',
-  gradeClass: 'Class 8',
-  board: 'CBSE',
-  language: 'English',
-  chapterName: "Synthetic Fibres",
-  author: '',
-  questionCount: 5,
-  difficulty: 'Medium',
-  includeImages: false
-};
 
 const THEME_COLORS: Record<string, Record<string, string>> = {
   Gold: {
@@ -395,11 +382,55 @@ const App: React.FC = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  /**
+   * Generates a dynamic educational example based on the user's Preferred Subject 
+   * and Grade/Class from their settings.
+   */
   const handleFillSample = () => {
     const settings = SettingsService.getSettings();
+    const subject = settings.learning.preferredSubject || 'Science';
+    const grade = settings.learning.grade || '10th';
+    const language = settings.learning.language || 'English';
+
+    // Intelligent educational mapping for realistic chapter names
+    let chapter = "Introduction to the Topic";
+    const subLower = subject.toLowerCase();
+
+    if (subLower.includes('science')) {
+      if (grade.includes('8')) chapter = "Synthetic Fibres and Plastics";
+      else if (grade.includes('9')) chapter = "Atoms and Molecules";
+      else if (grade.includes('10')) chapter = "Heredity and Evolution";
+      else chapter = "The Fundamental Unit of Life";
+    } else if (subLower.includes('history') || subLower.includes('social')) {
+      if (grade.includes('9')) chapter = "The French Revolution";
+      else if (grade.includes('10')) chapter = "Nationalism in India";
+      else chapter = "The Age of Industrialization";
+    } else if (subLower.includes('math')) {
+      if (grade.includes('10')) chapter = "Arithmetic Progressions";
+      else if (grade.includes('11') || grade.includes('12')) chapter = "Integration and Differentiation";
+      else chapter = "Linear Equations in Two Variables";
+    } else if (subLower.includes('physics')) {
+      chapter = "Laws of Motion and Force";
+    } else if (subLower.includes('chemistry')) {
+      chapter = "Carbon and its Compounds";
+    } else if (subLower.includes('geography')) {
+      chapter = "Climate and Natural Vegetation";
+    } else if (subLower.includes('english')) {
+      chapter = "Modern Literature & Poetry Analysis";
+    } else if (subLower.includes('computer') || subLower.includes('coding')) {
+      chapter = "Introduction to Data Structures";
+    }
+
     setFormData({
-      ...SAMPLE_DATA,
-      language: settings.learning.language || SAMPLE_DATA.language
+      ...INITIAL_FORM_DATA,
+      subject: subject,
+      gradeClass: grade,
+      board: "CBSE", // Defaulting to a standard board for the example
+      language: language,
+      chapterName: chapter,
+      questionCount: mode === AppMode.QUIZ ? 10 : 5,
+      difficulty: settings.learning.difficulty || 'Medium',
+      includeImages: mode === AppMode.ESSAY // Auto-enable illustrations for essays
     });
   };
 
