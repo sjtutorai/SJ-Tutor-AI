@@ -12,6 +12,7 @@ import NotesView from './components/NotesView';
 import SettingsView from './components/SettingsView';
 import AboutView from './components/AboutView';
 import IdCardView from './components/IdCardView';
+import LandingPage from './components/LandingPage';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
@@ -685,6 +686,15 @@ const App: React.FC = () => {
   ];
 
   const renderDashboard = () => {
+    // Show Landing Page for Unauthenticated Users
+    if (!user) {
+      return (
+        <div className="-m-4 sm:-m-5 lg:-m-6 overflow-hidden">
+          <LandingPage onGetStarted={() => setShowAuthModal(true)} />
+        </div>
+      );
+    }
+
     const noteCount = (() => {
        try {
          const key = user ? `notes_${user.uid}` : 'notes_guest';
