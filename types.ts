@@ -68,6 +68,7 @@ export interface UserSettings {
   learning: {
     preferredSubject: string;
     grade: string;
+    board: string;
     difficulty: DifficultyLevel;
     language: string;
     dailyGoalMins: number;
@@ -148,6 +149,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   learning: {
     preferredSubject: 'Science',
     grade: '10th',
+    board: 'CBSE',
     difficulty: 'Medium',
     language: 'English',
     dailyGoalMins: 30,
