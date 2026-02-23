@@ -684,15 +684,6 @@ const App: React.FC = () => {
   ];
 
   const renderDashboard = () => {
-    // Show Landing Page for Unauthenticated Users
-    if (!user) {
-      return (
-        <div className="-m-4 sm:-m-5 lg:-m-6 overflow-hidden">
-          <LandingPage onGetStarted={() => setShowAuthModal(true)} />
-        </div>
-      );
-    }
-
     const noteCount = (() => {
        try {
          const key = user ? `notes_${user.uid}` : 'notes_guest';
@@ -1102,6 +1093,20 @@ const App: React.FC = () => {
              <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
         </div>
         <p className="text-slate-800 dark:text-white font-bold animate-pulse">Authenticating...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+        <LandingPage onGetStarted={() => setShowAuthModal(true)} />
+        {showAuthModal && (
+          <Auth 
+            onClose={() => setShowAuthModal(false)} 
+            onSignUpSuccess={handleSignUpSuccess}
+          />
+        )}
       </div>
     );
   }
