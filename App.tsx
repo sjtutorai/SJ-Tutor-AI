@@ -13,6 +13,7 @@ import SettingsView from './components/SettingsView';
 import AboutView from './components/AboutView';
 import IdCardView from './components/IdCardView';
 import LandingPage from './components/LandingPage';
+import StudyTimerView from './components/StudyTimerView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
@@ -36,8 +37,6 @@ import {
   Crown,
   Plus,
   Clock,
-  Key,
-  ExternalLink,
   Settings,
   Info,
   Share2,
@@ -75,7 +74,6 @@ const App: React.FC = () => {
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
-  const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
   // App State
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -244,7 +242,6 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!process.env.API_KEY) {
       console.warn("API_KEY is missing in environment variables!");
-      setApiKeyMissing(true);
     }
   }, []);
 
@@ -681,6 +678,7 @@ const App: React.FC = () => {
     { id: AppMode.ESSAY, label: 'Essay Writer', icon: BookOpen },
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
+    { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
   ];
@@ -912,6 +910,13 @@ const App: React.FC = () => {
               userProfile={userProfile}
               email={user?.email || 'Guest User'}
             />
+          </div>
+        );
+
+      case AppMode.TIMER:
+        return (
+          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <StudyTimerView />
           </div>
         );
 

@@ -9,7 +9,8 @@ export enum AppMode {
   NOTES = 'NOTES',
   SETTINGS = 'SETTINGS',
   ABOUT = 'ABOUT',
-  ID_CARD = 'ID_CARD'
+  ID_CARD = 'ID_CARD',
+  TIMER = 'TIMER'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
