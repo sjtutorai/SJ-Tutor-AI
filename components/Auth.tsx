@@ -64,33 +64,24 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
     setError(null);
     try {
       // 1. Trigger WebAuthn UI (The "Neural" part)
-      // We use 'create' to force a verification prompt (User Presence)
+      // We use 'get' to authenticate with existing credentials (device lock/biometrics)
+      // This matches the user request to "use Current Passkey" or "Scan QR Code"
       const challenge = new Uint8Array(32);
       window.crypto.getRandomValues(challenge);
 
       // This triggers the browser's native "Verify Identity" dialog
       // (Touch ID, Face ID, Windows Hello, or QR Code for other device)
-      await navigator.credentials.create({
+      const assertion = await navigator.credentials.get({
         publicKey: {
           challenge,
-          rp: {
-            name: "SJ Tutor AI",
-            id: window.location.hostname // Must match current domain
-          },
-          user: {
-            id: new Uint8Array(16),
-            name: "neural_user",
-            displayName: "Neural User"
-          },
-          pubKeyCredParams: [{ alg: -7, type: "public-key" }],
-          timeout: 60000,
-          attestation: "direct",
-          authenticatorSelection: {
-            userVerification: "required", // Forces device password/biometric
-            residentKey: "preferred"
-          }
+          rpId: window.location.hostname,
+          userVerification: "required",
         }
       });
+
+      if (!assertion) {
+        throw new Error("Neural Access failed");
+      }
 
       // 2. If successful (didn't throw), log them in
       // We'll use a persistent "neural" account for this device
@@ -98,7 +89,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       let neuralPass = localStorage.getItem('sjtutor_neural_pass');
 
       if (!neuralEmail || !neuralPass) {
-        // Create new
+        // Create new shadow account if not exists locally
         const randomId = Math.random().toString(36).substring(7);
         neuralEmail = `neural_${randomId}@sjtutor.ai`;
         neuralPass = `neural_${Math.random().toString(36)}`;
@@ -123,6 +114,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
           if (onSignUpSuccess) onSignUpSuccess();
           else onClose();
         } catch (signInErr) {
+          console.error(signInErr);
           // If sign in fails (e.g. user deleted), recreate
           const randomId = Math.random().toString(36).substring(7);
           neuralEmail = `neural_${randomId}@sjtutor.ai`;
@@ -144,9 +136,13 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
     } catch (err: any) {
       console.error("Neural Access failed:", err);
       if (err.name === 'NotAllowedError') {
-        setError("Neural Access was cancelled or timed out.");
+        setError("Neural Access was cancelled.");
+      } else if (err.name === 'NotFoundError') {
+        // Fallback: If no passkey exists, we MUST ask to create one to enable this feature
+        // But the user requested "Do not ask to create", so we show a helpful error instead
+        setError("No Neural Access passkey found on this device. Please use standard login.");
       } else {
-        setError("Device authentication failed. Please try again or use a password.");
+        setError("Device authentication failed. Please try again.");
       }
     } finally {
       setLoading(false);
