@@ -67,97 +67,40 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       const challenge = new Uint8Array(32);
       window.crypto.getRandomValues(challenge);
 
-      try {
-        // Try to authenticate with existing credentials first
-        const assertion = await navigator.credentials.get({
-          publicKey: {
-            challenge,
-            rpId: window.location.hostname,
-            userVerification: "required",
-          }
-        });
+      const neuralEmail = localStorage.getItem('sjtutor_neural_email');
+      const neuralPass = localStorage.getItem('sjtutor_neural_pass');
 
-        if (!assertion) {
-          throw new Error("Neural Access failed");
-        }
-      } catch (getErr: any) {
-        // If no passkey is found, prompt to create one
-        if (getErr.name === 'NotFoundError') {
-          await navigator.credentials.create({
+      // If we have local credentials, we try to 'get' (authenticate)
+      // If we don't, we go straight to 'create' (register) to avoid "No passkeys found" errors
+      if (neuralEmail && neuralPass) {
+        try {
+          const assertion = await navigator.credentials.get({
             publicKey: {
               challenge,
-              rp: {
-                name: "SJ Tutor AI",
-                id: window.location.hostname
-              },
-              user: {
-                id: new Uint8Array(16),
-                name: "neural_user",
-                displayName: "Neural User"
-              },
-              pubKeyCredParams: [{ alg: -7, type: "public-key" }],
-              timeout: 60000,
-              attestation: "direct",
-              authenticatorSelection: {
-                userVerification: "required",
-                residentKey: "preferred"
-              }
+              rpId: window.location.hostname,
+              userVerification: "required",
             }
           });
-        } else {
-          throw getErr;
-        }
-      }
 
-      // 2. If successful (didn't throw), log them in
-      // We'll use a persistent "neural" account for this device
-      let neuralEmail = localStorage.getItem('sjtutor_neural_email');
-      let neuralPass = localStorage.getItem('sjtutor_neural_pass');
-
-      if (!neuralEmail || !neuralPass) {
-        // Create new shadow account if not exists locally
-        const randomId = Math.random().toString(36).substring(7);
-        neuralEmail = `neural_${randomId}@sjtutor.ai`;
-        neuralPass = `neural_${Math.random().toString(36)}`;
-        
-        // Sign up
-        const result = await createUserWithEmailAndPassword(auth, neuralEmail, neuralPass);
-        if (result.user) {
-          await updateProfile(result.user, { displayName: "Neural User" });
-        }
-        
-        // Store for next time
-        localStorage.setItem('sjtutor_neural_email', neuralEmail);
-        localStorage.setItem('sjtutor_neural_pass', neuralPass);
-        
-        if (onSignUpSuccess) onSignUpSuccess();
-        else onClose();
-
-      } else {
-        // Sign in
-        try {
-          await signInWithEmailAndPassword(auth, neuralEmail, neuralPass);
-          if (onSignUpSuccess) onSignUpSuccess();
-          else onClose();
-        } catch (signInErr) {
-          console.error(signInErr);
-          // If sign in fails (e.g. user deleted), recreate
-          const randomId = Math.random().toString(36).substring(7);
-          neuralEmail = `neural_${randomId}@sjtutor.ai`;
-          neuralPass = `neural_${Math.random().toString(36)}`;
-          
-          const result = await createUserWithEmailAndPassword(auth, neuralEmail, neuralPass);
-          if (result.user) {
-            await updateProfile(result.user, { displayName: "Neural User" });
+          if (!assertion) {
+            throw new Error("Neural Access failed");
           }
-          
-          localStorage.setItem('sjtutor_neural_email', neuralEmail);
-          localStorage.setItem('sjtutor_neural_pass', neuralPass);
-          
-          if (onSignUpSuccess) onSignUpSuccess();
-          else onClose();
+        } catch (getErr: any) {
+          // If the passkey was deleted from the device but we still have local storage,
+          // we fall back to creating a new one.
+          if (getErr.name === 'NotFoundError' || getErr.name === 'NotAllowedError') {
+            await createPasskey(challenge);
+          } else {
+            throw getErr;
+          }
         }
+      } else {
+        // New user for this feature - go straight to create
+        await createPasskey(challenge);
       }
+
+      // 2. Log them in (using shadow account)
+      await loginNeuralAccount();
 
     } catch (err: any) {
       console.error("Neural Access failed:", err);
@@ -168,6 +111,80 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const createPasskey = async (challenge: Uint8Array) => {
+    return await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: {
+          name: "SJ Tutor AI",
+          id: window.location.hostname
+        },
+        user: {
+          id: new Uint8Array(16),
+          name: "neural_user",
+          displayName: "Neural User"
+        },
+        pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+        timeout: 60000,
+        attestation: "direct",
+        authenticatorSelection: {
+          userVerification: "required",
+          residentKey: "preferred"
+        }
+      }
+    });
+  };
+
+  const loginNeuralAccount = async () => {
+    let neuralEmail = localStorage.getItem('sjtutor_neural_email');
+    let neuralPass = localStorage.getItem('sjtutor_neural_pass');
+
+    if (!neuralEmail || !neuralPass) {
+      // Create new shadow account if not exists locally
+      const randomId = Math.random().toString(36).substring(7);
+      neuralEmail = `neural_${randomId}@sjtutor.ai`;
+      neuralPass = `neural_${Math.random().toString(36)}`;
+      
+      // Sign up
+      const result = await createUserWithEmailAndPassword(auth, neuralEmail, neuralPass);
+      if (result.user) {
+        await updateProfile(result.user, { displayName: "Neural User" });
+      }
+      
+      // Store for next time
+      localStorage.setItem('sjtutor_neural_email', neuralEmail);
+      localStorage.setItem('sjtutor_neural_pass', neuralPass);
+      
+      if (onSignUpSuccess) onSignUpSuccess();
+      else onClose();
+
+    } else {
+      // Sign in
+      try {
+        await signInWithEmailAndPassword(auth, neuralEmail, neuralPass);
+        if (onSignUpSuccess) onSignUpSuccess();
+        else onClose();
+      } catch (signInErr) {
+        console.error(signInErr);
+        // If sign in fails (e.g. user deleted), recreate
+        const randomId = Math.random().toString(36).substring(7);
+        neuralEmail = `neural_${randomId}@sjtutor.ai`;
+        neuralPass = `neural_${Math.random().toString(36)}`;
+        
+        const result = await createUserWithEmailAndPassword(auth, neuralEmail, neuralPass);
+        if (result.user) {
+          await updateProfile(result.user, { displayName: "Neural User" });
+        }
+        
+        localStorage.setItem('sjtutor_neural_email', neuralEmail);
+        localStorage.setItem('sjtutor_neural_pass', neuralPass);
+        
+        if (onSignUpSuccess) onSignUpSuccess();
+        else onClose();
+      }
     }
   };
 
