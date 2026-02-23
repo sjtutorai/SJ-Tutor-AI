@@ -10,7 +10,7 @@ import {
   updateProfile,
   sendEmailVerification
 } from 'firebase/auth';
-import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, CheckCircle, Inbox, RefreshCw, Fingerprint } from 'lucide-react';
+import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, Inbox, RefreshCw, Fingerprint } from 'lucide-react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
 
@@ -64,23 +64,49 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
     setError(null);
     try {
       // 1. Trigger WebAuthn UI (The "Neural" part)
-      // We use 'get' to authenticate with existing credentials (device lock/biometrics)
-      // This matches the user request to "use Current Passkey" or "Scan QR Code"
       const challenge = new Uint8Array(32);
       window.crypto.getRandomValues(challenge);
 
-      // This triggers the browser's native "Verify Identity" dialog
-      // (Touch ID, Face ID, Windows Hello, or QR Code for other device)
-      const assertion = await navigator.credentials.get({
-        publicKey: {
-          challenge,
-          rpId: window.location.hostname,
-          userVerification: "required",
-        }
-      });
+      try {
+        // Try to authenticate with existing credentials first
+        const assertion = await navigator.credentials.get({
+          publicKey: {
+            challenge,
+            rpId: window.location.hostname,
+            userVerification: "required",
+          }
+        });
 
-      if (!assertion) {
-        throw new Error("Neural Access failed");
+        if (!assertion) {
+          throw new Error("Neural Access failed");
+        }
+      } catch (getErr: any) {
+        // If no passkey is found, prompt to create one
+        if (getErr.name === 'NotFoundError') {
+          await navigator.credentials.create({
+            publicKey: {
+              challenge,
+              rp: {
+                name: "SJ Tutor AI",
+                id: window.location.hostname
+              },
+              user: {
+                id: new Uint8Array(16),
+                name: "neural_user",
+                displayName: "Neural User"
+              },
+              pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+              timeout: 60000,
+              attestation: "direct",
+              authenticatorSelection: {
+                userVerification: "required",
+                residentKey: "preferred"
+              }
+            }
+          });
+        } else {
+          throw getErr;
+        }
       }
 
       // 2. If successful (didn't throw), log them in
@@ -137,10 +163,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       console.error("Neural Access failed:", err);
       if (err.name === 'NotAllowedError') {
         setError("Neural Access was cancelled.");
-      } else if (err.name === 'NotFoundError') {
-        // Fallback: If no passkey exists, we MUST ask to create one to enable this feature
-        // But the user requested "Do not ask to create", so we show a helpful error instead
-        setError("No Neural Access passkey found on this device. Please use standard login.");
       } else {
         setError("Device authentication failed. Please try again.");
       }
