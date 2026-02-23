@@ -10,7 +10,7 @@ import {
   updateProfile,
   sendEmailVerification
 } from 'firebase/auth';
-import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, CheckCircle, Inbox, RefreshCw } from 'lucide-react';
+import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, CheckCircle, Inbox, RefreshCw, Fingerprint } from 'lucide-react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
 
@@ -58,6 +58,100 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
     }
     return () => clearInterval(interval);
   }, [resendTimer]);
+
+  const handleNeuralAccess = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. Trigger WebAuthn UI (The "Neural" part)
+      // We use 'create' to force a verification prompt (User Presence)
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      // This triggers the browser's native "Verify Identity" dialog
+      // (Touch ID, Face ID, Windows Hello, or QR Code for other device)
+      await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: {
+            name: "SJ Tutor AI",
+            id: window.location.hostname // Must match current domain
+          },
+          user: {
+            id: new Uint8Array(16),
+            name: "neural_user",
+            displayName: "Neural User"
+          },
+          pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+          timeout: 60000,
+          attestation: "direct",
+          authenticatorSelection: {
+            userVerification: "required", // Forces device password/biometric
+            residentKey: "preferred"
+          }
+        }
+      });
+
+      // 2. If successful (didn't throw), log them in
+      // We'll use a persistent "neural" account for this device
+      let neuralEmail = localStorage.getItem('sjtutor_neural_email');
+      let neuralPass = localStorage.getItem('sjtutor_neural_pass');
+
+      if (!neuralEmail || !neuralPass) {
+        // Create new
+        const randomId = Math.random().toString(36).substring(7);
+        neuralEmail = `neural_${randomId}@sjtutor.ai`;
+        neuralPass = `neural_${Math.random().toString(36)}`;
+        
+        // Sign up
+        const result = await createUserWithEmailAndPassword(auth, neuralEmail, neuralPass);
+        if (result.user) {
+          await updateProfile(result.user, { displayName: "Neural User" });
+        }
+        
+        // Store for next time
+        localStorage.setItem('sjtutor_neural_email', neuralEmail);
+        localStorage.setItem('sjtutor_neural_pass', neuralPass);
+        
+        if (onSignUpSuccess) onSignUpSuccess();
+        else onClose();
+
+      } else {
+        // Sign in
+        try {
+          await signInWithEmailAndPassword(auth, neuralEmail, neuralPass);
+          if (onSignUpSuccess) onSignUpSuccess();
+          else onClose();
+        } catch (signInErr) {
+          // If sign in fails (e.g. user deleted), recreate
+          const randomId = Math.random().toString(36).substring(7);
+          neuralEmail = `neural_${randomId}@sjtutor.ai`;
+          neuralPass = `neural_${Math.random().toString(36)}`;
+          
+          const result = await createUserWithEmailAndPassword(auth, neuralEmail, neuralPass);
+          if (result.user) {
+            await updateProfile(result.user, { displayName: "Neural User" });
+          }
+          
+          localStorage.setItem('sjtutor_neural_email', neuralEmail);
+          localStorage.setItem('sjtutor_neural_pass', neuralPass);
+          
+          if (onSignUpSuccess) onSignUpSuccess();
+          else onClose();
+        }
+      }
+
+    } catch (err: any) {
+      console.error("Neural Access failed:", err);
+      if (err.name === 'NotAllowedError') {
+        setError("Neural Access was cancelled or timed out.");
+      } else {
+        setError("Device authentication failed. Please try again or use a password.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleProviderSignIn = async (provider: any, providerName: string) => {
     setLoading(true);
@@ -337,6 +431,26 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
           </div>
 
           <div className="flex flex-col gap-3 mb-6">
+            <button
+              onClick={handleNeuralAccess}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/25 hover:from-indigo-700 hover:to-violet-700 transition-all hover:-translate-y-0.5 group"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                <>
+                  <Fingerprint className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  <span>Neural Access</span>
+                  <span className="text-xs font-normal opacity-70 bg-white/20 px-2 py-0.5 rounded-full ml-1">Fast</span>
+                </>
+              )}
+            </button>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-slate-100"></div>
+              <span className="flex-shrink-0 mx-4 text-xs text-slate-400 font-bold uppercase tracking-wider">Or Social</span>
+              <div className="flex-grow border-t border-slate-100"></div>
+            </div>
+
             <button
               onClick={() => handleProviderSignIn(googleProvider, 'Google')}
               disabled={loading}
