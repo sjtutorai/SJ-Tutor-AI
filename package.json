@@ -15,6 +15,7 @@
     "firebase": "^12.6.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
+    "libphonenumber-js": "^1.12.37",
     "lucide-react": "^0.556.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

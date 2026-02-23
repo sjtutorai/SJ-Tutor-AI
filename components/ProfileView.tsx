@@ -1,7 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { User, Phone, School, FileText, Camera, Save, X, Edit2, ArrowRight, Mail, BookOpen, Layers, Briefcase, Zap, GraduationCap } from 'lucide-react';
+import { User, Phone, School, FileText, Camera, Save, X, Edit2, ArrowRight, Mail, BookOpen, Layers, Briefcase, Zap, GraduationCap, CheckCircle } from 'lucide-react';
+import { validateAndParsePhone, CountryPhone } from '../utils/phoneUtils';
 
 interface ProfileViewProps {
   profile: UserProfile;
@@ -13,6 +14,7 @@ interface ProfileViewProps {
 const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnboarding = false }) => {
   const [isEditing, setIsEditing] = useState(isOnboarding);
   const [formData, setFormData] = useState<UserProfile>(profile);
+  const [phoneInfo, setPhoneInfo] = useState<{ country?: CountryPhone, isValid: boolean, error?: string }>({ isValid: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -21,10 +23,29 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
     }
     // Update local form state if prop changes
     setFormData(profile);
+    
+    // Initial validation of phone number
+    if (profile.phoneNumber) {
+      const result = validateAndParsePhone(profile.phoneNumber);
+      setPhoneInfo({
+        country: result.country,
+        isValid: result.isValid,
+        error: result.error
+      });
+    }
   }, [isOnboarding, profile]);
 
   const handleInputChange = (field: keyof UserProfile, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    
+    if (field === 'phoneNumber') {
+      const result = validateAndParsePhone(value);
+      setPhoneInfo({
+        country: result.country,
+        isValid: result.isValid,
+        error: result.error
+      });
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -227,19 +248,49 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number</label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+                    <div className="absolute left-3 top-3.5 flex items-center gap-2 pointer-events-none">
+                      {phoneInfo.country ? (
+                         <span className="text-lg leading-none">{phoneInfo.country.flag}</span>
+                      ) : (
+                         <Phone className="w-4 h-4 text-slate-400" />
+                      )}
+                    </div>
                     <input
                       type="tel"
                       disabled={!isEditing}
                       value={formData.phoneNumber}
                       onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
-                      placeholder="e.g. +1 234 567 890"
+                      className={`w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900 ${
+                        formData.phoneNumber && !phoneInfo.isValid ? 'border-red-300 focus:ring-red-200' : 'border-slate-200'
+                      }`}
+                      placeholder="e.g. +91 9876543210"
                     />
+                    {phoneInfo.isValid && (
+                      <CheckCircle className="absolute right-3 top-3.5 w-5 h-5 text-emerald-500" />
+                    )}
                   </div>
+                  {formData.phoneNumber && (
+                    <div className="flex items-center justify-between mt-1 px-1">
+                      {phoneInfo.country ? (
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <span className="font-medium text-slate-700">{phoneInfo.country.name}</span>
+                          <span>•</span>
+                          <span>{phoneInfo.country.callingCode}</span>
+                          <span>•</span>
+                          <span>{phoneInfo.country.minDigits}-{phoneInfo.country.maxDigits} digits</span>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-400">Type country code (e.g. +91)</div>
+                      )}
+                      
+                      {!phoneInfo.isValid && (
+                        <span className="text-xs text-red-500 font-medium">Invalid number format</span>
+                      )}
+                    </div>
+                  )}
                 </div>
              </div>
           </div>
