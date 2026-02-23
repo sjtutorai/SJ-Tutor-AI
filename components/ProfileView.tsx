@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { User, Phone, School, FileText, Camera, Save, X, Edit2, ArrowRight, Mail, BookOpen, Layers, Briefcase, Zap, GraduationCap, CheckCircle } from 'lucide-react';
+import { User, Phone, School, FileText, Camera, Save, X, Edit2, ArrowRight, Mail, BookOpen, Layers, Briefcase, Zap, GraduationCap, CheckCircle, ShieldCheck, Send, Loader2 } from 'lucide-react';
 import { validateAndParsePhone, CountryPhone } from '../utils/phoneUtils';
 
 interface ProfileViewProps {
@@ -15,6 +15,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
   const [isEditing, setIsEditing] = useState(isOnboarding);
   const [formData, setFormData] = useState<UserProfile>(profile);
   const [phoneInfo, setPhoneInfo] = useState<{ country?: CountryPhone, isValid: boolean, error?: string }>({ isValid: false });
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpSuccess, setOtpSuccess] = useState<string | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -45,6 +51,71 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
         isValid: result.isValid,
         error: result.error
       });
+      // Reset OTP state if phone number changes
+      setOtpSent(false);
+      setOtpSuccess(null);
+      setOtpError(null);
+    }
+  };
+
+  const handleSendOTP = async () => {
+    if (!phoneInfo.isValid) return;
+    
+    setIsVerifying(true);
+    setOtpError(null);
+    setOtpSuccess(null);
+    
+    try {
+      const response = await fetch('/api/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: formData.phoneNumber }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setOtpSent(true);
+        setOtpSuccess("OTP sent! Please check your messages.");
+      } else {
+        setOtpError(data.error || "Failed to send OTP. Please try again.");
+      }
+    } catch (err) {
+      setOtpError("Connection error. Please check your internet.");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    if (!otp || otp.length !== 6) {
+      setOtpError("Please enter a valid 6-digit OTP.");
+      return;
+    }
+    
+    setIsVerifying(true);
+    setOtpError(null);
+    
+    try {
+      const response = await fetch('/api/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: formData.phoneNumber, otp }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setOtpSuccess("Phone number verified successfully!");
+        setFormData(prev => ({ ...prev, phoneVerified: true }));
+        setOtpSent(false);
+      } else {
+        setOtpError(data.error || "Incorrect OTP. Please try again.");
+      }
+    } catch (err) {
+      setOtpError("Verification failed. Please try again.");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -69,6 +140,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
   const handleCancel = () => {
     setFormData(profile);
     setIsEditing(false);
+    setOtpSent(false);
+    setOtpError(null);
+    setOtpSuccess(null);
   };
 
   const isPremium = formData.planType && formData.planType !== 'Free';
@@ -79,7 +153,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
       {isOnboarding && (
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Welcome to SJ Tutor AI!</h1>
-          <p className="text-slate-500 max-w-lg mx-auto">Let's build your academic profile to personalize your AI tutor and study materials.</p>
+          <p className="text-slate-500 max-w-lg mx-auto">Let&apos;s build your academic profile to personalize your AI tutor and study materials.</p>
         </div>
       )}
 
@@ -136,6 +210,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                     {formData.credits} / 100
                  </div>
                </div>
+               {formData.phoneVerified && (
+                 <div className="flex justify-between text-sm mt-2">
+                   <span className="text-slate-500">Phone</span>
+                   <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs flex items-center gap-1">
+                     <ShieldCheck className="w-3 h-3" />
+                     Verified
+                   </span>
+                 </div>
+               )}
             </div>
 
             {!isOnboarding && !isEditing ? (
@@ -249,30 +332,88 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number</label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-3.5 flex items-center gap-2 pointer-events-none">
-                      {phoneInfo.country ? (
-                         <span className="text-lg leading-none">{phoneInfo.country.flag}</span>
-                      ) : (
-                         <Phone className="w-4 h-4 text-slate-400" />
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
+                    Phone Number
+                    {formData.phoneVerified && (
+                      <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <ShieldCheck className="w-2.5 h-2.5" /> Verified
+                      </span>
+                    )}
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <div className="absolute left-3 top-3.5 flex items-center gap-2 pointer-events-none">
+                        {phoneInfo.country ? (
+                           <span className="text-lg leading-none">{phoneInfo.country.flag}</span>
+                        ) : (
+                           <Phone className="w-4 h-4 text-slate-400" />
+                        )}
+                      </div>
+                      <input
+                        type="tel"
+                        disabled={!isEditing || formData.phoneVerified}
+                        value={formData.phoneNumber}
+                        onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+                        className={`w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900 ${
+                          formData.phoneNumber && !phoneInfo.isValid ? 'border-red-300 focus:ring-red-200' : 'border-slate-200'
+                        }`}
+                        placeholder="e.g. +91 9876543210"
+                      />
+                      {phoneInfo.isValid && (
+                        <CheckCircle className="absolute right-3 top-3.5 w-5 h-5 text-emerald-500" />
                       )}
                     </div>
-                    <input
-                      type="tel"
-                      disabled={!isEditing}
-                      value={formData.phoneNumber}
-                      onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                      className={`w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900 ${
-                        formData.phoneNumber && !phoneInfo.isValid ? 'border-red-300 focus:ring-red-200' : 'border-slate-200'
-                      }`}
-                      placeholder="e.g. +91 9876543210"
-                    />
-                    {phoneInfo.isValid && (
-                      <CheckCircle className="absolute right-3 top-3.5 w-5 h-5 text-emerald-500" />
+                    
+                    {isEditing && !formData.phoneVerified && phoneInfo.isValid && !otpSent && (
+                      <button
+                        onClick={handleSendOTP}
+                        disabled={isVerifying}
+                        className="px-4 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors flex items-center gap-2 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        Verify
+                      </button>
                     )}
                   </div>
-                  {formData.phoneNumber && (
+
+                  {/* OTP Input Section */}
+                  {otpSent && (
+                    <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-in fade-in slide-in-from-top-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Enter 6-digit OTP</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          value={otp}
+                          onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                          className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-center text-xl tracking-widest font-bold"
+                          placeholder="000000"
+                        />
+                        <button
+                          onClick={handleVerifyOTP}
+                          disabled={isVerifying || otp.length !== 6}
+                          className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        >
+                          {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                          Confirm
+                        </button>
+                      </div>
+                      <div className="flex justify-between items-center mt-2">
+                        <p className="text-[10px] text-slate-400 italic">OTP expires in 5 minutes</p>
+                        <button 
+                          onClick={handleSendOTP}
+                          className="text-[10px] text-primary-600 font-bold hover:underline"
+                        >
+                          Resend OTP
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {otpError && <p className="text-xs text-red-500 mt-1 font-medium">{otpError}</p>}
+                  {otpSuccess && <p className="text-xs text-emerald-600 mt-1 font-medium">{otpSuccess}</p>}
+
+                  {formData.phoneNumber && !otpSent && (
                     <div className="flex items-center justify-between mt-1 px-1">
                       {phoneInfo.country ? (
                         <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -358,3 +499,4 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
 };
 
 export default ProfileView;
+
