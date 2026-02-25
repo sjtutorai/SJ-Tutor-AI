@@ -10,7 +10,9 @@ export enum AppMode {
   SETTINGS = 'SETTINGS',
   ABOUT = 'ABOUT',
   ID_CARD = 'ID_CARD',
-  TIMER = 'TIMER'
+  TIMER = 'TIMER',
+  PRIVACY = 'PRIVACY',
+  TERMS = 'TERMS'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';

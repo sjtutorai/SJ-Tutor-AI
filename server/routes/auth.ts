@@ -4,6 +4,9 @@ import axios from "axios";
 import mongoose from "mongoose";
 import Otp from "../models/Otp";
 
+import SharedContent from "../models/SharedContent";
+import { v4 as uuidv4 } from 'uuid';
+
 const router = express.Router();
 
 // In-memory fallback store
@@ -72,7 +75,6 @@ router.post("/verify-otp", async (req, res) => {
 
   try {
     let record: any;
-    let isMemory = false;
 
     if (mongoose.connection.readyState === 1) {
       record = await Otp.findOne({ phone });
@@ -92,7 +94,6 @@ router.post("/verify-otp", async (req, res) => {
             });
           }
         };
-        isMemory = true;
       }
     }
 
@@ -121,5 +122,51 @@ router.post("/verify-otp", async (req, res) => {
     res.status(500).json({ message: "Verification failed" });
   }
 });
+
+/* SHARE CONTENT */
+router.post("/share", async (req, res) => {
+  try {
+    const { type, title, subtitle, content } = req.body;
+    const id = uuidv4().slice(0, 8); // Short ID
+
+    if (mongoose.connection.readyState === 1) {
+      await SharedContent.create({
+        id,
+        type,
+        title,
+        subtitle,
+        content
+      });
+    } else {
+      // Optional: Store in memory if Mongo is down? 
+      // For now let's assume Mongo is needed for sharing persistence
+      return res.status(503).json({ message: "Sharing requires database connection" });
+    }
+
+    res.json({ success: true, id });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to share content" });
+  }
+});
+
+/* GET SHARED CONTENT */
+router.get("/share/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (mongoose.connection.readyState === 1) {
+      const record = await SharedContent.findOne({ id });
+      if (!record) return res.status(404).json({ message: "Content not found" });
+      res.json({ success: true, data: record });
+    } else {
+      res.status(503).json({ message: "Database connection required" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to retrieve content" });
+  }
+});
+
+export default router;
 
 export default router;

@@ -85,56 +85,70 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
   };
 
   const handleShare = async (platform: string) => {
-    // Use window.location.href to ensure full URL is captured (better for deep links/different environments)
-    const appUrl = window.location.href; 
-    const text = `I scored ${score}/${questions.length} on my SJ Tutor AI Quiz! 🎓`;
-    const shareTextWithLink = `${text}\nCheck it out here: ${appUrl}`;
-    
-    let shareUrl = '';
-    switch(platform) {
-      case 'whatsapp':
-        shareUrl = `https://wa.me/?text=${encodeURIComponent(shareTextWithLink)}`;
-        break;
-      case 'facebook':
-        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(appUrl)}&quote=${encodeURIComponent(text)}`;
-        break;
-      case 'telegram':
-          shareUrl = `https://t.me/share/url?url=${encodeURIComponent(appUrl)}&text=${encodeURIComponent(text)}`;
+    try {
+      // 1. Save to backend to get a unique public ID
+      const response = await fetch('/api/auth/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'QUIZ',
+          title: 'Quiz Challenge',
+          subtitle: `I scored ${score}/${questions.length} on this quiz!`,
+          content: questions
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Sharing failed');
+
+      const shareId = data.id;
+      const shareUrl = `${window.location.origin}?share=${shareId}`;
+      const text = `I scored ${score}/${questions.length} on my SJ Tutor AI Quiz! 🎓`;
+      const shareTextWithLink = `${text}\nCheck it out here: ${shareUrl}`;
+      
+      let url = '';
+      switch(platform) {
+        case 'whatsapp':
+          url = `https://wa.me/?text=${encodeURIComponent(shareTextWithLink)}`;
           break;
-      case 'gmail':
-           // Use /u/0/ to target default logged-in account and avoid potential redirect loops/404s
-           shareUrl = `https://mail.google.com/mail/u/0/?view=cm&fs=1&su=${encodeURIComponent("My SJ Tutor AI Score")}&body=${encodeURIComponent(shareTextWithLink)}`;
-           break;
-      case 'email':
-        shareUrl = `mailto:?subject=My SJ Tutor AI Score&body=${encodeURIComponent(shareTextWithLink)}`;
-        break;
-      case 'instagram':
-          navigator.clipboard.writeText(shareTextWithLink);
-          alert("Score and link copied! Open Instagram to paste and share.");
-          shareUrl = 'https://instagram.com';
+        case 'facebook':
+          url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(text)}`;
           break;
-      case 'copy':
-          // Try Native Share API first (Mobile friendly)
-          if (navigator.share) {
-            try {
-              await navigator.share({
-                title: 'My SJ Tutor AI Score',
-                text: text,
-                url: appUrl,
-              });
-              return; // Success
-            } catch (err) {
-              // Fallback if user cancels or error
-              console.log("Share failed, falling back to clipboard");
+        case 'telegram':
+            url = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`;
+            break;
+        case 'gmail':
+             url = `https://mail.google.com/mail/u/0/?view=cm&fs=1&su=${encodeURIComponent("My SJ Tutor AI Score")}&body=${encodeURIComponent(shareTextWithLink)}`;
+             break;
+        case 'email':
+          url = `mailto:?subject=My SJ Tutor AI Score&body=${encodeURIComponent(shareTextWithLink)}`;
+          break;
+        case 'instagram':
+            navigator.clipboard.writeText(shareTextWithLink);
+            alert("Score and link copied! Open Instagram to paste and share.");
+            url = 'https://instagram.com';
+            break;
+        case 'copy':
+            if (navigator.share) {
+              try {
+                await navigator.share({
+                  title: 'My SJ Tutor AI Score',
+                  text: text,
+                  url: shareUrl,
+                });
+                return;
+              } catch (err) {}
             }
-          }
-          // Clipboard Fallback
-          navigator.clipboard.writeText(shareTextWithLink);
-          alert("Score and link copied to clipboard!");
-          return;
+            navigator.clipboard.writeText(shareUrl);
+            alert("Share link copied to clipboard!");
+            return;
+      }
+      
+      if (url) window.open(url, '_blank');
+    } catch (err: any) {
+      console.error(err);
+      alert('Sharing failed: ' + err.message);
     }
-    
-    if (shareUrl) window.open(shareUrl, '_blank');
   };
 
   if (quizCompleted) {
