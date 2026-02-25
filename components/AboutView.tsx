@@ -131,7 +131,7 @@ const AboutView: React.FC = () => {
                <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-xs font-bold uppercase tracking-wider mb-6 backdrop-blur-sm border border-white/10">
                   <Mail className="w-3 h-3" /> Get in touch
                </div>
-               <h2 className="text-3xl font-bold mb-4">We'd love to hear from you</h2>
+               <h2 className="text-3xl font-bold mb-4">We&apos;d love to hear from you</h2>
                <p className="text-slate-300 mb-8 leading-relaxed">
                   Have a suggestion, found a bug, or just want to say hi? 
                   We are constantly improving and your feedback shapes the future of SJ Tutor AI.

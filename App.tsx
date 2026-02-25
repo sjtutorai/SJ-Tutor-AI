@@ -14,6 +14,8 @@ import AboutView from './components/AboutView';
 import IdCardView from './components/IdCardView';
 import LandingPage from './components/LandingPage';
 import StudyTimerView from './components/StudyTimerView';
+import PrivacyPolicyView from './components/PrivacyPolicyView';
+import TermsOfServiceView from './components/TermsOfServiceView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
@@ -40,7 +42,8 @@ import {
   Settings,
   Info,
   Share2,
-  CreditCard
+  CreditCard,
+  Shield
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -88,6 +91,10 @@ const App: React.FC = () => {
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Shared Content State
+  const [sharedContent, setSharedContent] = useState<any>(null);
+  const [isViewingShared, setIsViewingShared] = useState(false);
   
   // Profile State
   const initialProfileState: UserProfile = {
@@ -182,13 +189,16 @@ const App: React.FC = () => {
     
     if (shareId) {
       const fetchShared = async () => {
-        setLoading(true);
+        setAuthLoading(true);
         try {
           const response = await fetch(`/api/auth/share/${shareId}`);
           const data = await response.json();
           
           if (response.ok && data.success) {
             const item = data.data;
+            setSharedContent(item);
+            setIsViewingShared(true);
+            
             // Load the content into the view
             if (item.type === AppMode.SUMMARY) {
               setSummaryContent(item.content);
@@ -208,13 +218,12 @@ const App: React.FC = () => {
               gradeClass: item.subtitle?.split(' • ')[0] || ''
             }));
           } else {
-            setError("Shared content not found or expired.");
+            console.error("Shared content not found or expired.");
           }
         } catch (err) {
           console.error("Failed to fetch shared content", err);
-          setError("Failed to load shared content.");
         } finally {
-          setLoading(false);
+          setAuthLoading(false);
           // Clear the URL parameter without refreshing
           const newUrl = window.location.pathname;
           window.history.replaceState({}, document.title, newUrl);
@@ -222,7 +231,7 @@ const App: React.FC = () => {
       };
       fetchShared();
     }
-  }, []);
+  }, [setSummaryContent, setEssayContent, setQuizData, setMode, setFormData]);
 
   // Sync formData language with settings whenever settings change
   useEffect(() => {
@@ -754,6 +763,8 @@ const App: React.FC = () => {
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
+    { id: AppMode.PRIVACY, label: 'Privacy Policy', icon: Shield },
+    { id: AppMode.TERMS, label: 'Terms of Service', icon: FileText },
   ];
 
   const renderDashboard = () => {
@@ -1151,6 +1162,20 @@ const App: React.FC = () => {
            </div>
         );
 
+      case AppMode.PRIVACY:
+        return (
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <PrivacyPolicyView />
+           </div>
+        );
+
+      case AppMode.TERMS:
+        return (
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <TermsOfServiceView />
+           </div>
+        );
+
       default:
         return renderDashboard();
     }
@@ -1171,10 +1196,11 @@ const App: React.FC = () => {
   }
 
   if (!user) {
-    // If we have shared content loaded, show it in a public layout
-    const isViewingShared = summaryContent || essayContent || quizData;
+    // If we have shared content loaded or viewing public pages, show it in a public layout
+    const hasSharedContent = summaryContent || essayContent || quizData;
+    const isPublicPage = mode === AppMode.ABOUT || mode === AppMode.PRIVACY || mode === AppMode.TERMS;
     
-    if (isViewingShared) {
+    if (hasSharedContent || isPublicPage) {
       return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100">
           <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
@@ -1266,7 +1292,11 @@ const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => {
-                    if (item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && !user) {
+                    if (item.id !== AppMode.DASHBOARD && 
+                        item.id !== AppMode.ABOUT && 
+                        item.id !== AppMode.PRIVACY && 
+                        item.id !== AppMode.TERMS && 
+                        !user) {
                       setShowAuthModal(true);
                       setIsSidebarOpen(false); 
                     } else {
@@ -1293,7 +1323,11 @@ const App: React.FC = () => {
                 >
                   <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
                   {item.label}
-                  {!user && item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && (
+                  {!user && 
+                   item.id !== AppMode.DASHBOARD && 
+                   item.id !== AppMode.ABOUT && 
+                   item.id !== AppMode.PRIVACY && 
+                   item.id !== AppMode.TERMS && (
                      <div className="ml-auto">
                         <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
                      </div>
