@@ -16,9 +16,13 @@ app.use(cors());
 // Connect to MongoDB
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/sjtutor";
 
+// Non-blocking connection attempt
 mongoose.connect(MONGO_URI)
   .then(() => console.log("MongoDB connected"))
-  .catch(err => console.error("MongoDB connection error:", err));
+  .catch(err => {
+    console.warn("MongoDB connection failed (running in offline mode):", err.message);
+    console.warn("OTP features will use in-memory storage.");
+  });
 
 // API routes
 app.use("/api/auth", authRoutes);

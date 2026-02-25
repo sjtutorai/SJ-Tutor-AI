@@ -1,9 +1,19 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import axios from "axios";
+import mongoose from "mongoose";
 import Otp from "../models/Otp";
 
 const router = express.Router();
+
+// In-memory fallback store
+interface OTPData {
+  otpHash: string;
+  expiresAt: number;
+  attempts: number;
+  verified: boolean;
+}
+const memoryStore = new Map<string, OTPData>();
 
 /* Generate OTP */
 function generateOTP() {
@@ -18,17 +28,28 @@ router.post("/send-otp", async (req, res) => {
 
   const otp = generateOTP();
   const otpHash = await bcrypt.hash(otp, 10);
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min
 
-  await Otp.deleteMany({ phone });
-
-  await Otp.create({
-    phone,
-    otpHash,
-    expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 min
-  });
-
-  // 🔔 SEND SMS (Termii Example)
   try {
+    if (mongoose.connection.readyState === 1) {
+      // MongoDB connected
+      await Otp.deleteMany({ phone });
+      await Otp.create({
+        phone,
+        otpHash,
+        expiresAt
+      });
+    } else {
+      // Fallback to memory store
+      memoryStore.set(phone, {
+        otpHash,
+        expiresAt: expiresAt.getTime(),
+        attempts: 0,
+        verified: false
+      });
+    }
+
+    // 🔔 SEND SMS (Termii Example)
     await axios.post("https://api.ng.termii.com/api/sms/send", {
       to: phone.replace(/\+/g, ""), // Termii often expects digits only
       from: "SJ Tutor AI",
@@ -37,10 +58,11 @@ router.post("/send-otp", async (req, res) => {
       channel: "generic",
       api_key: process.env.TERMII_API_KEY
     });
+
     res.json({ success: true, message: "OTP sent" });
   } catch (error: any) {
-    console.error("Error sending OTP via Termii:", error.response?.data || error.message);
-    res.status(500).json({ error: "Failed to send OTP. Please try again later." });
+    console.error("Error sending OTP:", error.response?.data || error.message);
+    res.status(500).json({ message: "Failed to send OTP. Please try again later." });
   }
 });
 
@@ -48,27 +70,56 @@ router.post("/send-otp", async (req, res) => {
 router.post("/verify-otp", async (req, res) => {
   const { phone, otp } = req.body;
 
-  const record = await Otp.findOne({ phone });
-  if (!record) return res.status(400).json({ message: "OTP not found" });
+  try {
+    let record: any;
+    let isMemory = false;
 
-  if (record.expiresAt < new Date())
-    return res.status(400).json({ message: "OTP expired" });
+    if (mongoose.connection.readyState === 1) {
+      record = await Otp.findOne({ phone });
+    } else {
+      const memData = memoryStore.get(phone);
+      if (memData) {
+        record = {
+          ...memData,
+          expiresAt: new Date(memData.expiresAt),
+          save: async () => {
+            // Update memory store
+            memoryStore.set(phone, {
+              otpHash: record.otpHash,
+              expiresAt: record.expiresAt.getTime(),
+              attempts: record.attempts,
+              verified: record.verified
+            });
+          }
+        };
+        isMemory = true;
+      }
+    }
 
-  if (record.attempts >= 5)
-    return res.status(400).json({ message: "Too many attempts" });
+    if (!record) return res.status(400).json({ message: "OTP not found" });
 
-  const isMatch = await bcrypt.compare(otp, record.otpHash);
+    if (record.expiresAt < new Date())
+      return res.status(400).json({ message: "OTP expired" });
 
-  if (!isMatch) {
-    record.attempts += 1;
+    if (record.attempts >= 5)
+      return res.status(400).json({ message: "Too many attempts" });
+
+    const isMatch = await bcrypt.compare(otp, record.otpHash);
+
+    if (!isMatch) {
+      record.attempts += 1;
+      await record.save();
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    record.verified = true;
     await record.save();
-    return res.status(400).json({ message: "Invalid OTP" });
+
+    res.json({ success: true, message: "Phone verified" });
+  } catch (error: any) {
+    console.error("Error verifying OTP:", error.message);
+    res.status(500).json({ message: "Verification failed" });
   }
-
-  record.verified = true;
-  await record.save();
-
-  res.json({ success: true, message: "Phone verified" });
 });
 
 export default router;
