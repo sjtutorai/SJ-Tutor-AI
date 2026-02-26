@@ -126,11 +126,13 @@ router.post("/verify-otp", async (req, res) => {
 
 /* SHARE CONTENT */
 router.post("/share", async (req, res) => {
+  console.log(`[SHARE] Request received. Type: ${req.body.type}, Title: ${req.body.title}`);
   try {
     const { type, title, subtitle, content } = req.body;
     const id = uuidv4().slice(0, 8); // Short ID
 
     if (mongoose.connection.readyState === 1) {
+      console.log(`[SHARE] Saving to MongoDB. ID: ${id}`);
       await SharedContent.create({
         id,
         type,
@@ -138,14 +140,16 @@ router.post("/share", async (req, res) => {
         subtitle,
         content
       });
+      console.log(`[SHARE] Saved successfully.`);
     } else {
+      console.warn(`[SHARE] MongoDB not connected (State: ${mongoose.connection.readyState}). Cannot save.`);
       return res.status(503).json({ message: "Sharing requires database connection" });
     }
 
     res.json({ success: true, id });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to share content" });
+  } catch (error: any) {
+    console.error("[SHARE] Error:", error);
+    res.status(500).json({ message: "Failed to share content", error: error.message });
   }
 });
 
