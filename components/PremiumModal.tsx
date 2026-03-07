@@ -226,7 +226,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess }
                     onClick={() => setStep('VERIFY')}
                     className={`w-full py-3.5 rounded-xl text-white font-bold shadow-lg transition-all active:scale-95 ${currentPlan.btnColor}`}
                   >
-                    I've Completed Payment
+                    I&apos;ve Completed Payment
                   </button>
                 </div>
              </div>

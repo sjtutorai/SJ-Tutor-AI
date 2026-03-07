@@ -427,7 +427,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                   <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg overflow-hidden">
                      <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
                   </div>
-                  <h2 className="text-2xl font-bold text-slate-800 dark:text-white">SJ Tutor AI's Planner</h2>
+                  <h2 className="text-2xl font-bold text-slate-800 dark:text-white">SJ Tutor AI&apos;s Planner</h2>
                   <p className="text-slate-500">I can generate a personalized timetable for your upcoming exams.</p>
                 </div>
 

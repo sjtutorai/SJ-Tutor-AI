@@ -42,8 +42,7 @@ import {
   Settings,
   Info,
   Share2,
-  CreditCard,
-  Shield
+  CreditCard
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -763,8 +762,6 @@ const App: React.FC = () => {
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
-    { id: AppMode.PRIVACY, label: 'Privacy Policy', icon: Shield },
-    { id: AppMode.TERMS, label: 'Terms of Service', icon: FileText },
   ];
 
   const renderDashboard = () => {

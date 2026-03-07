@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, Clock, CheckCircle2, Coffee, Zap, AlertTriangle } from 'lucide-react';
+import { Play, Pause, RotateCcw, Clock, CheckCircle2, Coffee, Zap } from 'lucide-react';
 
 const PRESETS = [
   { label: 'Pomodoro', minutes: 25, icon: Zap },
@@ -15,30 +15,15 @@ const StudyTimerView: React.FC = () => {
   const [task, setTask] = useState('');
   const [initialTime, setInitialTime] = useState(25 * 60);
   const [customMinutes, setCustomMinutes] = useState('');
-  const [showWarning, setShowWarning] = useState(false);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Visibility Change Detection
+  // Notification Permission
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && isActive) {
-        setIsActive(false);
-        setShowWarning(true);
-        if (Notification.permission === 'granted') {
-          new Notification("Timer Paused", {
-            body: "Timer paused because you switched tabs. Stay focused!",
-            icon: '/favicon.ico'
-          });
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isActive]);
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
 
   useEffect(() => {
     if (isActive && timeLeft > 0) {
@@ -48,19 +33,29 @@ const StudyTimerView: React.FC = () => {
     } else if (timeLeft === 0) {
       setIsActive(false);
       if (intervalRef.current) clearInterval(intervalRef.current);
-      // Play sound or notify
+      
+      try {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.play().catch(() => {});
+      } catch {
+        // Audio play failed
+      }
+
+      // Notify
       if (Notification.permission === 'granted') {
         new Notification("Time's up!", {
-          body: mode === 'FOCUS' ? "Great job! Take a break." : "Break's over! Back to work.",
-          icon: '/favicon.ico' // Fallback
+          body: mode === 'FOCUS' ? `Great job! You completed your ${task || 'focus'} session.` : "Break's over! Back to work.",
+          icon: 'https://cdn-icons-png.flaticon.com/512/3602/3602123.png'
         });
+      } else {
+        alert(mode === 'FOCUS' ? "Time's up! Great job!" : "Break's over! Back to work.");
       }
     }
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isActive, timeLeft, mode]);
+  }, [isActive, timeLeft, mode, task]);
 
   // Cleanup on unmount (auto-stop)
   useEffect(() => {
@@ -71,13 +66,11 @@ const StudyTimerView: React.FC = () => {
 
   const toggleTimer = () => {
     setIsActive(!isActive);
-    if (!isActive) setShowWarning(false);
   };
 
   const resetTimer = () => {
     setIsActive(false);
     setTimeLeft(initialTime);
-    setShowWarning(false);
   };
 
   const setDuration = (minutes: number, newMode: 'FOCUS' | 'BREAK') => {
@@ -85,7 +78,6 @@ const StudyTimerView: React.FC = () => {
     setMode(newMode);
     setInitialTime(minutes * 60);
     setTimeLeft(minutes * 60);
-    setShowWarning(false);
   };
 
   const formatTime = (seconds: number) => {
@@ -111,19 +103,6 @@ const StudyTimerView: React.FC = () => {
             {mode === 'FOCUS' ? 'Stay focused and productive' : 'Relax and recharge'}
           </p>
         </div>
-
-        {/* Warning Message */}
-        {showWarning && (
-          <div className="bg-amber-50 dark:bg-amber-900/30 border-y border-amber-100 dark:border-amber-800 p-4 flex items-start gap-3 animate-in slide-in-from-top-2">
-            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-bold text-amber-800 dark:text-amber-300">Timer Paused!</p>
-              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                Please don&apos;t switch tabs while the timer is running. Stay focused on your task!
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Timer Display */}
         <div className="p-8 flex flex-col items-center">

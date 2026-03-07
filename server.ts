@@ -1,7 +1,6 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import cors from "cors";
-import mongoose from "mongoose";
 import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
 
@@ -18,16 +17,6 @@ app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
-
-// Connect to MongoDB
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/sjtutor";
-
-console.log("Using Mongo URI:", MONGO_URI);
-
-mongoose
-  .connect(MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.error("❌ MongoDB Error:", err));
 
 // API routes
 app.use("/api/auth", authRoutes);
