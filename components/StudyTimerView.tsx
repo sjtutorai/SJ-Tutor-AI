@@ -21,6 +21,11 @@ const StudyTimerView: React.FC = () => {
 
   // Visibility Change Detection
   useEffect(() => {
+    // Request permission on mount
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
     const handleVisibilityChange = () => {
       if (document.hidden && isActive) {
         setIsActive(false);
@@ -49,11 +54,16 @@ const StudyTimerView: React.FC = () => {
       setIsActive(false);
       if (intervalRef.current) clearInterval(intervalRef.current);
       // Play sound or notify
+      const message = mode === 'FOCUS' ? "Great job! Take a break." : "Break's over! Back to work.";
+      
       if (Notification.permission === 'granted') {
         new Notification("Time's up!", {
-          body: mode === 'FOCUS' ? "Great job! Take a break." : "Break's over! Back to work.",
+          body: message,
           icon: '/favicon.ico' // Fallback
         });
+      } else {
+        // Fallback to alert if notifications are not granted
+        alert(`⏰ Time's up!\n${message}`);
       }
     }
 

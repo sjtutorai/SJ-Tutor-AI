@@ -3,6 +3,7 @@ import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import { MongoMemoryServer } from 'mongodb-memory-server';
 import authRoutes from "./server/routes/auth";
 
 dotenv.config();
@@ -20,14 +21,26 @@ app.use((req, res, next) => {
 });
 
 // Connect to MongoDB
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/sjtutor";
+async function connectDB() {
+  let mongoUri = process.env.MONGO_URI;
 
-console.log("Using Mongo URI:", MONGO_URI);
+  if (!mongoUri) {
+    console.log("⚠️ MONGO_URI not found. Starting MongoMemoryServer...");
+    const mongoServer = await MongoMemoryServer.create();
+    mongoUri = mongoServer.getUri();
+  }
 
-mongoose
-  .connect(MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.error("❌ MongoDB Error:", err));
+  console.log("Using Mongo URI:", mongoUri);
+
+  try {
+    await mongoose.connect(mongoUri);
+    console.log("✅ MongoDB Connected");
+  } catch (err) {
+    console.error("❌ MongoDB Error:", err);
+  }
+}
+
+connectDB();
 
 // API routes
 app.use("/api/auth", authRoutes);
