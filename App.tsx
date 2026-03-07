@@ -14,6 +14,8 @@ import AboutView from './components/AboutView';
 import IdCardView from './components/IdCardView';
 import LandingPage from './components/LandingPage';
 import StudyTimerView from './components/StudyTimerView';
+import PrivacyPolicyView from './components/PrivacyPolicyView';
+import TermsOfServiceView from './components/TermsOfServiceView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
@@ -798,6 +800,8 @@ const App: React.FC = () => {
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
+    { id: AppMode.PRIVACY, label: 'Privacy Policy', icon: Shield },
+    { id: AppMode.TERMS, label: 'Terms of Service', icon: FileText },
   ];
 
   const renderDashboard = () => {
@@ -1195,6 +1199,20 @@ const App: React.FC = () => {
            </div>
         );
 
+      case AppMode.PRIVACY:
+        return (
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <PrivacyPolicyView />
+           </div>
+        );
+
+      case AppMode.TERMS:
+        return (
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <TermsOfServiceView />
+           </div>
+        );
+
       default:
         return renderDashboard();
     }
@@ -1221,7 +1239,7 @@ const App: React.FC = () => {
           (!user && !appwriteUser) ? (
             (() => {
               const hasSharedContent = summaryContent || essayContent || quizData;
-              const isPublicPage = mode === AppMode.ABOUT;
+              const isPublicPage = mode === AppMode.ABOUT || mode === AppMode.PRIVACY || mode === AppMode.TERMS;
               
               if (hasSharedContent || isPublicPage) {
                 return (
@@ -1315,6 +1333,8 @@ const App: React.FC = () => {
                           onClick={() => {
                             if (item.id !== AppMode.DASHBOARD && 
                                 item.id !== AppMode.ABOUT && 
+                                item.id !== AppMode.PRIVACY && 
+                                item.id !== AppMode.TERMS && 
                                 !user && !appwriteUser) {
                               setShowAuthModal(true);
                               setIsSidebarOpen(false); 
@@ -1344,7 +1364,9 @@ const App: React.FC = () => {
                           {item.label}
                           {(!user && !appwriteUser) && 
                            item.id !== AppMode.DASHBOARD && 
-                           item.id !== AppMode.ABOUT && (
+                           item.id !== AppMode.ABOUT && 
+                           item.id !== AppMode.PRIVACY && 
+                           item.id !== AppMode.TERMS && (
                              <div className="ml-auto">
                                 <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
                              </div>
