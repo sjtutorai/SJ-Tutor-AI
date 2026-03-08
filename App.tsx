@@ -91,10 +91,6 @@ const App: React.FC = () => {
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  // Shared Content State
-  const [sharedContent, setSharedContent] = useState<any>(null);
-  const [isViewingShared, setIsViewingShared] = useState(false);
   
   // Profile State
   const initialProfileState: UserProfile = {
@@ -145,8 +141,6 @@ const App: React.FC = () => {
         const storedReminders = localStorage.getItem(key);
         if (storedReminders) {
           const items = JSON.parse(storedReminders);
-          let hasNotified = false;
-
           items.forEach((item: any) => {
             if (!item.completed && item.dueTime) {
               const dueTime = new Date(item.dueTime).getTime();
@@ -157,7 +151,6 @@ const App: React.FC = () => {
                     body: item.task,
                     icon: SJTUTOR_AVATAR
                   });
-                  hasNotified = true;
                 } else if (Notification.permission !== "denied") {
                    Notification.requestPermission().then(permission => {
                       if (permission === "granted") {
@@ -341,7 +334,7 @@ const App: React.FC = () => {
       if (savedProfile) {
         try {
           const parsed = JSON.parse(savedProfile);
-          setUserProfile(prev => ({ 
+          setUserProfile(() => ({ 
             ...initialProfileState, 
             ...parsed,
             displayName: parsed.displayName || user.displayName || '',
@@ -371,7 +364,7 @@ const App: React.FC = () => {
         if (Array.isArray(parsedHistory)) {
           setHistory(parsedHistory);
         }
-      } catch (e) {
+      } catch {
         setHistory([]);
       }
     } else {
@@ -642,7 +635,9 @@ const App: React.FC = () => {
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {}
+      } catch (e) {
+        console.error("Error parsing error message", e);
+      }
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -727,12 +722,15 @@ const App: React.FC = () => {
             text: text,
             url: shareUrl
           });
-        } catch (err) {}
+        } catch (err) {
+          console.error('Share failed', err);
+        }
       } else {
         try {
           await navigator.clipboard.writeText(text);
           alert('Share link copied to clipboard!');
         } catch (err) {
+          console.error('Failed to copy content', err);
           alert('Failed to copy content.');
         }
       }

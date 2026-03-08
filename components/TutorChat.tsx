@@ -64,7 +64,6 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isApiDisabled, setIsApiDisabled] = useState(false);
   const chatSessionRef = useRef<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -111,13 +110,14 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
         try {
             await navigator.share(shareData);
         } catch (err) {
-            console.log("Share canceled");
+            console.error("Share failed", err);
         }
     } else {
         try {
             await navigator.clipboard.writeText(shareData.text);
             alert("Chat transcript copied to clipboard!");
         } catch (e) {
+            console.error("Copy failed", e);
             alert("Failed to copy chat.");
         }
     }
@@ -126,7 +126,6 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
   const sendMessageToAi = async (textToSend: string) => {
     if (!textToSend.trim() || !chatSessionRef.current) return;
     setError(null);
-    setIsApiDisabled(false);
 
     // Credit Deduction Logic: 1 credit per question
     const cost = 1;
@@ -170,7 +169,9 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
       try {
         const parsed = JSON.parse(rawMsg);
         if (parsed.error?.message) rawMsg = parsed.error.message;
-      } catch (e) {}
+      } catch (e) {
+        console.error("Error parsing error message", e);
+      }
 
       if (rawMsg.includes("Generative Language API has not been used") || rawMsg.includes("PERMISSION_DENIED")) {
         setIsApiDisabled(true);
@@ -239,7 +240,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
                     <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold">API Not Enabled</p>
-                      <p className="text-xs text-red-600">The "Generative Language API" needs to be enabled in your Google Cloud project.</p>
+                      <p className="text-xs text-red-600">The &quot;Generative Language API&quot; needs to be enabled in your Google Cloud project.</p>
                     </div>
                   </div>
                   <a 

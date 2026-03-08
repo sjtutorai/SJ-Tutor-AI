@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { UserProfile, UserSettings, SJTUTOR_AVATAR } from '../types';
 import { SettingsService } from '../services/settingsService';
 import { auth } from '../firebaseConfig';
@@ -7,8 +7,8 @@ import { sendPasswordResetEmail, verifyBeforeUpdateEmail } from 'firebase/auth';
 import { 
   User, BookOpen, Bot, MessageSquare, Bell, Moon, Lock, 
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, ChevronDown, ChevronUp,
-  Save, LogOut, Trash2, Globe, Shield, Activity, Eye, Type, Palette, Monitor, Zap,
-  Volume2, Terminal, Crown, Check, AlertTriangle, Clock, Mail
+  Save, LogOut, Trash2, Shield, Activity, Type, Palette, Monitor, Zap,
+  Volume2, Terminal, Crown, Check, Clock
 } from 'lucide-react';
 
 interface SettingsViewProps {

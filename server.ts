@@ -33,7 +33,7 @@ mongoose
 app.use("/api/auth", authRoutes);
 
 // Global Error Handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("❌ Global Error Handler:", err);
   res.status(500).json({ 
     message: "Internal Server Error", 

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { User, Phone, School, FileText, Camera, Save, X, Edit2, ArrowRight, Mail, BookOpen, Layers, Briefcase, Zap, GraduationCap, CheckCircle, ShieldCheck, Send, Loader2 } from 'lucide-react';
+import { User, Phone, School, Camera, Edit2, ArrowRight, Mail, BookOpen, Layers, Briefcase, Zap, GraduationCap, CheckCircle, ShieldCheck, Send, Loader2 } from 'lucide-react';
 import { validateAndParsePhone, CountryPhone } from '../utils/phoneUtils';
 
 interface ProfileViewProps {
@@ -81,6 +81,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
         setOtpError(data.message || "Failed to send OTP. Please try again.");
       }
     } catch (err) {
+      console.error("Send OTP failed", err);
       setOtpError("Connection error. Please check your internet.");
     } finally {
       setIsVerifying(false);
@@ -113,6 +114,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
         setOtpError(data.message || "Incorrect OTP. Please try again.");
       }
     } catch (err) {
+      console.error("Verify OTP failed", err);
       setOtpError("Verification failed. Please try again.");
     } finally {
       setIsVerifying(false);
