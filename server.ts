@@ -20,14 +20,21 @@ app.use((req, res, next) => {
 });
 
 // Connect to MongoDB
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/sjtutor";
+const MONGO_URI = process.env.MONGO_URI;
 
-console.log("Using Mongo URI:", MONGO_URI);
-
-mongoose
-  .connect(MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.error("❌ MongoDB Error:", err));
+if (!MONGO_URI) {
+  console.error("❌ Error: MONGO_URI environment variable is not defined.");
+  console.error("Please add your MongoDB connection string to the environment variables.");
+} else {
+  console.log("Attempting to connect to MongoDB...");
+  mongoose
+    .connect(MONGO_URI)
+    .then(() => console.log("✅ MongoDB Connected"))
+    .catch(err => {
+      console.error("❌ MongoDB Connection Error:");
+      console.error(err.message);
+    });
+}
 
 // API routes
 app.use("/api/auth", authRoutes);
