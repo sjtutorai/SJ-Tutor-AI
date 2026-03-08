@@ -5,7 +5,13 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
 
-dotenv.config();
+import path from "path";
+import { fileURLToPath } from "url";
+
+// Load environment variables explicitly
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, ".env") });
 
 const app = express();
 const PORT = 3000;
@@ -23,16 +29,24 @@ app.use((req, res, next) => {
 const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
-  console.error("❌ Error: MONGO_URI environment variable is not defined.");
-  console.error("Please add your MongoDB connection string to the environment variables.");
+  console.warn("⚠️ Warning: MONGO_URI environment variable is not defined.");
+  console.warn("⚠️ Database features (OTP, Sharing) will be disabled.");
 } else {
-  console.log("Attempting to connect to MongoDB...");
+  // Mask sensitive part of URI for logging
+  const maskedUri = MONGO_URI.replace(/\/\/.*:.*@/, "//****:****@");
+  console.log(`⏳ Attempting to connect to MongoDB: ${maskedUri}`);
+  
   mongoose
-    .connect(MONGO_URI)
+    .connect(MONGO_URI, {
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s
+    })
     .then(() => console.log("✅ MongoDB Connected"))
     .catch(err => {
-      console.error("❌ MongoDB Connection Error:");
-      console.error(err.message);
+      console.error("❌ MongoDB Connection Error:", err.message);
+      if (err.message.includes("ECONNREFUSED") && err.message.includes("127.0.0.1")) {
+        console.error("👉 Tip: It seems you're trying to connect to a local MongoDB, but it's not running.");
+        console.error("👉 If you're using MongoDB Atlas, make sure your MONGO_URI is correctly set in .env");
+      }
     });
 }
 
