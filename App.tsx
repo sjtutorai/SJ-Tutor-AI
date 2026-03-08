@@ -1188,7 +1188,7 @@ const App: React.FC = () => {
              </div>
              <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
         </div>
-        <p className="text-slate-800 dark:text-white font-bold animate-pulse">Authenticating...</p>
+        <p className="text-slate-800 dark:text-white font-bold animate-pulse">Loading the App...</p>
       </div>
     );
   }
