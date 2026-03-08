@@ -79,8 +79,9 @@ export const validateAndParsePhone = (input: string): PhoneValidationResult => {
     asYouType.input(input);
     
     const countryCode = asYouType.getCountry();
+    const number = asYouType.getNumber();
     
-    if (!asYouType.getNumber()) {
+    if (!number) {
       return { isValid: false, error: "Invalid format" };
     }
 
