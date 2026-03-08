@@ -529,6 +529,14 @@ const App: React.FC = () => {
               alert(`Challenge Attempted: You scored ${percentage}%. Score 75% or higher to earn the 50 credit bonus! Keep practicing!`);
             }, 1000);
         }
+      } else if (formData.questionCount === 10 && formData.difficulty === 'Medium') {
+        const bonus = 30;
+        const newCredits = userProfile.credits + bonus;
+        handleProfileSave({ ...userProfile, credits: newCredits }, false);
+        
+        setTimeout(() => {
+          alert(`🎉 QUIZ COMPLETED! 🎉\n\nYou completed the Medium challenge and earned ${bonus} credits!`);
+        }, 1000);
       }
     }
   };
@@ -540,6 +548,7 @@ const App: React.FC = () => {
     }
     if (targetMode === AppMode.QUIZ) {
       if (data.questionCount === 20 && data.difficulty === 'Hard') return 0;
+      if (data.questionCount === 10 && data.difficulty === 'Medium') return 10;
       let cost = 10; 
       const qCount = data.questionCount || 5;
       cost += Math.ceil(qCount / 2); 

@@ -13,7 +13,8 @@ interface InputFormProps {
 
 const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSample, disabled }) => {
 
-  const isRewardMode = mode === AppMode.QUIZ && data.questionCount === 20 && data.difficulty === 'Hard';
+  const isHardChallenge = mode === AppMode.QUIZ && data.questionCount === 20 && data.difficulty === 'Hard';
+  const isMediumChallenge = mode === AppMode.QUIZ && data.questionCount === 10 && data.difficulty === 'Medium';
 
   const getEstimatedCost = () => {
     if (mode === AppMode.SUMMARY) return 10;
@@ -21,8 +22,8 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
       return data.includeImages ? 15 : 10;
     }
     if (mode === AppMode.QUIZ) {
-      // Reward Challenge: Free generation for 20 Hard Questions
-      if (isRewardMode) return 0;
+      if (isHardChallenge) return 0;
+      if (isMediumChallenge) return 10;
 
       let cost = 10;
       const qCount = data.questionCount || 5;
@@ -69,11 +70,16 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
         </h2>
 
         <div className="flex items-center gap-2">
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wide ${isRewardMode ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
-            {isRewardMode ? (
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wide ${isHardChallenge || isMediumChallenge ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+            {isHardChallenge ? (
               <>
                 <Crown className="w-3 h-3 fill-emerald-500 text-emerald-500" />
                 Reward: +50 Credits (Free Gen)
+              </>
+            ) : isMediumChallenge ? (
+              <>
+                <Sparkles className="w-3 h-3 fill-emerald-500 text-emerald-500" />
+                Reward: +30 Credits (Cost: 10)
               </>
             ) : (
               <>
@@ -146,11 +152,15 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
             </div>
             
             {/* Helper text for the challenge */}
-            {data.questionCount !== 20 || data.difficulty !== 'Hard' ? (
-              <div className="col-span-full mt-1">
+            {!isHardChallenge && !isMediumChallenge ? (
+              <div className="col-span-full mt-1 space-y-1">
                  <p className="text-[10px] text-slate-400 flex items-center gap-1">
                    <Zap className="w-3 h-3" />
-                   Tip: Select <span className="font-bold text-primary-600">20 Questions</span> with <span className="font-bold text-primary-600">Hard</span> difficulty and score <span className="font-bold text-emerald-600">75%+</span> to earn <span className="font-bold text-emerald-600">50 Credits</span>!
+                   Challenge 1: Select <span className="font-bold text-primary-600">20 Questions</span> + <span className="font-bold text-primary-600">Hard</span> for <span className="font-bold text-emerald-600">Free Gen</span> & <span className="font-bold text-emerald-600">50 Credit</span> bonus (75%+ score)!
+                 </p>
+                 <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                   <Sparkles className="w-3 h-3" />
+                   Challenge 2: Select <span className="font-bold text-primary-600">10 Questions</span> + <span className="font-bold text-primary-600">Medium</span> for <span className="font-bold text-emerald-600">30 Credit</span> reward on completion!
                  </p>
               </div>
             ) : null}
