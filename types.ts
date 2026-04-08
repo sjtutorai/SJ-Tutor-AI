@@ -176,7 +176,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   appearance: {
     theme: 'Light',
     animations: true,
-    primaryColor: 'Gold',
+    primaryColor: 'Blue',
     fontFamily: 'Inter',
   },
   privacy: {

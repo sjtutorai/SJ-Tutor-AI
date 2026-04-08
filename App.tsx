@@ -17,6 +17,7 @@ import StudyTimerView from './components/StudyTimerView';
 import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
 import Logo from './components/Logo';
+import AnimatedBackground from './components/AnimatedBackground';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
 import { auth } from './firebaseConfig';
@@ -1252,6 +1253,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
+      <AnimatedBackground />
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
