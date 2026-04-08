@@ -10,8 +10,7 @@ import {
   CheckCircle2, 
   Users, 
   ArrowRight,
-  ShieldCheck,
-  Zap
+  ShieldCheck
 } from 'lucide-react';
 import Logo from './Logo';
 
@@ -188,7 +187,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                       Can you explain the Water Cycle simply?
                     </div>
                     <div className="p-3 bg-slate-900/50 rounded-lg text-sm text-slate-300">
-                      Of course! Think of it like a giant recycling system for Earth's water...
+                      Of course! Think of it like a giant recycling system for Earth&apos;s water...
                     </div>
                  </div>
               </div>

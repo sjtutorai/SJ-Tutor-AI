@@ -49,7 +49,6 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
       setSelectedOption(null);
       setShowResult(false);
     } else {
-      const finalScore = score + (selectedOption === currentQuestion.correctAnswerIndex ? 0 : 0);
       setQuizCompleted(true);
       if (onComplete) {
         onComplete(score);
@@ -75,12 +74,15 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
                 title: 'SJ Tutor AI Quiz Challenge',
                 text: text
             });
-        } catch (e) { console.log('Share canceled'); }
+        } catch (e) { console.error('Share canceled', e); }
     } else {
         try {
             await navigator.clipboard.writeText(text);
             alert('Quiz questions copied to clipboard!');
-        } catch (e) { alert('Failed to copy'); }
+        } catch (e) { 
+            console.error('Failed to copy quiz', e);
+            alert('Failed to copy'); 
+        }
     }
   };
 
@@ -137,7 +139,9 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
                   url: shareUrl,
                 });
                 return;
-              } catch (err) {}
+              } catch (err) {
+                console.error('Share failed', err);
+              }
             }
             navigator.clipboard.writeText(shareUrl);
             alert("Share link copied to clipboard!");
