@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Loader2, Volume2, Square, ArrowLeft, Download, FileText, Image as ImageIcon, FileType, Share2, Facebook, Mail, MessageCircle, Link, RefreshCw } from 'lucide-react';
-// @ts-expect-error - html2canvas types are missing or incompatible
+// @ts-ignore
 import html2canvas from 'html2canvas';
-// @ts-expect-error - jspdf types are missing or incompatible
+// @ts-ignore
 import { jsPDF } from 'jspdf';
 
 interface ResultsViewProps {
@@ -104,7 +104,6 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
                 await navigator.clipboard.writeText(fullContent);
                 alert('Share link copied to clipboard!');
               } catch (err) {
-                console.error("Copy failed", err);
                 alert('Failed to copy content.');
               }
           }
@@ -127,7 +126,6 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
               await navigator.clipboard.writeText(shareUrl);
               alert("Share link copied to clipboard!");
             } catch(e) {
-              console.error("Copy link failed", e);
               alert("Failed to copy.");
             }
             return;

@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { NoteItem, ReminderItem, TimetableEntry, SJTUTOR_AVATAR, NoteStatus, NoteTemplate } from '../types';
 import { 
   Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, 
-  StickyNote, Bell, Edit3, Loader2, Folder, 
-  ChevronRight, Star, Tag, Book, Lightbulb, Languages,
+  StickyNote, Bell, Edit3, Loader2, Edit, Share2, Folder, 
+  ChevronRight, Star, Tag, Book, Lightbulb, Languages, Download, MoreVertical,
   CheckCircle2, Circle
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
@@ -34,8 +34,10 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [examDate, setExamDate] = useState('');
   const [examSubjects, setExamSubjects] = useState('');
-  const [studyHours] = useState(4);
+  const [studyHours, setStudyHours] = useState(4);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showEditTimetable, setShowEditTimetable] = useState(false);
+  const [editInstruction, setEditInstruction] = useState('');
 
   // Load/Persist
   useEffect(() => {
@@ -74,8 +76,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
       setIsAiLoading(true);
       try {
         content = await GeminiService.generateNoteTemplate(subject, chapter, template) || '';
-      } catch (err) {
-        console.error("Template generation failed", err);
+      } catch (e) {
         content = `# ${template} Notes\nStart writing here...`;
       } finally {
         setIsAiLoading(false);
@@ -124,8 +125,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
           content: `${editingNote.content}\n\n---\n### AI ${task.toUpperCase()}\n${result}`
         });
       }
-    } catch (err) {
-      console.error("AI action failed", err);
+    } catch (e) {
       alert("AI request failed. Please try again.");
     } finally {
       setIsAiLoading(false);
@@ -381,7 +381,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                  <button 
                   onClick={() => {
                     if (!newReminder) return;
-                    const dueTimeString = newDate ? `${newDate}T${newTime || '23:59'}` : '';
+                    let dueTimeString = newDate ? `${newDate}T${newTime || '23:59'}` : '';
                     const item: ReminderItem = {
                       id: Date.now().toString(),
                       task: newReminder,
@@ -427,7 +427,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                   <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg overflow-hidden">
                      <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
                   </div>
-                  <h2 className="text-2xl font-bold text-slate-800 dark:text-white">SJ Tutor AI&apos;s Planner</h2>
+                  <h2 className="text-2xl font-bold text-slate-800 dark:text-white">SJ Tutor AI's Planner</h2>
                   <p className="text-slate-500">I can generate a personalized timetable for your upcoming exams.</p>
                 </div>
 
@@ -448,10 +448,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                       try {
                         const schedule = await GeminiService.generateStudyTimetable(examDate, examSubjects, studyHours);
                         if (schedule) setTimetable(schedule);
-                      } catch (err) { 
-                        console.error("Failed to generate timetable", err);
-                        alert("Failed to generate."); 
-                      } finally { setIsGenerating(false); }
+                      } catch (e) { alert("Failed to generate."); } finally { setIsGenerating(false); }
                     }}
                     className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold shadow-lg"
                   >

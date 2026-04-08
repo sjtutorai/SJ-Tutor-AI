@@ -22,11 +22,6 @@ router.post("/send-otp", async (req, res) => {
       return res.status(400).json({ message: "Phone number required" });
     }
 
-    if (mongoose.connection.readyState !== 1) {
-      console.warn("❌ MongoDB not connected. Cannot send OTP.");
-      return res.status(503).json({ message: "Database connection required for OTP services" });
-    }
-
     const otp = generateOTP();
     const otpHash = await bcrypt.hash(otp, 10);
 
@@ -61,11 +56,6 @@ router.post("/send-otp", async (req, res) => {
 router.post("/verify-otp", async (req, res) => {
   try {
     const { phone, otp } = req.body;
-
-    if (mongoose.connection.readyState !== 1) {
-      console.warn("❌ MongoDB not connected. Cannot verify OTP.");
-      return res.status(503).json({ message: "Database connection required for OTP services" });
-    }
 
     const record = await Otp.findOne({ phone });
     if (!record) {
