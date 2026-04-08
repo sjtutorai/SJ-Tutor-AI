@@ -10,9 +10,7 @@ export enum AppMode {
   SETTINGS = 'SETTINGS',
   ABOUT = 'ABOUT',
   ID_CARD = 'ID_CARD',
-  TIMER = 'TIMER',
-  PRIVACY = 'PRIVACY',
-  TERMS = 'TERMS'
+  TIMER = 'TIMER'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
@@ -178,7 +176,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   appearance: {
     theme: 'Light',
     animations: true,
-    primaryColor: 'Blue',
+    primaryColor: 'Gold',
     fontFamily: 'Inter',
   },
   privacy: {

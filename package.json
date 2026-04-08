@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@google/genai": "^1.32.0",
-    "@tailwindcss/vite": "^4.2.2",
     "axios": "^1.13.5",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
@@ -23,11 +22,9 @@
     "libphonenumber-js": "^1.12.37",
     "lucide-react": "^0.556.0",
     "mongoose": "^9.2.2",
-    "motion": "^12.38.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-markdown": "^10.1.0",
-    "tailwindcss": "^4.2.2",
     "tsx": "^4.21.0",
     "uuid": "^13.0.0"
   },

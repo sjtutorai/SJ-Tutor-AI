@@ -20,7 +20,7 @@ const Logo: React.FC<LogoProps> = ({
   
   return (
     <div className={`flex items-center gap-3 ${iconOnly ? 'w-full h-full justify-center' : ''}`}>
-      <div className={`${className} rounded-full overflow-hidden border-2 border-blue-500 shadow-sm flex-shrink-0 bg-white flex items-center justify-center`}>
+      <div className={`${className} rounded-full overflow-hidden border-2 border-primary-500 shadow-sm flex-shrink-0 bg-white flex items-center justify-center`}>
         {!imgError ? (
           <img 
             src={logoUrl} 
@@ -29,15 +29,15 @@ const Logo: React.FC<LogoProps> = ({
             onError={() => setImgError(true)}
           />
         ) : (
-          <div className="w-full h-full bg-blue-50 flex items-center justify-center">
-            <GraduationCap className="w-3/5 h-3/5 text-blue-600" />
+          <div className="w-full h-full bg-primary-100 flex items-center justify-center">
+            <GraduationCap className="w-3/5 h-3/5 text-primary-600" />
           </div>
         )}
       </div>
       
       {showText && !iconOnly && (
         <div className="flex flex-col leading-none">
-          <span className={`font-bold text-lg tracking-tight ${textColor}`}>SJ Tutor <span className="text-blue-600">AI</span></span>
+          <span className={`font-bold text-lg tracking-tight ${textColor}`}>SJ Tutor <span className="text-primary-600">AI</span></span>
           <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400">Your Study Buddy</span>
         </div>
       )}

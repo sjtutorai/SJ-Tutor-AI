@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { QuizQuestion, SJTUTOR_AVATAR } from '../types';
 import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Instagram, Mail, Send, MessageCircle, Link, Share2 } from 'lucide-react';
-import ResultPopup from './ResultPopup';
 
 interface QuizViewProps {
   questions: QuizQuestion[];
@@ -17,7 +16,6 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
   const [score, setScore] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
-  const [showResultPopup, setShowResultPopup] = useState(false);
 
   // Initialize view if there's an existing score (viewing history)
   useEffect(() => {
@@ -52,7 +50,6 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
       setShowResult(false);
     } else {
       setQuizCompleted(true);
-      setShowResultPopup(true);
       if (onComplete) {
         onComplete(score);
       }
@@ -159,18 +156,13 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
   };
 
   if (quizCompleted) {
+    const percentage = Math.round((score / questions.length) * 100);
+    let message = "Good effort!";
+    if (percentage >= 80) message = "Excellent work!";
+    else if (percentage >= 50) message = "Keep practicing!";
+
     return (
       <div className="space-y-6">
-        {showResultPopup && (
-          <ResultPopup 
-            score={score} 
-            total={questions.length} 
-            onClose={() => setShowResultPopup(false)}
-            onReset={onReset}
-            onShare={handleShareQuizContent}
-          />
-        )}
-        
         <div className="bg-white rounded-xl shadow-md border border-slate-200 p-8 text-center animate-in fade-in zoom-in duration-300">
           <div className="w-24 h-24 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-lg overflow-hidden">
              <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
