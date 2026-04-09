@@ -1211,6 +1211,7 @@ const App: React.FC = () => {
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
               onFlag={(idx, reason) => handleFlagContent(currentHistoryId || 'new', 'quiz', reason, quizData[idx])}
+              onGoToDashboard={() => setMode(AppMode.DASHBOARD)}
             />
           );
         }
