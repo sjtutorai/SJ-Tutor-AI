@@ -7,7 +7,7 @@ import TutorChat from './components/TutorChat';
 import ProfileView from './components/ProfileView';
 import Auth from './components/Auth';
 import PremiumModal from './components/PremiumModal';
-import LoadingState from './components/LoadingState'; 
+import LoadingState from './components/LoadingState';
 import NotesView from './components/NotesView';
 import SettingsView from './components/SettingsView';
 import AboutView from './components/AboutView';
@@ -119,7 +119,10 @@ const App: React.FC = () => {
     points: 0,
     streak: 0,
     badges: [],
-    role: 'user'
+    role: 'user',
+    email: '',
+    hasCompletedOnboarding: false,
+    createdAt: Date.now()
   };
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfileState);
   const [onboardingInitialData, setOnboardingInitialData] = useState<Partial<UserProfile>>({});
