@@ -22,16 +22,44 @@ const SAMPLE_QUESTIONS = [
 interface TutorChatProps {
   onDeductCredit: (amount: number) => boolean;
   currentCredits: number;
+  onSaveSession: (messages: ChatMessage[]) => void;
+  initialMessages?: ChatMessage[];
 }
 
-const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
+const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, onSaveSession, initialMessages }) => {
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages || [
     {
       role: 'model',
       text: "Hi there! I'm SJ Tutor AI. I can help you understand complex topics, solve problems, or just clarify your doubts. What are we studying today?",
       timestamp: Date.now()
     }
   ]);
+  
+  const messagesRef = useRef<ChatMessage[]>(messages);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // Auto-save on unmount
+  useEffect(() => {
+    return () => {
+      if (messagesRef.current.length > 1) { // Don't save if only welcome message
+        onSaveSession(messagesRef.current);
+      }
+    };
+  }, []);
+
+  // Auto-save periodically (every 30 seconds) if changed
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (messagesRef.current.length > 1) {
+        onSaveSession(messagesRef.current);
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -142,9 +170,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
       try {
         const parsed = JSON.parse(rawMsg);
         if (parsed.error?.message) rawMsg = parsed.error.message;
-      } catch (e) {
-        // Not JSON, ignore
-      }
+      } catch (e) {}
 
       if (rawMsg.includes("Generative Language API has not been used") || rawMsg.includes("PERMISSION_DENIED")) {
         setIsApiDisabled(true);
@@ -213,7 +239,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
                     <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold">API Not Enabled</p>
-                      <p className="text-xs text-red-600">The &quot;Generative Language API&quot; needs to be enabled in your Google Cloud project.</p>
+                      <p className="text-xs text-red-600">The "Generative Language API" needs to be enabled in your Google Cloud project.</p>
                     </div>
                   </div>
                   <a 

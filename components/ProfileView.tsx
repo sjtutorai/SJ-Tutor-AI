@@ -66,10 +66,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
     setOtpSuccess(null);
     
     try {
-      const response = await fetch('/api/otp/send', {
+      const response = await fetch('/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: formData.phoneNumber }),
+        body: JSON.stringify({ phone: formData.phoneNumber }),
       });
       
       const data = await response.json();
@@ -78,7 +78,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
         setOtpSent(true);
         setOtpSuccess("OTP sent! Please check your messages.");
       } else {
-        setOtpError(data.error || "Failed to send OTP. Please try again.");
+        setOtpError(data.message || "Failed to send OTP. Please try again.");
       }
     } catch (err) {
       setOtpError("Connection error. Please check your internet.");
@@ -97,10 +97,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
     setOtpError(null);
     
     try {
-      const response = await fetch('/api/otp/verify', {
+      const response = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber: formData.phoneNumber, otp }),
+        body: JSON.stringify({ phone: formData.phoneNumber, otp }),
       });
       
       const data = await response.json();
@@ -110,7 +110,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
         setFormData(prev => ({ ...prev, phoneVerified: true }));
         setOtpSent(false);
       } else {
-        setOtpError(data.error || "Incorrect OTP. Please try again.");
+        setOtpError(data.message || "Incorrect OTP. Please try again.");
       }
     } catch (err) {
       setOtpError("Verification failed. Please try again.");

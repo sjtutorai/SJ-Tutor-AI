@@ -14,18 +14,13 @@ import AboutView from './components/AboutView';
 import IdCardView from './components/IdCardView';
 import LandingPage from './components/LandingPage';
 import StudyTimerView from './components/StudyTimerView';
+import PrivacyPolicyView from './components/PrivacyPolicyView';
+import TermsOfServiceView from './components/TermsOfServiceView';
 import Logo from './components/Logo';
-import GamificationDashboard from './components/GamificationDashboard';
-import LeaderboardView from './components/LeaderboardView';
-import ModerationView from './components/ModerationView';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
-import { GamificationService } from './services/gamificationService';
-import { ModerationService } from './services/moderationService';
-import { FirestoreService } from './services/firestoreService';
-import { auth, db } from './firebaseConfig';
+import { auth } from './firebaseConfig';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
 import { 
   BookOpen, 
   FileText, 
@@ -48,7 +43,6 @@ import {
   Info,
   Share2,
   CreditCard,
-  Trophy,
   Shield
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
@@ -97,6 +91,10 @@ const App: React.FC = () => {
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Shared Content State
+  const [sharedContent, setSharedContent] = useState<any>(null);
+  const [isViewingShared, setIsViewingShared] = useState(false);
   
   // Profile State
   const initialProfileState: UserProfile = {
@@ -109,17 +107,9 @@ const App: React.FC = () => {
     learningGoal: '',
     learningStyle: 'Visual',
     credits: 100,
-    planType: 'Free',
-    points: 0,
-    streak: 0,
-    badges: [],
-    role: 'user'
+    planType: 'Free'
   };
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfileState);
-
-  // Gamification & Moderation State
-  const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
-  const [flaggedContent, setFlaggedContent] = useState<FlaggedContent[]>([]);
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -191,6 +181,57 @@ const App: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [user]);
+
+  // Check for shared content on load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareId = params.get('share');
+    
+    if (shareId) {
+      const fetchShared = async () => {
+        setAuthLoading(true);
+        try {
+          const response = await fetch(`/api/auth/share/${shareId}`);
+          const data = await response.json();
+          
+          if (response.ok && data.success) {
+            const item = data.data;
+            setSharedContent(item);
+            setIsViewingShared(true);
+            
+            // Load the content into the view
+            if (item.type === AppMode.SUMMARY) {
+              setSummaryContent(item.content);
+              setMode(AppMode.SUMMARY);
+            } else if (item.type === AppMode.ESSAY) {
+              setEssayContent(item.content);
+              setMode(AppMode.ESSAY);
+            } else if (item.type === AppMode.QUIZ) {
+              setQuizData(item.content);
+              setMode(AppMode.QUIZ);
+            }
+            // Update form data for context
+            setFormData(prev => ({
+              ...prev,
+              chapterName: item.title,
+              subject: item.subtitle?.split(' • ')[1] || '',
+              gradeClass: item.subtitle?.split(' • ')[0] || ''
+            }));
+          } else {
+            console.error("Shared content not found or expired.");
+          }
+        } catch (err) {
+          console.error("Failed to fetch shared content", err);
+        } finally {
+          setAuthLoading(false);
+          // Clear the URL parameter without refreshing
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, newUrl);
+        }
+      };
+      fetchShared();
+    }
+  }, [setSummaryContent, setEssayContent, setQuizData, setMode, setFormData]);
 
   // Sync formData language with settings whenever settings change
   useEffect(() => {
@@ -293,116 +334,55 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Streak Management
-  useEffect(() => {
-    if (user && userProfile.lastActiveDate) {
-      const { newStreak, shouldUpdate } = GamificationService.updateStreak(userProfile.lastActiveDate, userProfile.streak);
-      if (shouldUpdate) {
-        handleProfileSave({ 
-          ...userProfile, 
-          streak: newStreak, 
-          lastActiveDate: Date.now() 
-        });
-      }
-    } else if (user && !userProfile.lastActiveDate) {
-      handleProfileSave({ 
-        ...userProfile, 
-        streak: 1, 
-        lastActiveDate: Date.now() 
-      });
-    }
-  }, [user, userProfile.lastActiveDate]);
-
-  // Fetch Leaderboard
-  useEffect(() => {
-    if (mode === AppMode.LEADERBOARD) {
-      FirestoreService.getLeaderboard().then(entries => {
-        setLeaderboardEntries(entries);
-      });
-    }
-  }, [mode]);
-
-  const awardPointsAndCheckBadges = (action: 'summary' | 'quiz' | 'essay' | 'chat' | 'quiz_perfect', difficulty?: string) => {
-    const pointsToAdd = GamificationService.calculatePoints(action, difficulty);
-    const updatedProfile = { ...userProfile, points: (userProfile.points || 0) + pointsToAdd };
-    
-    const newBadges = GamificationService.checkNewBadges(updatedProfile, history);
-    if (newBadges.length > 0) {
-      updatedProfile.badges = [...(updatedProfile.badges || []), ...newBadges];
-      // Show badge notification
-      newBadges.forEach(badgeId => {
-        const badge = GamificationService.BADGES.find(b => b.id === badgeId);
-        if (badge) {
-          alert(`🏅 NEW BADGE EARNED: ${badge.name}!\n${badge.description}`);
-        }
-      });
-    }
-    
-    handleProfileSave(updatedProfile);
-  };
-
-  // Fetch Moderation Data
-  useEffect(() => {
-    if (mode === AppMode.MODERATION && userProfile.role === 'admin') {
-      ModerationService.getFlaggedContent().then(flags => {
-        setFlaggedContent(flags);
-      });
-    }
-  }, [mode, userProfile.role]);
-
-  const handleFlagContent = async (contentId: string, contentType: any, reason: string, originalContent: any) => {
-    if (!user) return;
-    await ModerationService.flagContent({
-      contentId,
-      contentType,
-      reason,
-      flaggedBy: user.email || user.uid,
-      originalContent
-    });
-    alert('Content flagged for review. Thank you for your feedback!');
-  };
-
   // Profile Persistence
   useEffect(() => {
     if (user) {
-      // Initial load
-      FirestoreService.getUserProfile(user.uid).then(profile => {
-        if (profile) {
-          setUserProfile(profile);
-        } else {
-          // Create initial profile if not exists
-          const initialProfile = {
-            ...initialProfileState,
-            displayName: user.displayName || '',
-            email: user.email || '',
-            photoURL: user.photoURL || '',
-            credits: 100,
-            role: 'user' as const
-          };
-          setUserProfile(initialProfile);
-          FirestoreService.saveUserProfile(user.uid, initialProfile);
+      const savedProfile = localStorage.getItem(`profile_${user.uid}`);
+      if (savedProfile) {
+        try {
+          const parsed = JSON.parse(savedProfile);
+          setUserProfile(prev => ({ 
+            ...initialProfileState, 
+            ...parsed,
+            displayName: parsed.displayName || user.displayName || '',
+            photoURL: parsed.photoURL || user.photoURL || '' 
+          }));
+        } catch (e) {
+          console.error("Failed to parse profile", e);
         }
-      });
-
-      // Subscribe to real-time updates
-      const unsubscribe = FirestoreService.subscribeToProfile(user.uid, (profile) => {
-        setUserProfile(profile);
-      });
-
-      return () => unsubscribe();
+      } else {
+        setUserProfile({
+           ...initialProfileState,
+           displayName: user.displayName || '',
+           photoURL: user.photoURL || '',
+           credits: 100
+        });
+      }
     }
   }, [user]);
 
   // History Persistence
   useEffect(() => {
-    if (user) {
-      FirestoreService.getUserHistory(user.uid).then(history => {
-        setHistory(history);
-      });
+    const storageKey = user ? `history_${user.uid}` : 'history_guest';
+    const savedHistory = localStorage.getItem(storageKey);
+    if (savedHistory) {
+      try {
+        const parsedHistory = JSON.parse(savedHistory);
+        if (Array.isArray(parsedHistory)) {
+          setHistory(parsedHistory);
+        }
+      } catch (e) {
+        setHistory([]);
+      }
     } else {
       setHistory([]);
     }
   }, [user]);
+
+  useEffect(() => {
+    const storageKey = user ? `history_${user.uid}` : 'history_guest';
+    localStorage.setItem(storageKey, JSON.stringify(history));
+  }, [history, user]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -417,7 +397,7 @@ const App: React.FC = () => {
   const handleProfileSave = (newProfile: UserProfile, redirectDashboard = false) => {
     setUserProfile(newProfile);
     if (user) {
-      FirestoreService.saveUserProfile(user.uid, newProfile);
+      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
     }
     if (isNewUser) {
       setIsNewUser(false);
@@ -430,16 +410,11 @@ const App: React.FC = () => {
 
   const handleSignUpSuccess = (initialData?: Partial<UserProfile>) => {
     setIsNewUser(true);
-    const newProfile: UserProfile = { 
-      ...initialProfileState, 
-      ...initialData,
-      email: auth.currentUser?.email || '',
-      role: 'user'
-    };
+    const newProfile = { ...initialProfileState, ...initialData };
     setUserProfile(newProfile);
     
     if (auth.currentUser) {
-        FirestoreService.saveUserProfile(auth.currentUser.uid, newProfile);
+        localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
     }
     
     setShowAuthModal(false);
@@ -524,11 +499,10 @@ const App: React.FC = () => {
     return true;
   };
 
-  const addToHistory = async (type: AppMode, content: any) => {
-    if (!user) return;
-    
-    const newItem: Omit<HistoryItem, 'id'> = {
-      userId: user.uid,
+  const addToHistory = (type: AppMode, content: any) => {
+    const newId = Date.now().toString();
+    const newItem: HistoryItem = {
+      id: newId,
       type,
       title: formData.chapterName || 'Untitled Chapter',
       subtitle: `${formData.gradeClass} • ${formData.subject}`,
@@ -536,28 +510,15 @@ const App: React.FC = () => {
       content,
       formData: { ...formData }
     };
-
-    const newId = await FirestoreService.addHistoryItem(newItem);
-    if (newId) {
-      setHistory(prev => [{ id: newId, ...newItem } as HistoryItem, ...prev]);
-      setCurrentHistoryId(newId);
-    }
+    setHistory(prev => [newItem, ...prev]);
+    setCurrentHistoryId(newId);
   };
 
-  const handleQuizComplete = async (score: number) => {
-    if (currentHistoryId && user) {
-      // Update local state
+  const handleQuizComplete = (score: number) => {
+    if (currentHistoryId) {
       setHistory(prev => prev.map(item => 
         item.id === currentHistoryId ? { ...item, score } : item
       ));
-
-      // Update Firestore
-      try {
-        const itemRef = doc(db, 'history', currentHistoryId);
-        await updateDoc(itemRef, { score });
-      } catch (error) {
-        console.error("Failed to update quiz score in Firestore", error);
-      }
 
       if (formData.questionCount === 20 && formData.difficulty === 'Hard') {
         const percentage = (score / 20) * 100;
@@ -566,7 +527,6 @@ const App: React.FC = () => {
             const bonus = 50;
             const newCredits = userProfile.credits + bonus;
             handleProfileSave({ ...userProfile, credits: newCredits }, false);
-            awardPointsAndCheckBadges('quiz_perfect');
             
             setTimeout(() => {
               alert(`🎉 CHALLENGE MASTERED! 🎉\n\nYou scored ${score}/20 (${percentage}%) and earned ${bonus} credits!`);
@@ -644,7 +604,6 @@ const App: React.FC = () => {
         }
         addToHistory(AppMode.SUMMARY, text);
         deductCredit(cost);
-        awardPointsAndCheckBadges('summary');
 
       } else if (mode === AppMode.ESSAY) {
         setEssayContent('');
@@ -669,7 +628,6 @@ const App: React.FC = () => {
 
         addToHistory(AppMode.ESSAY, text);
         deductCredit(cost);
-        awardPointsAndCheckBadges('essay');
 
       } else if (mode === AppMode.QUIZ) {
         setQuizData(null);
@@ -677,7 +635,6 @@ const App: React.FC = () => {
         setQuizData(questions);
         addToHistory(AppMode.QUIZ, questions);
         deductCredit(cost);
-        awardPointsAndCheckBadges('quiz');
       }
     } catch (err: any) {
       console.error(err);
@@ -685,9 +642,7 @@ const App: React.FC = () => {
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {
-        // Not JSON, ignore
-      }
+      } catch (e) {}
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -725,43 +680,65 @@ const App: React.FC = () => {
 
   const handleShareHistoryItem = async (e: React.MouseEvent, item: HistoryItem) => {
     e.stopPropagation();
-    let text = `${item.title} (${item.type})\n\n`;
     
-    if (item.type === AppMode.QUIZ) {
-      const qData = item.content as QuizQuestion[];
-      qData.forEach((q, i) => {
-        text += `Q${i+1}: ${q.question}\n`;
-        q.options.forEach((opt, j) => {
-          text += `   ${String.fromCharCode(65+j)}) ${opt}\n`;
-        });
-        text += "\n";
-      });
-      if (item.score !== undefined) {
-        text += `I scored ${item.score}/${qData.length}!\n`;
-      }
-    } else if (typeof item.content === 'string') {
-      text += item.content;
-    }
-
-    text += `\nGenerated by SJ Tutor AI`;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
+    try {
+      // 1. Save to backend to get a unique public ID
+      const response = await fetch('/api/auth/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: item.type,
           title: item.title,
-          text: text,
-          url: window.location.href
+          subtitle: item.subtitle,
+          content: item.content
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Sharing failed');
+
+      const shareId = data.id;
+      const shareUrl = `${window.location.origin}?share=${shareId}`;
+
+      let text = `${item.title} (${item.type})\n\n`;
+      
+      if (item.type === AppMode.QUIZ) {
+        const qData = item.content as QuizQuestion[];
+        qData.forEach((q, i) => {
+          text += `Q${i+1}: ${q.question}\n`;
+          q.options.forEach((opt, j) => {
+            text += `   ${String.fromCharCode(65+j)}) ${opt}\n`;
+          });
+          text += "\n";
         });
-      } catch (err) {
-        console.warn("Share failed", err);
+        if (item.score !== undefined) {
+          text += `I scored ${item.score}/${qData.length}!\n`;
+        }
+      } else if (typeof item.content === 'string') {
+        text += item.content;
       }
-    } else {
-      try {
-        await navigator.clipboard.writeText(text);
-        alert('Content copied to clipboard!');
-      } catch (err) {
-        console.error('Failed to copy content.', err);
+
+      text += `\nView here: ${shareUrl}\n\nGenerated by SJ Tutor AI`;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: item.title,
+            text: text,
+            url: shareUrl
+          });
+        } catch (err) {}
+      } else {
+        try {
+          await navigator.clipboard.writeText(text);
+          alert('Share link copied to clipboard!');
+        } catch (err) {
+          alert('Failed to copy content.');
+        }
       }
+    } catch (err: any) {
+      console.error(err);
+      alert('Sharing failed: ' + err.message);
     }
   };
 
@@ -784,10 +761,10 @@ const App: React.FC = () => {
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
-    { id: AppMode.LEADERBOARD, label: 'Leaderboard', icon: Trophy },
-    ...(userProfile.role === 'admin' ? [{ id: AppMode.MODERATION, label: 'Moderation', icon: Shield }] : []),
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
+    { id: AppMode.PRIVACY, label: 'Privacy Policy', icon: Shield },
+    { id: AppMode.TERMS, label: 'Terms of Service', icon: FileText },
   ];
 
   const renderDashboard = () => {
@@ -830,14 +807,6 @@ const App: React.FC = () => {
 
       return (
         <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
-          <div className="mb-8">
-            <GamificationDashboard 
-              profile={userProfile} 
-              onViewLeaderboard={() => setMode(AppMode.LEADERBOARD)}
-              onViewBadges={() => setMode(AppMode.PROFILE)}
-            />
-          </div>
-
           <button 
             onClick={() => setDashboardView('OVERVIEW')}
             className="flex items-center text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 mb-6 transition-all hover:-translate-x-1 group text-sm"
@@ -936,14 +905,6 @@ const App: React.FC = () => {
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
         <div className="mb-8">
-          <GamificationDashboard 
-            profile={userProfile} 
-            onViewLeaderboard={() => setMode(AppMode.LEADERBOARD)}
-            onViewBadges={() => setMode(AppMode.PROFILE)}
-          />
-        </div>
-
-        <div className="mb-8">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
           <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
         </div>
@@ -1034,23 +995,6 @@ const App: React.FC = () => {
           </div>
         );
 
-      case AppMode.LEADERBOARD:
-        return (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <LeaderboardView entries={leaderboardEntries} currentUserId={user?.uid} />
-          </div>
-        );
-
-      case AppMode.MODERATION:
-        return (
-          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <ModerationView flags={flaggedContent} onResolve={(id, status, feedback) => {
-              setFlaggedContent(prev => prev.map(f => f.id === id ? { ...f, status, adminFeedback: feedback } : f));
-              ModerationService.resolveFlag(id, status, feedback);
-            }} />
-          </div>
-        );
-
       case AppMode.SUMMARY:
         if (summaryContent) {
           return (
@@ -1063,7 +1007,6 @@ const App: React.FC = () => {
                  setSummaryContent('');
                  setCurrentHistoryId(null);
               }}
-              onFlag={(reason) => handleFlagContent(currentHistoryId || 'new', 'summary', reason, summaryContent)}
             />
           );
         }
@@ -1103,7 +1046,6 @@ const App: React.FC = () => {
                  setEssayContent('');
                  setCurrentHistoryId(null);
               }}
-              onFlag={(reason) => handleFlagContent(currentHistoryId || 'new', 'essay', reason, essayContent)}
             />
           );
         }
@@ -1143,7 +1085,6 @@ const App: React.FC = () => {
               }} 
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
-              onFlag={(idx, reason) => handleFlagContent(currentHistoryId || 'new', 'quiz', reason, quizData[idx])}
             />
           );
         }
@@ -1221,6 +1162,20 @@ const App: React.FC = () => {
            </div>
         );
 
+      case AppMode.PRIVACY:
+        return (
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <PrivacyPolicyView />
+           </div>
+        );
+
+      case AppMode.TERMS:
+        return (
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <TermsOfServiceView />
+           </div>
+        );
+
       default:
         return renderDashboard();
     }
@@ -1241,6 +1196,40 @@ const App: React.FC = () => {
   }
 
   if (!user) {
+    // If we have shared content loaded or viewing public pages, show it in a public layout
+    const hasSharedContent = summaryContent || essayContent || quizData;
+    const isPublicPage = mode === AppMode.ABOUT || mode === AppMode.PRIVACY || mode === AppMode.TERMS;
+    
+    if (hasSharedContent || isPublicPage) {
+      return (
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100">
+          <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
+            <div className="flex items-center gap-3">
+               <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-500 shadow-sm flex-shrink-0 bg-white dark:bg-slate-800">
+                 <Logo className="w-full h-full" iconOnly />
+               </div>
+               <h1 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">SJ Tutor AI</h1>
+            </div>
+            <button 
+              onClick={() => setShowAuthModal(true)}
+              className="px-4 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Get Started
+            </button>
+          </header>
+          <main className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
+            {renderContent()}
+          </main>
+          {showAuthModal && (
+            <Auth 
+              onClose={() => setShowAuthModal(false)} 
+              onSignUpSuccess={handleSignUpSuccess}
+            />
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
         <LandingPage onGetStarted={() => setShowAuthModal(true)} />
@@ -1303,7 +1292,11 @@ const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => {
-                    if (item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && !user) {
+                    if (item.id !== AppMode.DASHBOARD && 
+                        item.id !== AppMode.ABOUT && 
+                        item.id !== AppMode.PRIVACY && 
+                        item.id !== AppMode.TERMS && 
+                        !user) {
                       setShowAuthModal(true);
                       setIsSidebarOpen(false); 
                     } else {
@@ -1330,7 +1323,11 @@ const App: React.FC = () => {
                 >
                   <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
                   {item.label}
-                  {!user && item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && (
+                  {!user && 
+                   item.id !== AppMode.DASHBOARD && 
+                   item.id !== AppMode.ABOUT && 
+                   item.id !== AppMode.PRIVACY && 
+                   item.id !== AppMode.TERMS && (
                      <div className="ml-auto">
                         <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
                      </div>
