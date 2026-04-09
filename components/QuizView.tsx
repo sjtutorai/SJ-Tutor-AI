@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { QuizQuestion, SJTUTOR_AVATAR } from '../types';
 import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Instagram, Mail, Send, MessageCircle, Link, Share2, Flag } from 'lucide-react';
-import ResultModal from './ResultModal';
 
 interface QuizViewProps {
   questions: QuizQuestion[];
@@ -10,23 +9,20 @@ interface QuizViewProps {
   onComplete?: (score: number) => void;
   onFlag?: (questionIndex: number, reason: string) => void;
   existingScore?: number;
-  onGoToDashboard?: () => void;
 }
 
-const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, onFlag, existingScore, onGoToDashboard }) => {
+const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, onFlag, existingScore }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
-  const [showResultModal, setShowResultModal] = useState(false);
 
   // Initialize view if there's an existing score (viewing history)
   useEffect(() => {
     if (existingScore !== undefined) {
       setScore(existingScore);
       setQuizCompleted(true);
-      setShowResultModal(false);
     } else {
       // Reset state for new quiz
       setCurrentIndex(0);
@@ -34,7 +30,6 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, onF
       setQuizCompleted(false);
       setShowResult(false);
       setSelectedOption(null);
-      setShowResultModal(false);
     }
   }, [existingScore, questions]);
 
@@ -55,8 +50,8 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, onF
       setSelectedOption(null);
       setShowResult(false);
     } else {
+      const finalScore = score + (selectedOption === currentQuestion.correctAnswerIndex ? 0 : 0);
       setQuizCompleted(true);
-      setShowResultModal(true);
       if (onComplete) {
         onComplete(score);
       }
@@ -81,12 +76,12 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, onF
                 title: 'SJ Tutor AI Quiz Challenge',
                 text: text
             });
-        } catch { console.log('Share canceled'); }
+        } catch (e) { console.log('Share canceled'); }
     } else {
         try {
             await navigator.clipboard.writeText(text);
             alert('Quiz questions copied to clipboard!');
-        } catch { alert('Failed to copy'); }
+        } catch (e) { alert('Failed to copy'); }
     }
   };
 
@@ -129,7 +124,7 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, onF
                 url: appUrl,
               });
               return; // Success
-            } catch {
+            } catch (err) {
               // Fallback if user cancels or error
               console.log("Share failed, falling back to clipboard");
             }
@@ -150,8 +145,7 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, onF
     else if (percentage >= 50) message = "Keep practicing!";
 
     return (
-      <>
-        <div className="space-y-6">
+      <div className="space-y-6">
         <div className="bg-white rounded-xl shadow-md border border-slate-200 p-8 text-center animate-in fade-in zoom-in duration-300">
           <div className="w-24 h-24 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-lg overflow-hidden">
              <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
@@ -247,22 +241,6 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, onF
             </div>
         </div>
       </div>
-        
-      <ResultModal
-          isOpen={showResultModal}
-          score={score}
-          totalQuestions={questions.length}
-          onRetry={() => {
-            setShowResultModal(false);
-            onReset();
-          }}
-          onDashboard={() => {
-            setShowResultModal(false);
-            if (onGoToDashboard) onGoToDashboard();
-          }}
-          onViewSolutions={() => setShowResultModal(false)}
-        />
-      </>
     );
   }
 

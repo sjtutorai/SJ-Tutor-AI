@@ -7,16 +7,13 @@ import TutorChat from './components/TutorChat';
 import ProfileView from './components/ProfileView';
 import Auth from './components/Auth';
 import PremiumModal from './components/PremiumModal';
-import LoadingState from './components/LoadingState';
+import LoadingState from './components/LoadingState'; 
 import NotesView from './components/NotesView';
 import SettingsView from './components/SettingsView';
 import AboutView from './components/AboutView';
 import IdCardView from './components/IdCardView';
 import LandingPage from './components/LandingPage';
 import StudyTimerView from './components/StudyTimerView';
-import OnboardingForm from './components/OnboardingForm';
-import WelcomeModal from './components/WelcomeModal';
-import TutorialSpotlight from './components/TutorialSpotlight';
 import Logo from './components/Logo';
 import GamificationDashboard from './components/GamificationDashboard';
 import LeaderboardView from './components/LeaderboardView';
@@ -86,9 +83,6 @@ const App: React.FC = () => {
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showWelcomeModal, setShowWelcomeModal] = useState<'returning' | 'new' | null>(null);
-  const [showTutorial, setShowTutorial] = useState(false);
 
   // App State
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -119,13 +113,9 @@ const App: React.FC = () => {
     points: 0,
     streak: 0,
     badges: [],
-    role: 'user',
-    email: '',
-    hasCompletedOnboarding: false,
-    createdAt: Date.now()
+    role: 'user'
   };
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfileState);
-  const [onboardingInitialData, setOnboardingInitialData] = useState<Partial<UserProfile>>({});
 
   // Gamification & Moderation State
   const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
@@ -281,39 +271,16 @@ const App: React.FC = () => {
       }
     }, 4000);
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setAuthLoading(false);
+      clearTimeout(timeoutId); 
       
-      if (currentUser) {
-        // Unified User Handling & Smart Detection
-        try {
-          const profile = await FirestoreService.getUserProfile(currentUser.uid);
-          
-          if (!profile || !profile.hasCompletedOnboarding) {
-            // New User or Incomplete Onboarding
-            setOnboardingInitialData({
-              displayName: currentUser.displayName || '',
-              email: currentUser.email || '',
-              provider: currentUser.providerData[0]?.providerId || 'Email',
-              photoURL: currentUser.photoURL || ''
-            });
-            setShowOnboarding(true);
-          } else {
-            // Returning User
-            setUserProfile(profile);
-            setShowWelcomeModal('returning');
-          }
-        } catch (err) {
-          console.error("Error checking user profile:", err);
-        }
-      } else {
+      if (!currentUser) {
         setIsNewUser(false);
         setUserProfile(initialProfileState);
         setMode(AppMode.DASHBOARD);
       }
-      
-      setAuthLoading(false);
-      clearTimeout(timeoutId); 
     }, (err) => {
       console.error("Auth Error:", err);
       setAuthLoading(false); 
@@ -447,40 +414,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleOnboardingComplete = async (data: UserProfile) => {
-    if (!user) return;
-    
-    try {
-      await FirestoreService.saveUserProfile(user.uid, data);
-      setUserProfile(data);
-      setShowOnboarding(false);
-      setShowWelcomeModal('new');
-    } catch (err) {
-      console.error("Failed to save onboarding data:", err);
-      alert("Something went wrong. Please try again.");
-    }
-  };
-
-  const tutorialSteps = [
-    {
-      targetId: 'nav-QUIZ',
-      title: 'Generate Quizzes',
-      description: 'Create interactive quizzes from any topic to test your knowledge.',
-      position: 'right' as const
-    },
-    {
-      targetId: 'nav-DASHBOARD',
-      title: 'Your Dashboard',
-      description: 'Track your progress, streaks, and points right here.',
-      position: 'right' as const
-    },
-    {
-      targetId: 'results-container',
-      title: 'View Results',
-      description: 'Review your generated summaries and essays in detail.',
-      position: 'top' as const
-    }
-  ];
   const handleProfileSave = (newProfile: UserProfile, redirectDashboard = false) => {
     setUserProfile(newProfile);
     if (user) {
@@ -1211,7 +1144,6 @@ const App: React.FC = () => {
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
               onFlag={(idx, reason) => handleFlagContent(currentHistoryId || 'new', 'quiz', reason, quizData[idx])}
-              onGoToDashboard={() => setMode(AppMode.DASHBOARD)}
             />
           );
         }
@@ -1370,7 +1302,6 @@ const App: React.FC = () => {
               return (
                 <button
                   key={item.id}
-                  id={`nav-${item.id}`}
                   onClick={() => {
                     if (item.id !== AppMode.DASHBOARD && item.id !== AppMode.ABOUT && !user) {
                       setShowAuthModal(true);
@@ -1484,7 +1415,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
-          <div className="w-full h-full" id="results-container">
+          <div className="w-full h-full">
              {renderContent()}
           </div>
         </div>
@@ -1501,36 +1432,6 @@ const App: React.FC = () => {
         <PremiumModal 
           onClose={() => setShowPremiumModal(false)}
           onPaymentSuccess={handlePaymentSuccess}
-        />
-      )}
-
-      {showOnboarding && (
-        <OnboardingForm 
-          initialData={onboardingInitialData}
-          onComplete={handleOnboardingComplete}
-        />
-      )}
-
-      {showWelcomeModal && (
-        <WelcomeModal 
-          type={showWelcomeModal}
-          userName={userProfile.displayName || user?.displayName || 'Scholar'}
-          onClose={() => setShowWelcomeModal(null)}
-          onStartTutorial={() => {
-            setShowWelcomeModal(null);
-            setShowTutorial(true);
-          }}
-        />
-      )}
-
-      {showTutorial && (
-        <TutorialSpotlight 
-          steps={tutorialSteps}
-          onComplete={() => {
-            setShowTutorial(false);
-            alert("Tutorial completed! You're ready to excel! 🚀");
-          }}
-          onClose={() => setShowTutorial(false)}
         />
       )}
     </div>

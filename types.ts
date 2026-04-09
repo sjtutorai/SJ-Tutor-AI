@@ -56,7 +56,6 @@ export interface HistoryItem {
 
 export interface UserProfile {
   displayName: string;
-  email: string;
   phoneNumber: string;
   institution: string;
   grade?: string;
@@ -72,18 +71,6 @@ export interface UserProfile {
   lastActiveDate?: number;
   badges: string[]; // Array of badge IDs
   role?: 'user' | 'admin';
-  // Onboarding fields
-  provider?: string;
-  dob?: string;
-  class?: string;
-  parentName?: string;
-  parentPhone?: string;
-  parentEmail?: string;
-  source?: string;
-  recoveryEmail?: string;
-  recoveryPhone?: string;
-  hasCompletedOnboarding: boolean;
-  createdAt: number;
 }
 
 export interface Badge {
