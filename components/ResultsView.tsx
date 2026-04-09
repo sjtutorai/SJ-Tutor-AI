@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Loader2, Volume2, Square, ArrowLeft, Download, FileText, Image as ImageIcon, FileType, Share2, Facebook, Mail, MessageCircle, Link, RefreshCw } from 'lucide-react';
+import { Loader2, Volume2, Square, ArrowLeft, Download, FileText, Image as ImageIcon, FileType, Share2, Facebook, Mail, MessageCircle, Link, RefreshCw, Flag } from 'lucide-react';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -13,9 +13,10 @@ interface ResultsViewProps {
   title: string;
   type?: string; // 'Summary' | 'Essay' | 'Quiz' etc.
   onBack: () => void;
+  onFlag?: (reason: string) => void;
 }
 
-const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, type = 'Document', onBack }) => {
+const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, type = 'Document', onBack, onFlag }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -357,6 +358,21 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
                  >
                    <Download className="w-4 h-4" />
                  </button>
+                 {onFlag && (
+                    <>
+                      <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                      <button 
+                        onClick={() => {
+                          const reason = prompt("Why are you flagging this content? (e.g., inaccurate, inappropriate, formatting issues)");
+                          if (reason) onFlag(reason);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
+                        title="Flag Content"
+                      >
+                        <Flag className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
               </div>
 
               {/* Listen Button */}

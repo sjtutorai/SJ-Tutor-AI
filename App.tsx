@@ -15,8 +15,13 @@ import IdCardView from './components/IdCardView';
 import LandingPage from './components/LandingPage';
 import StudyTimerView from './components/StudyTimerView';
 import Logo from './components/Logo';
+import GamificationDashboard from './components/GamificationDashboard';
+import LeaderboardView from './components/LeaderboardView';
+import ModerationView from './components/ModerationView';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
+import { GamificationService } from './services/gamificationService';
+import { ModerationService } from './services/moderationService';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { 
@@ -40,7 +45,10 @@ import {
   Settings,
   Info,
   Share2,
-  CreditCard
+  CreditCard,
+  Trophy,
+  Shield,
+  Flag
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -100,9 +108,17 @@ const App: React.FC = () => {
     learningGoal: '',
     learningStyle: 'Visual',
     credits: 100,
-    planType: 'Free'
+    planType: 'Free',
+    points: 0,
+    streak: 0,
+    badges: [],
+    role: 'user'
   };
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfileState);
+
+  // Gamification & Moderation State
+  const [leaderboardEntries, setLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
+  const [flaggedContent, setFlaggedContent] = useState<FlaggedContent[]>([]);
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -275,6 +291,57 @@ const App: React.FC = () => {
       clearTimeout(timeoutId);
     };
   }, []);
+
+  // Streak Management
+  useEffect(() => {
+    if (user && userProfile.lastActiveDate) {
+      const { newStreak, shouldUpdate } = GamificationService.updateStreak(userProfile.lastActiveDate, userProfile.streak);
+      if (shouldUpdate) {
+        handleProfileSave({ 
+          ...userProfile, 
+          streak: newStreak, 
+          lastActiveDate: Date.now() 
+        });
+      }
+    } else if (user && !userProfile.lastActiveDate) {
+      handleProfileSave({ 
+        ...userProfile, 
+        streak: 1, 
+        lastActiveDate: Date.now() 
+      });
+    }
+  }, [user, userProfile.lastActiveDate]);
+
+  const awardPointsAndCheckBadges = (action: 'summary' | 'quiz' | 'essay' | 'chat' | 'quiz_perfect', difficulty?: string) => {
+    const pointsToAdd = GamificationService.calculatePoints(action, difficulty);
+    const updatedProfile = { ...userProfile, points: (userProfile.points || 0) + pointsToAdd };
+    
+    const newBadges = GamificationService.checkNewBadges(updatedProfile, history);
+    if (newBadges.length > 0) {
+      updatedProfile.badges = [...(updatedProfile.badges || []), ...newBadges];
+      // Show badge notification
+      newBadges.forEach(badgeId => {
+        const badge = GamificationService.BADGES.find(b => b.id === badgeId);
+        if (badge) {
+          alert(`🏅 NEW BADGE EARNED: ${badge.name}!\n${badge.description}`);
+        }
+      });
+    }
+    
+    handleProfileSave(updatedProfile);
+  };
+
+  const handleFlagContent = async (contentId: string, contentType: any, reason: string, originalContent: any) => {
+    if (!user) return;
+    await ModerationService.flagContent({
+      contentId,
+      contentType,
+      reason,
+      flaggedBy: user.email || user.uid,
+      originalContent
+    });
+    alert('Content flagged for review. Thank you for your feedback!');
+  };
 
   // Profile Persistence
   useEffect(() => {
@@ -469,6 +536,7 @@ const App: React.FC = () => {
             const bonus = 50;
             const newCredits = userProfile.credits + bonus;
             handleProfileSave({ ...userProfile, credits: newCredits }, false);
+            awardPointsAndCheckBadges('quiz_perfect');
             
             setTimeout(() => {
               alert(`🎉 CHALLENGE MASTERED! 🎉\n\nYou scored ${score}/20 (${percentage}%) and earned ${bonus} credits!`);
@@ -546,6 +614,7 @@ const App: React.FC = () => {
         }
         addToHistory(AppMode.SUMMARY, text);
         deductCredit(cost);
+        awardPointsAndCheckBadges('summary');
 
       } else if (mode === AppMode.ESSAY) {
         setEssayContent('');
@@ -570,6 +639,7 @@ const App: React.FC = () => {
 
         addToHistory(AppMode.ESSAY, text);
         deductCredit(cost);
+        awardPointsAndCheckBadges('essay');
 
       } else if (mode === AppMode.QUIZ) {
         setQuizData(null);
@@ -577,6 +647,7 @@ const App: React.FC = () => {
         setQuizData(questions);
         addToHistory(AppMode.QUIZ, questions);
         deductCredit(cost);
+        awardPointsAndCheckBadges('quiz');
       }
     } catch (err: any) {
       console.error(err);
@@ -679,6 +750,8 @@ const App: React.FC = () => {
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
+    { id: AppMode.LEADERBOARD, label: 'Leaderboard', icon: Trophy },
+    ...(userProfile.role === 'admin' ? [{ id: AppMode.MODERATION, label: 'Moderation', icon: Shield }] : []),
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
   ];
@@ -723,6 +796,14 @@ const App: React.FC = () => {
 
       return (
         <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
+          <div className="mb-8">
+            <GamificationDashboard 
+              profile={userProfile} 
+              onViewLeaderboard={() => setMode(AppMode.LEADERBOARD)}
+              onViewBadges={() => setMode(AppMode.PROFILE)}
+            />
+          </div>
+
           <button 
             onClick={() => setDashboardView('OVERVIEW')}
             className="flex items-center text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 mb-6 transition-all hover:-translate-x-1 group text-sm"
@@ -821,6 +902,14 @@ const App: React.FC = () => {
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
         <div className="mb-8">
+          <GamificationDashboard 
+            profile={userProfile} 
+            onViewLeaderboard={() => setMode(AppMode.LEADERBOARD)}
+            onViewBadges={() => setMode(AppMode.PROFILE)}
+          />
+        </div>
+
+        <div className="mb-8">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
           <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
         </div>
@@ -911,6 +1000,23 @@ const App: React.FC = () => {
           </div>
         );
 
+      case AppMode.LEADERBOARD:
+        return (
+          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <LeaderboardView entries={leaderboardEntries} currentUserId={user?.uid} />
+          </div>
+        );
+
+      case AppMode.MODERATION:
+        return (
+          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <ModerationView flags={flaggedContent} onResolve={(id, status, feedback) => {
+              setFlaggedContent(prev => prev.map(f => f.id === id ? { ...f, status, adminFeedback: feedback } : f));
+              ModerationService.resolveFlag(id, status, feedback);
+            }} />
+          </div>
+        );
+
       case AppMode.SUMMARY:
         if (summaryContent) {
           return (
@@ -923,6 +1029,7 @@ const App: React.FC = () => {
                  setSummaryContent('');
                  setCurrentHistoryId(null);
               }}
+              onFlag={(reason) => handleFlagContent(currentHistoryId || 'new', 'summary', reason, summaryContent)}
             />
           );
         }
@@ -962,6 +1069,7 @@ const App: React.FC = () => {
                  setEssayContent('');
                  setCurrentHistoryId(null);
               }}
+              onFlag={(reason) => handleFlagContent(currentHistoryId || 'new', 'essay', reason, essayContent)}
             />
           );
         }
@@ -1001,6 +1109,7 @@ const App: React.FC = () => {
               }} 
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
+              onFlag={(idx, reason) => handleFlagContent(currentHistoryId || 'new', 'quiz', reason, quizData[idx])}
             />
           );
         }

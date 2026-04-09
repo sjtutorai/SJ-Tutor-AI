@@ -1,16 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { QuizQuestion, SJTUTOR_AVATAR } from '../types';
-import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Instagram, Mail, Send, MessageCircle, Link, Share2 } from 'lucide-react';
+import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Instagram, Mail, Send, MessageCircle, Link, Share2, Flag } from 'lucide-react';
 
 interface QuizViewProps {
   questions: QuizQuestion[];
   onReset: () => void;
   onComplete?: (score: number) => void;
+  onFlag?: (questionIndex: number, reason: string) => void;
   existingScore?: number;
 }
 
-const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, existingScore }) => {
+const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, onFlag, existingScore }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [score, setScore] = useState(0);
@@ -259,6 +260,18 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
             Question {currentIndex + 1} of {questions.length}
           </span>
           <span className="text-sm font-medium text-slate-500">Score: {score}</span>
+          {onFlag && (
+            <button 
+              onClick={() => {
+                const reason = prompt("What's wrong with this question?");
+                if (reason) onFlag(currentIndex, reason);
+              }}
+              className="ml-2 p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+              title="Flag Question"
+            >
+              <Flag className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         <h3 className="text-xl font-semibold text-slate-800 mb-6">

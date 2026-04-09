@@ -167,7 +167,7 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
               </div>
               <div>
                 <p className="text-sm font-bold text-slate-800">Illustrate with AI Images</p>
-                <p className="text-[10px] text-slate-500">I'll generate highly relevant visuals for your essay.</p>
+                <p className="text-[10px] text-slate-500">I&apos;ll generate highly relevant visuals for your essay.</p>
               </div>
            </div>
            <label className="relative inline-flex items-center cursor-pointer">

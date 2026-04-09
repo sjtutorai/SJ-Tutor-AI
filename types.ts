@@ -10,7 +10,9 @@ export enum AppMode {
   SETTINGS = 'SETTINGS',
   ABOUT = 'ABOUT',
   ID_CARD = 'ID_CARD',
-  TIMER = 'TIMER'
+  TIMER = 'TIMER',
+  LEADERBOARD = 'LEADERBOARD',
+  MODERATION = 'MODERATION'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
@@ -64,6 +66,38 @@ export interface UserProfile {
   credits: number;
   planType?: 'Free' | 'Starter' | 'Scholar' | 'Achiever';
   phoneVerified?: boolean;
+  points: number;
+  streak: number;
+  lastActiveDate?: number;
+  badges: string[]; // Array of badge IDs
+  role?: 'user' | 'admin';
+}
+
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+}
+
+export interface FlaggedContent {
+  id: string;
+  contentId: string;
+  contentType: 'summary' | 'quiz' | 'essay' | 'chat';
+  reason: string;
+  flaggedBy: string;
+  timestamp: number;
+  status: 'pending' | 'resolved' | 'dismissed';
+  adminFeedback?: string;
+  originalContent: any;
+}
+
+export interface LeaderboardEntry {
+  userId: string;
+  displayName: string;
+  photoURL?: string;
+  points: number;
+  streak: number;
 }
 
 export interface UserSettings {
