@@ -142,7 +142,9 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
       try {
         const parsed = JSON.parse(rawMsg);
         if (parsed.error?.message) rawMsg = parsed.error.message;
-      } catch (e) {}
+      } catch (e) {
+        // Not JSON, ignore
+      }
 
       if (rawMsg.includes("Generative Language API has not been used") || rawMsg.includes("PERMISSION_DENIED")) {
         setIsApiDisabled(true);
@@ -211,7 +213,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits })
                     <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-bold">API Not Enabled</p>
-                      <p className="text-xs text-red-600">The "Generative Language API" needs to be enabled in your Google Cloud project.</p>
+                      <p className="text-xs text-red-600">The &quot;Generative Language API&quot; needs to be enabled in your Google Cloud project.</p>
                     </div>
                   </div>
                   <a 

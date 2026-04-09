@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and gamification data",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string", "description": "User's full name" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "phoneNumber": { "type": "string", "description": "User's phone number" },
+        "institution": { "type": "string", "description": "School or institution name" },
+        "grade": { "type": "string", "description": "Grade or class level" },
+        "bio": { "type": "string", "description": "User's biography" },
+        "photoURL": { "type": "string", "format": "uri", "description": "Profile picture URL" },
+        "learningGoal": { "type": "string", "description": "User's primary learning goal" },
+        "learningStyle": { "type": "string", "enum": ["Visual", "Auditory", "Reading/Writing", "Kinesthetic"], "description": "Preferred learning style" },
+        "credits": { "type": "number", "description": "Remaining study credits" },
+        "planType": { "type": "string", "enum": ["Free", "Premium", "Pro"], "description": "Subscription plan level" },
+        "points": { "type": "number", "description": "Total scholar points earned" },
+        "streak": { "type": "number", "description": "Current daily engagement streak" },
+        "lastActiveDate": { "type": "number", "description": "Timestamp of last activity" },
+        "badges": { "type": "array", "items": { "type": "string" }, "description": "List of earned badge IDs" },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "User access role" }
+      },
+      "required": ["displayName", "email", "credits", "points", "streak", "role"]
+    },
+    "HistoryItem": {
+      "title": "HistoryItem",
+      "description": "A record of generated content (summary, quiz, essay)",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner's user ID" },
+        "title": { "type": "string", "description": "Main title of the content" },
+        "subtitle": { "type": "string", "description": "Subject/Class context" },
+        "content": { "type": "any", "description": "The generated content (string or object)" },
+        "type": { "type": "string", "description": "Type of content (SUMMARY, QUIZ, ESSAY)" },
+        "timestamp": { "type": "number", "description": "Creation timestamp" },
+        "score": { "type": "number", "description": "Quiz score if applicable" }
+      },
+      "required": ["userId", "title", "content", "type", "timestamp"]
+    },
+    "FlaggedContent": {
+      "title": "FlaggedContent",
+      "description": "Content reported by users for review",
+      "type": "object",
+      "properties": {
+        "contentId": { "type": "string", "description": "ID of the flagged content" },
+        "contentType": { "type": "string", "description": "Type of content flagged" },
+        "reason": { "type": "string", "description": "Reason for flagging" },
+        "flaggedBy": { "type": "string", "description": "Email or ID of the reporter" },
+        "timestamp": { "type": "number", "description": "Flagging timestamp" },
+        "status": { "type": "string", "enum": ["pending", "resolved", "dismissed"], "description": "Moderation status" },
+        "adminFeedback": { "type": "string", "description": "Feedback from admin" },
+        "originalContent": { "type": "any", "description": "Snapshot of the content when flagged" }
+      },
+      "required": ["contentId", "contentType", "reason", "flaggedBy", "timestamp", "status"]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Public user data for leaderboard",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "points": { "type": "number" },
+        "streak": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["displayName", "points", "streak", "userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Private user profiles"
+    },
+    "/history/{itemId}": {
+      "schema": "HistoryItem",
+      "description": "Generated content history"
+    },
+    "/flags/{flagId}": {
+      "schema": "FlaggedContent",
+      "description": "Flagged content for moderation"
+    },
+    "/leaderboard/{userId}": {
+      "schema": "LeaderboardEntry",
+      "description": "Public leaderboard entries"
+    }
+  }
+}

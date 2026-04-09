@@ -3,7 +3,7 @@ import React, { useRef, useState } from 'react';
 import { UserProfile, SJTUTOR_AVATAR } from '../types';
 import Logo from './Logo';
 import { Download, Share2, ShieldCheck, User, QrCode, Sparkles } from 'lucide-react';
-// @ts-ignore
+// @ts-expect-error - html2canvas might not have types in this env
 import html2canvas from 'html2canvas';
 
 interface IdCardViewProps {
@@ -60,12 +60,16 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                   text: text,
                   url: window.location.href
               });
-          } catch (e) {}
+          } catch (e) {
+              console.warn("Share failed", e);
+          }
       } else {
           try {
              await navigator.clipboard.writeText(text);
              alert("Info copied to clipboard!");
-          } catch(e) {}
+          } catch(e) {
+              console.error("Copy failed", e);
+          }
       }
   };
 

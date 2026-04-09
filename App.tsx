@@ -22,8 +22,10 @@ import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
 import { GamificationService } from './services/gamificationService';
 import { ModerationService } from './services/moderationService';
-import { auth } from './firebaseConfig';
+import { FirestoreService } from './services/firestoreService';
+import { auth, db } from './firebaseConfig';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
 import { 
   BookOpen, 
   FileText, 
@@ -47,8 +49,7 @@ import {
   Share2,
   CreditCard,
   Trophy,
-  Shield,
-  Flag
+  Shield
 } from 'lucide-react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -312,6 +313,15 @@ const App: React.FC = () => {
     }
   }, [user, userProfile.lastActiveDate]);
 
+  // Fetch Leaderboard
+  useEffect(() => {
+    if (mode === AppMode.LEADERBOARD) {
+      FirestoreService.getLeaderboard().then(entries => {
+        setLeaderboardEntries(entries);
+      });
+    }
+  }, [mode]);
+
   const awardPointsAndCheckBadges = (action: 'summary' | 'quiz' | 'essay' | 'chat' | 'quiz_perfect', difficulty?: string) => {
     const pointsToAdd = GamificationService.calculatePoints(action, difficulty);
     const updatedProfile = { ...userProfile, points: (userProfile.points || 0) + pointsToAdd };
@@ -331,6 +341,15 @@ const App: React.FC = () => {
     handleProfileSave(updatedProfile);
   };
 
+  // Fetch Moderation Data
+  useEffect(() => {
+    if (mode === AppMode.MODERATION && userProfile.role === 'admin') {
+      ModerationService.getFlaggedContent().then(flags => {
+        setFlaggedContent(flags);
+      });
+    }
+  }, [mode, userProfile.role]);
+
   const handleFlagContent = async (contentId: string, contentType: any, reason: string, originalContent: any) => {
     if (!user) return;
     await ModerationService.flagContent({
@@ -346,52 +365,44 @@ const App: React.FC = () => {
   // Profile Persistence
   useEffect(() => {
     if (user) {
-      const savedProfile = localStorage.getItem(`profile_${user.uid}`);
-      if (savedProfile) {
-        try {
-          const parsed = JSON.parse(savedProfile);
-          setUserProfile(prev => ({ 
-            ...initialProfileState, 
-            ...parsed,
-            displayName: parsed.displayName || user.displayName || '',
-            photoURL: parsed.photoURL || user.photoURL || '' 
-          }));
-        } catch (e) {
-          console.error("Failed to parse profile", e);
+      // Initial load
+      FirestoreService.getUserProfile(user.uid).then(profile => {
+        if (profile) {
+          setUserProfile(profile);
+        } else {
+          // Create initial profile if not exists
+          const initialProfile = {
+            ...initialProfileState,
+            displayName: user.displayName || '',
+            email: user.email || '',
+            photoURL: user.photoURL || '',
+            credits: 100,
+            role: 'user' as const
+          };
+          setUserProfile(initialProfile);
+          FirestoreService.saveUserProfile(user.uid, initialProfile);
         }
-      } else {
-        setUserProfile({
-           ...initialProfileState,
-           displayName: user.displayName || '',
-           photoURL: user.photoURL || '',
-           credits: 100
-        });
-      }
+      });
+
+      // Subscribe to real-time updates
+      const unsubscribe = FirestoreService.subscribeToProfile(user.uid, (profile) => {
+        setUserProfile(profile);
+      });
+
+      return () => unsubscribe();
     }
   }, [user]);
 
   // History Persistence
   useEffect(() => {
-    const storageKey = user ? `history_${user.uid}` : 'history_guest';
-    const savedHistory = localStorage.getItem(storageKey);
-    if (savedHistory) {
-      try {
-        const parsedHistory = JSON.parse(savedHistory);
-        if (Array.isArray(parsedHistory)) {
-          setHistory(parsedHistory);
-        }
-      } catch (e) {
-        setHistory([]);
-      }
+    if (user) {
+      FirestoreService.getUserHistory(user.uid).then(history => {
+        setHistory(history);
+      });
     } else {
       setHistory([]);
     }
   }, [user]);
-
-  useEffect(() => {
-    const storageKey = user ? `history_${user.uid}` : 'history_guest';
-    localStorage.setItem(storageKey, JSON.stringify(history));
-  }, [history, user]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -406,7 +417,7 @@ const App: React.FC = () => {
   const handleProfileSave = (newProfile: UserProfile, redirectDashboard = false) => {
     setUserProfile(newProfile);
     if (user) {
-      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
+      FirestoreService.saveUserProfile(user.uid, newProfile);
     }
     if (isNewUser) {
       setIsNewUser(false);
@@ -419,11 +430,16 @@ const App: React.FC = () => {
 
   const handleSignUpSuccess = (initialData?: Partial<UserProfile>) => {
     setIsNewUser(true);
-    const newProfile = { ...initialProfileState, ...initialData };
+    const newProfile: UserProfile = { 
+      ...initialProfileState, 
+      ...initialData,
+      email: auth.currentUser?.email || '',
+      role: 'user'
+    };
     setUserProfile(newProfile);
     
     if (auth.currentUser) {
-        localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
+        FirestoreService.saveUserProfile(auth.currentUser.uid, newProfile);
     }
     
     setShowAuthModal(false);
@@ -508,10 +524,11 @@ const App: React.FC = () => {
     return true;
   };
 
-  const addToHistory = (type: AppMode, content: any) => {
-    const newId = Date.now().toString();
-    const newItem: HistoryItem = {
-      id: newId,
+  const addToHistory = async (type: AppMode, content: any) => {
+    if (!user) return;
+    
+    const newItem: Omit<HistoryItem, 'id'> = {
+      userId: user.uid,
       type,
       title: formData.chapterName || 'Untitled Chapter',
       subtitle: `${formData.gradeClass} • ${formData.subject}`,
@@ -519,15 +536,28 @@ const App: React.FC = () => {
       content,
       formData: { ...formData }
     };
-    setHistory(prev => [newItem, ...prev]);
-    setCurrentHistoryId(newId);
+
+    const newId = await FirestoreService.addHistoryItem(newItem);
+    if (newId) {
+      setHistory(prev => [{ id: newId, ...newItem } as HistoryItem, ...prev]);
+      setCurrentHistoryId(newId);
+    }
   };
 
-  const handleQuizComplete = (score: number) => {
-    if (currentHistoryId) {
+  const handleQuizComplete = async (score: number) => {
+    if (currentHistoryId && user) {
+      // Update local state
       setHistory(prev => prev.map(item => 
         item.id === currentHistoryId ? { ...item, score } : item
       ));
+
+      // Update Firestore
+      try {
+        const itemRef = doc(db, 'history', currentHistoryId);
+        await updateDoc(itemRef, { score });
+      } catch (error) {
+        console.error("Failed to update quiz score in Firestore", error);
+      }
 
       if (formData.questionCount === 20 && formData.difficulty === 'Hard') {
         const percentage = (score / 20) * 100;
@@ -655,7 +685,9 @@ const App: React.FC = () => {
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {}
+      } catch (e) {
+        // Not JSON, ignore
+      }
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -720,13 +752,15 @@ const App: React.FC = () => {
           text: text,
           url: window.location.href
         });
-      } catch (err) {}
+      } catch (err) {
+        console.warn("Share failed", err);
+      }
     } else {
       try {
         await navigator.clipboard.writeText(text);
         alert('Content copied to clipboard!');
       } catch (err) {
-        alert('Failed to copy content.');
+        console.error('Failed to copy content.', err);
       }
     }
   };
