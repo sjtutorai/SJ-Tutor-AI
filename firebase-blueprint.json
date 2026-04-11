@@ -17,6 +17,13 @@
         "planType": { "type": "string", "enum": ["Free", "Starter", "Scholar", "Achiever"] },
         "phoneVerified": { "type": "boolean" },
         "hasCompletedOnboarding": { "type": "boolean" },
+        "dob": { "type": "string", "format": "date", "description": "Date of birth" },
+        "parentName": { "type": "string", "description": "Parent full name" },
+        "parentPhone": { "type": "string", "description": "Parent phone number" },
+        "parentEmail": { "type": "string", "description": "Parent email address" },
+        "source": { "type": "string", "description": "How the user found the app" },
+        "recoveryEmail": { "type": "string", "description": "Alternative recovery email" },
+        "recoveryPhone": { "type": "string", "description": "Alternative recovery phone" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

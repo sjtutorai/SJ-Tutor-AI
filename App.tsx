@@ -5,6 +5,7 @@ import ResultsView from './components/ResultsView';
 import QuizView from './components/QuizView';
 import TutorChat from './components/TutorChat';
 import ProfileView from './components/ProfileView';
+import OnboardingForm from './components/OnboardingForm';
 import Auth from './components/Auth';
 import PremiumModal from './components/PremiumModal';
 import LoadingState from './components/LoadingState'; 
@@ -637,7 +638,9 @@ const App: React.FC = () => {
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {}
+      } catch (e) {
+        console.debug("Error message is not JSON", e);
+      }
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -955,11 +958,10 @@ const App: React.FC = () => {
     if (isNewUser && user) {
       return (
         <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <ProfileView 
+          <OnboardingForm 
             profile={userProfile} 
             email={user.email}
-            onSave={(p, r) => handleProfileSave(p, r)}
-            isOnboarding={true}
+            onComplete={(p) => handleProfileSave(p, true)}
           />
         </div>
       );

@@ -20,6 +20,13 @@ service cloud.firestore {
     //   - planType: string (Free|Starter|Scholar|Achiever)
     //   - phoneVerified: boolean (optional)
     //   - hasCompletedOnboarding: boolean (required)
+    //   - dob: string (optional)
+    //   - parentName: string (optional)
+    //   - parentPhone: string (optional)
+    //   - parentEmail: string (optional)
+    //   - source: string (optional)
+    //   - recoveryEmail: string (optional)
+    //   - recoveryPhone: string (optional)
     //   - createdAt: timestamp (immutable)
     //   - updatedAt: timestamp
     //
@@ -50,7 +57,9 @@ service cloud.firestore {
              data.hasCompletedOnboarding is bool &&
              (!('learningStyle' in data) || data.learningStyle in ['Visual', 'Auditory', 'Reading/Writing', 'Kinesthetic']) &&
              (!('planType' in data) || data.planType in ['Free', 'Starter', 'Scholar', 'Achiever']) &&
-             (!('photoURL' in data) || (data.photoURL is string && (data.photoURL.matches("^https://.*") || data.photoURL.matches("^data:image/.*"))));
+             (!('photoURL' in data) || (data.photoURL is string && (data.photoURL.matches("^https://.*") || data.photoURL.matches("^data:image/.*")))) &&
+             (!('parentEmail' in data) || (data.parentEmail is string && data.parentEmail.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"))) &&
+             (!('recoveryEmail' in data) || (data.recoveryEmail is string && data.recoveryEmail.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")));
     }
 
     // ===============================================================

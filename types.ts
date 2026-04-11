@@ -67,6 +67,13 @@ export interface UserProfile {
   planType?: 'Free' | 'Starter' | 'Scholar' | 'Achiever';
   phoneVerified?: boolean;
   hasCompletedOnboarding?: boolean;
+  dob?: string;
+  parentName?: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  source?: string;
+  recoveryEmail?: string;
+  recoveryPhone?: string;
 }
 
 export interface UserSettings {
