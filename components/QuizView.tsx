@@ -137,7 +137,9 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
                   url: shareUrl,
                 });
                 return;
-              } catch (err) {}
+              } catch (err) {
+                console.error("Share failed", err);
+              }
             }
             navigator.clipboard.writeText(shareUrl);
             alert("Share link copied to clipboard!");

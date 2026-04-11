@@ -131,7 +131,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
   };
 
   const handleSave = () => {
-    onSave(formData, true);
+    onSave({ ...formData, hasCompletedOnboarding: true }, true);
     if (!isOnboarding) {
       setIsEditing(false);
     }

@@ -19,8 +19,9 @@ import TermsOfServiceView from './components/TermsOfServiceView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
-import { auth } from './firebaseConfig';
+import { auth, db } from './firebaseConfig';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   BookOpen, 
   FileText, 
@@ -103,7 +104,8 @@ const App: React.FC = () => {
     learningGoal: '',
     learningStyle: 'Visual',
     credits: 100,
-    planType: 'Free'
+    planType: 'Free',
+    hasCompletedOnboarding: false
   };
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfileState);
 
@@ -279,30 +281,60 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Profile Persistence
+  // Profile Persistence & Smart User Detection
   useEffect(() => {
     if (user) {
-      const savedProfile = localStorage.getItem(`profile_${user.uid}`);
-      if (savedProfile) {
+      const fetchUserProfile = async () => {
         try {
-          const parsed = JSON.parse(savedProfile);
-          setUserProfile(prev => ({ 
-            ...initialProfileState, 
-            ...parsed,
-            displayName: parsed.displayName || user.displayName || '',
-            photoURL: parsed.photoURL || user.photoURL || '' 
-          }));
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+
+          if (userDoc.exists()) {
+            const data = userDoc.data() as UserProfile;
+            setUserProfile(data);
+            
+            // Smart User Detection:
+            // If hasCompletedOnboarding = false → New User
+            // If hasCompletedOnboarding = true → Returning User
+            if (data.hasCompletedOnboarding) {
+              setIsNewUser(false);
+            } else {
+              setIsNewUser(true);
+            }
+          } else {
+            // If document does NOT exist → New User
+            setIsNewUser(true);
+            const newProfile = {
+              ...initialProfileState,
+              displayName: user.displayName || '',
+              photoURL: user.photoURL || '',
+              credits: 100,
+              hasCompletedOnboarding: false
+            };
+            setUserProfile(newProfile);
+            // We don't save to Firestore yet, wait for onboarding completion
+          }
         } catch (e) {
-          console.error("Failed to parse profile", e);
+          console.error("Failed to fetch profile from Firestore", e);
+          // Fallback to localStorage if Firestore fails
+          const savedProfile = localStorage.getItem(`profile_${user.uid}`);
+          if (savedProfile) {
+            try {
+              const parsed = JSON.parse(savedProfile);
+              setUserProfile(prev => ({ 
+                ...initialProfileState, 
+                ...parsed,
+                displayName: parsed.displayName || user.displayName || '',
+                photoURL: parsed.photoURL || user.photoURL || '' 
+              }));
+            } catch (err) {
+              console.error("Failed to parse local profile", err);
+            }
+          }
         }
-      } else {
-        setUserProfile({
-           ...initialProfileState,
-           displayName: user.displayName || '',
-           photoURL: user.photoURL || '',
-           credits: 100
-        });
-      }
+      };
+
+      fetchUserProfile();
     }
   }, [user]);
 
@@ -317,6 +349,7 @@ const App: React.FC = () => {
           setHistory(parsedHistory);
         }
       } catch (e) {
+        console.error("Failed to parse history", e);
         setHistory([]);
       }
     } else {
@@ -339,10 +372,18 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleProfileSave = (newProfile: UserProfile, redirectDashboard = false) => {
+  const handleProfileSave = async (newProfile: UserProfile, redirectDashboard = false) => {
     setUserProfile(newProfile);
     if (user) {
       localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
+      try {
+        await setDoc(doc(db, 'users', user.uid), {
+          ...newProfile,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (e) {
+        console.error("Failed to save profile to Firestore", e);
+      }
     }
     if (isNewUser) {
       setIsNewUser(false);
@@ -353,13 +394,22 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSignUpSuccess = (initialData?: Partial<UserProfile>) => {
+  const handleSignUpSuccess = async (initialData?: Partial<UserProfile>) => {
     setIsNewUser(true);
-    const newProfile = { ...initialProfileState, ...initialData };
+    const newProfile = { ...initialProfileState, ...initialData, hasCompletedOnboarding: false };
     setUserProfile(newProfile);
     
     if (auth.currentUser) {
         localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
+        try {
+          await setDoc(doc(db, 'users', auth.currentUser.uid), {
+            ...newProfile,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        } catch (e) {
+          console.error("Failed to initialize profile in Firestore", e);
+        }
     }
     
     setShowAuthModal(false);
@@ -653,7 +703,9 @@ const App: React.FC = () => {
             title: item.title,
             text: text,
           });
-        } catch (err) {}
+        } catch (err) {
+          console.error("Share failed", err);
+        }
       } else {
         try {
           await navigator.clipboard.writeText(text);
@@ -899,6 +951,19 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (loading) return <LoadingState mode={mode} />;
+
+    if (isNewUser && user) {
+      return (
+        <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <ProfileView 
+            profile={userProfile} 
+            email={user.email}
+            onSave={(p, r) => handleProfileSave(p, r)}
+            isOnboarding={true}
+          />
+        </div>
+      );
+    }
 
     switch (mode) {
       case AppMode.DASHBOARD:

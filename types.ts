@@ -66,6 +66,7 @@ export interface UserProfile {
   credits: number;
   planType?: 'Free' | 'Starter' | 'Scholar' | 'Achiever';
   phoneVerified?: boolean;
+  hasCompletedOnboarding?: boolean;
 }
 
 export interface UserSettings {
