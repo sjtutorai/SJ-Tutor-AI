@@ -5,7 +5,6 @@ import ResultsView from './components/ResultsView';
 import QuizView from './components/QuizView';
 import TutorChat from './components/TutorChat';
 import ProfileView from './components/ProfileView';
-import OnboardingForm from './components/OnboardingForm';
 import Auth from './components/Auth';
 import PremiumModal from './components/PremiumModal';
 import LoadingState from './components/LoadingState'; 
@@ -380,8 +379,6 @@ const App: React.FC = () => {
       try {
         await setDoc(doc(db, 'users', user.uid), {
           ...newProfile,
-          email: user.email || newProfile.email || '',
-          provider: user.providerData[0]?.providerId || 'password',
           updatedAt: serverTimestamp()
         }, { merge: true });
       } catch (e) {
@@ -399,21 +396,14 @@ const App: React.FC = () => {
 
   const handleSignUpSuccess = async (initialData?: Partial<UserProfile>) => {
     setIsNewUser(true);
-    const newProfile: UserProfile = { 
-      ...initialProfileState, 
-      ...initialData, 
-      hasCompletedOnboarding: false 
-    };
+    const newProfile = { ...initialProfileState, ...initialData, hasCompletedOnboarding: false };
     setUserProfile(newProfile);
     
     if (auth.currentUser) {
-        const user = auth.currentUser;
-        localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
+        localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
         try {
-          await setDoc(doc(db, 'users', user.uid), {
+          await setDoc(doc(db, 'users', auth.currentUser.uid), {
             ...newProfile,
-            email: user.email || '',
-            provider: user.providerData[0]?.providerId || 'password',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           }, { merge: true });
@@ -647,9 +637,7 @@ const App: React.FC = () => {
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {
-        console.debug("Error message is not JSON", e);
-      }
+      } catch (e) {}
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -967,10 +955,11 @@ const App: React.FC = () => {
     if (isNewUser && user) {
       return (
         <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <OnboardingForm 
+          <ProfileView 
             profile={userProfile} 
             email={user.email}
-            onComplete={(p) => handleProfileSave(p, true)}
+            onSave={(p, r) => handleProfileSave(p, r)}
+            isOnboarding={true}
           />
         </div>
       );
