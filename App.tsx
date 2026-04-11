@@ -380,6 +380,8 @@ const App: React.FC = () => {
       try {
         await setDoc(doc(db, 'users', user.uid), {
           ...newProfile,
+          email: user.email || newProfile.email || '',
+          provider: user.providerData[0]?.providerId || 'password',
           updatedAt: serverTimestamp()
         }, { merge: true });
       } catch (e) {
@@ -397,14 +399,21 @@ const App: React.FC = () => {
 
   const handleSignUpSuccess = async (initialData?: Partial<UserProfile>) => {
     setIsNewUser(true);
-    const newProfile = { ...initialProfileState, ...initialData, hasCompletedOnboarding: false };
+    const newProfile: UserProfile = { 
+      ...initialProfileState, 
+      ...initialData, 
+      hasCompletedOnboarding: false 
+    };
     setUserProfile(newProfile);
     
     if (auth.currentUser) {
-        localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
+        const user = auth.currentUser;
+        localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
         try {
-          await setDoc(doc(db, 'users', auth.currentUser.uid), {
+          await setDoc(doc(db, 'users', user.uid), {
             ...newProfile,
+            email: user.email || '',
+            provider: user.providerData[0]?.providerId || 'password',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           }, { merge: true });

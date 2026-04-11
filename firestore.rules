@@ -27,6 +27,8 @@ service cloud.firestore {
     //   - source: string (optional)
     //   - recoveryEmail: string (optional)
     //   - recoveryPhone: string (optional)
+    //   - email: string (optional)
+    //   - provider: string (optional)
     //   - createdAt: timestamp (immutable)
     //   - updatedAt: timestamp
     //
@@ -59,7 +61,9 @@ service cloud.firestore {
              (!('planType' in data) || data.planType in ['Free', 'Starter', 'Scholar', 'Achiever']) &&
              (!('photoURL' in data) || (data.photoURL is string && (data.photoURL.matches("^https://.*") || data.photoURL.matches("^data:image/.*")))) &&
              (!('parentEmail' in data) || (data.parentEmail is string && data.parentEmail.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"))) &&
-             (!('recoveryEmail' in data) || (data.recoveryEmail is string && data.recoveryEmail.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")));
+             (!('recoveryEmail' in data) || (data.recoveryEmail is string && data.recoveryEmail.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"))) &&
+             (!('email' in data) || (data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"))) &&
+             (!('provider' in data) || data.provider is string);
     }
 
     // ===============================================================
@@ -71,7 +75,8 @@ service cloud.firestore {
       
       allow create: if isOwner(userId) && isValidUser(request.resource.data);
       
-      allow update: if (isOwner(userId) && isValidUser(request.resource.data)) || isAdmin();
+      allow update: if ((isOwner(userId) && isValidUser(request.resource.data)) || isAdmin()) &&
+                    (!('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt);
       
       allow delete: if isAdmin();
     }

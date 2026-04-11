@@ -74,6 +74,8 @@ export interface UserProfile {
   source?: string;
   recoveryEmail?: string;
   recoveryPhone?: string;
+  email?: string;
+  provider?: string;
 }
 
 export interface UserSettings {
