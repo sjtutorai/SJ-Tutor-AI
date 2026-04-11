@@ -1,15 +1,11 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import axios from "axios";
-import mongoose from "mongoose";
-import Otp from "../models/Otp";
-
-import SharedContent from "../models/SharedContent";
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
-// In-memory fallback store
+// In-memory fallback store for OTPs
 interface OTPData {
   otpHash: string;
   expiresAt: number;
@@ -17,6 +13,17 @@ interface OTPData {
   verified: boolean;
 }
 const memoryStore = new Map<string, OTPData>();
+
+// In-memory store for shared content
+interface SharedContentData {
+  id: string;
+  type: string;
+  title: string;
+  subtitle?: string;
+  content: any;
+  createdAt: Date;
+}
+const sharedMemoryStore = new Map<string, SharedContentData>();
 
 /* Generate OTP */
 function generateOTP() {
@@ -34,23 +41,13 @@ router.post("/send-otp", async (req, res) => {
     const otp = generateOTP();
     const otpHash = await bcrypt.hash(otp, 10);
 
-    if (mongoose.connection.readyState === 1) {
-      // MongoDB connected
-      await Otp.deleteMany({ phone });
-      await Otp.create({
-        phone,
-        otpHash,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 min
-      });
-    } else {
-      // Fallback to memory store
-      memoryStore.set(phone, {
-        otpHash,
-        expiresAt: Date.now() + 5 * 60 * 1000,
-        attempts: 0,
-        verified: false
-      });
-    }
+    // Use memory store
+    memoryStore.set(phone, {
+      otpHash,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      attempts: 0,
+      verified: false
+    });
 
     // Send SMS via Termii (NO Sender ID)
     await axios.post("https://api.ng.termii.com/api/sms/send", {
@@ -73,49 +70,29 @@ router.post("/send-otp", async (req, res) => {
 router.post("/verify-otp", async (req, res) => {
   try {
     const { phone, otp } = req.body;
-    let record: any;
-
-    if (mongoose.connection.readyState === 1) {
-      record = await Otp.findOne({ phone });
-    } else {
-      const memData = memoryStore.get(phone);
-      if (memData) {
-        record = {
-          ...memData,
-          expiresAt: new Date(memData.expiresAt),
-          save: async () => {
-            memoryStore.set(phone, {
-              otpHash: record.otpHash,
-              expiresAt: record.expiresAt.getTime(),
-              attempts: record.attempts,
-              verified: record.verified
-            });
-          }
-        };
-      }
-    }
-
-    if (!record) {
+    
+    const memData = memoryStore.get(phone);
+    if (!memData) {
       return res.status(400).json({ message: "OTP not found" });
     }
 
-    if (record.expiresAt < new Date()) {
+    if (memData.expiresAt < Date.now()) {
       return res.status(400).json({ message: "OTP expired" });
     }
 
-    if (record.attempts >= 5) {
+    if (memData.attempts >= 5) {
       return res.status(400).json({ message: "Too many attempts" });
     }
 
-    const isValid = await bcrypt.compare(otp, record.otpHash);
+    const isValid = await bcrypt.compare(otp, memData.otpHash);
     if (!isValid) {
-      record.attempts += 1;
-      await record.save();
+      memData.attempts += 1;
+      memoryStore.set(phone, memData);
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
-    record.verified = true;
-    await record.save();
+    memData.verified = true;
+    memoryStore.set(phone, memData);
 
     res.json({ success: true, message: "Phone number verified" });
   } catch (error: any) {
@@ -130,17 +107,14 @@ router.post("/share", async (req, res) => {
     const { type, title, subtitle, content } = req.body;
     const id = uuidv4().slice(0, 8); // Short ID
 
-    if (mongoose.connection.readyState === 1) {
-      await SharedContent.create({
-        id,
-        type,
-        title,
-        subtitle,
-        content
-      });
-    } else {
-      return res.status(503).json({ message: "Sharing requires database connection" });
-    }
+    sharedMemoryStore.set(id, {
+      id,
+      type,
+      title,
+      subtitle,
+      content,
+      createdAt: new Date()
+    });
 
     res.json({ success: true, id });
   } catch (error) {
@@ -153,13 +127,11 @@ router.post("/share", async (req, res) => {
 router.get("/share/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    if (mongoose.connection.readyState === 1) {
-      const record = await SharedContent.findOne({ id });
-      if (!record) return res.status(404).json({ message: "Content not found" });
-      res.json({ success: true, data: record });
-    } else {
-      res.status(503).json({ message: "Database connection required" });
-    }
+    const record = sharedMemoryStore.get(id);
+    
+    if (!record) return res.status(404).json({ message: "Content not found" });
+    
+    res.json({ success: true, data: record });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Failed to retrieve content" });

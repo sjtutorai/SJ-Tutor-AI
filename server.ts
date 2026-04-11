@@ -1,7 +1,6 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import cors from "cors";
-import mongoose from "mongoose";
 import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
 
@@ -12,17 +11,6 @@ const PORT = 3000;
 
 app.use(express.json());
 app.use(cors());
-
-// Connect to MongoDB
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/sjtutor";
-
-// Non-blocking connection attempt
-mongoose.connect(MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch(err => {
-    console.warn("MongoDB connection failed (running in offline mode):", err.message);
-    console.warn("OTP features will use in-memory storage.");
-  });
 
 // API routes
 app.use("/api/auth", authRoutes);

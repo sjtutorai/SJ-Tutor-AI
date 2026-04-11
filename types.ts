@@ -56,9 +56,20 @@ export interface HistoryItem {
 
 export interface UserProfile {
   displayName: string;
+  email: string;
+  provider: string;
+  dob?: string;
+  grade?: string;
+  parentName?: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  source?: string;
+  recoveryEmail?: string;
+  recoveryPhone?: string;
+  hasCompletedOnboarding: boolean;
+  createdAt: number;
   phoneNumber: string;
   institution: string;
-  grade?: string;
   bio: string;
   photoURL?: string;
   learningGoal?: string;

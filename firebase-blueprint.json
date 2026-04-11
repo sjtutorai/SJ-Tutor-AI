@@ -1,0 +1,58 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and onboarding data",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "provider": { "type": "string" },
+        "dob": { "type": "string", "format": "date" },
+        "grade": { "type": "string" },
+        "parentName": { "type": "string" },
+        "parentPhone": { "type": "string" },
+        "parentEmail": { "type": "string", "format": "email" },
+        "source": { "type": "string" },
+        "recoveryEmail": { "type": "string", "format": "email" },
+        "recoveryPhone": { "type": "string" },
+        "hasCompletedOnboarding": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "phoneNumber": { "type": "string" },
+        "institution": { "type": "string" },
+        "bio": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "learningGoal": { "type": "string" },
+        "learningStyle": { "type": "string", "enum": ["Visual", "Auditory", "Reading/Writing", "Kinesthetic"] },
+        "credits": { "type": "number" },
+        "planType": { "type": "string", "enum": ["Free", "Starter", "Scholar", "Achiever"] }
+      },
+      "required": ["displayName", "email", "hasCompletedOnboarding"]
+    },
+    "HistoryItem": {
+      "title": "HistoryItem",
+      "description": "History of generated content",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "content": { "type": "object" },
+        "score": { "type": "number" }
+      },
+      "required": ["id", "type", "title", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "UserProfile",
+      "description": "User profile data"
+    },
+    "/users/{uid}/history/{historyId}": {
+      "schema": "HistoryItem",
+      "description": "User generation history"
+    }
+  }
+}
