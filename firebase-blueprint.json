@@ -1,0 +1,31 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A student user of the SJ Tutor AI platform.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the student" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "provider": { "type": "string", "description": "Auth provider (google, apple, github, password)" },
+        "dob": { "type": "string", "format": "date", "description": "Date of birth" },
+        "class": { "type": "string", "description": "Calculated or manual class (e.g., Class 10)" },
+        "parentName": { "type": "string", "description": "Name of the parent/guardian" },
+        "parentPhone": { "type": "string", "description": "Parent's phone number" },
+        "parentEmail": { "type": "string", "format": "email", "description": "Parent's email address" },
+        "source": { "type": "string", "description": "How they discovered the app" },
+        "recoveryEmail": { "type": "string", "format": "email", "description": "Recovery email address" },
+        "recoveryPhone": { "type": "string", "description": "Recovery phone number" },
+        "hasCompletedOnboarding": { "type": "boolean", "description": "Whether onboarding is finished" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["name", "email", "hasCompletedOnboarding"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile data keyed by Firebase Auth UID"
+    }
+  }
+}

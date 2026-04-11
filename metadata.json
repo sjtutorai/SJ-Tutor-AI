@@ -1,6 +1,6 @@
 {
   "name": "SJ Tutor AI",
-  "description": "An all-in-one AI study companion that generates summaries, quizzes, and essays based on your curriculum, featuring an intelligent AI tutor.",
+  "description": "A production-level educational platform with smart multi-provider authentication, guided onboarding, interactive tutorials, and an engaging quiz result system.",
   "requestFramePermissions": [
     "microphone",
     "camera"
