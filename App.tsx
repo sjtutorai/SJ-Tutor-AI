@@ -19,11 +19,8 @@ import TermsOfServiceView from './components/TermsOfServiceView';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
-import { auth, db } from './firebaseConfig';
+import { auth } from './firebaseConfig';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import Onboarding from './components/Onboarding';
-import Tutorial from './components/Tutorial';
 import { 
   BookOpen, 
   FileText, 
@@ -46,11 +43,8 @@ import {
   Info,
   Share2,
   CreditCard,
-  Shield,
-  CheckCircle2
+  Shield
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import confetti from 'canvas-confetti';
 import { GenerateContentResponse } from '@google/genai';
 
 const THEME_COLORS: Record<string, Record<string, string>> = {
@@ -83,10 +77,6 @@ const App: React.FC = () => {
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
-  const [showWelcomeBack, setShowWelcomeBack] = useState(false);
-  const [showSignupSuccess, setShowSignupSuccess] = useState(false);
 
   // App State
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -103,6 +93,8 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Shared Content State
+  const [sharedContent, setSharedContent] = useState<any>(null);
+  const [isViewingShared, setIsViewingShared] = useState(false);
   
   // Profile State
   const initialProfileState: UserProfile = {
@@ -153,6 +145,8 @@ const App: React.FC = () => {
         const storedReminders = localStorage.getItem(key);
         if (storedReminders) {
           const items = JSON.parse(storedReminders);
+          let hasNotified = false;
+
           items.forEach((item: any) => {
             if (!item.completed && item.dueTime) {
               const dueTime = new Date(item.dueTime).getTime();
@@ -197,10 +191,13 @@ const App: React.FC = () => {
       const fetchShared = async () => {
         setAuthLoading(true);
         try {
-          const shareDoc = await getDoc(doc(db, 'shares', shareId));
+          const response = await fetch(`/api/auth/share/${shareId}`);
+          const data = await response.json();
           
-          if (shareDoc.exists()) {
-            const item = shareDoc.data();
+          if (response.ok && data.success) {
+            const item = data.data;
+            setSharedContent(item);
+            setIsViewingShared(true);
             
             // Load the content into the view
             if (item.type === AppMode.SUMMARY) {
@@ -315,44 +312,16 @@ const App: React.FC = () => {
       }
     }, 4000);
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setAuthLoading(false);
+      clearTimeout(timeoutId); 
       
-      if (currentUser) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          if (userDoc.exists()) {
-            const data = userDoc.data() as UserProfile;
-            setUserProfile(prev => ({ ...prev, ...data }));
-            
-            if (data.hasCompletedOnboarding) {
-              setShowWelcomeBack(true);
-              // Auto-hide welcome back after 3s
-              setTimeout(() => setShowWelcomeBack(false), 3000);
-            } else {
-              setIsNewUser(true);
-              setShowOnboarding(true);
-            }
-          } else {
-            setIsNewUser(true);
-            setShowOnboarding(true);
-          }
-        } catch (err) {
-          console.error("Error fetching user profile from Firestore:", err);
-          // Fallback to local storage if Firestore fails
-          const savedProfile = localStorage.getItem(`profile_${currentUser.uid}`);
-          if (savedProfile) {
-            setUserProfile(JSON.parse(savedProfile));
-          }
-        }
-      } else {
+      if (!currentUser) {
         setIsNewUser(false);
         setUserProfile(initialProfileState);
         setMode(AppMode.DASHBOARD);
       }
-      
-      setAuthLoading(false);
-      clearTimeout(timeoutId); 
     }, (err) => {
       console.error("Auth Error:", err);
       setAuthLoading(false); 
@@ -402,7 +371,7 @@ const App: React.FC = () => {
         if (Array.isArray(parsedHistory)) {
           setHistory(parsedHistory);
         }
-      } catch (_e) {
+      } catch (e) {
         setHistory([]);
       }
     } else {
@@ -425,33 +394,29 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleProfileSave = async (newProfile: UserProfile, redirectDashboard = false) => {
+  const handleProfileSave = (newProfile: UserProfile, redirectDashboard = false) => {
     setUserProfile(newProfile);
     if (user) {
-      try {
-        await setDoc(doc(db, 'users', user.uid), {
-          ...newProfile,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      } catch (err) {
-        console.error("Error saving profile to Firestore:", err);
-      }
       localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
     }
-    if (isNewUser && newProfile.hasCompletedOnboarding) {
+    if (isNewUser) {
       setIsNewUser(false);
-      setShowOnboarding(false);
-      setShowSignupSuccess(true);
+      setShowAuthModal(false);
       if (redirectDashboard) {
         setMode(AppMode.DASHBOARD);
       }
     }
   };
 
-  const handleSignUpSuccess = (_initialData?: Partial<UserProfile>) => {
-    // This is called after Auth signup, but before onboarding
-    // We don't close the modal yet if we need onboarding
-    // But the Auth listener will pick up the user and show onboarding
+  const handleSignUpSuccess = (initialData?: Partial<UserProfile>) => {
+    setIsNewUser(true);
+    const newProfile = { ...initialProfileState, ...initialData };
+    setUserProfile(newProfile);
+    
+    if (auth.currentUser) {
+        localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
+    }
+    
     setShowAuthModal(false);
   };
 
@@ -677,9 +642,7 @@ const App: React.FC = () => {
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {
-         // Silently fail if not JSON
-      }
+      } catch (e) {}
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -764,9 +727,7 @@ const App: React.FC = () => {
             text: text,
             url: shareUrl
           });
-        } catch (err) {
-        // Error handled silently
-      }
+        } catch (err) {}
       } else {
         try {
           await navigator.clipboard.writeText(text);
@@ -1046,7 +1007,6 @@ const App: React.FC = () => {
                  setSummaryContent('');
                  setCurrentHistoryId(null);
               }}
-              onGoToDashboard={() => setMode(AppMode.DASHBOARD)}
             />
           );
         }
@@ -1086,7 +1046,6 @@ const App: React.FC = () => {
                  setEssayContent('');
                  setCurrentHistoryId(null);
               }}
-              onGoToDashboard={() => setMode(AppMode.DASHBOARD)}
             />
           );
         }
@@ -1124,7 +1083,6 @@ const App: React.FC = () => {
                 setExistingQuizScore(undefined);
                 setCurrentHistoryId(null);
               }} 
-              onGoToDashboard={() => setMode(AppMode.DASHBOARD)}
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
             />
@@ -1333,7 +1291,6 @@ const App: React.FC = () => {
               return (
                 <button
                   key={item.id}
-                  id={`nav-${item.id}`}
                   onClick={() => {
                     if (item.id !== AppMode.DASHBOARD && 
                         item.id !== AppMode.ABOUT && 
@@ -1473,66 +1430,6 @@ const App: React.FC = () => {
           onClose={() => setShowPremiumModal(false)}
           onPaymentSuccess={handlePaymentSuccess}
         />
-      )}
-
-      {showOnboarding && (
-        <Onboarding 
-          initialData={{
-            displayName: user?.displayName || '',
-            email: user?.email || '',
-            provider: user?.providerData[0]?.providerId || 'password'
-          }}
-          onComplete={(data) => {
-            handleProfileSave(data);
-            setShowTutorial(true);
-            confetti({
-              particleCount: 150,
-              spread: 70,
-              origin: { y: 0.6 },
-              colors: ['#6366f1', '#a855f7', '#ec4899']
-            });
-          }}
-        />
-      )}
-
-      {showTutorial && (
-        <Tutorial onComplete={() => setShowTutorial(false)} />
-      )}
-
-      <AnimatePresence>
-        {showWelcomeBack && (
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[70] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border border-slate-700"
-          >
-            <Sparkles className="w-5 h-5 text-amber-400" />
-            <span className="font-bold text-sm">Welcome back, {userProfile.displayName}!</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {showSignupSuccess && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl"
-          >
-            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Registration Successful!</h2>
-            <p className="text-slate-500 mb-8">Welcome to SJ Tutor AI. Your journey to excellence starts now.</p>
-            <button
-              onClick={() => setShowSignupSuccess(false)}
-              className="w-full py-4 bg-primary-600 text-white rounded-2xl font-bold hover:bg-primary-700 transition-all"
-            >
-              Get Started
-            </button>
-          </motion.div>
-        </div>
       )}
     </div>
   );

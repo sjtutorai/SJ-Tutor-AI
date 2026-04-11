@@ -1,29 +1,13 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import axios from "axios";
+import mongoose from "mongoose";
+import Otp from "../models/Otp";
+
+import SharedContent from "../models/SharedContent";
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
-
-// In-memory fallback store for OTPs
-interface OTPData {
-  otpHash: string;
-  expiresAt: number;
-  attempts: number;
-  verified: boolean;
-}
-const memoryStore = new Map<string, OTPData>();
-
-// In-memory store for shared content
-interface SharedContentData {
-  id: string;
-  type: string;
-  title: string;
-  subtitle?: string;
-  content: any;
-  createdAt: Date;
-}
-const sharedMemoryStore = new Map<string, SharedContentData>();
 
 /* Generate OTP */
 function generateOTP() {
@@ -41,18 +25,20 @@ router.post("/send-otp", async (req, res) => {
     const otp = generateOTP();
     const otpHash = await bcrypt.hash(otp, 10);
 
-    // Use memory store
-    memoryStore.set(phone, {
+    // Delete existing OTPs for this phone
+    await Otp.deleteMany({ phone });
+
+    // Create new OTP record
+    await Otp.create({
+      phone,
       otpHash,
-      expiresAt: Date.now() + 5 * 60 * 1000,
-      attempts: 0,
-      verified: false
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
     });
 
-    // Send SMS via Termii (NO Sender ID)
+    // Send SMS via Termii
     await axios.post("https://api.ng.termii.com/api/sms/send", {
-      to: phone.replace(/\+/g, ""), // Termii often expects digits only
-      from: "N-Alert",                 // default system sender
+      to: phone,
+      from: "N-Alert",
       sms: `Your SJ Tutor AI OTP is ${otp}. Valid for 5 minutes.`,
       type: "plain",
       channel: "generic",
@@ -60,8 +46,8 @@ router.post("/send-otp", async (req, res) => {
     });
 
     res.json({ success: true, message: "OTP sent successfully" });
-  } catch (error: any) {
-    console.error("Error sending OTP:", error.response?.data || error.message);
+  } catch (err: any) {
+    console.error(err);
     res.status(500).json({ message: "Failed to send OTP" });
   }
 });
@@ -70,56 +56,63 @@ router.post("/send-otp", async (req, res) => {
 router.post("/verify-otp", async (req, res) => {
   try {
     const { phone, otp } = req.body;
-    
-    const memData = memoryStore.get(phone);
-    if (!memData) {
+
+    const record = await Otp.findOne({ phone });
+    if (!record) {
       return res.status(400).json({ message: "OTP not found" });
     }
 
-    if (memData.expiresAt < Date.now()) {
+    if (record.expiresAt < new Date()) {
       return res.status(400).json({ message: "OTP expired" });
     }
 
-    if (memData.attempts >= 5) {
+    if (record.attempts >= 5) {
       return res.status(400).json({ message: "Too many attempts" });
     }
 
-    const isValid = await bcrypt.compare(otp, memData.otpHash);
+    const isValid = await bcrypt.compare(otp, record.otpHash);
     if (!isValid) {
-      memData.attempts += 1;
-      memoryStore.set(phone, memData);
+      record.attempts += 1;
+      await record.save();
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
-    memData.verified = true;
-    memoryStore.set(phone, memData);
+    record.verified = true;
+    await record.save();
 
-    res.json({ success: true, message: "Phone number verified" });
-  } catch (error: any) {
-    console.error("Error verifying OTP:", error.message);
+    res.json({ success: true, message: "Phone verified successfully" });
+  } catch (err: any) {
+    console.error(err);
     res.status(500).json({ message: "OTP verification failed" });
   }
 });
 
 /* SHARE CONTENT */
 router.post("/share", async (req, res) => {
+  console.log(`[SHARE] Request received. Type: ${req.body.type}, Title: ${req.body.title}`);
   try {
     const { type, title, subtitle, content } = req.body;
     const id = uuidv4().slice(0, 8); // Short ID
 
-    sharedMemoryStore.set(id, {
-      id,
-      type,
-      title,
-      subtitle,
-      content,
-      createdAt: new Date()
-    });
+    if (mongoose.connection.readyState === 1) {
+      console.log(`[SHARE] Saving to MongoDB. ID: ${id}`);
+      await SharedContent.create({
+        id,
+        type,
+        title,
+        subtitle,
+        content
+      });
+      console.log(`[SHARE] Saved successfully.`);
+    } else {
+      console.warn(`[SHARE] MongoDB not connected (State: ${mongoose.connection.readyState}). Cannot save.`);
+      return res.status(503).json({ message: "Sharing requires database connection" });
+    }
 
     res.json({ success: true, id });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to share content" });
+  } catch (error: any) {
+    console.error("[SHARE] Error:", error);
+    res.status(500).json({ message: "Failed to share content", error: error.message });
   }
 });
 
@@ -127,11 +120,13 @@ router.post("/share", async (req, res) => {
 router.get("/share/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const record = sharedMemoryStore.get(id);
-    
-    if (!record) return res.status(404).json({ message: "Content not found" });
-    
-    res.json({ success: true, data: record });
+    if (mongoose.connection.readyState === 1) {
+      const record = await SharedContent.findOne({ id });
+      if (!record) return res.status(404).json({ message: "Content not found" });
+      res.json({ success: true, data: record });
+    } else {
+      res.status(503).json({ message: "Database connection required" });
+    }
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Failed to retrieve content" });
