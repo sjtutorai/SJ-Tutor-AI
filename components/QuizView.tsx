@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { QuizQuestion, SJTUTOR_AVATAR } from '../types';
 import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Instagram, Mail, Send, MessageCircle, Link, Share2 } from 'lucide-react';
+import QuizResultModal from './QuizResultModal';
 
 interface QuizViewProps {
   questions: QuizQuestion[];
@@ -16,6 +17,7 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
   const [score, setScore] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
+  const [showResultModal, setShowResultModal] = useState(false);
 
   // Initialize view if there's an existing score (viewing history)
   useEffect(() => {
@@ -51,6 +53,7 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
     } else {
       const finalScore = score + (selectedOption === currentQuestion.correctAnswerIndex ? 0 : 0);
       setQuizCompleted(true);
+      setShowResultModal(true);
       if (onComplete) {
         onComplete(score);
       }
@@ -161,6 +164,13 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
 
     return (
       <div className="space-y-6">
+        <QuizResultModal 
+          isOpen={showResultModal}
+          score={score}
+          totalQuestions={questions.length}
+          onClose={() => setShowResultModal(false)}
+          onRetry={onReset}
+        />
         <div className="bg-white rounded-xl shadow-md border border-slate-200 p-8 text-center animate-in fade-in zoom-in duration-300">
           <div className="w-24 h-24 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-lg overflow-hidden">
              <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />

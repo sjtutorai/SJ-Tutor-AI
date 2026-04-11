@@ -381,7 +381,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                  <button 
                   onClick={() => {
                     if (!newReminder) return;
-                    let dueTimeString = newDate ? `${newDate}T${newTime || '23:59'}` : '';
+                    const dueTimeString = newDate ? `${newDate}T${newTime || '23:59'}` : '';
                     const item: ReminderItem = {
                       id: Date.now().toString(),
                       task: newReminder,
