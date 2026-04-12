@@ -56,8 +56,6 @@ export interface HistoryItem {
 
 export interface UserProfile {
   displayName: string;
-  email?: string;
-  provider?: string;
   phoneNumber: string;
   institution: string;
   grade?: string;
@@ -69,15 +67,6 @@ export interface UserProfile {
   planType?: 'Free' | 'Starter' | 'Scholar' | 'Achiever';
   phoneVerified?: boolean;
   hasCompletedOnboarding?: boolean;
-  // New Onboarding Fields
-  dob?: string;
-  parentName?: string;
-  parentPhone?: string;
-  parentEmail?: string;
-  source?: string;
-  recoveryEmail?: string;
-  recoveryPhone?: string;
-  createdAt?: number;
 }
 
 export interface UserSettings {

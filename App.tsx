@@ -17,9 +17,6 @@ import StudyTimerView from './components/StudyTimerView';
 import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
 import Logo from './components/Logo';
-import Onboarding from './components/Onboarding';
-import Tutorial from './components/Tutorial';
-import WelcomeModal from './components/WelcomeModal';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
 import { auth, db } from './firebaseConfig';
@@ -79,10 +76,6 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const [welcomeModalType, setWelcomeModalType] = useState<'welcome' | 'signup'>('welcome');
-  const [showTutorial, setShowTutorial] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
 
@@ -305,18 +298,8 @@ const App: React.FC = () => {
             // If hasCompletedOnboarding = true → Returning User
             if (data.hasCompletedOnboarding) {
               setIsNewUser(false);
-              setShowOnboarding(false);
-              
-              // Show welcome back modal if not recently shown
-              const lastWelcome = sessionStorage.getItem(`welcome_${user.uid}`);
-              if (!lastWelcome) {
-                setWelcomeModalType('welcome');
-                setShowWelcomeModal(true);
-                sessionStorage.setItem(`welcome_${user.uid}`, 'true');
-              }
             } else {
               setIsNewUser(true);
-              setShowOnboarding(true);
             }
           } else {
             // If document does NOT exist → New User
@@ -413,10 +396,6 @@ const App: React.FC = () => {
 
   const handleSignUpSuccess = async (initialData?: Partial<UserProfile>) => {
     setIsNewUser(true);
-    setShowOnboarding(true);
-    setWelcomeModalType('signup');
-    setShowWelcomeModal(true);
-    
     const newProfile = { ...initialProfileState, ...initialData, hasCompletedOnboarding: false };
     setUserProfile(newProfile);
     
@@ -434,22 +413,6 @@ const App: React.FC = () => {
     }
     
     setShowAuthModal(false);
-  };
-
-  const handleOnboardingComplete = async (data: Partial<UserProfile>) => {
-    const finalProfile = {
-      ...userProfile,
-      ...data,
-      hasCompletedOnboarding: true,
-      createdAt: userProfile.createdAt || Date.now()
-    };
-    
-    await handleProfileSave(finalProfile, true);
-    setShowOnboarding(false);
-    setIsNewUser(false);
-    
-    // Start tutorial after onboarding
-    setTimeout(() => setShowTutorial(true), 1000);
   };
 
   const handlePaymentSuccess = (creditsToAdd: number, planName: 'STARTER' | 'SCHOLAR' | 'ACHIEVER') => {
@@ -674,9 +637,7 @@ const App: React.FC = () => {
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {
-         // Not a JSON error, ignore
-      }
+      } catch (e) {}
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -926,7 +887,7 @@ const App: React.FC = () => {
           <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
         </div>
 
-        <div id="tutorial-dashboard" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {dashboardCards.map((card) => (
             <button
               key={card.id}
@@ -963,7 +924,7 @@ const App: React.FC = () => {
           ))}
         </div>
 
-        <div id="tutorial-quick-actions" className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
            <h3 className="font-bold text-slate-800 dark:text-white mb-4">Quick Actions</h3>
            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <button onClick={() => setMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900">
@@ -991,8 +952,17 @@ const App: React.FC = () => {
   const renderContent = () => {
     if (loading) return <LoadingState mode={mode} />;
 
-    if (showOnboarding && user) {
-      return <Onboarding user={user} onComplete={handleOnboardingComplete} />;
+    if (isNewUser && user) {
+      return (
+        <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <ProfileView 
+            profile={userProfile} 
+            email={user.email}
+            onSave={(p, r) => handleProfileSave(p, r)}
+            isOnboarding={true}
+          />
+        </div>
+      );
     }
 
     switch (mode) {
@@ -1032,7 +1002,7 @@ const App: React.FC = () => {
           );
         }
         return (
-          <div id="tutorial-start-quiz" className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <InputForm
               data={formData}
               mode={AppMode.SUMMARY}
@@ -1438,41 +1408,6 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
-
-      {/* Modals & Overlays */}
-      <WelcomeModal 
-        isOpen={showWelcomeModal}
-        type={welcomeModalType}
-        userName={userProfile.displayName || user?.displayName || 'Student'}
-        onClose={() => setShowWelcomeModal(false)}
-      />
-
-      {showTutorial && (
-        <Tutorial 
-          steps={[
-            {
-              targetId: 'tutorial-dashboard',
-              title: 'Your Dashboard',
-              description: 'Quickly access all your generated content, notes, and study tools from here.',
-              position: 'bottom'
-            },
-            {
-              targetId: 'tutorial-quick-actions',
-              title: 'Quick Actions',
-              description: 'Use these shortcuts to jump straight into creating new study materials.',
-              position: 'top'
-            },
-            {
-              targetId: 'tutorial-start-quiz',
-              title: 'Create Content',
-              description: 'Fill in your study details and click here to generate summaries, quizzes, or essays instantly.',
-              position: 'bottom'
-            }
-          ]}
-          onComplete={() => setShowTutorial(false)}
-          onClose={() => setShowTutorial(false)}
-        />
-      )}
 
       {showAuthModal && (
         <Auth 

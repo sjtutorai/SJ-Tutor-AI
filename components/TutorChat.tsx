@@ -170,9 +170,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
       try {
         const parsed = JSON.parse(rawMsg);
         if (parsed.error?.message) rawMsg = parsed.error.message;
-      } catch (e) {
-        // Not a JSON error, ignore
-      }
+      } catch (e) {}
 
       if (rawMsg.includes("Generative Language API has not been used") || rawMsg.includes("PERMISSION_DENIED")) {
         setIsApiDisabled(true);
