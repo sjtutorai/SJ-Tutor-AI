@@ -47,8 +47,14 @@ import {
   CreditCard,
   Shield,
   Tag,
-  HelpCircle
+  HelpCircle,
+  Scan,
+  UserCheck,
+  BadgeCheck,
+  X as XIcon
 } from 'lucide-react';
+// @ts-expect-error
+import QrScanner from 'react-qr-scanner';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -97,6 +103,8 @@ const App: React.FC = () => {
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedUser, setScannedUser] = useState<any>(null);
 
   // Shared Content State
   const [sharedContent, setSharedContent] = useState<any>(null);
@@ -412,6 +420,26 @@ const App: React.FC = () => {
         setMode(AppMode.DASHBOARD);
       }
     }
+  };
+
+  const handleScan = (data: any) => {
+    if (data) {
+      try {
+        const textValue = typeof data === 'string' ? data : (data.text || '');
+        if (!textValue) return;
+        const parsed = JSON.parse(textValue);
+        if (parsed.type === 'SJ_TUTOR_ID') {
+          setScannedUser(parsed);
+          setIsScanning(false);
+        }
+      } catch (err) {
+        console.error("Invalid QR code", err);
+      }
+    }
+  };
+
+  const handleError = (err: any) => {
+    console.error("Scanner error", err);
   };
 
   const handleSignUpSuccess = (initialData?: Partial<UserProfile>) => {
@@ -1423,6 +1451,14 @@ const App: React.FC = () => {
           
           <div className="flex items-center gap-3">
             <button 
+              onClick={() => setIsScanning(true)}
+              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all"
+              title="Scan Student ID"
+            >
+              <Scan className="w-5 h-5" />
+            </button>
+
+            <button 
               onClick={() => {
                 setMode(AppMode.OFFERS);
                 setDashboardView('OVERVIEW');
@@ -1471,6 +1507,106 @@ const App: React.FC = () => {
       <AnimatePresence>
         {showTutorial && (
           <Tutorial onClose={() => setShowTutorial(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* QR Scanner Modal */}
+      <AnimatePresence>
+        {isScanning && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden max-w-md w-full relative border border-slate-200 dark:border-slate-800"
+            >
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Scan className="w-6 h-6 text-primary-600" />
+                  Scan ID Card
+                </h3>
+                <button onClick={() => setIsScanning(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                  <XIcon className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="p-6">
+                <div className="aspect-square rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-950 border-2 border-dashed border-slate-200 dark:border-slate-800 relative">
+                  <QrScanner
+                    delay={300}
+                    onError={handleError}
+                    onScan={handleScan}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <div className="absolute inset-0 border-[40px] border-black/20 pointer-events-none">
+                     <div className="w-full h-full border-2 border-primary-500/50 animate-pulse"></div>
+                  </div>
+                </div>
+                <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
+                  Align the QR code on the back of the student ID card within the frame to scan.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Scanned User Result Modal */}
+      <AnimatePresence>
+        {scannedUser && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden max-w-sm w-full relative border border-slate-200 dark:border-slate-800"
+            >
+              <div className="bg-primary-600 p-8 text-center relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                <div className="w-20 h-20 bg-white rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-xl border-4 border-white/20">
+                  <UserCheck className="w-10 h-10 text-primary-600" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-1">Student Verified</h3>
+                <p className="text-primary-100 text-sm opacity-80">Official SJ Tutor Member</p>
+              </div>
+              
+              <div className="p-8 pt-6 space-y-4">
+                <div className="space-y-1">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Full Name</p>
+                  <p className="text-lg font-bold text-slate-800 dark:text-white capitalize">{scannedUser.name}</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Grade</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{scannedUser.grade}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Student ID</p>
+                    <p className="text-sm font-mono font-bold text-primary-600">{scannedUser.studentId}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Institution</p>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{scannedUser.institution}</p>
+                </div>
+
+                <div className="pt-4 flex items-center justify-center">
+                  <div className="px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 border border-emerald-500/20">
+                    <BadgeCheck className="w-3 h-3" />
+                    Identity Verified
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setScannedUser(null)}
+                  className="w-full mt-6 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-white rounded-xl font-bold transition-all"
+                >
+                  Close Result
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

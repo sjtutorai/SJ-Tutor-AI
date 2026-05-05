@@ -1,9 +1,10 @@
 
 import React, { useRef, useState } from 'react';
-import { UserProfile, SJTUTOR_AVATAR } from '../types';
+import { UserProfile } from '../types';
 import Logo from './Logo';
-import { Download, Share2, ShieldCheck, User, QrCode, Sparkles } from 'lucide-react';
-// @ts-ignore
+import { Download, Share2, ShieldCheck, User, Sparkles } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
+// @ts-expect-error
 import html2canvas from 'html2canvas';
 
 interface IdCardViewProps {
@@ -165,11 +166,24 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                    
                    {/* Footer / QR Placeholder */}
                    <div className="flex items-end justify-between border-t border-white/10 pt-2 mt-1">
-                       <div>
+                       <div className="flex flex-col items-end">
                           <p className="text-[6px] text-slate-500">Valid until</p>
                           <p className="text-[8px] font-mono">{new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString()}</p>
                        </div>
-                       <QrCode className="w-8 h-8 text-white/80 opacity-50" />
+                       <div className="bg-white p-1 rounded-sm shadow-sm">
+                          <QRCodeCanvas 
+                            value={JSON.stringify({
+                              type: 'SJ_TUTOR_ID',
+                              name: userProfile.displayName || 'Student',
+                              email: email || 'N/A',
+                              institution: userProfile.institution || 'N/A',
+                              grade: userProfile.grade || 'N/A',
+                              studentId: studentId
+                            })}
+                            size={48}
+                            level="H"
+                          />
+                       </div>
                    </div>
                 </div>
              </div>

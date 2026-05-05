@@ -15,31 +15,31 @@ const Tutorial: React.FC<TutorialProps> = ({ onClose }) => {
       title: "Welcome to SJ Tutor AI",
       description: "Your ultimate AI-powered study companion. Let&apos;s take a quick tour of how you can boost your learning journey.",
       icon: <Sparkles className="w-12 h-12 text-primary-500" />,
-      color: "from-amber-500 to-orange-500"
+      color: "from-primary-600 to-indigo-600"
     },
     {
       title: "Smart Summarizer",
       description: "Generate concise, structured summaries from any topic. Perfect for quick revisions and grasping core concepts.",
-      icon: <BookOpen className="w-12 h-12 text-blue-500" />,
-      color: "from-blue-500 to-indigo-500"
+      icon: <BookOpen className="w-12 h-12 text-primary-500" />,
+      color: "from-primary-600 to-indigo-600"
     },
     {
       title: "AI Quiz Creator",
       description: "Test your knowledge with custom quizzes. Earn credits for mastering hard challenges and track your progress.",
-      icon: <BrainCircuit className="w-12 h-12 text-emerald-500" />,
-      color: "from-emerald-500 to-teal-500"
+      icon: <BrainCircuit className="w-12 h-12 text-primary-500" />,
+      color: "from-primary-600 to-indigo-600"
     },
     {
       title: "Intelligent AI Tutor",
       description: "Need help? Our 24/7 AI Tutor is here to explain complex topics, solve doubts, and guide you through your curriculum.",
-      icon: <MessageCircle className="w-12 h-12 text-violet-500" />,
-      color: "from-violet-500 to-purple-500"
+      icon: <MessageCircle className="w-12 h-12 text-primary-500" />,
+      color: "from-primary-600 to-indigo-600"
     },
     {
       title: "Dashboard & History",
       description: "Access all your previous generations, track your credits, and manage your student ID card from one central hub.",
-      icon: <LayoutDashboard className="w-12 h-12 text-rose-500" />,
-      color: "from-rose-500 to-pink-500"
+      icon: <LayoutDashboard className="w-12 h-12 text-primary-500" />,
+      color: "from-primary-600 to-indigo-600"
     }
   ];
 
