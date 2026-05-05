@@ -767,11 +767,8 @@ const App: React.FC = () => {
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
-    { id: AppMode.OFFERS, label: 'Student Offers', icon: Tag },
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
-    { id: AppMode.PRIVACY, label: 'Privacy Policy', icon: Shield },
-    { id: AppMode.TERMS, label: 'Terms of Service', icon: FileText },
   ];
 
   const renderDashboard = () => {
@@ -1170,6 +1167,7 @@ const App: React.FC = () => {
                  onLogout={handleLogout}
                  onNavigateToProfile={() => setMode(AppMode.PROFILE)}
                  onOpenPremium={() => setShowPremiumModal(true)}
+                 onNavigateToLegal={(legalMode) => setMode(legalMode as any)}
               />
            </div>
         );
@@ -1177,7 +1175,7 @@ const App: React.FC = () => {
       case AppMode.ABOUT:
         return (
            <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <AboutView />
+              <AboutView onNavigateToLegal={(legalMode) => setMode(legalMode as any)} />
            </div>
         );
 
@@ -1320,8 +1318,6 @@ const App: React.FC = () => {
                   onClick={() => {
                     if (item.id !== AppMode.DASHBOARD && 
                         item.id !== AppMode.ABOUT && 
-                        item.id !== AppMode.PRIVACY && 
-                        item.id !== AppMode.TERMS && 
                         !user) {
                       setShowAuthModal(true);
                       setIsSidebarOpen(false); 
@@ -1351,9 +1347,7 @@ const App: React.FC = () => {
                   {item.label}
                   {!user && 
                    item.id !== AppMode.DASHBOARD && 
-                   item.id !== AppMode.ABOUT && 
-                   item.id !== AppMode.PRIVACY && 
-                   item.id !== AppMode.TERMS && (
+                   item.id !== AppMode.ABOUT && (
                      <div className="ml-auto">
                         <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
                      </div>
@@ -1428,6 +1422,22 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => {
+                setMode(AppMode.OFFERS);
+                setDashboardView('OVERVIEW');
+              }}
+              className={`p-2 rounded-full transition-all relative border ${
+                mode === AppMode.OFFERS 
+                ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 border-primary-200 dark:border-primary-800' 
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700'
+              }`}
+              title="Student Offers"
+            >
+              <Tag className="w-5 h-5" />
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></span>
+            </button>
+
             {user && (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
                 <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />

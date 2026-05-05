@@ -8,7 +8,7 @@ import {
   User, BookOpen, Bot, MessageSquare, Bell, Moon, Lock, 
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, ChevronDown, ChevronUp,
   Save, LogOut, Trash2, Globe, Shield, Activity, Eye, Type, Palette, Monitor, Zap,
-  Volume2, Terminal, Crown, Check, AlertTriangle, Clock, Mail
+  Volume2, Terminal, Crown, Check, AlertTriangle, Clock, Mail, FileText
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -16,11 +16,18 @@ interface SettingsViewProps {
   onLogout: () => void;
   onNavigateToProfile: () => void;
   onOpenPremium: () => void;
+  onNavigateToLegal: (mode: 'PRIVACY' | 'TERMS') => void;
 }
 
 type SettingsTab = 'account' | 'learning' | 'aiTutor' | 'chat' | 'notifications' | 'appearance' | 'privacy' | 'system' | 'billing' | 'help';
 
-const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNavigateToProfile, onOpenPremium }) => {
+const SettingsView: React.FC<SettingsViewProps> = ({ 
+  userProfile, 
+  onLogout, 
+  onNavigateToProfile, 
+  onOpenPremium,
+  onNavigateToLegal
+}) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
   const [settings, setSettings] = useState<UserSettings>(SettingsService.getSettings());
   const [hasChanges, setHasChanges] = useState(false);
@@ -608,12 +615,38 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userProfile, onLogout, onNa
 
                <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-3">
                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Data Management</h4>
-                 <div className="grid grid-cols-2 gap-4">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <button className="flex items-center justify-center gap-2 py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                        <MessageSquare className="w-4 h-4" /> Clear Chat History
                     </button>
                     <button className="flex items-center justify-center gap-2 py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                        <FlaskConical className="w-4 h-4" /> Clear Learning Data
+                    </button>
+                 </div>
+               </div>
+
+               <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-3">
+                 <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Legal Documents</h4>
+                 <div className="flex flex-col gap-2">
+                    <button 
+                      onClick={() => onNavigateToLegal('PRIVACY')}
+                      className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-sm font-medium text-slate-700 dark:text-slate-300"
+                    >
+                      <span className="flex items-center gap-2">
+                         <Shield className="w-4 h-4 text-primary-600" />
+                         Privacy Policy
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </button>
+                    <button 
+                      onClick={() => onNavigateToLegal('TERMS')}
+                      className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-sm font-medium text-slate-700 dark:text-slate-300"
+                    >
+                      <span className="flex items-center gap-2">
+                         <FileText className="w-4 h-4 text-primary-600" />
+                         Terms of Service
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
                     </button>
                  </div>
                </div>

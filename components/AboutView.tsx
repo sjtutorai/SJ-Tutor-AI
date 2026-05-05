@@ -3,7 +3,11 @@ import React from 'react';
 import { Target, Zap, Shield, Heart, Mail, Phone, Globe, Lock } from 'lucide-react';
 import Logo from './Logo';
 
-const AboutView: React.FC = () => {
+interface AboutViewProps {
+  onNavigateToLegal?: (mode: 'PRIVACY' | 'TERMS') => void;
+}
+
+const AboutView: React.FC<AboutViewProps> = ({ onNavigateToLegal }) => {
   return (
     <div className="max-w-5xl mx-auto space-y-12 pb-16 animate-in fade-in slide-in-from-bottom-6 duration-700">
       
@@ -169,8 +173,25 @@ const AboutView: React.FC = () => {
          </div>
       </div>
       
-      <div className="text-center pt-8 border-t border-slate-100 dark:border-slate-800">
-         <p className="text-slate-400 text-sm">© {new Date().getFullYear()} SJ Tutor AI. All rights reserved.</p>
+      <div className="text-center pt-8 border-t border-slate-100 dark:border-slate-800 flex flex-col items-center gap-4">
+         <div className="flex items-center gap-6 text-sm font-medium text-slate-500 dark:text-slate-400">
+            <button 
+              onClick={() => onNavigateToLegal?.('PRIVACY')}
+              className="hover:text-primary-600 transition-colors cursor-pointer"
+            >
+              Privacy Policy
+            </button>
+            <button 
+              onClick={() => onNavigateToLegal?.('TERMS')}
+              className="hover:text-primary-600 transition-colors cursor-pointer"
+            >
+              Terms of Service
+            </button>
+         </div>
+         <p className="text-slate-400 text-xs text-center leading-relaxed max-w-md">
+            © {new Date().getFullYear()} SJ Tutor AI. All rights reserved. <br/>
+            Designed to empower students through intelligent AI-driven learning experiences.
+         </p>
       </div>
     </div>
   );
