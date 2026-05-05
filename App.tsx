@@ -466,7 +466,9 @@ const App: React.FC = () => {
           setScannedUser(parsed);
           setIsScanning(false);
           if (scannerRef.current) {
-            scannerRef.current.stop().catch(() => {});
+            scannerRef.current.stop().catch(() => {
+              // Ignore stop errors
+            });
           }
         }
       } catch (err) {
@@ -709,7 +711,9 @@ const App: React.FC = () => {
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {}
+      } catch (e) {
+        // Fallback to original message if not JSON
+      }
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -794,7 +798,9 @@ const App: React.FC = () => {
             text: text,
             url: shareUrl
           });
-        } catch (err) {}
+        } catch (err) {
+          // User cancelled or share failed, ignore
+        }
       } else {
         try {
           await navigator.clipboard.writeText(text);
