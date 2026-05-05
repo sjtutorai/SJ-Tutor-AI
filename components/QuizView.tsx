@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { QuizQuestion, SJTUTOR_AVATAR } from '../types';
-import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Instagram, Mail, Send, MessageCircle, Link, Share2 } from 'lucide-react';
+import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Send, MessageCircle, Link, Share2, X, Trophy } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface QuizViewProps {
   questions: QuizQuestion[];
@@ -16,12 +17,14 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
   const [score, setScore] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
+  const [showResultModal, setShowResultModal] = useState(false);
 
   // Initialize view if there's an existing score (viewing history)
   useEffect(() => {
     if (existingScore !== undefined) {
       setScore(existingScore);
       setQuizCompleted(true);
+      setShowResultModal(true);
     } else {
       // Reset state for new quiz
       setCurrentIndex(0);
@@ -29,6 +32,7 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
       setQuizCompleted(false);
       setShowResult(false);
       setSelectedOption(null);
+      setShowResultModal(false);
     }
   }, [existingScore, questions]);
 
@@ -49,8 +53,8 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
       setSelectedOption(null);
       setShowResult(false);
     } else {
-      const finalScore = score + (selectedOption === currentQuestion.correctAnswerIndex ? 0 : 0);
       setQuizCompleted(true);
+      setShowResultModal(true);
       if (onComplete) {
         onComplete(score);
       }
@@ -128,17 +132,19 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
             alert("Score and link copied! Open Instagram to paste and share.");
             url = 'https://instagram.com';
             break;
-        case 'copy':
-            if (navigator.share) {
-              try {
-                await navigator.share({
-                  title: 'My SJ Tutor AI Score',
-                  text: text,
-                  url: shareUrl,
-                });
-                return;
-              } catch (err) {}
-            }
+                case 'copy':
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({
+                          title: 'My SJ Tutor AI Score',
+                          text: text,
+                          url: shareUrl,
+                        });
+                        return;
+                      } catch (err) {
+                        console.debug("Native share canceled or failed", err);
+                      }
+                    }
             navigator.clipboard.writeText(shareUrl);
             alert("Share link copied to clipboard!");
             return;
@@ -151,93 +157,129 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
     }
   };
 
-  if (quizCompleted) {
+  const renderResultModal = () => {
     const percentage = Math.round((score / questions.length) * 100);
     let message = "Good effort!";
     if (percentage >= 80) message = "Excellent work!";
     else if (percentage >= 50) message = "Keep practicing!";
 
     return (
-      <div className="space-y-6">
-        <div className="bg-white rounded-xl shadow-md border border-slate-200 p-8 text-center animate-in fade-in zoom-in duration-300">
-          <div className="w-24 h-24 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-lg overflow-hidden">
-             <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">
-            Result Time!
-          </h2>
-          <p className="text-slate-500 mb-8 font-medium">{message}</p>
-          
-          <div className="text-5xl font-bold text-slate-900 mb-2 tracking-tight">{score} <span className="text-3xl text-slate-300 font-normal">/ {questions.length}</span></div>
-          <p className="text-sm text-slate-400 uppercase tracking-wide font-medium mb-8">Score Achieved</p>
-
-          <div className="flex justify-center gap-3 mb-10">
-            <button
-                onClick={onReset}
-                className="inline-flex items-center px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20"
+      <AnimatePresence>
+        {showResultModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden max-w-lg w-full relative border border-white/10"
             >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                {existingScore !== undefined ? 'Retake Quiz' : 'Take Another Quiz'}
-            </button>
-            <button
-                onClick={handleShareQuizContent}
-                className="inline-flex items-center px-6 py-3 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg font-medium transition-colors shadow-sm"
-            >
-                <Share2 className="w-4 h-4 mr-2" />
-                Share Questions
-            </button>
-          </div>
+              <button 
+                onClick={() => setShowResultModal(false)}
+                className="absolute top-4 right-4 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors z-20 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
 
-          <div className="border-t border-slate-100 pt-8">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Share Score</p>
-            <div className="flex flex-wrap justify-center gap-3">
-                <button onClick={() => handleShare('whatsapp')} className="p-3 bg-[#25D366] text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="WhatsApp">
-                    <MessageCircle className="w-5 h-5 fill-current" />
-                </button>
-                <button onClick={() => handleShare('facebook')} className="p-3 bg-[#1877F2] text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Facebook">
-                    <Facebook className="w-5 h-5 fill-current" />
-                </button>
-                <button onClick={() => handleShare('instagram')} className="p-3 bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Instagram">
-                    <Instagram className="w-5 h-5" />
-                </button>
-                <button onClick={() => handleShare('telegram')} className="p-3 bg-[#0088cc] text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Telegram">
-                    <Send className="w-5 h-5 fill-current" />
-                </button>
-                <button onClick={() => handleShare('gmail')} className="p-3 bg-[#EA4335] text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Gmail">
-                    <Mail className="w-5 h-5 fill-current" />
-                </button>
-                <button onClick={() => handleShare('email')} className="p-3 bg-slate-500 text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Email">
-                    <Mail className="w-5 h-5" />
-                </button>
-                <button onClick={() => handleShare('copy')} className="p-3 bg-slate-800 text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Copy Link / Share">
-                    <Link className="w-5 h-5" />
-                </button>
-            </div>
-          </div>
-        </div>
+              <div className="p-8 text-center">
+                <div className="w-24 h-24 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl relative">
+                   <Trophy className="w-12 h-12 text-white" />
+                   <motion.div 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.3, type: 'spring' }}
+                    className="absolute -right-2 -bottom-2 bg-emerald-500 text-white p-2 rounded-full border-4 border-white dark:border-slate-900"
+                   >
+                    <CheckCircle className="w-6 h-6" />
+                   </motion.div>
+                </div>
 
-        <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-4 duration-500 delay-150">
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">
+                  Quiz Completed!
+                </h2>
+                <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium italic">&quot;{message}&quot;</p>
+                
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 mb-8 border border-slate-100 dark:border-slate-800">
+                  <div className="text-6xl font-black text-primary-600 mb-1 tracking-tighter">
+                    {score}<span className="text-2xl text-slate-300 dark:text-slate-600 font-normal">/{questions.length}</span>
+                  </div>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest font-bold">Your Score</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-8">
+                  <button
+                      onClick={onReset}
+                      className="flex items-center justify-center px-6 py-4 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-primary-600/20 active:scale-95"
+                  >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Retake
+                  </button>
+                  <button
+                      onClick={handleShareQuizContent}
+                      className="flex items-center justify-center px-6 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl font-bold transition-all active:scale-95 shadow-sm"
+                  >
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share
+                  </button>
+                </div>
+
+                <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
+                  <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] mb-4">Quick Share Score</p>
+                  <div className="flex justify-center gap-3">
+                      {['whatsapp', 'facebook', 'telegram', 'copy'].map(plat => (
+                        <button 
+                          key={plat}
+                          onClick={() => handleShare(plat)} 
+                          className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full hover:bg-primary-50 dark:hover:bg-primary-900/30 hover:text-primary-600 transition-all hover:scale-110"
+                        >
+                          {plat === 'whatsapp' && <MessageCircle className="w-5 h-5" />}
+                          {plat === 'facebook' && <Facebook className="w-5 h-5" />}
+                          {plat === 'telegram' && <Send className="w-5 h-5" />}
+                          {plat === 'copy' && <Link className="w-5 h-5" />}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {renderResultModal()}
+      
+      {quizCompleted && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md border border-slate-200 dark:border-slate-800 overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
                     <CheckCircle className="w-5 h-5 text-emerald-500" />
-                    Correct Answers & Explanations
+                    Review Answers
                 </h3>
+                <button 
+                  onClick={() => setShowResultModal(true)}
+                  className="text-primary-600 font-bold text-sm hover:underline"
+                >
+                  View Final Score
+                </button>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {questions.map((q, idx) => (
                     <div key={idx} className="p-6">
-                        <p className="font-semibold text-slate-800 mb-4 flex gap-2">
-                            <span className="text-slate-400 font-mono">{idx + 1}.</span>
+                        <p className="font-semibold text-slate-800 dark:text-slate-200 mb-4 flex gap-3">
+                            <span className="text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-sm">{idx + 1}</span>
                             {q.question}
                         </p>
-                        <div className="space-y-2 pl-6 mb-4">
+                        <div className="space-y-2 pl-8 mb-4">
                             {q.options.map((opt, optIdx) => (
                                 <div 
                                     key={optIdx} 
-                                    className={`px-4 py-3 rounded-lg border text-sm flex justify-between items-center ${
+                                    className={`px-4 py-3 rounded-xl border text-sm flex justify-between items-center transition-all ${
                                         optIdx === q.correctAnswerIndex 
-                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-medium' 
-                                        : 'bg-white border-slate-100 text-slate-500 opacity-75'
+                                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold' 
+                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400'
                                     }`}
                                 >
                                     <span>{opt}</span>
@@ -245,90 +287,96 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
                                 </div>
                             ))}
                         </div>
-                        <div className="ml-6 p-4 bg-slate-50 rounded-lg text-sm text-slate-600 border border-slate-100">
-                            <span className="font-bold text-slate-700">Explanation: </span>
+                        <div className="ml-8 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl text-sm text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-800 italic">
+                            <span className="font-bold text-slate-700 dark:text-slate-300 not-italic">Quick Tip: </span>
                             {q.explanation}
                         </div>
                     </div>
                 ))}
             </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
-      {/* Progress Bar */}
-      <div className="w-full bg-slate-100 h-1.5">
-        <div 
-          className="bg-primary-600 h-1.5 transition-all duration-300"
-          style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
-        ></div>
-      </div>
-
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <span className="text-xs font-bold text-primary-600 uppercase tracking-wider bg-primary-50 px-2 py-1 rounded">
-            Question {currentIndex + 1} of {questions.length}
-          </span>
-          <span className="text-sm font-medium text-slate-500">Score: {score}</span>
-        </div>
-
-        <h3 className="text-xl font-semibold text-slate-800 mb-6">
-          {currentQuestion.question}
-        </h3>
-
-        <div className="space-y-3">
-          {currentQuestion.options.map((option, idx) => {
-            let optionClass = "border-slate-200 hover:border-primary-300 hover:bg-slate-50";
-            let icon = null;
-
-            if (showResult) {
-              if (idx === currentQuestion.correctAnswerIndex) {
-                optionClass = "border-emerald-500 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-500";
-                icon = <CheckCircle className="w-5 h-5 text-emerald-600" />;
-              } else if (idx === selectedOption) {
-                optionClass = "border-rose-500 bg-rose-50 text-rose-800 ring-1 ring-rose-500";
-                icon = <XCircle className="w-5 h-5 text-rose-600" />;
-              } else {
-                optionClass = "border-slate-100 opacity-50";
-              }
-            } else if (selectedOption === idx) {
-               optionClass = "border-primary-500 bg-primary-50 ring-1 ring-primary-500";
-            }
-
-            return (
-              <button
-                key={idx}
-                onClick={() => handleOptionSelect(idx)}
-                disabled={showResult}
-                className={`w-full text-left p-4 rounded-lg border-2 transition-all flex justify-between items-center ${optionClass}`}
-              >
-                <span className="font-medium">{option}</span>
-                {icon}
-              </button>
-            );
-          })}
-        </div>
-
-        {showResult && (
-          <div className="mt-6 animate-in fade-in slide-in-from-top-2">
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
-              <span className="block text-xs font-bold text-slate-500 uppercase mb-1">Explanation</span>
-              <p className="text-slate-700">{currentQuestion.explanation}</p>
+            <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 text-center">
+               <button
+                  onClick={onReset}
+                  className="px-8 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-600/20 hover:scale-105 active:scale-95 transition-all"
+                >
+                  Ready for another challenge?
+                </button>
             </div>
-            <div className="flex justify-end">
-              <button
-                onClick={handleNext}
-                className="inline-flex items-center px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20"
-              >
-                {currentIndex === questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </button>
-            </div>
+        </div>
+      )}
+
+      <div className={`bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden ${quizCompleted ? 'hidden' : 'block'}`}>
+        {/* Progress Bar */}
+        <div className="w-full bg-slate-100 h-1.5">
+          <div 
+            className="bg-primary-600 h-1.5 transition-all duration-300"
+            style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
+          ></div>
+        </div>
+
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <span className="text-xs font-bold text-primary-600 uppercase tracking-wider bg-primary-50 px-2 py-1 rounded">
+              Question {currentIndex + 1} of {questions.length}
+            </span>
+            <span className="text-sm font-medium text-slate-500">Score: {score}</span>
           </div>
-        )}
+
+          <h3 className="text-xl font-semibold text-slate-800 mb-6">
+            {currentQuestion.question}
+          </h3>
+
+          <div className="space-y-3">
+            {currentQuestion.options.map((option, idx) => {
+              let optionClass = "border-slate-200 hover:border-primary-300 hover:bg-slate-50";
+              let icon = null;
+
+              if (showResult) {
+                if (idx === currentQuestion.correctAnswerIndex) {
+                  optionClass = "border-emerald-500 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-500";
+                  icon = <CheckCircle className="w-5 h-5 text-emerald-600" />;
+                } else if (idx === selectedOption) {
+                  optionClass = "border-rose-500 bg-rose-50 text-rose-800 ring-1 ring-rose-500";
+                  icon = <XCircle className="w-5 h-5 text-rose-600" />;
+                } else {
+                  optionClass = "border-slate-100 opacity-50";
+                }
+              } else if (selectedOption === idx) {
+                 optionClass = "border-primary-500 bg-primary-50 ring-1 ring-primary-500";
+              }
+
+              return (
+                <button
+                  key={idx}
+                  onClick={() => handleOptionSelect(idx)}
+                  disabled={showResult}
+                  className={`w-full text-left p-4 rounded-lg border-2 transition-all flex justify-between items-center ${optionClass}`}
+                >
+                  <span className="font-medium">{option}</span>
+                  {icon}
+                </button>
+              );
+            })}
+          </div>
+
+          {showResult && (
+            <div className="mt-6 animate-in fade-in slide-in-from-top-2">
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
+                <span className="block text-xs font-bold text-slate-500 uppercase mb-1">Explanation</span>
+                <p className="text-slate-700">{currentQuestion.explanation}</p>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleNext}
+                  className="inline-flex items-center px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20"
+                >
+                  {currentIndex === questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

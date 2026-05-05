@@ -16,6 +16,8 @@ import LandingPage from './components/LandingPage';
 import StudyTimerView from './components/StudyTimerView';
 import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
+import StudentOffers from './components/StudentOffers';
+import Tutorial from './components/Tutorial';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
@@ -43,8 +45,11 @@ import {
   Info,
   Share2,
   CreditCard,
-  Shield
+  Shield,
+  Tag,
+  HelpCircle
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
 
 const THEME_COLORS: Record<string, Record<string, string>> = {
@@ -77,6 +82,7 @@ const App: React.FC = () => {
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   // App State
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -761,6 +767,7 @@ const App: React.FC = () => {
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
+    { id: AppMode.OFFERS, label: 'Student Offers', icon: Tag },
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
     { id: AppMode.PRIVACY, label: 'Privacy Policy', icon: Shield },
@@ -789,6 +796,7 @@ const App: React.FC = () => {
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.OFFERS, label: 'Offers', count: null, icon: Tag, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-[#FDF5E6] dark:bg-rose-900/30' },
       { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
     ];
 
@@ -904,9 +912,18 @@ const App: React.FC = () => {
     
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
-          <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
+            <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
+          </div>
+          <button 
+            onClick={() => setShowTutorial(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 rounded-lg font-bold text-sm hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-all border border-primary-100 dark:border-primary-800/50"
+          >
+            <HelpCircle className="w-4 h-4" />
+            Watch Tutorial
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -923,6 +940,8 @@ const App: React.FC = () => {
                     setMode(AppMode.NOTES);
                  } else if (card.id === AppMode.ID_CARD) {
                     setMode(AppMode.ID_CARD);
+                 } else if (card.id === AppMode.OFFERS) {
+                    setMode(AppMode.OFFERS);
                  } else {
                     setDashboardView(card.id as any);
                  }
@@ -1173,6 +1192,13 @@ const App: React.FC = () => {
         return (
            <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <TermsOfServiceView />
+           </div>
+        );
+
+      case AppMode.OFFERS:
+        return (
+           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <StudentOffers />
            </div>
         );
 
@@ -1431,6 +1457,12 @@ const App: React.FC = () => {
           onPaymentSuccess={handlePaymentSuccess}
         />
       )}
+
+      <AnimatePresence>
+        {showTutorial && (
+          <Tutorial onClose={() => setShowTutorial(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

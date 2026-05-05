@@ -12,7 +12,8 @@ export enum AppMode {
   ID_CARD = 'ID_CARD',
   TIMER = 'TIMER',
   PRIVACY = 'PRIVACY',
-  TERMS = 'TERMS'
+  TERMS = 'TERMS',
+  OFFERS = 'OFFERS'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
