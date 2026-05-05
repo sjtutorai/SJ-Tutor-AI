@@ -1,13 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import { QuizQuestion, SJTUTOR_AVATAR } from '../types';
-import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Instagram, Mail, Send, MessageCircle, Link, Share2 } from 'lucide-react';
+import { QuizQuestion, SJTUTOR_AVATAR, UserProfile } from '../types';
+import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Instagram, Mail, Send, MessageCircle, Link, Share2, Trophy, Award, Coins } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface QuizViewProps {
   questions: QuizQuestion[];
   onReset: () => void;
-  onComplete?: (score: number) => void;
+  onComplete?: (score: number, pointsEarned: number) => void;
   existingScore?: number;
+  userProfile: UserProfile;
 }
 
 const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, existingScore }) => {
@@ -34,6 +37,32 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
 
   const currentQuestion = questions[currentIndex];
 
+  const triggerConfetti = () => {
+    const end = Date.now() + 3 * 1000;
+    const colors = ['#D4AF37', '#B7950B', '#3b82f6', '#10b981'];
+
+    (function frame() {
+      confetti({
+        particleCount: 3,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: colors
+      });
+      confetti({
+        particleCount: 3,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: colors
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    }());
+  };
+
   const handleOptionSelect = (index: number) => {
     if (showResult) return;
     setSelectedOption(index);
@@ -50,9 +79,19 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
       setShowResult(false);
     } else {
       const finalScore = score + (selectedOption === currentQuestion.correctAnswerIndex ? 0 : 0);
+      const percentage = (score / questions.length) * 100;
+      
+      // Calculate points earned
+      let pointsEarned = score * 10; // 10 points per correct answer
+      if (percentage === 100) pointsEarned += 50; // Bonus for full marks
+      
       setQuizCompleted(true);
+      if (percentage >= 80) {
+        triggerConfetti();
+      }
+      
       if (onComplete) {
-        onComplete(score);
+        onComplete(score, pointsEarned);
       }
     }
   };
@@ -137,9 +176,7 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
                   url: shareUrl,
                 });
                 return;
-              } catch (err) {
-                console.error("Share failed", err);
-              }
+              } catch (err) {}
             }
             navigator.clipboard.writeText(shareUrl);
             alert("Share link copied to clipboard!");
@@ -155,67 +192,97 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
 
   if (quizCompleted) {
     const percentage = Math.round((score / questions.length) * 100);
-    let message = "Good effort!";
-    if (percentage >= 80) message = "Excellent work!";
-    else if (percentage >= 50) message = "Keep practicing!";
+    let message = "Good effort, keep learning!";
+    let icon = "📚";
+    let colorClass = "from-blue-500 to-indigo-600";
+
+    if (percentage >= 90) {
+      message = "Unbelievable! You are a Genius! 🌟";
+      icon = "🏆";
+      colorClass = "from-amber-400 to-orange-500";
+    } else if (percentage >= 80) {
+      message = "Fantastic performance! So close! 🎯";
+      icon = "⭐";
+      colorClass = "from-emerald-400 to-teal-500";
+    } else if (percentage >= 50) {
+      message = "Great job! You're on the right track! 👍";
+      icon = "✨";
+    }
+
+    const pointsEarned = score * 10 + (percentage === 100 ? 50 : 0);
 
     return (
       <div className="space-y-6">
-        <div className="bg-white rounded-xl shadow-md border border-slate-200 p-8 text-center animate-in fade-in zoom-in duration-300">
-          <div className="w-24 h-24 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-lg overflow-hidden">
-             <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">
-            Result Time!
-          </h2>
-          <p className="text-slate-500 mb-8 font-medium">{message}</p>
-          
-          <div className="text-5xl font-bold text-slate-900 mb-2 tracking-tight">{score} <span className="text-3xl text-slate-300 font-normal">/ {questions.length}</span></div>
-          <p className="text-sm text-slate-400 uppercase tracking-wide font-medium mb-8">Score Achieved</p>
-
-          <div className="flex justify-center gap-3 mb-10">
-            <button
-                onClick={onReset}
-                className="inline-flex items-center px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20"
-            >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                {existingScore !== undefined ? 'Retake Quiz' : 'Take Another Quiz'}
-            </button>
-            <button
-                onClick={handleShareQuizContent}
-                className="inline-flex items-center px-6 py-3 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg font-medium transition-colors shadow-sm"
-            >
-                <Share2 className="w-4 h-4 mr-2" />
-                Share Questions
-            </button>
-          </div>
-
-          <div className="border-t border-slate-100 pt-8">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Share Score</p>
-            <div className="flex flex-wrap justify-center gap-3">
-                <button onClick={() => handleShare('whatsapp')} className="p-3 bg-[#25D366] text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="WhatsApp">
-                    <MessageCircle className="w-5 h-5 fill-current" />
-                </button>
-                <button onClick={() => handleShare('facebook')} className="p-3 bg-[#1877F2] text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Facebook">
-                    <Facebook className="w-5 h-5 fill-current" />
-                </button>
-                <button onClick={() => handleShare('instagram')} className="p-3 bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Instagram">
-                    <Instagram className="w-5 h-5" />
-                </button>
-                <button onClick={() => handleShare('telegram')} className="p-3 bg-[#0088cc] text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Telegram">
-                    <Send className="w-5 h-5 fill-current" />
-                </button>
-                <button onClick={() => handleShare('gmail')} className="p-3 bg-[#EA4335] text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Gmail">
-                    <Mail className="w-5 h-5 fill-current" />
-                </button>
-                <button onClick={() => handleShare('email')} className="p-3 bg-slate-500 text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Email">
-                    <Mail className="w-5 h-5" />
-                </button>
-                <button onClick={() => handleShare('copy')} className="p-3 bg-slate-800 text-white rounded-full hover:scale-110 transition-transform shadow-sm hover:shadow-md" title="Copy Link / Share">
-                    <Link className="w-5 h-5" />
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl"
+          >
+            {/* Top Banner */}
+            <div className={`bg-gradient-to-r ${colorClass} p-8 text-center text-white relative`}>
+              <div className="absolute top-4 right-4 bg-white/20 p-2 rounded-full backdrop-blur-md">
+                <Trophy size={20} />
+              </div>
+              <div className="text-6xl mb-4">{icon}</div>
+              <h2 className="text-3xl font-black italic tracking-tighter">SUCCESS!</h2>
+              <p className="text-white/80 font-medium">Quiz Completed Successfully</p>
             </div>
-          </div>
+
+            <div className="p-8 text-center">
+              <h3 className="text-xl font-bold dark:text-white mb-2">{message}</h3>
+              
+              <div className="flex justify-center items-end gap-1 mb-8">
+                <span className="text-5xl font-black text-slate-900 dark:text-white">{score}</span>
+                <span className="text-2xl text-slate-400 mb-1">/ {questions.length}</span>
+              </div>
+
+              {/* Rewards Section */}
+              <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-6 mb-8 border border-slate-100 dark:border-slate-700">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Rewards Earned</p>
+                 <div className="flex justify-center gap-4">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-xl">
+                      <Coins size={20} />
+                      <span className="font-black text-lg">+{pointsEarned} <span className="text-xs font-medium opacity-70">PTS</span></span>
+                    </div>
+                    {percentage >= 80 && (
+                      <div className="flex items-center gap-2 px-4 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-xl">
+                        <Award size={20} />
+                        <span className="font-black text-lg">+1 <span className="text-xs font-medium opacity-70">BADGE</span></span>
+                      </div>
+                    )}
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <button
+                  onClick={onReset}
+                  className="flex items-center justify-center gap-2 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-bold transition-transform active:scale-95"
+                >
+                  <RefreshCw size={18} />
+                  Retry
+                </button>
+                <button
+                  onClick={() => {
+                     // Generic "Next Quiz" or Dashboard
+                     onReset();
+                  }}
+                  className="flex items-center justify-center gap-2 py-4 bg-amber-500 text-white rounded-2xl font-bold transition-transform active:scale-95 shadow-lg shadow-amber-500/25"
+                >
+                  Next Quiz
+                  <ArrowRight size={18} />
+                </button>
+              </div>
+
+              <button
+                 onClick={handleShareQuizContent}
+                 className="flex items-center justify-center gap-2 w-full py-4 border-2 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 rounded-2xl font-bold hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-all"
+              >
+                 <Share2 size={18} />
+                 Share Result with Friends
+              </button>
+            </div>
+          </motion.div>
         </div>
 
         <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-4 duration-500 delay-150">

@@ -354,7 +354,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             </div>
             <h2 className="text-2xl font-bold text-slate-800 mb-2">Verify your email</h2>
             <p className="text-slate-500 mb-6">
-              We&apos;ve sent a verification link to <br/>
+              We've sent a verification link to <br/>
               <span className="font-bold text-slate-700">{email}</span>.
               <br/>Please check your inbox to activate your account fully.
             </p>
@@ -385,7 +385,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             )}
 
             <p className="text-xs text-slate-400">
-              Didn&apos;t receive it? Check your spam folder or try resending.
+              Didn't receive it? Check your spam folder or try resending.
             </p>
           </div>
         </div>
@@ -402,13 +402,13 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             <button onClick={onClose} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors">
               <X className="w-5 h-5" />
             </button>
-              <div className="mb-6 text-center">
-                <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 text-primary-600">
-                  <KeyRound className="w-8 h-8" />
-                </div>
-                <h2 className="text-2xl font-bold text-slate-800">Reset Password</h2>
-                <p className="text-slate-500 mt-2 text-sm">Enter your email and we&apos;ll send you a link to reset your password.</p>
+            <div className="mb-6 text-center">
+              <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 text-primary-600">
+                <KeyRound className="w-8 h-8" />
               </div>
+              <h2 className="text-2xl font-bold text-slate-800">Reset Password</h2>
+              <p className="text-slate-500 mt-2 text-sm">Enter your email and we'll send you a link to reset your password.</p>
+            </div>
             <form onSubmit={handleForgotPassword} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Email</label>
@@ -696,7 +696,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
 
           <div className="mt-6 text-center">
             <p className="text-xs text-slate-400">
-              By continuing, you agree to SJ Tutor AI&apos;s Terms of Service.
+              By continuing, you agree to SJ Tutor AI's Terms of Service.
             </p>
           </div>
         </div>

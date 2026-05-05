@@ -17,11 +17,12 @@ import StudyTimerView from './components/StudyTimerView';
 import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
 import Logo from './components/Logo';
+import Onboarding from './components/Onboarding';
+import RewardsView from './components/RewardsView';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
-import { auth, db } from './firebaseConfig';
+import { auth } from './firebaseConfig';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   BookOpen, 
   FileText, 
@@ -92,6 +93,10 @@ const App: React.FC = () => {
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Shared Content State
+  const [sharedContent, setSharedContent] = useState<any>(null);
+  const [isViewingShared, setIsViewingShared] = useState(false);
   
   // Profile State
   const initialProfileState: UserProfile = {
@@ -104,10 +109,13 @@ const App: React.FC = () => {
     learningGoal: '',
     learningStyle: 'Visual',
     credits: 100,
-    planType: 'Free',
-    hasCompletedOnboarding: false
+    points: 0,
+    streakCount: 0,
+    badges: [],
+    planType: 'Free'
   };
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfileState);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -155,7 +163,6 @@ const App: React.FC = () => {
                     body: item.task,
                     icon: SJTUTOR_AVATAR
                   });
-                  hasNotified = true;
                 } else if (Notification.permission !== "denied") {
                    Notification.requestPermission().then(permission => {
                       if (permission === "granted") {
@@ -179,6 +186,57 @@ const App: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [user]);
+
+  // Check for shared content on load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareId = params.get('share');
+    
+    if (shareId) {
+      const fetchShared = async () => {
+        setAuthLoading(true);
+        try {
+          const response = await fetch(`/api/auth/share/${shareId}`);
+          const data = await response.json();
+          
+          if (response.ok && data.success) {
+            const item = data.data;
+            setSharedContent(item);
+            setIsViewingShared(true);
+            
+            // Load the content into the view
+            if (item.type === AppMode.SUMMARY) {
+              setSummaryContent(item.content);
+              setMode(AppMode.SUMMARY);
+            } else if (item.type === AppMode.ESSAY) {
+              setEssayContent(item.content);
+              setMode(AppMode.ESSAY);
+            } else if (item.type === AppMode.QUIZ) {
+              setQuizData(item.content);
+              setMode(AppMode.QUIZ);
+            }
+            // Update form data for context
+            setFormData(prev => ({
+              ...prev,
+              chapterName: item.title,
+              subject: item.subtitle?.split(' • ')[1] || '',
+              gradeClass: item.subtitle?.split(' • ')[0] || ''
+            }));
+          } else {
+            console.error("Shared content not found or expired.");
+          }
+        } catch (err) {
+          console.error("Failed to fetch shared content", err);
+        } finally {
+          setAuthLoading(false);
+          // Clear the URL parameter without refreshing
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, newUrl);
+        }
+      };
+      fetchShared();
+    }
+  }, [setSummaryContent, setEssayContent, setQuizData, setMode, setFormData]);
 
   // Sync formData language with settings whenever settings change
   useEffect(() => {
@@ -268,6 +326,12 @@ const App: React.FC = () => {
         setIsNewUser(false);
         setUserProfile(initialProfileState);
         setMode(AppMode.DASHBOARD);
+      } else {
+        // Check if onboarding was completed
+        const completed = localStorage.getItem(`onboarding_done_${currentUser.uid}`);
+        if (!completed) {
+          setShowOnboarding(true);
+        }
       }
     }, (err) => {
       console.error("Auth Error:", err);
@@ -281,60 +345,30 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Profile Persistence & Smart User Detection
+  // Profile Persistence
   useEffect(() => {
     if (user) {
-      const fetchUserProfile = async () => {
+      const savedProfile = localStorage.getItem(`profile_${user.uid}`);
+      if (savedProfile) {
         try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-
-          if (userDoc.exists()) {
-            const data = userDoc.data() as UserProfile;
-            setUserProfile(data);
-            
-            // Smart User Detection:
-            // If hasCompletedOnboarding = false → New User
-            // If hasCompletedOnboarding = true → Returning User
-            if (data.hasCompletedOnboarding) {
-              setIsNewUser(false);
-            } else {
-              setIsNewUser(true);
-            }
-          } else {
-            // If document does NOT exist → New User
-            setIsNewUser(true);
-            const newProfile = {
-              ...initialProfileState,
-              displayName: user.displayName || '',
-              photoURL: user.photoURL || '',
-              credits: 100,
-              hasCompletedOnboarding: false
-            };
-            setUserProfile(newProfile);
-            // We don't save to Firestore yet, wait for onboarding completion
-          }
+          const parsed = JSON.parse(savedProfile);
+          setUserProfile(prev => ({ 
+            ...initialProfileState, 
+            ...parsed,
+            displayName: parsed.displayName || user.displayName || '',
+            photoURL: parsed.photoURL || user.photoURL || '' 
+          }));
         } catch (e) {
-          console.error("Failed to fetch profile from Firestore", e);
-          // Fallback to localStorage if Firestore fails
-          const savedProfile = localStorage.getItem(`profile_${user.uid}`);
-          if (savedProfile) {
-            try {
-              const parsed = JSON.parse(savedProfile);
-              setUserProfile(prev => ({ 
-                ...initialProfileState, 
-                ...parsed,
-                displayName: parsed.displayName || user.displayName || '',
-                photoURL: parsed.photoURL || user.photoURL || '' 
-              }));
-            } catch (err) {
-              console.error("Failed to parse local profile", err);
-            }
-          }
+          console.error("Failed to parse profile", e);
         }
-      };
-
-      fetchUserProfile();
+      } else {
+        setUserProfile({
+           ...initialProfileState,
+           displayName: user.displayName || '',
+           photoURL: user.photoURL || '',
+           credits: 100
+        });
+      }
     }
   }, [user]);
 
@@ -349,7 +383,6 @@ const App: React.FC = () => {
           setHistory(parsedHistory);
         }
       } catch (e) {
-        console.error("Failed to parse history", e);
         setHistory([]);
       }
     } else {
@@ -372,18 +405,29 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleProfileSave = async (newProfile: UserProfile, redirectDashboard = false) => {
-    setUserProfile(newProfile);
+  const handleProfileSave = (newProfile: UserProfile, redirectDashboard = false) => {
+    // Handle streak logic if this is a login-time save
+    const updatedProfile = { ...newProfile };
+    const today = new Date().toISOString().split('T')[0];
+    
+    if (updatedProfile.lastLoginDate !== today) {
+       const yesterday = new Date();
+       yesterday.setDate(yesterday.getDate() - 1);
+       const yesterdayStr = yesterday.toISOString().split('T')[0];
+       
+       if (updatedProfile.lastLoginDate === yesterdayStr) {
+         updatedProfile.streakCount = (updatedProfile.streakCount || 0) + 1;
+       } else if (!updatedProfile.lastLoginDate) {
+         updatedProfile.streakCount = 1;
+       } else {
+         updatedProfile.streakCount = 1; // Reset streak if missed a day
+       }
+       updatedProfile.lastLoginDate = today;
+    }
+
+    setUserProfile(updatedProfile);
     if (user) {
-      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
-      try {
-        await setDoc(doc(db, 'users', user.uid), {
-          ...newProfile,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      } catch (e) {
-        console.error("Failed to save profile to Firestore", e);
-      }
+      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(updatedProfile));
     }
     if (isNewUser) {
       setIsNewUser(false);
@@ -394,22 +438,13 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSignUpSuccess = async (initialData?: Partial<UserProfile>) => {
+  const handleSignUpSuccess = (initialData?: Partial<UserProfile>) => {
     setIsNewUser(true);
-    const newProfile = { ...initialProfileState, ...initialData, hasCompletedOnboarding: false };
+    const newProfile = { ...initialProfileState, ...initialData };
     setUserProfile(newProfile);
     
     if (auth.currentUser) {
         localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
-        try {
-          await setDoc(doc(db, 'users', auth.currentUser.uid), {
-            ...newProfile,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          }, { merge: true });
-        } catch (e) {
-          console.error("Failed to initialize profile in Firestore", e);
-        }
     }
     
     setShowAuthModal(false);
@@ -509,11 +544,22 @@ const App: React.FC = () => {
     setCurrentHistoryId(newId);
   };
 
-  const handleQuizComplete = (score: number) => {
+  const handleQuizComplete = (score: number, pointsEarned: number) => {
     if (currentHistoryId) {
       setHistory(prev => prev.map(item => 
         item.id === currentHistoryId ? { ...item, score } : item
       ));
+
+      // Update points and potentially badges
+      const newPoints = (userProfile.points || 0) + pointsEarned;
+      const newBadges = [...(userProfile.badges || [])];
+      
+      const percentage = (score / formData.questionCount!) * 100;
+      if (percentage === 100 && !newBadges.includes("Quiz Master")) {
+        newBadges.push("Quiz Master");
+      }
+
+      handleProfileSave({ ...userProfile, points: newPoints, badges: newBadges }, false);
 
       if (formData.questionCount === 20 && formData.difficulty === 'Hard') {
         const percentage = (score / 20) * 100;
@@ -637,7 +683,9 @@ const App: React.FC = () => {
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {}
+      } catch (e) {
+        // Fallback for non-json error
+      }
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -677,6 +725,24 @@ const App: React.FC = () => {
     e.stopPropagation();
     
     try {
+      // 1. Save to backend to get a unique public ID
+      const response = await fetch('/api/auth/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: item.type,
+          title: item.title,
+          subtitle: item.subtitle,
+          content: item.content
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Sharing failed');
+
+      const shareId = data.id;
+      const shareUrl = `${window.location.origin}?share=${shareId}`;
+
       let text = `${item.title} (${item.type})\n\n`;
       
       if (item.type === AppMode.QUIZ) {
@@ -695,21 +761,22 @@ const App: React.FC = () => {
         text += item.content;
       }
 
-      text += `\n\nGenerated by SJ Tutor AI`;
+      text += `\nView here: ${shareUrl}\n\nGenerated by SJ Tutor AI`;
 
       if (navigator.share) {
         try {
           await navigator.share({
             title: item.title,
             text: text,
+            url: shareUrl
           });
         } catch (err) {
-          console.error("Share failed", err);
+          console.log("Share skipped or cancelled");
         }
       } else {
         try {
           await navigator.clipboard.writeText(text);
-          alert('Content copied to clipboard!');
+          alert('Share link copied to clipboard!');
         } catch (err) {
           alert('Failed to copy content.');
         }
@@ -732,6 +799,7 @@ const App: React.FC = () => {
 
   const navItems = [
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
+    { id: AppMode.OFFERS, label: 'Offers & Rewards', icon: Gift },
     { id: AppMode.ID_CARD, label: 'Student ID Card', icon: CreditCard },
     { id: AppMode.SUMMARY, label: 'Summary Generator', icon: FileText },
     { id: AppMode.QUIZ, label: 'Quiz Creator', icon: BrainCircuit },
@@ -763,6 +831,7 @@ const App: React.FC = () => {
 
     const dashboardCards = [
       { id: AppMode.ID_CARD, label: 'My ID Card', count: null, icon: CreditCard, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-[#FDF5E6] dark:bg-indigo-900/30' },
+      { id: AppMode.OFFERS, label: 'Rewards', count: userProfile.points, icon: Gift, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-[#FDF5E6] dark:bg-rose-900/30' },
       { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
@@ -952,19 +1021,6 @@ const App: React.FC = () => {
   const renderContent = () => {
     if (loading) return <LoadingState mode={mode} />;
 
-    if (isNewUser && user) {
-      return (
-        <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <ProfileView 
-            profile={userProfile} 
-            email={user.email}
-            onSave={(p, r) => handleProfileSave(p, r)}
-            isOnboarding={true}
-          />
-        </div>
-      );
-    }
-
     switch (mode) {
       case AppMode.DASHBOARD:
         return renderDashboard();
@@ -1076,6 +1132,7 @@ const App: React.FC = () => {
               }} 
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
+              userProfile={userProfile}
             />
           );
         }
@@ -1164,6 +1221,16 @@ const App: React.FC = () => {
         return (
            <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <TermsOfServiceView />
+           </div>
+        );
+
+      case AppMode.OFFERS:
+        return (
+           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <RewardsView 
+                profile={userProfile}
+                onUpdateProfile={(p) => handleProfileSave(p)}
+              />
            </div>
         );
 
@@ -1421,6 +1488,15 @@ const App: React.FC = () => {
           onClose={() => setShowPremiumModal(false)}
           onPaymentSuccess={handlePaymentSuccess}
         />
+      )}
+
+      {showOnboarding && (
+        <Onboarding onComplete={() => {
+          setShowOnboarding(false);
+          if (user) {
+            localStorage.setItem(`onboarding_done_${user.uid}`, 'true');
+          }
+        }} />
       )}
     </div>
   );
