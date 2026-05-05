@@ -12,9 +12,7 @@ export enum AppMode {
   ID_CARD = 'ID_CARD',
   TIMER = 'TIMER',
   PRIVACY = 'PRIVACY',
-  TERMS = 'TERMS',
-  ONBOARDING = 'ONBOARDING',
-  OFFERS = 'OFFERS'
+  TERMS = 'TERMS'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
@@ -66,10 +64,6 @@ export interface UserProfile {
   learningGoal?: string;
   learningStyle?: 'Visual' | 'Auditory' | 'Reading/Writing' | 'Kinesthetic';
   credits: number;
-  points: number;
-  streakCount: number;
-  lastLoginDate?: string;
-  badges: string[];
   planType?: 'Free' | 'Starter' | 'Scholar' | 'Achiever';
   phoneVerified?: boolean;
 }

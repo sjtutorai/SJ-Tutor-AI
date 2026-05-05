@@ -17,8 +17,6 @@ import StudyTimerView from './components/StudyTimerView';
 import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
 import Logo from './components/Logo';
-import Onboarding from './components/Onboarding';
-import RewardsView from './components/RewardsView';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
 import { auth } from './firebaseConfig';
@@ -109,13 +107,9 @@ const App: React.FC = () => {
     learningGoal: '',
     learningStyle: 'Visual',
     credits: 100,
-    points: 0,
-    streakCount: 0,
-    badges: [],
     planType: 'Free'
   };
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfileState);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -163,6 +157,7 @@ const App: React.FC = () => {
                     body: item.task,
                     icon: SJTUTOR_AVATAR
                   });
+                  hasNotified = true;
                 } else if (Notification.permission !== "denied") {
                    Notification.requestPermission().then(permission => {
                       if (permission === "granted") {
@@ -326,12 +321,6 @@ const App: React.FC = () => {
         setIsNewUser(false);
         setUserProfile(initialProfileState);
         setMode(AppMode.DASHBOARD);
-      } else {
-        // Check if onboarding was completed
-        const completed = localStorage.getItem(`onboarding_done_${currentUser.uid}`);
-        if (!completed) {
-          setShowOnboarding(true);
-        }
       }
     }, (err) => {
       console.error("Auth Error:", err);
@@ -406,28 +395,9 @@ const App: React.FC = () => {
   }, []);
 
   const handleProfileSave = (newProfile: UserProfile, redirectDashboard = false) => {
-    // Handle streak logic if this is a login-time save
-    const updatedProfile = { ...newProfile };
-    const today = new Date().toISOString().split('T')[0];
-    
-    if (updatedProfile.lastLoginDate !== today) {
-       const yesterday = new Date();
-       yesterday.setDate(yesterday.getDate() - 1);
-       const yesterdayStr = yesterday.toISOString().split('T')[0];
-       
-       if (updatedProfile.lastLoginDate === yesterdayStr) {
-         updatedProfile.streakCount = (updatedProfile.streakCount || 0) + 1;
-       } else if (!updatedProfile.lastLoginDate) {
-         updatedProfile.streakCount = 1;
-       } else {
-         updatedProfile.streakCount = 1; // Reset streak if missed a day
-       }
-       updatedProfile.lastLoginDate = today;
-    }
-
-    setUserProfile(updatedProfile);
+    setUserProfile(newProfile);
     if (user) {
-      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(updatedProfile));
+      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
     }
     if (isNewUser) {
       setIsNewUser(false);
@@ -544,22 +514,11 @@ const App: React.FC = () => {
     setCurrentHistoryId(newId);
   };
 
-  const handleQuizComplete = (score: number, pointsEarned: number) => {
+  const handleQuizComplete = (score: number) => {
     if (currentHistoryId) {
       setHistory(prev => prev.map(item => 
         item.id === currentHistoryId ? { ...item, score } : item
       ));
-
-      // Update points and potentially badges
-      const newPoints = (userProfile.points || 0) + pointsEarned;
-      const newBadges = [...(userProfile.badges || [])];
-      
-      const percentage = (score / formData.questionCount!) * 100;
-      if (percentage === 100 && !newBadges.includes("Quiz Master")) {
-        newBadges.push("Quiz Master");
-      }
-
-      handleProfileSave({ ...userProfile, points: newPoints, badges: newBadges }, false);
 
       if (formData.questionCount === 20 && formData.difficulty === 'Hard') {
         const percentage = (score / 20) * 100;
@@ -683,9 +642,7 @@ const App: React.FC = () => {
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {
-        // Fallback for non-json error
-      }
+      } catch (e) {}
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -770,9 +727,7 @@ const App: React.FC = () => {
             text: text,
             url: shareUrl
           });
-        } catch (err) {
-          console.log("Share skipped or cancelled");
-        }
+        } catch (err) {}
       } else {
         try {
           await navigator.clipboard.writeText(text);
@@ -799,7 +754,6 @@ const App: React.FC = () => {
 
   const navItems = [
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
-    { id: AppMode.OFFERS, label: 'Offers & Rewards', icon: Gift },
     { id: AppMode.ID_CARD, label: 'Student ID Card', icon: CreditCard },
     { id: AppMode.SUMMARY, label: 'Summary Generator', icon: FileText },
     { id: AppMode.QUIZ, label: 'Quiz Creator', icon: BrainCircuit },
@@ -831,7 +785,6 @@ const App: React.FC = () => {
 
     const dashboardCards = [
       { id: AppMode.ID_CARD, label: 'My ID Card', count: null, icon: CreditCard, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-[#FDF5E6] dark:bg-indigo-900/30' },
-      { id: AppMode.OFFERS, label: 'Rewards', count: userProfile.points, icon: Gift, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-[#FDF5E6] dark:bg-rose-900/30' },
       { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
@@ -1132,7 +1085,6 @@ const App: React.FC = () => {
               }} 
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
-              userProfile={userProfile}
             />
           );
         }
@@ -1221,16 +1173,6 @@ const App: React.FC = () => {
         return (
            <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <TermsOfServiceView />
-           </div>
-        );
-
-      case AppMode.OFFERS:
-        return (
-           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <RewardsView 
-                profile={userProfile}
-                onUpdateProfile={(p) => handleProfileSave(p)}
-              />
            </div>
         );
 
@@ -1488,15 +1430,6 @@ const App: React.FC = () => {
           onClose={() => setShowPremiumModal(false)}
           onPaymentSuccess={handlePaymentSuccess}
         />
-      )}
-
-      {showOnboarding && (
-        <Onboarding onComplete={() => {
-          setShowOnboarding(false);
-          if (user) {
-            localStorage.setItem(`onboarding_done_${user.uid}`, 'true');
-          }
-        }} />
       )}
     </div>
   );
