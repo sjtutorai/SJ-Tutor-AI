@@ -53,8 +53,7 @@ import {
   BadgeCheck,
   X as XIcon
 } from 'lucide-react';
-// @ts-expect-error
-import QrScanner from 'react-qr-scanner';
+import { Html5Qrcode } from 'html5-qrcode';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
 
@@ -422,24 +421,58 @@ const App: React.FC = () => {
     }
   };
 
-  const handleScan = (data: any) => {
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+
+  useEffect(() => {
+    if (isScanning) {
+      const scanner = new Html5Qrcode("qr-reader");
+      scannerRef.current = scanner;
+      
+      scanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+        },
+        (decodedText) => {
+          handleScan(decodedText);
+        },
+        (errorMessage) => {
+          // ignore frequent errors
+        }
+      ).catch((err) => {
+        console.error("Scanner start error", err);
+      });
+    } else {
+      if (scannerRef.current) {
+        scannerRef.current.stop().then(() => {
+          scannerRef.current = null;
+        }).catch(err => console.error("Scanner stop error", err));
+      }
+    }
+
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(err => console.error("Cleanup stop error", err));
+      }
+    };
+  }, [isScanning]);
+
+  const handleScan = (data: string) => {
     if (data) {
       try {
-        const textValue = typeof data === 'string' ? data : (data.text || '');
-        if (!textValue) return;
-        const parsed = JSON.parse(textValue);
+        const parsed = JSON.parse(data);
         if (parsed.type === 'SJ_TUTOR_ID') {
           setScannedUser(parsed);
           setIsScanning(false);
+          if (scannerRef.current) {
+            scannerRef.current.stop().catch(() => {});
+          }
         }
       } catch (err) {
         console.error("Invalid QR code", err);
       }
     }
-  };
-
-  const handleError = (err: any) => {
-    console.error("Scanner error", err);
   };
 
   const handleSignUpSuccess = (initialData?: Partial<UserProfile>) => {
@@ -1531,12 +1564,7 @@ const App: React.FC = () => {
               </div>
               <div className="p-6">
                 <div className="aspect-square rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-950 border-2 border-dashed border-slate-200 dark:border-slate-800 relative">
-                  <QrScanner
-                    delay={300}
-                    onError={handleError}
-                    onScan={handleScan}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
+                  <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
                   <div className="absolute inset-0 border-[40px] border-black/20 pointer-events-none">
                      <div className="w-full h-full border-2 border-primary-500/50 animate-pulse"></div>
                   </div>

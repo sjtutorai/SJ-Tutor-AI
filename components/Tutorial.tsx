@@ -84,7 +84,7 @@ const Tutorial: React.FC<TutorialProps> = ({ onClose }) => {
               transition={{ duration: 0.3 }}
               className="flex flex-col items-center text-center space-y-6 pt-4"
             >
-              <div className={`p-6 rounded-2xl bg-gradient-to-br ${steps[currentStep].color} bg-opacity-10 text-white shadow-lg`}>
+              <div className={`p-6 rounded-2xl bg-primary-500/10 dark:bg-primary-500/20 shadow-inner flex items-center justify-center`}>
                 {steps[currentStep].icon}
               </div>
               
