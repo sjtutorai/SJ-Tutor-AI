@@ -33,9 +33,6 @@ export default defineConfig(({ mode }) => {
               if (id.includes('@google/genai')) {
                 return 'genai';
               }
-              if (id.includes('react') || id.includes('react-dom')) {
-                return 'react-vendor';
-              }
               if (id.includes('lucide-react')) {
                 return 'ui-icons';
               }
