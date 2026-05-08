@@ -1,9 +1,16 @@
 
-import React from 'react';
-import { Tag, Zap, GraduationCap, Gift, ChevronRight, Star, Clock, Bell } from 'lucide-react';
-import { motion } from 'motion/react';
+import React, { useState } from 'react';
+import { Tag, Zap, GraduationCap, Gift, ChevronRight, Star, Clock, Bell, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 const StudentOffers: React.FC = () => {
+  const [claimedOffer, setClaimedOffer] = useState<number | null>(null);
+
+  const handleClaim = (id: number) => {
+    setClaimedOffer(id);
+    setTimeout(() => setClaimedOffer(null), 3000);
+  };
+
   const offers = [
     {
       id: 1,
@@ -48,7 +55,7 @@ const StudentOffers: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6">
+    <div className="max-w-6xl mx-auto p-4 sm:p-6 pb-20">
       <div className="mb-10 text-center sm:text-left">
         <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2 flex items-center justify-center sm:justify-start gap-3">
           <Tag className="w-8 h-8 text-primary-600" />
@@ -59,7 +66,7 @@ const StudentOffers: React.FC = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
         {offers.map((offer, index) => (
           <motion.div
             key={offer.id}
@@ -84,9 +91,22 @@ const StudentOffers: React.FC = () => {
               {offer.description}
             </p>
 
-            <button className={`w-full py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 ${offer.accent} hover:opacity-90 transition-opacity shadow-lg shadow-black/10`}>
-              Claim Offer
-              <ChevronRight className="w-4 h-4" />
+            <button 
+              onClick={() => handleClaim(offer.id)}
+              disabled={claimedOffer === offer.id}
+              className={`w-full py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 ${claimedOffer === offer.id ? 'bg-emerald-500' : offer.accent} hover:opacity-90 transition-all shadow-lg shadow-black/10 active:scale-[0.98] disabled:cursor-not-allowed`}
+            >
+              {claimedOffer === offer.id ? (
+                <>
+                  <CheckCircle2 className="w-5 h-5" />
+                  Offer Claimed!
+                </>
+              ) : (
+                <>
+                  Claim Offer
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
             </button>
             
             <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
@@ -95,6 +115,22 @@ const StudentOffers: React.FC = () => {
           </motion.div>
         ))}
       </div>
+
+      <AnimatePresence>
+        {claimedOffer && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 font-bold"
+          >
+            <div className="bg-white/20 p-1 rounded-full text-white">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            Success! Your offer has been claimed.
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="bg-primary-600 rounded-3xl p-8 sm:p-12 text-white overflow-hidden relative shadow-2xl shadow-primary-600/20">
         <div className="relative z-10 max-w-xl">

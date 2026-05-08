@@ -13,33 +13,28 @@ const Tutorial: React.FC<TutorialProps> = ({ onClose }) => {
   const steps = [
     {
       title: "Welcome to SJ Tutor AI",
-      description: "Your ultimate AI-powered study companion. Let&apos;s take a quick tour of how you can boost your learning journey.",
-      icon: <Sparkles className="w-12 h-12 text-primary-500" />,
-      color: "from-amber-500 to-orange-500"
+      description: "Your ultimate AI-powered study companion. Let's take a quick tour of how you can boost your learning journey.",
+      icon: <Sparkles className="w-12 h-12 text-primary-500" />
     },
     {
       title: "Smart Summarizer",
       description: "Generate concise, structured summaries from any topic. Perfect for quick revisions and grasping core concepts.",
-      icon: <BookOpen className="w-12 h-12 text-blue-500" />,
-      color: "from-blue-500 to-indigo-500"
+      icon: <BookOpen className="w-12 h-12 text-primary-500" />
     },
     {
       title: "AI Quiz Creator",
       description: "Test your knowledge with custom quizzes. Earn credits for mastering hard challenges and track your progress.",
-      icon: <BrainCircuit className="w-12 h-12 text-emerald-500" />,
-      color: "from-emerald-500 to-teal-500"
+      icon: <BrainCircuit className="w-12 h-12 text-primary-500" />
     },
     {
       title: "Intelligent AI Tutor",
       description: "Need help? Our 24/7 AI Tutor is here to explain complex topics, solve doubts, and guide you through your curriculum.",
-      icon: <MessageCircle className="w-12 h-12 text-violet-500" />,
-      color: "from-violet-500 to-purple-500"
+      icon: <MessageCircle className="w-12 h-12 text-primary-500" />
     },
     {
       title: "Dashboard & History",
       description: "Access all your previous generations, track your credits, and manage your student ID card from one central hub.",
-      icon: <LayoutDashboard className="w-12 h-12 text-rose-500" />,
-      color: "from-rose-500 to-pink-500"
+      icon: <LayoutDashboard className="w-12 h-12 text-primary-500" />
     }
   ];
 
@@ -58,71 +53,77 @@ const Tutorial: React.FC<TutorialProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden max-w-lg w-full relative border border-white/10"
+        className="bg-[#0f172a] rounded-3xl shadow-2xl overflow-hidden max-w-lg w-full relative border border-slate-800"
       >
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors z-20 text-slate-400"
+          className="absolute top-4 right-4 p-2 hover:bg-slate-800 rounded-full transition-colors z-20 text-slate-500"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className={`h-2 h-gradient bg-gradient-to-r ${steps[currentStep].color} transition-all duration-500`} style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}></div>
+        <div className="h-1.5 bg-slate-800 w-full overflow-hidden">
+          <motion.div 
+            className="h-full bg-primary-600" 
+            animate={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+            transition={{ duration: 0.5 }}
+          />
+        </div>
 
-        <div className="p-8">
+        <div className="p-10">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
-              className="flex flex-col items-center text-center space-y-6 pt-4"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.4 }}
+              className="flex flex-col items-center text-center space-y-8"
             >
-              <div className={`p-6 rounded-2xl bg-gradient-to-br ${steps[currentStep].color} bg-opacity-10 text-white shadow-lg`}>
+              <div className="p-8 rounded-3xl bg-slate-800/50 text-white shadow-2xl border border-slate-700/50">
                 {steps[currentStep].icon}
               </div>
               
               <div className="space-y-4">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white leading-tight">
+                <h2 className="text-3xl font-bold text-white tracking-tight leading-tight">
                   {steps[currentStep].title}
                 </h2>
-                <p className="text-slate-600 dark:text-slate-400 text-lg leading-relaxed">
+                <p className="text-slate-400 text-lg leading-relaxed max-w-sm mx-auto">
                   {steps[currentStep].description}
                 </p>
               </div>
             </motion.div>
           </AnimatePresence>
 
-          <div className="flex items-center justify-between mt-12">
-            <div className="flex gap-1.5">
+          <div className="flex items-center justify-between mt-14">
+            <div className="flex gap-2">
               {steps.map((_, idx) => (
                 <div 
                   key={idx} 
-                  className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentStep ? 'w-6 bg-primary-600' : 'w-1.5 bg-slate-200 dark:bg-slate-700'}`}
+                  className={`h-1 rounded-full transition-all duration-500 ${idx === currentStep ? 'w-8 bg-primary-600' : 'w-2 bg-slate-800'}`}
                 />
               ))}
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-4">
               {currentStep > 0 && (
                 <button 
                   onClick={prevStep}
-                  className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                  className="p-3.5 bg-slate-800 text-slate-400 rounded-2xl hover:bg-slate-700 transition-all border border-slate-700"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
               )}
               <button 
                 onClick={nextStep}
-                className={`py-3 px-8 rounded-xl text-white font-bold transition-all shadow-lg shadow-primary-600/20 flex items-center gap-2 bg-gradient-to-r ${steps[currentStep].color}`}
+                className="py-3.5 px-10 rounded-2xl text-white font-bold transition-all shadow-xl shadow-primary-600/20 flex items-center gap-2 bg-primary-600 hover:bg-primary-500 active:scale-95"
               >
-                {currentStep === steps.length - 1 ? "Let&apos;s Get Started" : "Next"}
+                {currentStep === steps.length - 1 ? "Get Started" : "Continue"}
                 {currentStep < steps.length - 1 && <ChevronRight className="w-4 h-4" />}
               </button>
             </div>

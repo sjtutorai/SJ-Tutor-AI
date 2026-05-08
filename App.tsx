@@ -83,6 +83,9 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
+    return localStorage.getItem('hasSeenTutorial') === 'true';
+  });
 
   // App State
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -343,6 +346,10 @@ const App: React.FC = () => {
   // Profile Persistence
   useEffect(() => {
     if (user) {
+      if (!hasSeenTutorial) {
+        setShowTutorial(true);
+      }
+      
       const savedProfile = localStorage.getItem(`profile_${user.uid}`);
       if (savedProfile) {
         try {
@@ -771,6 +778,12 @@ const App: React.FC = () => {
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
   ];
 
+  const handleTutorialClose = () => {
+    setShowTutorial(false);
+    setHasSeenTutorial(true);
+    localStorage.setItem('hasSeenTutorial', 'true');
+  };
+
   const renderDashboard = () => {
     const noteCount = (() => {
        try {
@@ -914,13 +927,15 @@ const App: React.FC = () => {
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
             <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
           </div>
-          <button 
-            onClick={() => setShowTutorial(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 rounded-lg font-bold text-sm hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-all border border-primary-100 dark:border-primary-800/50"
-          >
-            <HelpCircle className="w-4 h-4" />
-            Watch Tutorial
-          </button>
+          {!hasSeenTutorial && (
+            <button 
+              onClick={() => setShowTutorial(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 rounded-lg font-bold text-sm hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-all border border-primary-100 dark:border-primary-800/50"
+            >
+              <HelpCircle className="w-4 h-4" />
+              Watch Tutorial
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -1470,7 +1485,7 @@ const App: React.FC = () => {
 
       <AnimatePresence>
         {showTutorial && (
-          <Tutorial onClose={() => setShowTutorial(false)} />
+          <Tutorial onClose={handleTutorialClose} />
         )}
       </AnimatePresence>
     </div>
