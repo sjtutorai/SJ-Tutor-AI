@@ -1,8 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { User, Phone, School, FileText, Camera, Save, X, Edit2, ArrowRight, Mail, BookOpen, Layers, Briefcase, Zap, GraduationCap, CheckCircle, ShieldCheck, Send, Loader2 } from 'lucide-react';
+import { User, Phone, School, FileText, Camera, Save, X, Edit2, ArrowRight, Mail, BookOpen, Layers, Briefcase, Zap, GraduationCap, CheckCircle, ShieldCheck, Send, Loader2, Calendar } from 'lucide-react';
 import { validateAndParsePhone, CountryPhone } from '../utils/phoneUtils';
+import { calculateProfileCompletion, generateRegistrationNumber } from '../utils/profileUtils';
 
 interface ProfileViewProps {
   profile: UserProfile;
@@ -42,7 +43,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
   }, [isOnboarding, profile]);
 
   const handleInputChange = (field: keyof UserProfile, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      
+      // Auto-generate or update registration number
+      if (field === 'displayName' || field === 'dob') {
+        updated.registrationNumber = generateRegistrationNumber(updated);
+      }
+      
+      return updated;
+    });
     
     if (field === 'phoneNumber') {
       const result = validateAndParsePhone(value);
@@ -146,6 +156,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
   };
 
   const isPremium = formData.planType && formData.planType !== 'Free';
+  const completionPercentage = calculateProfileCompletion(formData);
 
   return (
     <div className={`space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ${isOnboarding ? 'py-4' : ''}`}>
@@ -162,12 +173,43 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
         {/* Left Column: Identity Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col items-center text-center lg:sticky lg:top-24">
            <div className="relative group mb-4">
-              <div className="w-32 h-32 rounded-full border-4 border-primary-50 shadow-md bg-slate-50 flex items-center justify-center overflow-hidden">
+              <div className="w-32 h-32 rounded-full border-4 border-primary-50 shadow-md bg-slate-50 flex items-center justify-center overflow-hidden relative">
                 {formData.photoURL ? (
                   <img src={formData.photoURL} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
                   <User className="w-12 h-12 text-slate-300" />
                 )}
+                
+                {/* Completion Progress Overlay */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <svg className="w-full h-full -rotate-90">
+                    <circle
+                      cx="64"
+                      cy="64"
+                      r="60"
+                      fill="transparent"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      className="text-slate-100/30"
+                    />
+                    <circle
+                      cx="64"
+                      cy="64"
+                      r="60"
+                      fill="transparent"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      strokeDasharray={377}
+                      strokeDashoffset={377 - (377 * completionPercentage) / 100}
+                      className={`${completionPercentage === 100 ? 'text-emerald-500' : 'text-primary-500'} transition-all duration-1000 ease-out`}
+                    />
+                  </svg>
+                  <div className="absolute bottom-1 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full border border-slate-100 shadow-sm">
+                    <span className={`text-[10px] font-bold ${completionPercentage === 100 ? 'text-emerald-600' : 'text-primary-600'}`}>
+                      {completionPercentage}%
+                    </span>
+                  </div>
+                </div>
               </div>
               {isEditing && (
                 <button 
@@ -187,7 +229,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
             </div>
             
             <h2 className="text-xl font-bold text-slate-800">{formData.displayName || 'Scholar'}</h2>
-            <div className="flex items-center gap-1.5 text-slate-500 text-sm mt-1 mb-4">
+            {formData.registrationNumber && (
+              <div className="mt-1 px-3 py-1 bg-slate-50 rounded-full border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1.5">ID:</span>
+                <code className="text-xs font-bold text-slate-600 font-mono tracking-tighter">{formData.registrationNumber}</code>
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 text-slate-500 text-sm mt-2 mb-4">
                <Mail className="w-3.5 h-3.5" />
                <span className="truncate max-w-[200px]">{email}</span>
             </div>
@@ -284,6 +332,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
                     placeholder="e.g. Aspiring Physicist"
                   />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date of Birth</label>
+                  <div className="relative">
+                     <Calendar className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+                     <input
+                       type="date"
+                       disabled={!isEditing}
+                       value={formData.dob || ''}
+                       onChange={(e) => handleInputChange('dob', e.target.value)}
+                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                     />
+                  </div>
                 </div>
              </div>
           </div>

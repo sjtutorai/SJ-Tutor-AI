@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile, SJTUTOR_AVATAR } from './types';
+import { calculateProfileCompletion } from './utils/profileUtils';
 import InputForm from './components/InputForm';
 import ResultsView from './components/ResultsView';
 import QuizView from './components/QuizView';
@@ -22,7 +23,8 @@ import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
 import { auth } from './firebaseConfig';
-import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import { 
   BookOpen, 
   FileText, 
@@ -47,7 +49,8 @@ import {
   CreditCard,
   Shield,
   Tag,
-  HelpCircle
+  HelpCircle,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
@@ -83,6 +86,7 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showCompletionReminder, setShowCompletionReminder] = useState(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
     return localStorage.getItem('hasSeenTutorial') === 'true';
   });
@@ -116,7 +120,9 @@ const App: React.FC = () => {
     learningGoal: '',
     learningStyle: 'Visual',
     credits: 100,
-    planType: 'Free'
+    planType: 'Free',
+    dob: '',
+    registrationNumber: ''
   };
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfileState);
 
@@ -354,22 +360,35 @@ const App: React.FC = () => {
       if (savedProfile) {
         try {
           const parsed = JSON.parse(savedProfile);
-          setUserProfile(prev => ({ 
+          const completeProfile = { 
             ...initialProfileState, 
             ...parsed,
             displayName: parsed.displayName || user.displayName || '',
             photoURL: parsed.photoURL || user.photoURL || '' 
-          }));
+          };
+          setUserProfile(completeProfile);
+          
+          // Check for completion reminder
+          const completion = calculateProfileCompletion(completeProfile);
+          if (completion < 100 && !sessionStorage.getItem('profile_reminder_shown')) {
+            setTimeout(() => {
+              setShowCompletionReminder(true);
+              sessionStorage.setItem('profile_reminder_shown', 'true');
+            }, 3000);
+          }
         } catch (e) {
           console.error("Failed to parse profile", e);
         }
       } else {
-        setUserProfile({
+        const initial = {
            ...initialProfileState,
            displayName: user.displayName || '',
            photoURL: user.photoURL || '',
            credits: 100
-        });
+        };
+        setUserProfile(initial);
+        setShowCompletionReminder(true);
+        sessionStorage.setItem('profile_reminder_shown', 'true');
       }
     }
   }, [user]);
@@ -1486,6 +1505,58 @@ const App: React.FC = () => {
       <AnimatePresence>
         {showTutorial && (
           <Tutorial onClose={handleTutorialClose} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCompletionReminder && mode !== AppMode.PROFILE && (
+          <motion.div 
+            initial={{ opacity: 0, y: 100, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 100, x: '-50%' }}
+            className="fixed bottom-6 left-1/2 z-[60] w-[95%] max-w-lg"
+          >
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center relative overflow-hidden shrink-0">
+                <User className="w-6 h-6 text-primary-600" />
+                <div 
+                  className="absolute bottom-0 left-0 h-1 bg-primary-600 transition-all duration-1000" 
+                  style={{ width: `${calculateProfileCompletion(userProfile)}%` }}
+                />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Profile Incomplete</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Complete your academic profile to unlock personalized AI features.</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-primary-600"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${calculateProfileCompletion(userProfile)}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-primary-600 italic">{calculateProfileCompletion(userProfile)}% Complete</span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={() => setShowCompletionReminder(false)}
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors self-end"
+                >
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+                <button 
+                  onClick={() => {
+                    setMode(AppMode.PROFILE);
+                    setShowCompletionReminder(false);
+                  }}
+                  className="px-3 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-all shrink-0"
+                >
+                  Edit Now
+                </button>
+              </div>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
