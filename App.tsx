@@ -38,7 +38,6 @@ import {
   LayoutDashboard,
   ArrowLeft,
   Calendar,
-  Eye,
   LogOut,
   Zap,
   Crown,
@@ -48,10 +47,10 @@ import {
   Info,
   Share2,
   CreditCard,
-  Shield,
   Tag,
   HelpCircle,
   QrCode,
+  Shield,
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1525,54 +1524,93 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Profile Completion Modal */}
       <AnimatePresence>
         {showCompletionReminder && mode !== AppMode.PROFILE && (
           <motion.div 
-            initial={{ opacity: 0, y: 100, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: 100, x: '-50%' }}
-            className="fixed bottom-6 left-1/2 z-[60] w-[95%] max-w-lg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md"
           >
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center relative overflow-hidden shrink-0">
-                <User className="w-6 h-6 text-primary-600" />
-                <div 
-                  className="absolute bottom-0 left-0 h-1 bg-primary-600 transition-all duration-1000" 
-                  style={{ width: `${calculateProfileCompletion(userProfile)}%` }}
-                />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden max-w-md w-full border border-slate-200 dark:border-slate-800"
+            >
+              <div className="relative h-32 bg-primary-600 flex items-center justify-center overflow-hidden">
+                <div className="absolute inset-0 opacity-20">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-white rounded-full -ml-12 -mb-12 blur-xl"></div>
+                </div>
+                <div className="relative w-20 h-20 rounded-full bg-white/20 backdrop-blur-md border-2 border-white/30 flex items-center justify-center shadow-xl">
+                  <User className="w-10 h-10 text-white" />
+                  <svg className="absolute inset-x-[-4px] inset-y-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] -rotate-90">
+                    <circle
+                      cx="44"
+                      cy="44"
+                      r="42"
+                      fill="transparent"
+                      stroke="rgba(255,255,255,0.1)"
+                      strokeWidth="4"
+                    />
+                    <circle
+                      cx="44"
+                      cy="44"
+                      r="42"
+                      fill="transparent"
+                      stroke="white"
+                      strokeWidth="4"
+                      strokeDasharray={263.89}
+                      strokeDashoffset={263.89 - (263.89 * calculateProfileCompletion(userProfile)) / 100}
+                      className="transition-all duration-1000 ease-out"
+                    />
+                  </svg>
+                </div>
               </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">Profile Incomplete</h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Complete your academic profile to unlock personalized AI features.</p>
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+
+              <div className="p-8 text-center">
+                <h4 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Complete Your Profile</h4>
+                <p className="text-slate-500 dark:text-slate-400 mb-6">
+                  You&apos;re only <span className="font-bold text-primary-600 dark:text-primary-400">{100 - calculateProfileCompletion(userProfile)}%</span> away from a fully personalized AI experience.
+                </p>
+
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 mb-6 border border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Completion Status</span>
+                    <span className="text-xs font-black text-primary-600 italic">{calculateProfileCompletion(userProfile)}%</span>
+                  </div>
+                  <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                     <motion.div 
                       className="h-full bg-primary-600"
                       initial={{ width: 0 }}
                       animate={{ width: `${calculateProfileCompletion(userProfile)}%` }}
+                      transition={{ duration: 1, ease: "easeOut" }}
                     />
                   </div>
-                  <span className="text-[10px] font-bold text-primary-600 italic">{calculateProfileCompletion(userProfile)}% Complete</span>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <button 
+                    onClick={() => {
+                      setMode(AppMode.PROFILE);
+                      setShowCompletionReminder(false);
+                    }}
+                    className="w-full py-4 bg-primary-600 text-white rounded-2xl font-bold shadow-xl shadow-primary-600/20 hover:bg-primary-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    Complete Profile Now
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                  <button 
+                    onClick={() => setShowCompletionReminder(false)}
+                    className="w-full py-3 text-slate-400 dark:text-slate-500 font-medium hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  >
+                    Maybe later
+                  </button>
                 </div>
               </div>
-              <div className="flex flex-col gap-2">
-                <button 
-                  onClick={() => setShowCompletionReminder(false)}
-                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors self-end"
-                >
-                  <X className="w-4 h-4 text-slate-400" />
-                </button>
-                <button 
-                  onClick={() => {
-                    setMode(AppMode.PROFILE);
-                    setShowCompletionReminder(false);
-                  }}
-                  className="px-3 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-all shrink-0"
-                >
-                  Edit Now
-                </button>
-              </div>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -170,17 +170,11 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                           <p className="text-[6px] text-slate-500">Valid until</p>
                           <p className="text-[8px] font-mono">{new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString()}</p>
                        </div>
-                       <div className="bg-white p-1 rounded-sm shadow-sm">
+                       <div className="bg-white p-1 rounded-md shadow-sm border border-slate-100">
                           <QRCodeSVG 
-                            value={JSON.stringify({
-                              name: userProfile.displayName,
-                              id: userProfile.registrationNumber || studentId,
-                              institution: userProfile.institution,
-                              grade: userProfile.grade,
-                              plan: userProfile.planType
-                            })}
-                            size={40}
-                            level="H"
+                            value={userProfile.registrationNumber || studentId}
+                            size={70}
+                            level="M"
                             includeMargin={false}
                           />
                        </div>

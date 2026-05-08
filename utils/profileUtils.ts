@@ -21,24 +21,31 @@ export const calculateProfileCompletion = (profile: UserProfile): number => {
 export const generateRegistrationNumber = (profile: UserProfile): string => {
   if (!profile.displayName || !profile.dob) return '';
   
-  const names = profile.displayName.trim().split(/\s+/);
+  const names = profile.displayName.trim().split(/\s+/).filter(Boolean);
   const firstName = names[0] || '';
   const lastName = names.length > 1 ? names[names.length - 1] : '';
   
   const firstLetter = firstName.charAt(0).toUpperCase();
-  const surnameLetter = lastName.charAt(0).toUpperCase() || firstLetter; // Fallback to first letter if no surname
+  const surnameLetter = lastName.charAt(0).toUpperCase() || firstLetter; 
   
-  // Format DOB: YYYY-MM-DD -> DDMMYYYY or similar
-  // Assuming dob is stored as YYYY-MM-DD from input type="date"
-  const dobParts = profile.dob.split('-');
+  // Format DOB: YYYY-MM-DD -> DDMMYYYY
+  const cleanDob = profile.dob.replace(/[^0-9]/g, '');
   let dobString = '';
-  if (dobParts.length === 3) {
-    // YYYY-MM-DD -> DDMMYYYY
-    dobString = `${dobParts[2]}${dobParts[1]}${dobParts[0]}`;
+  
+  if (profile.dob.includes('-')) {
+    const parts = profile.dob.split('-');
+    if (parts.length === 3) {
+      // Assuming YYYY-MM-DD (standard for <input type="date">)
+      const year = parts[0];
+      const month = parts[1];
+      const day = parts[2];
+      dobString = `${day}${month}${year}`;
+    } else {
+      dobString = cleanDob;
+    }
   } else {
-    // Fallback or cleanup
-    dobString = profile.dob.replace(/[^0-9]/g, '');
+    dobString = cleanDob;
   }
   
-  return `${firstLetter}${surnameLetter}${dobString}`;
+  return `${firstLetter}${surnameLetter}${dobString}`.trim();
 };

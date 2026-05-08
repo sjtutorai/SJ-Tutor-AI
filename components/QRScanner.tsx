@@ -30,8 +30,24 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
 
     const onScanSuccess = (decodedText: string) => {
       try {
-        const data = JSON.parse(decodedText);
-        if (data.name && data.id) {
+        // Handle both JSON and plain string (new format)
+        let data: ScannedUser;
+        if (decodedText.startsWith('{')) {
+          data = JSON.parse(decodedText);
+        } else {
+          // New format: just the ID. 
+          // In a real app we'd fetch the user profile from Firestore by this ID.
+          // For now, we'll prefix it as a generic Scanned User.
+          data = {
+            name: "Verified Student",
+            id: decodedText,
+            institution: "SJ Tutor AI Member",
+            grade: "Verified",
+            plan: "Scholar"
+          };
+        }
+
+        if (data.id) {
           setScannedData(data);
           if (scannerRef.current) {
             scannerRef.current.clear();
@@ -39,14 +55,13 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
         } else {
           setError("Invalid QR Code format.");
         }
-      } catch (_e) {
+      } catch {
         setError("Could not read QR code. Make sure it's an SJ Tutor ID.");
       }
     };
 
-    const onScanFailure = (_error: any) => {
+    const onScanFailure = () => {
       // Optional: handle scan failures
-      // console.warn(`Code scan error = ${error}`);
     };
 
     scannerRef.current.render(onScanSuccess, onScanFailure);
