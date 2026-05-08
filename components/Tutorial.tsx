@@ -15,31 +15,31 @@ const Tutorial: React.FC<TutorialProps> = ({ onClose }) => {
       title: "Welcome to SJ Tutor AI",
       description: "Your ultimate AI-powered study companion. Let&apos;s take a quick tour of how you can boost your learning journey.",
       icon: <Sparkles className="w-12 h-12 text-primary-500" />,
-      color: "from-primary-600 to-indigo-600"
+      color: "from-amber-500 to-orange-500"
     },
     {
       title: "Smart Summarizer",
       description: "Generate concise, structured summaries from any topic. Perfect for quick revisions and grasping core concepts.",
-      icon: <BookOpen className="w-12 h-12 text-primary-500" />,
-      color: "from-primary-600 to-indigo-600"
+      icon: <BookOpen className="w-12 h-12 text-blue-500" />,
+      color: "from-blue-500 to-indigo-500"
     },
     {
       title: "AI Quiz Creator",
       description: "Test your knowledge with custom quizzes. Earn credits for mastering hard challenges and track your progress.",
-      icon: <BrainCircuit className="w-12 h-12 text-primary-500" />,
-      color: "from-primary-600 to-indigo-600"
+      icon: <BrainCircuit className="w-12 h-12 text-emerald-500" />,
+      color: "from-emerald-500 to-teal-500"
     },
     {
       title: "Intelligent AI Tutor",
       description: "Need help? Our 24/7 AI Tutor is here to explain complex topics, solve doubts, and guide you through your curriculum.",
-      icon: <MessageCircle className="w-12 h-12 text-primary-500" />,
-      color: "from-primary-600 to-indigo-600"
+      icon: <MessageCircle className="w-12 h-12 text-violet-500" />,
+      color: "from-violet-500 to-purple-500"
     },
     {
       title: "Dashboard & History",
       description: "Access all your previous generations, track your credits, and manage your student ID card from one central hub.",
-      icon: <LayoutDashboard className="w-12 h-12 text-primary-500" />,
-      color: "from-primary-600 to-indigo-600"
+      icon: <LayoutDashboard className="w-12 h-12 text-rose-500" />,
+      color: "from-rose-500 to-pink-500"
     }
   ];
 
@@ -84,7 +84,7 @@ const Tutorial: React.FC<TutorialProps> = ({ onClose }) => {
               transition={{ duration: 0.3 }}
               className="flex flex-col items-center text-center space-y-6 pt-4"
             >
-              <div className={`p-6 rounded-2xl bg-primary-500/10 dark:bg-primary-500/20 shadow-inner flex items-center justify-center`}>
+              <div className={`p-6 rounded-2xl bg-gradient-to-br ${steps[currentStep].color} bg-opacity-10 text-white shadow-lg`}>
                 {steps[currentStep].icon}
               </div>
               

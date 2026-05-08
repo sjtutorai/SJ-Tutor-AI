@@ -4,18 +4,6 @@ import { Tag, Zap, GraduationCap, Gift, ChevronRight, Star, Clock, Bell } from '
 import { motion } from 'motion/react';
 
 const StudentOffers: React.FC = () => {
-  const [claimed, setClaimed] = React.useState<number[]>([]);
-  const [claiming, setClaiming] = React.useState<number | null>(null);
-
-  const handleClaim = (id: number) => {
-    setClaiming(id);
-    // Simulate a API call
-    setTimeout(() => {
-      setClaimed(prev => [...prev, id]);
-      setClaiming(null);
-    }, 1500);
-  };
-
   const offers = [
     {
       id: 1,
@@ -55,8 +43,7 @@ const StudentOffers: React.FC = () => {
       tag: "Achievement",
       color: "from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-900",
       borderColor: "border-emerald-100 dark:border-emerald-800",
-      accent: "bg-emerald-600",
-      progress: 7 // Mocking progress
+      accent: "bg-emerald-600"
     }
   ];
 
@@ -73,93 +60,40 @@ const StudentOffers: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
-        {offers.map((offer, index) => {
-          const isClaimed = claimed.includes(offer.id);
-          const isClaiming = claiming === offer.id;
-          
-          return (
-            <motion.div
-              key={offer.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className={`relative overflow-hidden rounded-2xl border ${offer.borderColor} p-6 bg-gradient-to-br ${offer.color} group hover:shadow-xl hover:shadow-primary-600/5 transition-all duration-300`}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className={`p-3 rounded-xl bg-white dark:bg-slate-800 shadow-sm border ${offer.borderColor}`}>
-                  {offer.icon}
-                </div>
-                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-full border transition-colors ${
-                  isClaimed 
-                  ? "bg-emerald-500 text-white border-emerald-400" 
-                  : "bg-white/80 dark:bg-slate-800/80 border-slate-100 dark:border-slate-700 text-slate-500"
-                }`}>
-                  {isClaimed ? "Unlocked" : offer.tag}
-                </span>
+        {offers.map((offer, index) => (
+          <motion.div
+            key={offer.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+            className={`relative overflow-hidden rounded-2xl border ${offer.borderColor} p-6 bg-gradient-to-br ${offer.color} group hover:shadow-xl hover:shadow-primary-600/5 transition-all duration-300`}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div className={`p-3 rounded-xl bg-white dark:bg-slate-800 shadow-sm border ${offer.borderColor}`}>
+                {offer.icon}
               </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 bg-white/80 dark:bg-slate-800/80 rounded-full border border-slate-100 dark:border-slate-700 text-slate-500">
+                {offer.tag}
+              </span>
+            </div>
 
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2 group-hover:text-primary-600 transition-colors">
-                {offer.title}
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 text-sm mb-4 leading-relaxed">
-                {offer.description}
-              </p>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2 group-hover:text-primary-600 transition-colors">
+              {offer.title}
+            </h3>
+            <p className="text-slate-600 dark:text-slate-400 text-sm mb-6 leading-relaxed">
+              {offer.description}
+            </p>
 
-              {offer.id === 4 && !isClaimed && (
-                <div className="mb-6 space-y-2">
-                  <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    <span>Progress: {offer.progress}/10 Quizzes</span>
-                    <span>70%</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-emerald-500 transition-all duration-1000" 
-                      style={{ width: `${(offer.progress || 0) * 10}%` }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-
-              <button 
-                onClick={() => !isClaimed && handleClaim(offer.id)}
-                disabled={isClaimed || isClaiming}
-                className={`w-full py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-black/10 ${
-                  isClaimed 
-                  ? "bg-emerald-500 cursor-default" 
-                  : isClaiming 
-                    ? "bg-slate-400 cursor-wait"
-                    : `${offer.accent} hover:opacity-90`
-                }`}
-              >
-                {isClaiming ? (
-                  <>
-                    <motion.div 
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    >
-                      <Zap className="w-4 h-4" />
-                    </motion.div>
-                    Processing...
-                  </>
-                ) : isClaimed ? (
-                  <>
-                    <Star className="w-4 h-4 fill-white" />
-                    Offer Claimed
-                  </>
-                ) : (
-                  <>
-                    {offer.id === 4 ? "Redeem Rewards" : "Claim Offer"}
-                    <ChevronRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-              
-              <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                {React.cloneElement(offer.icon as React.ReactElement, { size: 100 })}
-              </div>
-            </motion.div>
-          );
-        })}
+            <button className={`w-full py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 ${offer.accent} hover:opacity-90 transition-opacity shadow-lg shadow-black/10`}>
+              Claim Offer
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            
+            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
+              {React.cloneElement(offer.icon as React.ReactElement, { size: 100 })}
+            </div>
+          </motion.div>
+        ))}
       </div>
 
       <div className="bg-primary-600 rounded-3xl p-8 sm:p-12 text-white overflow-hidden relative shadow-2xl shadow-primary-600/20">
