@@ -2,7 +2,8 @@
 import React, { useRef, useState } from 'react';
 import { UserProfile, SJTUTOR_AVATAR } from '../types';
 import Logo from './Logo';
-import { Download, Share2, ShieldCheck, User, QrCode, Sparkles } from 'lucide-react';
+import { Download, Share2, ShieldCheck, User, Sparkles } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 
@@ -169,7 +170,20 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                           <p className="text-[6px] text-slate-500">Valid until</p>
                           <p className="text-[8px] font-mono">{new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString()}</p>
                        </div>
-                       <QrCode className="w-8 h-8 text-white/80 opacity-50" />
+                       <div className="bg-white p-1 rounded-sm shadow-sm">
+                          <QRCodeSVG 
+                            value={JSON.stringify({
+                              name: userProfile.displayName,
+                              id: userProfile.registrationNumber || studentId,
+                              institution: userProfile.institution,
+                              grade: userProfile.grade,
+                              plan: userProfile.planType
+                            })}
+                            size={40}
+                            level="H"
+                            includeMargin={false}
+                          />
+                       </div>
                    </div>
                 </div>
              </div>

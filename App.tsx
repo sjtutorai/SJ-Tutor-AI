@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { AppMode, StudyRequestData, INITIAL_FORM_DATA, QuizQuestion, HistoryItem, UserProfile, SJTUTOR_AVATAR } from './types';
 import { calculateProfileCompletion } from './utils/profileUtils';
 import InputForm from './components/InputForm';
+import QRScanner from './components/QRScanner';
 import ResultsView from './components/ResultsView';
 import QuizView from './components/QuizView';
 import TutorChat from './components/TutorChat';
@@ -50,6 +51,7 @@ import {
   Shield,
   Tag,
   HelpCircle,
+  QrCode,
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -86,6 +88,7 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const [showCompletionReminder, setShowCompletionReminder] = useState(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
     return localStorage.getItem('hasSeenTutorial') === 'true';
@@ -376,8 +379,8 @@ const App: React.FC = () => {
               sessionStorage.setItem('profile_reminder_shown', 'true');
             }, 3000);
           }
-        } catch (e) {
-          console.error("Failed to parse profile", e);
+        } catch (_e) {
+          console.error("Failed to parse profile", _e);
         }
       } else {
         const initial = {
@@ -1472,6 +1475,14 @@ const App: React.FC = () => {
               <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></span>
             </button>
 
+            <button 
+              onClick={() => setShowQRScanner(true)}
+              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all"
+              title="Scan Student ID"
+            >
+              <QrCode className="w-5 h-5" />
+            </button>
+
             {user && (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
                 <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
@@ -1505,6 +1516,12 @@ const App: React.FC = () => {
       <AnimatePresence>
         {showTutorial && (
           <Tutorial onClose={handleTutorialClose} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showQRScanner && (
+          <QRScanner onClose={() => setShowQRScanner(false)} />
         )}
       </AnimatePresence>
 
