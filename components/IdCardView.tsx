@@ -137,43 +137,42 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                 </div>
 
                 {/* Details Section */}
-                <div className="flex-1 flex flex-col justify-between py-1">
-                   <div>
-                      <h2 className="text-lg font-bold truncate leading-tight mb-0.5 text-white">
+                <div className="flex-1 flex flex-col justify-between py-0.5">
+                   <div className="space-y-0.5">
+                      <h2 className="text-base font-black truncate leading-tight text-white uppercase tracking-tight">
                          {userProfile.displayName || 'Student Name'}
                       </h2>
-                      <p className="text-[10px] text-slate-300 truncate mb-3">
+                      <p className="text-[9px] text-slate-400 truncate opacity-80">
                          {email || 'student@sjtutor.ai'}
                       </p>
+                   </div>
 
-                      <div className="space-y-2">
-                         <div>
-                            <p className="text-[8px] text-slate-400 uppercase tracking-wider">Institution</p>
-                            <p className="text-xs font-semibold truncate">{userProfile.institution || 'Unknown School'}</p>
-                         </div>
-                         <div className="flex justify-between">
-                            <div>
-                                <p className="text-[8px] text-slate-400 uppercase tracking-wider">Grade / Class</p>
-                                <p className="text-xs font-semibold">{userProfile.grade || 'N/A'}</p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-[8px] text-slate-400 uppercase tracking-wider">Student ID</p>
-                                <p className="text-xs font-mono font-semibold tracking-wide text-primary-300">{studentId}</p>
-                            </div>
-                         </div>
+                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-1">
+                      <div className="min-w-0">
+                         <p className="text-[7px] text-slate-500 uppercase tracking-widest font-bold">Institution</p>
+                         <p className="text-[9px] font-bold truncate text-slate-200">{userProfile.institution || 'Unknown School'}</p>
+                      </div>
+                      <div className="text-right">
+                         <p className="text-[7px] text-slate-500 uppercase tracking-widest font-bold">Grade</p>
+                         <p className="text-[9px] font-bold text-slate-200">{userProfile.grade || 'N/A'}</p>
                       </div>
                    </div>
                    
-                   {/* Footer / QR Placeholder */}
-                   <div className="flex items-end justify-between border-t border-white/10 pt-2 mt-1">
-                       <div>
-                          <p className="text-[6px] text-slate-500">Valid until</p>
-                          <p className="text-[8px] font-mono">{new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString()}</p>
+                   <div className="flex items-end justify-between pt-1 border-t border-white/10">
+                       <div className="space-y-0.5">
+                          <div className="mb-0.5">
+                             <p className="text-[7px] text-slate-500 uppercase tracking-widest font-bold">Registration ID</p>
+                             <p className="text-[9px] font-mono font-black tracking-tighter text-primary-400">{userProfile.registrationNumber || studentId}</p>
+                          </div>
+                          <div>
+                             <p className="text-[6px] text-slate-500 uppercase font-bold">Valid until</p>
+                             <p className="text-[8px] font-mono font-bold text-slate-300">{new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toLocaleDateString()}</p>
+                          </div>
                        </div>
-                       <div className="bg-white p-1 rounded-md shadow-sm border border-slate-100">
+                       <div className="bg-white p-1 rounded-md shadow-sm border border-slate-100 flex-shrink-0">
                           <QRCodeSVG 
                             value={userProfile.registrationNumber || studentId}
-                            size={70}
+                            size={55}
                             level="M"
                             includeMargin={false}
                           />
