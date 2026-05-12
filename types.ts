@@ -69,6 +69,7 @@ export interface UserProfile {
   phoneVerified?: boolean;
   registrationNumber?: string;
   dob?: string;
+  claimedOffers?: number[];
 }
 
 export interface UserSettings {

@@ -370,9 +370,8 @@ const App: React.FC = () => {
   // Profile Persistence
   useEffect(() => {
     if (user) {
-      if (!hasSeenTutorial) {
-        setShowTutorial(true);
-      }
+      // Always show tutorial on login as requested
+      setShowTutorial(true);
       
       const savedProfile = localStorage.getItem(`profile_${user.uid}`);
       if (savedProfile) {
@@ -386,19 +385,12 @@ const App: React.FC = () => {
           };
           setUserProfile(completeProfile);
           
-          // Check for completion reminder (every 24 hours)
+          // Check for completion reminder
           const completion = calculateProfileCompletion(completeProfile);
           if (completion < 100) {
-            const lastShown = localStorage.getItem('profile_reminder_last_shown');
-            const now = Date.now();
-            const dayInMs = 24 * 60 * 60 * 1000;
-            
-            if (!lastShown || now - parseInt(lastShown) > dayInMs) {
-               setTimeout(() => {
-                setShowCompletionReminder(true);
-                localStorage.setItem('profile_reminder_last_shown', now.toString());
-              }, 2000);
-            }
+             setTimeout(() => {
+              setShowCompletionReminder(true);
+            }, 2000);
           }
         } catch (_e) {
           console.error("Failed to parse profile", _e);
@@ -411,11 +403,9 @@ const App: React.FC = () => {
            credits: 100
         };
         setUserProfile(initial);
-        const lastShown = localStorage.getItem('profile_reminder_last_shown');
-        const now = Date.now();
-        if (!lastShown || (now - parseInt(lastShown) > 24 * 60 * 60 * 1000)) {
+        const completion = calculateProfileCompletion(initial);
+        if (completion < 100) {
           setShowCompletionReminder(true);
-          localStorage.setItem('profile_reminder_last_shown', now.toString());
         }
       }
     }
@@ -1258,7 +1248,10 @@ const App: React.FC = () => {
       case AppMode.OFFERS:
         return (
            <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <StudentOffers />
+              <StudentOffers 
+                userProfile={userProfile}
+                onUpdateProfile={(p) => handleProfileSave(p, false)}
+              />
            </div>
         );
 

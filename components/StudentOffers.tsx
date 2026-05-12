@@ -2,13 +2,26 @@
 import React, { useState } from 'react';
 import { Tag, Zap, GraduationCap, Gift, ChevronRight, Star, Clock, Bell, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { UserProfile } from '../types';
 
-const StudentOffers: React.FC = () => {
-  const [claimedOffer, setClaimedOffer] = useState<number | null>(null);
+interface StudentOffersProps {
+  userProfile: UserProfile;
+  onUpdateProfile: (newProfile: UserProfile) => void;
+}
+
+const StudentOffers: React.FC<StudentOffersProps> = ({ userProfile, onUpdateProfile }) => {
+  const [justClaimed, setJustClaimed] = useState<number | null>(null);
 
   const handleClaim = (id: number) => {
-    setClaimedOffer(id);
-    setTimeout(() => setClaimedOffer(null), 3000);
+    setJustClaimed(id);
+    
+    const newClaimedOffers = [...(userProfile.claimedOffers || []), id];
+    onUpdateProfile({
+      ...userProfile,
+      claimedOffers: newClaimedOffers
+    });
+
+    setTimeout(() => setJustClaimed(null), 3000);
   };
 
   const offers = [
@@ -67,7 +80,9 @@ const StudentOffers: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-        {offers.map((offer, index) => (
+        {offers
+          .filter(offer => !(userProfile.claimedOffers || []).includes(offer.id) || justClaimed === offer.id)
+          .map((offer, index) => (
           <motion.div
             key={offer.id}
             initial={{ opacity: 0, y: 20 }}
@@ -93,10 +108,10 @@ const StudentOffers: React.FC = () => {
 
             <button 
               onClick={() => handleClaim(offer.id)}
-              disabled={claimedOffer === offer.id}
-              className={`w-full py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 ${claimedOffer === offer.id ? 'bg-emerald-500' : offer.accent} hover:opacity-90 transition-all shadow-lg shadow-black/10 active:scale-[0.98] disabled:cursor-not-allowed`}
+              disabled={justClaimed === offer.id}
+              className={`w-full py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 ${justClaimed === offer.id ? 'bg-emerald-500' : offer.accent} hover:opacity-90 transition-all shadow-lg shadow-black/10 active:scale-[0.98] disabled:cursor-not-allowed`}
             >
-              {claimedOffer === offer.id ? (
+              {justClaimed === offer.id ? (
                 <>
                   <CheckCircle2 className="w-5 h-5" />
                   Offer Claimed!
@@ -117,7 +132,7 @@ const StudentOffers: React.FC = () => {
       </div>
 
       <AnimatePresence>
-        {claimedOffer && (
+        {justClaimed && (
           <motion.div 
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
