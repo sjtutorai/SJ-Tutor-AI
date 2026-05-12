@@ -51,7 +51,8 @@ import {
   HelpCircle,
   QrCode,
   Shield,
-  X
+  X,
+  Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
@@ -351,6 +352,14 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Sync hasSeenTutorial state with localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('hasSeenTutorial') === 'true';
+    if (saved !== hasSeenTutorial) {
+      setHasSeenTutorial(saved);
+    }
+  }, []);
+
   // Profile Persistence
   useEffect(() => {
     if (user) {
@@ -370,13 +379,16 @@ const App: React.FC = () => {
           };
           setUserProfile(completeProfile);
           
-          // Check for completion reminder
+          // Check for completion reminder (always show if very low, or once per session if moderate)
           const completion = calculateProfileCompletion(completeProfile);
-          if (completion < 100 && !sessionStorage.getItem('profile_reminder_shown')) {
-            setTimeout(() => {
-              setShowCompletionReminder(true);
-              sessionStorage.setItem('profile_reminder_shown', 'true');
-            }, 3000);
+          if (completion < 100) {
+            const hasShownSession = sessionStorage.getItem('profile_reminder_shown');
+            if (!hasShownSession || completion < 50) {
+               setTimeout(() => {
+                setShowCompletionReminder(true);
+                sessionStorage.setItem('profile_reminder_shown', 'true');
+              }, 2000);
+            }
           }
         } catch (_e) {
           console.error("Failed to parse profile", _e);
@@ -676,7 +688,9 @@ const App: React.FC = () => {
       try {
          const parsed = JSON.parse(errorMessage);
          if (parsed.error?.message) errorMessage = parsed.error.message;
-      } catch (e) {}
+      } catch {
+         // Silently fail if not JSON
+      }
       
       if (errorMessage.includes("quota") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("429")) {
         errorMessage = "QUOTA_EXHAUSTED";
@@ -761,7 +775,9 @@ const App: React.FC = () => {
             text: text,
             url: shareUrl
           });
-        } catch (err) {}
+        } catch {
+           // Fallback to clipboard if share fails or is cancelled
+        }
       } else {
         try {
           await navigator.clipboard.writeText(text);
@@ -948,15 +964,24 @@ const App: React.FC = () => {
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
             <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
           </div>
-          {!hasSeenTutorial && (
+          <div className="flex items-center gap-3">
             <button 
               onClick={() => setShowTutorial(true)}
               className="flex items-center gap-2 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 rounded-lg font-bold text-sm hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-all border border-primary-100 dark:border-primary-800/50"
             >
               <HelpCircle className="w-4 h-4" />
-              Watch Tutorial
+              {hasSeenTutorial ? 'Watch Tutorial' : 'Start Tutorial'}
             </button>
-          )}
+            {calculateProfileCompletion(userProfile) < 100 && (
+              <button 
+                onClick={() => setMode(AppMode.PROFILE)}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg font-bold text-sm hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all border border-emerald-100 dark:border-emerald-800/50"
+              >
+                <User className="w-4 h-4" />
+                Complete Profile ({calculateProfileCompletion(userProfile)}%)
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -1400,12 +1425,36 @@ const App: React.FC = () => {
                    onClick={() => setMode(AppMode.PROFILE)} 
                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mode === AppMode.PROFILE ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
-                  <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-slate-700 border border-primary-200 dark:border-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {userProfile.photoURL ? (
-                      <img src={userProfile.photoURL} alt="User" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="font-bold text-primary-700 dark:text-primary-400 text-[10px]">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
-                    )}
+                  <div className="relative w-8 h-8 flex-shrink-0">
+                    <svg className="absolute inset-x-[-2px] inset-y-[-2px] w-[calc(100%+4px)] h-[calc(100%+4px)] -rotate-90">
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="17"
+                        fill="transparent"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="text-slate-100 dark:text-slate-800"
+                      />
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="17"
+                        fill="transparent"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeDasharray={106.8}
+                        strokeDashoffset={106.8 - (106.8 * calculateProfileCompletion(userProfile)) / 100}
+                        className="text-primary-600 dark:text-primary-400 transition-all duration-1000"
+                      />
+                    </svg>
+                    <div className="relative w-full h-full rounded-full bg-primary-100 dark:bg-slate-700 border border-primary-200 dark:border-slate-600 flex items-center justify-center overflow-hidden">
+                      {userProfile.photoURL ? (
+                        <img src={userProfile.photoURL} alt="User" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="font-bold text-primary-700 dark:text-primary-400 text-[10px]">{(userProfile.displayName || user.email || 'U').charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex-1 text-left overflow-hidden">
                     <p className="text-xs font-medium truncate text-slate-800 dark:text-white">{userProfile.displayName || 'Scholar'}</p>
@@ -1524,21 +1573,21 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Profile Completion Modal */}
-      <AnimatePresence>
-        {showCompletionReminder && mode !== AppMode.PROFILE && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden max-w-md w-full border border-slate-200 dark:border-slate-800"
-            >
+              <AnimatePresence>
+                {showCompletionReminder && mode !== AppMode.PROFILE && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md"
+                  >
+                    <motion.div 
+                      key="profile-reminder-content"
+                      initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                      animate={{ scale: 1, opacity: 1, y: 0 }}
+                      exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                      className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden max-w-md w-full border border-slate-200 dark:border-slate-800"
+                    >
               <div className="relative h-32 bg-primary-600 flex items-center justify-center overflow-hidden">
                 <div className="absolute inset-0 opacity-20">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full -mr-16 -mt-16 blur-2xl"></div>
