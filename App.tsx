@@ -599,16 +599,16 @@ const App: React.FC = () => {
         }
       }
 
-      // 2. Specific Challenge Reward (Legacy 20-Question Hard Challenge)
-      if (historyItem.formData.questionCount === 20 && historyItem.formData.difficulty === 'Hard' && percentage >= 75) {
+      // 2. Specific Challenge Reward (Legacy 10-Question Hard Challenge)
+      if (historyItem.formData.questionCount === 10 && historyItem.formData.difficulty === 'Hard' && percentage >= 75) {
           const bonus = 50;
           const newCredits = userProfile.credits + bonus;
           handleProfileSave({ ...userProfile, credits: newCredits }, false);
           
           setTimeout(() => {
-            alert(`🎉 CHALLENGE MASTERED! 🎉\n\nYou scored ${score}/20 (${percentage}%) and earned ${bonus} credits!`);
+            alert(`🎉 CHALLENGE MASTERED! 🎉\n\nYou scored ${score}/${qCount} (${percentage}%) and earned ${bonus} credits!`);
           }, 1000);
-      } else if (historyItem.formData.questionCount === 20 && historyItem.formData.difficulty === 'Hard' && percentage < 75) {
+      } else if (historyItem.formData.questionCount === 10 && historyItem.formData.difficulty === 'Hard' && percentage < 75) {
            setTimeout(() => {
             alert(`Challenge Attempted: You scored ${percentage}%. Score 75% or higher to earn the 50 credit bonus! Keep practicing!`);
           }, 1000);
@@ -1215,6 +1215,21 @@ const App: React.FC = () => {
             <TutorChat 
                onDeductCredit={deductCredit} 
                currentCredits={userProfile.credits}
+               onSaveSession={(msgs) => {
+                 if (msgs.length > 1) {
+                   const tutorItemContent = {
+                     messages: msgs
+                   };
+                   // Check if already in history to update or add
+                   const existing = history.find(h => h.id === currentHistoryId && h.type === AppMode.TUTOR);
+                   if (existing) {
+                      setHistory(prev => prev.map(h => h.id === existing.id ? { ...h, content: tutorItemContent } : h));
+                   } else {
+                      addToHistory(AppMode.TUTOR, tutorItemContent);
+                   }
+                 }
+               }}
+               initialMessages={history.find(h => h.id === currentHistoryId && h.type === AppMode.TUTOR)?.content?.messages}
             />
           </div>
         );
