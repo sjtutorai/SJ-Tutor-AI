@@ -319,6 +319,15 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Auto-fill grade from profile when switching modes
+  useEffect(() => {
+    if (mode === AppMode.SUMMARY || mode === AppMode.QUIZ || mode === AppMode.ESSAY) {
+      if (userProfile.grade && (!formData.gradeClass || formData.gradeClass === INITIAL_FORM_DATA.gradeClass)) {
+        setFormData(prev => ({ ...prev, gradeClass: userProfile.grade }));
+      }
+    }
+  }, [mode, userProfile.grade]);
+
   // Auth Listener
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -1267,7 +1276,7 @@ const App: React.FC = () => {
              </div>
              <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
         </div>
-        <p className="text-slate-800 dark:text-white font-bold animate-pulse">Authenticating...</p>
+        <p className="text-slate-800 dark:text-white font-bold animate-pulse">Loading...</p>
       </div>
     );
   }
@@ -1413,6 +1422,37 @@ const App: React.FC = () => {
             
           </div>
 
+          <div className="p-3 border-t border-slate-100 dark:border-slate-800">
+             <button
+               onClick={async () => {
+                 const shareUrl = window.location.origin;
+                 const text = `Join me on SJ Tutor AI - The ultimate AI study companion! 🚀`;
+                 if (navigator.share) {
+                   try {
+                     await navigator.share({
+                       title: 'SJ Tutor AI',
+                       text: text,
+                       url: shareUrl
+                     });
+                   } catch (e) {
+                     console.error("Share failed", e);
+                   }
+                 } else {
+                   try {
+                     await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+                     alert("App link copied to clipboard!");
+                   } catch (err) {
+                     console.error("Clipboard failed", err);
+                   }
+                 }
+               }}
+               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-primary-50 dark:hover:bg-slate-800 hover:text-primary-700 dark:hover:text-primary-400 transition-all font-medium text-sm group"
+             >
+               <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+               Share SJ Tutor AI
+             </button>
+          </div>
+
           <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
             {user ? (
                <>
@@ -1501,7 +1541,35 @@ const App: React.FC = () => {
              </h2>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button 
+              onClick={async () => {
+                const shareUrl = window.location.origin;
+                const text = `Join me on SJ Tutor AI - The ultimate AI study companion! 🚀`;
+                if (navigator.share) {
+                  try {
+                    await navigator.share({
+                      title: 'SJ Tutor AI',
+                      text: text,
+                      url: shareUrl
+                    });
+                  } catch (e) {
+                    console.error("Share failed", e);
+                  }
+                } else {
+                  try {
+                    await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+                    alert("App link copied to clipboard!");
+                  } catch (err) {
+                    console.error("Clipboard failed", err);
+                  }
+                }
+              }}
+              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+              title="Share App"
+            >
+              <Share2 className="w-5 h-5" />
+            </button>
             <button 
               onClick={() => {
                 setMode(AppMode.OFFERS);

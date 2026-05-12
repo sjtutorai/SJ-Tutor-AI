@@ -107,7 +107,7 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                 <div className="text-right">
                    <div className="bg-white/10 backdrop-blur-md px-2 py-1 rounded text-[8px] font-bold border border-white/20 uppercase tracking-wider flex items-center gap-1">
                       <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
-                      Verified
+                      ID CARD
                    </div>
                 </div>
              </div>
@@ -176,6 +176,7 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                        <div className="bg-white p-1 rounded-md shadow-sm border border-slate-100 flex-shrink-0">
                           <QRCodeSVG 
                             value={JSON.stringify({
+                              v: 2,
                               id: userProfile.registrationNumber || studentId,
                               name: userProfile.displayName || 'Student',
                               institution: userProfile.institution || 'SJ Tutor AI',

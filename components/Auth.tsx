@@ -354,7 +354,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             </div>
             <h2 className="text-2xl font-bold text-slate-800 mb-2">Verify your email</h2>
             <p className="text-slate-500 mb-6">
-              We've sent a verification link to <br/>
+              We&apos;ve sent a verification link to <br/>
               <span className="font-bold text-slate-700">{email}</span>.
               <br/>Please check your inbox to activate your account fully.
             </p>
@@ -385,7 +385,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             )}
 
             <p className="text-xs text-slate-400">
-              Didn't receive it? Check your spam folder or try resending.
+              Didn&apos;t receive it? Check your spam folder or try resending.
             </p>
           </div>
         </div>

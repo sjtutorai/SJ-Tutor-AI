@@ -28,42 +28,45 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
       /* verbose= */ false
     );
 
-    const onScanSuccess = (decodedText: string) => {
-      try {
-        // Handle both JSON and plain string (new format)
-        let data: ScannedUser;
-        if (decodedText.startsWith('{')) {
-          const parsed = JSON.parse(decodedText);
-          data = {
-            name: parsed.name || "Student",
-            id: parsed.id || decodedText,
-            institution: parsed.institution || "SJ Tutor AI",
-            grade: parsed.grade || "N/A",
-            plan: parsed.plan || "Scholar"
-          };
-        } else {
-          // Fallback for older IDs or just IDs
-          data = {
-            name: "Student",
-            id: decodedText,
-            institution: "SJ Tutor AI",
-            grade: "N/A",
-            plan: "Scholar"
-          };
-        }
+        const onScanSuccess = (decodedText: string) => {
+          try {
+            console.log("Scanned QR Text:", decodedText);
+            const trimmed = decodedText.trim();
+            // Handle JSON format
+            let data: ScannedUser;
+            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+              const parsed = JSON.parse(trimmed);
+              data = {
+                name: parsed.name || "Student",
+                id: parsed.id || trimmed,
+                institution: parsed.institution || "SJ Tutor AI",
+                grade: parsed.grade || "N/A",
+                plan: parsed.plan || "Scholar"
+              };
+            } else {
+              // Plain text ID fallback
+              data = {
+                name: "Member",
+                id: trimmed,
+                institution: "SJ Tutor AI",
+                grade: "N/A",
+                plan: "Student"
+              };
+            }
 
-        if (data.id) {
-          setScannedData(data);
-          if (scannerRef.current) {
-            scannerRef.current.clear();
+            if (data.id) {
+              setScannedData(data);
+              if (scannerRef.current) {
+                scannerRef.current.clear().catch(() => {});
+              }
+            } else {
+              setError("Unrecognized ID format.");
+            }
+          } catch (err) {
+            console.error("Scan Error:", err);
+            setError("Could not parse QR code. Please scan a valid SJ Tutor ID.");
           }
-        } else {
-          setError("Invalid QR Code format.");
-        }
-      } catch {
-        setError("Could not read QR code. Make sure it's an SJ Tutor ID.");
-      }
-    };
+        };
 
     const onScanFailure = () => {
       // Optional: handle scan failures
