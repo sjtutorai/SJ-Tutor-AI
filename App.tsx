@@ -52,7 +52,8 @@ import {
   QrCode,
   Shield,
   X,
-  Eye
+  Eye,
+  User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
@@ -387,7 +388,7 @@ const App: React.FC = () => {
                setTimeout(() => {
                 setShowCompletionReminder(true);
                 sessionStorage.setItem('profile_reminder_shown', 'true');
-              }, 2000);
+              }, 1000);
             }
           }
         } catch (_e) {
@@ -1416,6 +1417,31 @@ const App: React.FC = () => {
                 </button>
               );
             })}
+            
+            <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">
+               <button 
+                  onClick={() => {
+                    setShowTutorial(true);
+                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white text-sm transition-all"
+               >
+                  <HelpCircle className="w-4 h-4 text-primary-500" />
+                  Watch Tutorial
+               </button>
+               {calculateProfileCompletion(userProfile) < 100 && (
+                  <button 
+                    onClick={() => {
+                      setMode(AppMode.PROFILE);
+                      if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 mt-1 text-sm font-bold shadow-sm"
+                  >
+                    <User className="w-4 h-4" />
+                    Complete Profile ({calculateProfileCompletion(userProfile)}%)
+                  </button>
+               )}
+            </div>
           </div>
 
           <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
