@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Loader2, Volume2, Square, ArrowLeft, Download, FileText, Image as ImageIcon, FileType, Share2, Facebook, Mail, MessageCircle, Link, RefreshCw } from 'lucide-react';
-// @ts-ignore
+// @ts-expect-error - html2canvas missing types
 import html2canvas from 'html2canvas';
-// @ts-ignore
+// @ts-expect-error - jspdf missing types
 import { jsPDF } from 'jspdf';
 
 interface ResultsViewProps {

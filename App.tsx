@@ -1093,6 +1093,7 @@ const App: React.FC = () => {
               mode={AppMode.SUMMARY}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
+              lockGradeClass={!!(userProfile.dob && userProfile.grade)}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -1132,6 +1133,7 @@ const App: React.FC = () => {
               mode={AppMode.ESSAY}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
+              lockGradeClass={!!(userProfile.dob && userProfile.grade)}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -1171,6 +1173,7 @@ const App: React.FC = () => {
               mode={AppMode.QUIZ}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
+              lockGradeClass={!!(userProfile.dob && userProfile.grade)}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">

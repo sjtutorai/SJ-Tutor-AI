@@ -9,9 +9,10 @@ interface InputFormProps {
   onChange: (field: keyof StudyRequestData, value: string | number | boolean) => void;
   onFillSample?: () => void;
   disabled?: boolean;
+  lockGradeClass?: boolean;
 }
 
-const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSample, disabled }) => {
+const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSample, disabled, lockGradeClass }) => {
 
   const isRewardMode = mode === AppMode.QUIZ && data.questionCount === 20 && data.difficulty === 'Hard';
 
@@ -99,7 +100,25 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-4 mb-4 relative z-10">
         {renderInput("Subject", "subject", BookType, "e.g. History")}
-        {renderInput("Class / Grade", "gradeClass", GraduationCap, "e.g. 10th Grade")}
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
+          <div className="relative group">
+            <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={data.gradeClass}
+              onChange={(e) => onChange("gradeClass", e.target.value)}
+              disabled={disabled || lockGradeClass}
+              placeholder="e.g. 10th Grade"
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm disabled:cursor-not-allowed"
+            />
+            {lockGradeClass && (
+              <div className="absolute right-3 top-2.5">
+                <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              </div>
+            )}
+          </div>
+        </div>
         {renderInput("Board", "board", School, "e.g. CBSE")}
         {renderInput("Language", "language", Languages, "e.g. English")}
         {renderInput("Chapter Name", "chapterName", BookOpen, "e.g. The French Revolution")}
