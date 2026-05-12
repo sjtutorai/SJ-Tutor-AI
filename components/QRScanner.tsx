@@ -33,16 +33,21 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
         // Handle both JSON and plain string (new format)
         let data: ScannedUser;
         if (decodedText.startsWith('{')) {
-          data = JSON.parse(decodedText);
-        } else {
-          // New format: just the ID. 
-          // In a real app we'd fetch the user profile from Firestore by this ID.
-          // For now, we'll prefix it as a generic Scanned User.
+          const parsed = JSON.parse(decodedText);
           data = {
-            name: "Verified Student",
+            name: parsed.name || "Student",
+            id: parsed.id || decodedText,
+            institution: parsed.institution || "SJ Tutor AI",
+            grade: parsed.grade || "N/A",
+            plan: parsed.plan || "Scholar"
+          };
+        } else {
+          // Fallback for older IDs or just IDs
+          data = {
+            name: "Student",
             id: decodedText,
-            institution: "SJ Tutor AI Member",
-            grade: "Verified",
+            institution: "SJ Tutor AI",
+            grade: "N/A",
             plan: "Scholar"
           };
         }

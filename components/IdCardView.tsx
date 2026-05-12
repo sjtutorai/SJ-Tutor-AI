@@ -61,12 +61,16 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                   text: text,
                   url: window.location.href
               });
-          } catch (e) {}
+          } catch (e) {
+              console.error("Share failed", e);
+          }
       } else {
           try {
              await navigator.clipboard.writeText(text);
              alert("Info copied to clipboard!");
-          } catch(e) {}
+          } catch(e) {
+              console.error("Clipboard failed", e);
+          }
       }
   };
 
@@ -171,7 +175,13 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                        </div>
                        <div className="bg-white p-1 rounded-md shadow-sm border border-slate-100 flex-shrink-0">
                           <QRCodeSVG 
-                            value={userProfile.registrationNumber || studentId}
+                            value={JSON.stringify({
+                              id: userProfile.registrationNumber || studentId,
+                              name: userProfile.displayName || 'Student',
+                              institution: userProfile.institution || 'SJ Tutor AI',
+                              grade: userProfile.grade || 'N/A',
+                              plan: userProfile.planType || 'Scholar'
+                            })}
                             size={55}
                             level="M"
                             includeMargin={false}

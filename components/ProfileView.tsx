@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { User, Phone, School, Camera, Edit2, Mail, Zap, GraduationCap, CheckCircle, Calendar } from 'lucide-react';
+import { User, Phone, School, Camera, Edit2, Mail, Zap, GraduationCap, CheckCircle, Calendar, Briefcase, Layers, BookOpen, ArrowRight } from 'lucide-react';
 import { validateAndParsePhone, CountryPhone } from '../utils/phoneUtils';
 import { calculateProfileCompletion, generateRegistrationNumber, calculateGradeFromAge } from '../utils/profileUtils';
 
