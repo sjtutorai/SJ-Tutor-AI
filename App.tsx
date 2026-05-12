@@ -370,8 +370,16 @@ const App: React.FC = () => {
   // Profile Persistence
   useEffect(() => {
     if (user) {
-      // Always show tutorial on login as requested
-      setShowTutorial(true);
+      // Check if 30 days have passed since last tutorial
+      const lastShownKey = `tutorial_last_shown_${user.uid}`;
+      const lastShown = localStorage.getItem(lastShownKey);
+      const now = Date.now();
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      
+      if (!lastShown || (now - parseInt(lastShown)) > thirtyDaysMs) {
+        setShowTutorial(true);
+        localStorage.setItem(lastShownKey, now.toString());
+      }
       
       const savedProfile = localStorage.getItem(`profile_${user.uid}`);
       if (savedProfile) {
