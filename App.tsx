@@ -53,7 +53,7 @@ import {
   Shield,
   X,
   Eye,
-  User
+  User as UserIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
@@ -978,7 +978,7 @@ const App: React.FC = () => {
                 onClick={() => setMode(AppMode.PROFILE)}
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg font-bold text-sm hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all border border-emerald-100 dark:border-emerald-800/50"
               >
-                <User className="w-4 h-4" />
+                <UserIcon className="w-4 h-4" />
                 Complete Profile ({calculateProfileCompletion(userProfile)}%)
               </button>
             )}
@@ -1437,7 +1437,7 @@ const App: React.FC = () => {
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 mt-1 text-sm font-bold shadow-sm"
                   >
-                    <User className="w-4 h-4" />
+                  <UserIcon className="w-4 h-4" />
                     Complete Profile ({calculateProfileCompletion(userProfile)}%)
                   </button>
                )}
@@ -1620,7 +1620,7 @@ const App: React.FC = () => {
                   <div className="absolute bottom-0 left-0 w-24 h-24 bg-white rounded-full -ml-12 -mb-12 blur-xl"></div>
                 </div>
                 <div className="relative w-20 h-20 rounded-full bg-white/20 backdrop-blur-md border-2 border-white/30 flex items-center justify-center shadow-xl">
-                  <User className="w-10 h-10 text-white" />
+                  <UserIcon className="w-10 h-10 text-white" />
                   <svg className="absolute inset-x-[-4px] inset-y-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] -rotate-90">
                     <circle
                       cx="44"
