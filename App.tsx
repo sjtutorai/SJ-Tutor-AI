@@ -48,10 +48,7 @@ import {
   Share2,
   CreditCard,
   Tag,
-  HelpCircle,
   QrCode,
-  Shield,
-  X,
   Eye,
   User as UserIcon
 } from 'lucide-react';
@@ -380,15 +377,18 @@ const App: React.FC = () => {
           };
           setUserProfile(completeProfile);
           
-          // Check for completion reminder (always show if very low, or once per session if moderate)
+          // Check for completion reminder (every 24 hours)
           const completion = calculateProfileCompletion(completeProfile);
           if (completion < 100) {
-            const hasShownSession = sessionStorage.getItem('profile_reminder_shown');
-            if (!hasShownSession || completion < 50) {
+            const lastShown = localStorage.getItem('profile_reminder_last_shown');
+            const now = Date.now();
+            const dayInMs = 24 * 60 * 60 * 1000;
+            
+            if (!lastShown || now - parseInt(lastShown) > dayInMs) {
                setTimeout(() => {
                 setShowCompletionReminder(true);
-                sessionStorage.setItem('profile_reminder_shown', 'true');
-              }, 1000);
+                localStorage.setItem('profile_reminder_last_shown', now.toString());
+              }, 2000);
             }
           }
         } catch (_e) {
@@ -402,8 +402,12 @@ const App: React.FC = () => {
            credits: 100
         };
         setUserProfile(initial);
-        setShowCompletionReminder(true);
-        sessionStorage.setItem('profile_reminder_shown', 'true');
+        const lastShown = localStorage.getItem('profile_reminder_last_shown');
+        const now = Date.now();
+        if (!lastShown || (now - parseInt(lastShown) > 24 * 60 * 60 * 1000)) {
+          setShowCompletionReminder(true);
+          localStorage.setItem('profile_reminder_last_shown', now.toString());
+        }
       }
     }
   }, [user]);
@@ -965,24 +969,6 @@ const App: React.FC = () => {
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
             <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setShowTutorial(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 rounded-lg font-bold text-sm hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-all border border-primary-100 dark:border-primary-800/50"
-            >
-              <HelpCircle className="w-4 h-4" />
-              {hasSeenTutorial ? 'Watch Tutorial' : 'Start Tutorial'}
-            </button>
-            {calculateProfileCompletion(userProfile) < 100 && (
-              <button 
-                onClick={() => setMode(AppMode.PROFILE)}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg font-bold text-sm hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all border border-emerald-100 dark:border-emerald-800/50"
-              >
-                <UserIcon className="w-4 h-4" />
-                Complete Profile ({calculateProfileCompletion(userProfile)}%)
-              </button>
-            )}
-          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -1418,30 +1404,6 @@ const App: React.FC = () => {
               );
             })}
             
-            <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">
-               <button 
-                  onClick={() => {
-                    setShowTutorial(true);
-                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white text-sm transition-all"
-               >
-                  <HelpCircle className="w-4 h-4 text-primary-500" />
-                  Watch Tutorial
-               </button>
-               {calculateProfileCompletion(userProfile) < 100 && (
-                  <button 
-                    onClick={() => {
-                      setMode(AppMode.PROFILE);
-                      if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                    }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 mt-1 text-sm font-bold shadow-sm"
-                  >
-                  <UserIcon className="w-4 h-4" />
-                    Complete Profile ({calculateProfileCompletion(userProfile)}%)
-                  </button>
-               )}
-            </div>
           </div>
 
           <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
