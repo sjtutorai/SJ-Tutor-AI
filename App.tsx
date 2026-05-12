@@ -736,22 +736,26 @@ const App: React.FC = () => {
     
     try {
       // 1. Save to backend to get a unique public ID
-      const response = await fetch('/api/auth/share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: item.type,
-          title: item.title,
-          subtitle: item.subtitle,
-          content: item.content
-        })
-      });
+      let shareUrl = window.location.origin;
+      try {
+        const response = await fetch('/api/auth/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: item.type,
+            title: item.title,
+            subtitle: item.subtitle,
+            content: item.content
+          })
+        });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Sharing failed');
-
-      const shareId = data.id;
-      const shareUrl = `${window.location.origin}?share=${shareId}`;
+        const data = await response.json();
+        if (response.ok && data.id) {
+          shareUrl = `${window.location.origin}?share=${data.id}`;
+        }
+      } catch (e) {
+        console.warn("Backend sharing unavailable, failing over to local share", e);
+      }
 
       let text = `${item.title} (${item.type})\n\n`;
       
@@ -900,7 +904,8 @@ const App: React.FC = () => {
                   const settings = SettingsService.getSettings();
                   setFormData({
                     ...INITIAL_FORM_DATA,
-                    language: settings.learning.language || INITIAL_FORM_DATA.language
+                    language: settings.learning.language || INITIAL_FORM_DATA.language,
+                    gradeClass: userProfile.grade || INITIAL_FORM_DATA.gradeClass
                   });
                   setMode(dashboardView as AppMode);
                   setDashboardView('OVERVIEW');
@@ -1340,7 +1345,8 @@ const App: React.FC = () => {
               const settings = SettingsService.getSettings();
               setFormData({
                 ...INITIAL_FORM_DATA,
-                language: settings.learning.language || INITIAL_FORM_DATA.language
+                language: settings.learning.language || INITIAL_FORM_DATA.language,
+                gradeClass: userProfile.grade || INITIAL_FORM_DATA.gradeClass
               });
               if (window.innerWidth < 1024) setIsSidebarOpen(false);
             }}
@@ -1381,7 +1387,8 @@ const App: React.FC = () => {
                       const settings = SettingsService.getSettings();
                       setFormData({
                         ...INITIAL_FORM_DATA,
-                        language: settings.learning.language || INITIAL_FORM_DATA.language
+                        language: settings.learning.language || INITIAL_FORM_DATA.language,
+                        gradeClass: userProfile.grade || INITIAL_FORM_DATA.gradeClass
                       });
                     }
                   }}

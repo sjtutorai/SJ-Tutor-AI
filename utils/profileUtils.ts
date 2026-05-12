@@ -49,3 +49,37 @@ export const generateRegistrationNumber = (profile: UserProfile): string => {
   
   return `${firstLetter}${surnameLetter}${dobString}`.trim();
 };
+
+export const calculateGradeFromAge = (dob: string): string => {
+  if (!dob) return '';
+  
+  const birthDate = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+
+  // Educational mapping (approximate for most systems)
+  if (age < 3) return "Preschool";
+  if (age === 3) return "Nursery";
+  if (age === 4) return "LKG";
+  if (age === 5) return "UKG";
+  if (age === 6) return "1st Grade";
+  if (age === 7) return "2nd Grade";
+  if (age === 8) return "3rd Grade";
+  if (age === 9) return "4th Grade";
+  if (age === 10) return "5th Grade";
+  if (age === 11) return "6th Grade";
+  if (age === 12) return "7th Grade";
+  if (age === 13) return "8th Grade";
+  if (age === 14) return "9th Grade";
+  if (age === 15) return "10th Grade";
+  if (age === 16) return "11th Grade";
+  if (age === 17) return "12th Grade";
+  if (age >= 18 && age <= 21) return "Undergraduate";
+  if (age > 21) return "Postgraduate";
+  
+  return "";
+};
