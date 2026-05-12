@@ -574,26 +574,44 @@ const App: React.FC = () => {
 
   const handleQuizComplete = (score: number) => {
     if (currentHistoryId) {
+      const historyItem = history.find(item => item.id === currentHistoryId);
+      if (!historyItem) return;
+
       setHistory(prev => prev.map(item => 
         item.id === currentHistoryId ? { ...item, score } : item
       ));
 
-      if (formData.questionCount === 20 && formData.difficulty === 'Hard') {
-        const percentage = (score / 20) * 100;
-        
-        if (percentage >= 75) {
-            const bonus = 50;
-            const newCredits = userProfile.credits + bonus;
-            handleProfileSave({ ...userProfile, credits: newCredits }, false);
-            
-            setTimeout(() => {
-              alert(`🎉 CHALLENGE MASTERED! 🎉\n\nYou scored ${score}/20 (${percentage}%) and earned ${bonus} credits!`);
-            }, 1000);
-        } else {
-             setTimeout(() => {
-              alert(`Challenge Attempted: You scored ${percentage}%. Score 75% or higher to earn the 50 credit bonus! Keep practicing!`);
-            }, 1000);
+      // Calculate rewards
+      const qCount = (historyItem.content as QuizQuestion[]).length;
+      const percentage = (score / qCount) * 100;
+      
+      // 1. General Reward: 90% score on 10+ questions quiz gets 50% refund
+      if (qCount >= 10 && percentage >= 90) {
+        const cost = calculateCost(AppMode.QUIZ, historyItem.formData);
+        if (cost > 0) {
+          const refundAmount = Math.ceil(cost * 0.5);
+          const newCredits = userProfile.credits + refundAmount;
+          handleProfileSave({ ...userProfile, credits: newCredits }, false);
+          
+          setTimeout(() => {
+            alert(`🏆 ACADEMIC EXCELLENCE! 🏆\n\nYou scored ${percentage}% on your quiz!\n\nAs a reward, we've refunded ${refundAmount} credits (50% of your spent credits) back to your account. Keep it up!`);
+          }, 1500);
         }
+      }
+
+      // 2. Specific Challenge Reward (Legacy 20-Question Hard Challenge)
+      if (historyItem.formData.questionCount === 20 && historyItem.formData.difficulty === 'Hard' && percentage >= 75) {
+          const bonus = 50;
+          const newCredits = userProfile.credits + bonus;
+          handleProfileSave({ ...userProfile, credits: newCredits }, false);
+          
+          setTimeout(() => {
+            alert(`🎉 CHALLENGE MASTERED! 🎉\n\nYou scored ${score}/20 (${percentage}%) and earned ${bonus} credits!`);
+          }, 1000);
+      } else if (historyItem.formData.questionCount === 20 && historyItem.formData.difficulty === 'Hard' && percentage < 75) {
+           setTimeout(() => {
+            alert(`Challenge Attempted: You scored ${percentage}%. Score 75% or higher to earn the 50 credit bonus! Keep practicing!`);
+          }, 1000);
       }
     }
   };

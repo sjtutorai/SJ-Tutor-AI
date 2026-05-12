@@ -27,6 +27,48 @@ interface ProfileViewProps {
   isOnboarding?: boolean;
 }
 
+const INDIAN_SCHOOL_BOARDS = [
+  'CBSE (Central Board of Secondary Education)',
+  'ICSE (Council for the Indian School Certificate Examinations)',
+  'State Board (Andhra Pradesh)',
+  'State Board (Assam)',
+  'State Board (Bihar)',
+  'State Board (Gujarat)',
+  'State Board (Haryana)',
+  'State Board (Karnataka)',
+  'State Board (Kerala)',
+  'State Board (Maharashtra)',
+  'State Board (Madhya Pradesh)',
+  'State Board (Rajasthan)',
+  'State Board (Tamil Nadu)',
+  'State Board (Telangana)',
+  'State Board (Uttar Pradesh)',
+  'State Board (West Bengal)',
+  'International Baccalaureate (IB)',
+  'IGCSE (Cambridge)',
+  'NIOS (National Institute of Open Schooling)'
+];
+
+const COMMON_SCHOOL_TYPES = [
+  'Kendriya Vidyalaya (KV)',
+  'Jawahar Navodaya Vidyalaya (JNV)',
+  'Government Senior Secondary School',
+  'Government Model Sr. Sec. School',
+  'Sainik School',
+  'Army Public School',
+  'Delhi Public School (DPS)',
+  'DAV Public School',
+  'Ryan International School',
+  'Amity International School',
+  'St. Xavier\'s High School',
+  'Loyola School',
+  'Atomic Energy Central School',
+  'Air Force School',
+  'Eklavya Model Residential School',
+  'Municipal School / Nagar Palika School',
+  'Private Unaided School'
+];
+
 const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnboarding = false }) => {
   const [isEditing, setIsEditing] = useState(isOnboarding);
   const [formData, setFormData] = useState<UserProfile>(profile);
@@ -305,17 +347,30 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
 
              <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">School / University</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">School / University / Board</label>
                   <div className="relative">
                      <School className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
                      <input
                       type="text"
+                      list="school-list"
                       disabled={!isEditing}
                       value={formData.institution}
                       onChange={(e) => handleInputChange('institution', e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
-                      placeholder="e.g. Stanford University"
+                      placeholder="e.g. Kendriya Vidyalaya or CBSE"
                     />
+                    <datalist id="school-list">
+                      <optgroup label="Government & Common Types">
+                        {COMMON_SCHOOL_TYPES.map(type => (
+                          <option key={type} value={type} />
+                        ))}
+                      </optgroup>
+                      <optgroup label="Boards">
+                        {INDIAN_SCHOOL_BOARDS.map(board => (
+                          <option key={board} value={board} />
+                        ))}
+                      </optgroup>
+                    </datalist>
                   </div>
                 </div>
 
