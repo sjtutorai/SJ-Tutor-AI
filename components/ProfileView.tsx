@@ -623,13 +623,27 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
 
           {/* Section 3: Learning Preferences */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-50">
-               <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center">
-                 <Layers className="w-5 h-5 text-amber-600" />
+             <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-50">
+               <div className="flex items-center gap-3">
+                 <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center">
+                   <Layers className="w-5 h-5 text-amber-600" />
+                 </div>
+                 <div>
+                    <h3 className="text-lg font-bold text-slate-800">Learning Preferences</h3>
+                    <p className="text-sm text-slate-400">Customize your AI experience</p>
+                 </div>
                </div>
-               <div>
-                  <h3 className="text-lg font-bold text-slate-800">Learning Preferences</h3>
-                  <p className="text-sm text-slate-400">Customize your AI experience</p>
+               
+               {/* Learning Preference Completion Badge */}
+               <div className={`flex flex-col items-end gap-1 ${isOnboarding ? 'hidden' : ''}`}>
+                 <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${formData.learningGoal ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                    {formData.learningGoal ? 'Preference Complete' : 'Preference Incomplete'}
+                 </span>
+                 {!formData.learningGoal && (
+                   <span className="text-[10px] font-medium text-primary-500 animate-pulse">
+                     +{(!formData.learningGoal ? 5 : 0)}% Gain available
+                   </span>
+                 )}
                </div>
              </div>
 
