@@ -18,6 +18,23 @@ export const calculateProfileCompletion = (profile: UserProfile): number => {
   return Math.min(100, completion);
 };
 
+export const getMissingProfileFields = (profile: UserProfile): string[] => {
+  const missing: string[] = [];
+  
+  if (!profile.displayName || profile.displayName.length < 2) missing.push("Full Name");
+  if (!profile.photoURL) missing.push("Profile Photo");
+  if (!profile.dob) missing.push("Date of Birth");
+  if (!profile.institution) missing.push("School/Institution");
+  if (!profile.grade) missing.push("Class/Grade");
+  if (!profile.bio || profile.bio.length < 5) missing.push("About Me");
+  if (!profile.phoneNumber) missing.push("Phone Number");
+  if (!profile.phoneVerified) missing.push("Phone Verification");
+  if (!profile.learningGoal) missing.push("Learning Goal");
+  if (!profile.learningStyle) missing.push("Learning Style");
+  
+  return missing;
+};
+
 export const generateRegistrationNumber = (profile: UserProfile): string => {
   if (!profile.displayName || !profile.dob) return '';
   

@@ -18,7 +18,7 @@ import {
   ArrowRight 
 } from 'lucide-react';
 import { validateAndParsePhone, CountryPhone } from '../utils/phoneUtils';
-import { calculateProfileCompletion, generateRegistrationNumber, calculateGradeFromAge } from '../utils/profileUtils';
+import { calculateProfileCompletion, generateRegistrationNumber, calculateGradeFromAge, getMissingProfileFields } from '../utils/profileUtils';
 
 interface ProfileViewProps {
   profile: UserProfile;
@@ -257,6 +257,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
   const isPremium = formData.planType && formData.planType !== 'Free';
   const completionPercentage = calculateProfileCompletion(formData);
   const incompletePercentage = 100 - completionPercentage;
+  const missingFields = getMissingProfileFields(formData);
 
   return (
     <div className={`space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ${isOnboarding ? 'py-4' : ''}`}>
@@ -287,6 +288,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
             <div>
               <h4 className="font-bold text-slate-800 dark:text-white text-sm">Perfect your profile!</h4>
               <p className="text-xs text-slate-500 dark:text-slate-400">Your profile is <span className="font-bold text-primary-600 dark:text-primary-400">{incompletePercentage}% incomplete</span>. Fill in all details for better AI personalization.</p>
+              
+              {missingFields.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                   <span className="text-[10px] text-slate-400 font-medium">Missing:</span>
+                   {missingFields.slice(0, 3).map((field) => (
+                     <span key={field} className="text-[10px] bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+                       {field}
+                     </span>
+                   ))}
+                   {missingFields.length > 3 && (
+                     <span className="text-[10px] text-slate-400">+{missingFields.length - 3} more</span>
+                   )}
+                </div>
+              )}
             </div>
           </div>
           <button 
