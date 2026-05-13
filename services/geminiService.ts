@@ -129,23 +129,6 @@ export const GeminiService = {
     return response;
   },
 
-  generateImage: async (promptText: string): Promise<string | null> => {
-    const ai = getAI();
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [{ text: `A high-quality, academic-style educational illustration for an essay about: ${promptText}. The style should be professional, clear, and informative.` }]
-        },
-        config: { imageConfig: { aspectRatio: "16:9" } }
-      });
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
-      }
-    } catch (error) { console.error("Image generation error:", error); }
-    return null;
-  },
-
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
     const ai = getAI();
     const settings = SettingsService.getSettings();

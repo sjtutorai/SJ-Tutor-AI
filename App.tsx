@@ -543,8 +543,7 @@ const App: React.FC = () => {
       language: language,
       chapterName: chapter,
       questionCount: mode === AppMode.QUIZ ? 10 : 5,
-      difficulty: settings.learning.difficulty || 'Medium',
-      includeImages: mode === AppMode.ESSAY // Auto-enable illustrations for essays
+      difficulty: settings.learning.difficulty || 'Medium'
     });
   };
 
@@ -619,7 +618,7 @@ const App: React.FC = () => {
   const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
     if (targetMode === AppMode.SUMMARY) return 10;
     if (targetMode === AppMode.ESSAY) {
-      return data.includeImages ? 15 : 10;
+      return 10;
     }
     if (targetMode === AppMode.QUIZ) {
       if (data.questionCount === 20 && data.difficulty === 'Hard') return 0;
@@ -692,14 +691,6 @@ const App: React.FC = () => {
                 text += c.text;
                 setEssayContent(text);
             }
-        }
-
-        if (formData.includeImages) {
-          const imageBase64 = await GeminiService.generateImage(`${formData.chapterName} - ${formData.subject}`);
-          if (imageBase64) {
-            text += `\n\n![${formData.chapterName}](${imageBase64})`;
-            setEssayContent(text);
-          }
         }
 
         addToHistory(AppMode.ESSAY, text);

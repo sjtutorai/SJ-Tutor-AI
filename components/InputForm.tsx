@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { StudyRequestData, AppMode, DifficultyLevel } from '../types';
-import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Image as ImageIcon, Crown } from 'lucide-react';
+import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Crown } from 'lucide-react';
 
 interface InputFormProps {
   data: StudyRequestData;
@@ -19,7 +19,7 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
   const getEstimatedCost = () => {
     if (mode === AppMode.SUMMARY) return 10;
     if (mode === AppMode.ESSAY) {
-      return data.includeImages ? 15 : 10;
+      return 10;
     }
     if (mode === AppMode.QUIZ) {
       // Reward Challenge: Free generation for 20 Hard Questions
@@ -177,31 +177,7 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
         )}
       </div>
 
-      {/* Essay Specific Options */}
-      {mode === AppMode.ESSAY && (
-        <div className="relative z-10 pt-2 border-t border-slate-100 flex items-center justify-between">
-           <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center text-primary-600">
-                <ImageIcon className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-slate-800">Illustrate with AI Images</p>
-                <p className="text-[10px] text-slate-500">I&apos;ll generate highly relevant visuals for your essay.</p>
-              </div>
-           </div>
-           <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                checked={data.includeImages} 
-                onChange={(e) => onChange('includeImages', e.target.checked)}
-                disabled={disabled}
-                className="sr-only peer" 
-              />
-              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-              <span className="ml-3 text-xs font-bold text-primary-700 bg-primary-50 px-2 py-0.5 rounded border border-primary-100">+5 Credits</span>
-           </label>
-        </div>
-      )}
+      {/* Essay Specific Options Removed */}
     </div>
   );
 };

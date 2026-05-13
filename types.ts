@@ -27,7 +27,6 @@ export interface StudyRequestData {
   author?: string;
   questionCount?: number;
   difficulty?: DifficultyLevel;
-  includeImages?: boolean;
 }
 
 export interface QuizQuestion {
@@ -151,7 +150,6 @@ export const INITIAL_FORM_DATA: StudyRequestData = {
   author: '',
   questionCount: 5,
   difficulty: 'Medium',
-  includeImages: false,
 };
 
 export const DEFAULT_SETTINGS: UserSettings = {
