@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import { UserProfile, SJTUTOR_AVATAR } from '../types';
+import { UserProfile } from '../types';
 import Logo from './Logo';
 import { Download, Share2, ShieldCheck, User, Sparkles } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -151,7 +151,7 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                       </p>
                    </div>
 
-                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-1">
+                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mb-1">
                       <div className="min-w-0">
                          <p className="text-[7px] text-slate-500 uppercase tracking-widest font-bold">Institution</p>
                          <p className="text-[9px] font-bold truncate text-slate-200">{userProfile.institution || 'Unknown School'}</p>
@@ -159,6 +159,14 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                       <div className="text-right">
                          <p className="text-[7px] text-slate-500 uppercase tracking-widest font-bold">Grade</p>
                          <p className="text-[9px] font-bold text-slate-200">{userProfile.grade || 'N/A'}</p>
+                      </div>
+                      <div className="min-w-0">
+                         <p className="text-[7px] text-slate-500 uppercase tracking-widest font-bold">Phone</p>
+                         <p className="text-[9px] font-bold truncate text-slate-200">{userProfile.phoneNumber || 'N/A'}</p>
+                      </div>
+                      <div className="text-right">
+                         <p className="text-[7px] text-slate-500 uppercase tracking-widest font-bold">State</p>
+                         <p className="text-[9px] font-bold truncate text-slate-200">{userProfile.state || 'N/A'}</p>
                       </div>
                    </div>
                    
@@ -176,11 +184,15 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                        <div className="bg-white p-1 rounded-md shadow-sm border border-slate-100 flex-shrink-0">
                           <QRCodeSVG 
                             value={JSON.stringify({
-                              v: 2,
+                              v: 3,
                               id: userProfile.registrationNumber || studentId,
                               name: userProfile.displayName || 'Student',
+                              email: email || 'student@sjtutor.ai',
+                              phone: userProfile.phoneNumber || 'N/A',
                               institution: userProfile.institution || 'SJ Tutor AI',
                               grade: userProfile.grade || 'N/A',
+                              state: userProfile.state || 'N/A',
+                              district: userProfile.district || 'N/A',
                               plan: userProfile.planType || 'Scholar'
                             })}
                             size={55}
