@@ -256,6 +256,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
 
   const isPremium = formData.planType && formData.planType !== 'Free';
   const completionPercentage = calculateProfileCompletion(formData);
+  const incompletePercentage = 100 - completionPercentage;
 
   return (
     <div className={`space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ${isOnboarding ? 'py-4' : ''}`}>
@@ -264,6 +265,37 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Welcome to SJ Tutor AI!</h1>
           <p className="text-slate-500 max-w-lg mx-auto">Let&apos;s build your academic profile to personalize your AI tutor and study materials.</p>
+        </div>
+      )}
+
+      {/* Completion Banner */}
+      {incompletePercentage > 0 && !isOnboarding && (
+        <div className="bg-primary-50 dark:bg-primary-900/10 border border-primary-100 dark:border-primary-800 rounded-2xl p-4 flex items-center justify-between animate-in slide-in-from-top-4 duration-500">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full border-4 border-white dark:border-slate-800 shadow-sm flex items-center justify-center bg-white dark:bg-slate-900 relative">
+               <svg className="w-10 h-10 -rotate-90">
+                <circle cx="20" cy="20" r="18" fill="transparent" stroke="currentColor" strokeWidth="3" className="text-slate-100 dark:text-slate-800" />
+                <circle
+                  cx="20" cy="20" r="18" fill="transparent" stroke="currentColor" strokeWidth="3" 
+                  strokeDasharray={113}
+                  strokeDashoffset={113 - (113 * completionPercentage) / 100}
+                  className="text-primary-500"
+                />
+               </svg>
+               <span className="absolute text-[10px] font-bold text-primary-700 dark:text-primary-400">{completionPercentage}%</span>
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-800 dark:text-white text-sm">Perfect your profile!</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Your profile is <span className="font-bold text-primary-600 dark:text-primary-400">{incompletePercentage}% incomplete</span>. Fill in all details for better AI personalization.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => setIsEditing(true)}
+            className="hidden sm:flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-primary-500/20"
+          >
+            Complete Now
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       )}
 
