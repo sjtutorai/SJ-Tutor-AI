@@ -1085,7 +1085,7 @@ const App: React.FC = () => {
       case AppMode.TIMER:
         return (
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <StudyTimerView />
+             <StudyTimerView userProfile={userProfile} />
           </div>
         );
 

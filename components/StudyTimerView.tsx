@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, Clock, CheckCircle2, Coffee, Zap, AlertTriangle } from 'lucide-react';
+import { Play, Pause, RotateCcw, Clock, CheckCircle2, Coffee, Zap, AlertTriangle, Sparkles } from 'lucide-react';
 
 const PRESETS = [
   { label: 'Pomodoro', minutes: 25, icon: Zap },
@@ -8,7 +8,11 @@ const PRESETS = [
   { label: 'Deep Work', minutes: 50, icon: Zap },
 ];
 
-const StudyTimerView: React.FC = () => {
+interface StudyTimerViewProps {
+  userProfile: UserProfile;
+}
+
+const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile }) => {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<'FOCUS' | 'BREAK'>('FOCUS');
@@ -16,6 +20,10 @@ const StudyTimerView: React.FC = () => {
   const [initialTime, setInitialTime] = useState(25 * 60);
   const [customMinutes, setCustomMinutes] = useState('');
   const [showWarning, setShowWarning] = useState(false);
+  const [isStrictFocus, setIsStrictFocus] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [unlockDob, setUnlockDob] = useState('');
+  const [showForgotTip, setShowForgotTip] = useState(false);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -23,6 +31,9 @@ const StudyTimerView: React.FC = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && isActive) {
+        if (isStrictFocus) {
+          setIsLocked(true);
+        }
         setIsActive(false);
         setShowWarning(true);
         if (Notification.permission === 'granted') {
@@ -94,11 +105,81 @@ const StudyTimerView: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const handleUnlock = () => {
+    // Normalize DOB for comparison (assuming userProfile.dob is YYYY-MM-DD or similar)
+    const normalizedInput = unlockDob.trim();
+    if (normalizedInput === userProfile.dob) {
+      setIsLocked(false);
+      setUnlockDob('');
+      setShowForgotTip(false);
+    } else {
+      alert("Incorrect identifier.");
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    if ("Notification" in window) {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        alert("Notifications enabled! We'll alert you when your timer is up.");
+      }
+    }
+  };
+
   const progress = ((initialTime - timeLeft) / initialTime) * 100;
 
   return (
-    <div className="max-w-md mx-auto p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div className="max-w-md mx-auto p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+      {/* Lock Overlay */}
+      {isLocked && (
+        <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center p-8 transition-all animate-in fade-in zoom-in duration-300">
+           <div className="w-20 h-20 bg-primary-500 rounded-full flex items-center justify-center mb-8 shadow-lg shadow-primary-500/30">
+              <Zap className="w-10 h-10 text-white fill-current" />
+           </div>
+           <h2 className="text-2xl font-bold text-white mb-2">Focus Mode Locked</h2>
+           <p className="text-slate-400 text-center mb-8 max-w-xs">
+             You switched tabs while in strict mode. Enter your verification code to resume.
+           </p>
+           
+           <div className="w-full max-w-xs space-y-4">
+             <div className="relative">
+               <input
+                 type="password"
+                 value={unlockDob}
+                 onChange={(e) => setUnlockDob(e.target.value)}
+                 onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+                 placeholder="••••••••"
+                 className="w-full bg-slate-800 border-2 border-slate-700 rounded-xl py-4 px-4 text-white text-center text-2xl tracking-[1em] focus:outline-none focus:border-primary-500 transition-all font-mono"
+                 autoFocus
+               />
+               <div className="absolute inset-y-0 right-4 flex items-center">
+                 <button 
+                  onClick={handleUnlock}
+                  className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                 >
+                   Open
+                 </button>
+               </div>
+             </div>
+             
+             <div className="text-center">
+               <button 
+                onClick={() => setShowForgotTip(true)}
+                className="text-xs text-slate-500 hover:text-slate-400 transition-colors"
+               >
+                 Forgot Code?
+               </button>
+               {showForgotTip && (
+                 <p className="text-xs text-primary-400 mt-2 font-medium animate-in slide-in-from-top-1">
+                   Hint: Remember your date of birth (YYYY-MM-DD)
+                 </p>
+               )}
+             </div>
+           </div>
+        </div>
+      )}
+
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative">
         {/* Header */}
         <div className={`p-6 text-center transition-colors duration-500 ${mode === 'FOCUS' ? 'bg-primary-50 dark:bg-primary-900/20' : 'bg-emerald-50 dark:bg-emerald-900/20'}`}>
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white dark:bg-slate-800 shadow-sm mb-4">
@@ -113,7 +194,7 @@ const StudyTimerView: React.FC = () => {
         </div>
 
         {/* Warning Message */}
-        {showWarning && (
+        {showWarning && !isLocked && (
           <div className="bg-amber-50 dark:bg-amber-900/30 border-y border-amber-100 dark:border-amber-800 p-4 flex items-start gap-3 animate-in slide-in-from-top-2">
             <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
             <div>
@@ -159,6 +240,27 @@ const StudyTimerView: React.FC = () => {
               <span className="text-sm text-slate-400 font-medium mt-2 uppercase tracking-widest">
                 {isActive ? 'Running' : 'Paused'}
               </span>
+            </div>
+          </div>
+
+          {/* Social Media Lock Toggle */}
+          <div className="w-full mb-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${isStrictFocus ? 'bg-primary-100 text-primary-600' : 'bg-slate-200 text-slate-400'}`}>
+                  <Zap className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800 dark:text-white leading-tight">Focus Lock Mode</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Lock the app if you switch tabs</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsStrictFocus(!isStrictFocus)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isStrictFocus ? 'bg-primary-600' : 'bg-slate-300 dark:bg-slate-600'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isStrictFocus ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
             </div>
           </div>
 
@@ -211,6 +313,17 @@ const StudyTimerView: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* Notification Button */}
+          {Notification.permission !== 'granted' && (
+            <button 
+              onClick={requestNotificationPermission}
+              className="w-full mb-6 py-2 bg-primary-50 text-primary-700 rounded-lg text-xs font-bold border border-primary-100 hover:bg-primary-100 transition-colors flex items-center justify-center gap-2"
+            >
+              <Sparkles className="w-3 h-3" />
+              Enable Notifications for Timer Alerts
+            </button>
+          )}
 
           {/* Custom Timer */}
           <div className="w-full pt-6 border-t border-slate-100 dark:border-slate-700">

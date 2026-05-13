@@ -407,6 +407,31 @@ const SettingsView: React.FC<SettingsViewProps> = ({
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Notifications</h3>
+             
+             <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-100 dark:border-amber-800/50 mb-6">
+                <div className="flex items-center gap-3 mb-2">
+                   <Bell className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                   <h4 className="font-bold text-amber-800 dark:text-amber-300 text-sm">System Permission Required</h4>
+                </div>
+                <p className="text-xs text-amber-700 dark:text-amber-400 mb-4 leading-relaxed">
+                   To receive study reminders and exam alerts, your browser must allow notifications. If you&apos;re not getting notifications, click the button below.
+                </p>
+                <button 
+                  onClick={async () => {
+                    if ("Notification" in window) {
+                      const permission = await Notification.requestPermission();
+                      alert(`Notification permission: ${permission}`);
+                      if (permission === 'granted') {
+                        new Notification("SJ Tutor AI", { body: "Notifications are now active!" });
+                      }
+                    }
+                  }}
+                  className="bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-300 px-4 py-2 rounded-lg text-xs font-bold border border-amber-200 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                >
+                  Request Device Permission
+                </button>
+             </div>
+
              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
                 {[
                   { id: 'studyReminders', label: 'Daily Study Reminders', desc: 'Get reminded to hit your daily goals.' },
