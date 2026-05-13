@@ -621,7 +621,7 @@ const App: React.FC = () => {
       return 10;
     }
     if (targetMode === AppMode.QUIZ) {
-      if (data.questionCount === 20 && data.difficulty === 'Hard') return 0;
+      if (data.questionCount === 10 && data.difficulty === 'Hard') return 0;
       let cost = 10; 
       const qCount = data.questionCount || 5;
       cost += Math.ceil(qCount / 2); 

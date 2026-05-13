@@ -14,7 +14,7 @@ interface InputFormProps {
 
 const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSample, disabled, lockGradeClass }) => {
 
-  const isRewardMode = mode === AppMode.QUIZ && data.questionCount === 20 && data.difficulty === 'Hard';
+  const isRewardMode = mode === AppMode.QUIZ && data.questionCount === 10 && data.difficulty === 'Hard';
 
   const getEstimatedCost = () => {
     if (mode === AppMode.SUMMARY) return 10;
@@ -22,7 +22,7 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
       return 10;
     }
     if (mode === AppMode.QUIZ) {
-      // Reward Challenge: Free generation for 20 Hard Questions
+      // Reward Challenge: Free generation for 10 Hard Questions
       if (isRewardMode) return 0;
 
       let cost = 10;
@@ -165,11 +165,11 @@ const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSampl
             </div>
             
             {/* Helper text for the challenge */}
-            {data.questionCount !== 20 || data.difficulty !== 'Hard' ? (
+            {data.questionCount !== 10 || data.difficulty !== 'Hard' ? (
               <div className="col-span-full mt-1">
                  <p className="text-[10px] text-slate-400 flex items-center gap-1">
                    <Zap className="w-3 h-3" />
-                   Tip: Select <span className="font-bold text-primary-600">20 Questions</span> with <span className="font-bold text-primary-600">Hard</span> difficulty and score <span className="font-bold text-emerald-600">75%+</span> to earn <span className="font-bold text-emerald-600">50 Credits</span>!
+                   Tip: Select <span className="font-bold text-primary-600">10 Questions</span> with <span className="font-bold text-primary-600">Hard</span> difficulty and score <span className="font-bold text-emerald-600">75%+</span> to earn <span className="font-bold text-emerald-600">50 Credits</span>!
                  </p>
               </div>
             ) : null}
