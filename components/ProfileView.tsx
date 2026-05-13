@@ -164,6 +164,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
     ...INDIAN_SCHOOL_BOARDS
   ];
 
+  // Sample mapping for district-specific schools to demonstrate contextual filtering
+  const DISTRICT_SCHOOLS: Record<string, string[]> = {
+    'New Delhi': ['Sanskriti School', 'Modern School Barakhamba', 'Springdales School', 'Mount St Mary\'s', 'Vasant Valley School', 'DPS RK Puram', 'The Mother\'s International School'],
+    'Mumbai City': ['Cathedral and John Connon School', 'Jamnabai Narsee School', 'Campion School', 'Don Bosco High School', 'St. Mary\'s School', 'The Cathedral & John Connon School'],
+    'Bengaluru Urban': ['The Valley School', 'Mallya Aditi International School', 'Bishop Cotton Boys\' High School', 'National Public School Indiranagar', 'Inventure Academy'],
+    'Patna': ['St. Michael\'s High School', 'Loyola High School', 'Notre Dame Academy', 'Delhi Public School Patna', 'Don Bosco Academy'],
+    'Jaipur': ['Maharani Gayatri Devi Girls\' Public School', 'St. Xavier\'s Senior Secondary School', 'Sanskar School', 'Neerja Modi School'],
+    'Pune': ['The Bishop\'s School', 'St. Mary\'s School', 'Loyola High School', 'Symbiosis International School'],
+    'Hyderabad': ['The Hyderabad Public School', 'Chirec International School', 'Gitanjali Senior School'],
+  };
+
   const handleInputChange = (field: keyof UserProfile, value: string) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
@@ -187,15 +198,23 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
       }
 
       // School filtering logic
-      if (field === 'institution') {
-        if (value.length > 0) {
-          const firstLetter = value.charAt(0).toUpperCase();
-          const filtered = ALL_SCHOOLS.filter(school => 
-            school.toUpperCase().startsWith(firstLetter)
+      if (field === 'institution' || field === 'district') {
+        const currentDistrict = field === 'district' ? value : updated.district;
+        const currentInput = field === 'institution' ? value : (field === 'district' ? '' : updated.institution);
+
+        let contextSchools = [...ALL_SCHOOLS];
+        if (currentDistrict && DISTRICT_SCHOOLS[currentDistrict]) {
+          contextSchools = [...DISTRICT_SCHOOLS[currentDistrict], ...ALL_SCHOOLS];
+        }
+
+        if (currentInput.length > 0) {
+          const searchTerm = currentInput.toUpperCase();
+          const filtered = contextSchools.filter(school => 
+            school.toUpperCase().includes(searchTerm)
           );
-          setFilteredSchools(filtered.length > 0 ? filtered : ALL_SCHOOLS);
+          setFilteredSchools(filtered.length > 0 ? filtered : contextSchools);
         } else {
-          setFilteredSchools(ALL_SCHOOLS);
+          setFilteredSchools(contextSchools);
         }
       }
       
