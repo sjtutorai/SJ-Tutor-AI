@@ -69,6 +69,8 @@ export interface UserProfile {
   phoneVerified?: boolean;
   registrationNumber?: string;
   dob?: string;
+  state?: string;
+  district?: string;
   claimedOffers?: number[];
 }
 

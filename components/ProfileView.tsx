@@ -27,6 +27,17 @@ interface ProfileViewProps {
   isOnboarding?: boolean;
 }
 
+const INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 
+  'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 
+  'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 
+  'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 
+  'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+  'Andaman and Nicobar Islands', 'Chandigarh', 'Dadra and Nagar Haveli and Daman and Diu', 
+  'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
+];
+
 const INDIAN_SCHOOL_BOARDS = [
   'CBSE (Central Board of Secondary Education)',
   'ICSE (Council for the Indian School Certificate Examinations)',
@@ -95,6 +106,7 @@ const COMMON_SCHOOL_TYPES = [
 const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnboarding = false }) => {
   const [isEditing, setIsEditing] = useState(isOnboarding);
   const [formData, setFormData] = useState<UserProfile>(profile);
+  const [filteredSchools, setFilteredSchools] = useState<string[]>(COMMON_SCHOOL_TYPES);
   const [phoneInfo, setPhoneInfo] = useState<{ country?: CountryPhone, isValid: boolean, error?: string }>({ isValid: false });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,6 +143,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
         const calculatedGrade = calculateGradeFromAge(value);
         if (calculatedGrade) {
           updated.grade = calculatedGrade;
+        }
+      }
+
+      // School filtering logic
+      if (field === 'institution') {
+        if (value.length > 0) {
+          const firstLetter = value.charAt(0).toUpperCase();
+          const filtered = COMMON_SCHOOL_TYPES.filter(school => 
+            school.toUpperCase().startsWith(firstLetter)
+          );
+          setFilteredSchools(filtered.length > 0 ? filtered : COMMON_SCHOOL_TYPES);
+        } else {
+          setFilteredSchools(COMMON_SCHOOL_TYPES);
         }
       }
       
@@ -330,17 +355,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">About Me (Bio)</label>
-                  <input
-                    type="text"
-                    disabled={!isEditing}
-                    value={formData.bio}
-                    onChange={(e) => handleInputChange('bio', e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
-                    placeholder="e.g. Aspiring Physicist"
-                  />
-                </div>
-                <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date of Birth</label>
                   <div className="relative">
                      <Calendar className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
@@ -352,6 +366,49 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
                      />
                   </div>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">State</label>
+                  <div className="relative">
+                     <Layers className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+                     <input
+                      type="text"
+                      list="states-list"
+                      disabled={!isEditing}
+                      value={formData.state || ''}
+                      onChange={(e) => handleInputChange('state', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                      placeholder="Select or type your State"
+                    />
+                    <datalist id="states-list">
+                      {INDIAN_STATES.map(s => <option key={s} value={s} />)}
+                    </datalist>
+                  </div>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">District</label>
+                  <div className="relative">
+                     <Briefcase className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+                     <input
+                      type="text"
+                      disabled={!isEditing}
+                      value={formData.district || ''}
+                      onChange={(e) => handleInputChange('district', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                      placeholder="Type your District"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">About Me (Bio)</label>
+                  <input
+                    type="text"
+                    disabled={!isEditing}
+                    value={formData.bio}
+                    onChange={(e) => handleInputChange('bio', e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                    placeholder="e.g. Aspiring Physicist"
+                  />
                 </div>
              </div>
           </div>
@@ -371,8 +428,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
              <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
-                    School / University / Board
-                    <span className="text-[10px] text-primary-500 lowercase font-normal">Searchable list available ↓</span>
+                    School Selection
+                    <span className="text-[10px] text-primary-500 lowercase font-normal">Search by name ↓</span>
                   </label>
                   <div className="relative">
                      <School className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
@@ -383,10 +440,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                       value={formData.institution}
                       onChange={(e) => handleInputChange('institution', e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
-                      placeholder="Type School name or Board (e.g. KV or CBSE)"
+                      placeholder="Type School name... (If not present, type yours)"
                     />
                     <datalist id="school-list">
-                      {COMMON_SCHOOL_TYPES.map(type => (
+                      {filteredSchools.map(type => (
                         <option key={`type-${type}`} value={type} />
                       ))}
                       {INDIAN_SCHOOL_BOARDS.map(board => (
@@ -396,7 +453,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                   </div>
                   {!formData.institution && isEditing && (
                     <p className="text-[10px] text-slate-400 px-1 italic">
-                      Includes major Govt. schools (KV, JNV, Sainik), Boards (CBSE, ICSE, States), and Private chains.
+                      Type the first letter to see suggestions. If your school isn&apos;t listed, feel free to type its full name.
                     </p>
                   )}
                 </div>
