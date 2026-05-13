@@ -23,7 +23,6 @@
     "jspdf": "^2.5.1",
     "libphonenumber-js": "^1.12.37",
     "lucide-react": "^0.556.0",
-    "mongoose": "^9.2.2",
     "motion": "^12.38.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.1",
@@ -35,7 +34,6 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/mongoose": "^5.11.96",
     "@types/node": "^22.14.0",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.56.0",

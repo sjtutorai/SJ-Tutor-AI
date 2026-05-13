@@ -9,9 +9,8 @@ export const calculateProfileCompletion = (profile: UserProfile): number => {
   if (profile.dob) completion += 15;
   if (profile.institution) completion += 10;
   if (profile.grade) completion += 10;
-  if (profile.bio && profile.bio.length >= 5) completion += 10;
-  if (profile.phoneNumber) completion += 10;
-  if (profile.phoneVerified) completion += 10;
+  if (profile.bio && profile.bio.length >= 5) completion += 15;
+  if (profile.phoneNumber) completion += 15;
   if (profile.learningGoal) completion += 5;
   if (profile.learningStyle) completion += 5;
   
@@ -28,7 +27,6 @@ export const getMissingProfileFields = (profile: UserProfile): string[] => {
   if (!profile.grade) missing.push("Class/Grade");
   if (!profile.bio || profile.bio.length < 5) missing.push("About Me");
   if (!profile.phoneNumber) missing.push("Phone Number");
-  if (!profile.phoneVerified) missing.push("Phone Verification");
   if (!profile.learningGoal) missing.push("Learning Goal");
   if (!profile.learningStyle) missing.push("Learning Style");
   

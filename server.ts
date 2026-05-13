@@ -1,7 +1,6 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import cors from "cors";
-import mongoose from "mongoose";
 import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
 import path from "path";
@@ -25,31 +24,6 @@ app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
-
-// Connect to MongoDB
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/sjtutor";
-
-console.log("-----------------------------------------");
-console.log("SJTutor AI Server Initialization");
-console.log("MONGO_URI defined:", !!process.env.MONGO_URI);
-console.log(`Attempting to connect to MongoDB: ${MONGO_URI.replace(/:([^@]+)@/, ':****@')}`);
-console.log("-----------------------------------------");
-
-// Non-blocking connection attempt
-mongoose.connect(MONGO_URI, {
-  serverApi: {
-    version: '1',
-    strict: true,
-    deprecationErrors: true,
-  }
-})
-  .then(() => console.log("✅ SJ Tutor AI: MongoDB Connected Successfully"))
-  .catch(err => {
-    console.error("❌ MongoDB connection failed:", err.message);
-    if (MONGO_URI.includes("127.0.0.1")) {
-      console.warn("Using local fallback - check if MONGO_URI is set in .env or environment variables");
-    }
-  });
 
 // API routes
 app.use("/api/auth", authRoutes);
