@@ -117,9 +117,9 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                 
                 {/* Photo Section */}
                 <div className="flex flex-col gap-2">
-                   <div className="w-24 h-24 rounded-xl bg-white/10 backdrop-blur-sm border-2 border-white/20 overflow-hidden shadow-lg relative">
+                   <div className="w-24 h-24 rounded-full bg-white/10 backdrop-blur-sm border-2 border-white/20 overflow-hidden shadow-lg relative">
                       {userProfile.photoURL ? (
-                         <img src={userProfile.photoURL} alt="Student" className="w-full h-full object-cover" />
+                         <img src={userProfile.photoURL} alt="Student" className="w-full h-full object-cover rounded-full" />
                       ) : (
                          <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-500">
                             <User className="w-10 h-10" />

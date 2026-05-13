@@ -321,7 +321,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
            <div className="relative group mb-4">
               <div className="w-32 h-32 rounded-full border-4 border-primary-50 shadow-md bg-slate-50 flex items-center justify-center overflow-hidden relative">
                 {formData.photoURL ? (
-                  <img src={formData.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                  <img src={formData.photoURL} alt="Profile" className="w-full h-full object-cover rounded-full" />
                 ) : (
                   <User className="w-12 h-12 text-slate-300" />
                 )}
