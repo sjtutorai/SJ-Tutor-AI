@@ -81,12 +81,22 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
           })
         });
 
-        const data = await response.json();
-        if (response.ok && data.id) {
-          shareUrl = `${window.location.origin}?share=${data.id}`;
+        if (response.ok) {
+          const data = await response.json();
+          if (data.id) {
+            shareUrl = `${window.location.host.includes('localhost') ? 'http://' : 'https://'}${window.location.host}?share=${data.id}`;
+          }
+        } else {
+          try {
+            const errorData = await response.json();
+            console.warn("Backend share error status:", response.status, errorData);
+          } catch (e) {
+            const text = await response.text();
+            console.error("Backend share returned non-JSON error:", text.substring(0, 500));
+          }
         }
-      } catch (backendError) {
-        console.warn("Sharing backend failed, using local share only", backendError);
+      } catch (backendError: any) {
+        console.warn("Sharing backend fetch failed", backendError);
       }
 
       const shareText = `${title} (${type})\n\n${content.substring(0, 300)}...\n\nRead more on SJ Tutor AI: ${shareUrl}`;

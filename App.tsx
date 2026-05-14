@@ -585,6 +585,32 @@ const App: React.FC = () => {
       const qCount = (historyItem.content as QuizQuestion[]).length;
       const percentage = (score / qCount) * 100;
       
+      // 0. Achiever Challenge Check
+      if (historyItem.formData.isAchieverChallenge) {
+        if (percentage >= 95) {
+          // Success: Unlock Achiever Plan for 1 month (simulated as just plan change)
+          handleProfileSave({ 
+            ...userProfile, 
+            planType: 'Achiever',
+            claimedOffers: [...(userProfile.claimedOffers || []), 4] 
+          }, false);
+          
+          setTimeout(() => {
+            alert(`🏆 CONGRATULATIONS ACHIEVER! 🏆\n\nYou scored ${percentage}% on the 30-question challenge!\n\nYou have UNLOCKED the Achiever Plan for 1 month. Enjoy your premium features!`);
+          }, 1500);
+        } else {
+          // Failure: Deduct 50% of current credits
+          const penalty = Math.floor(userProfile.credits * 0.5);
+          const newCredits = userProfile.credits - penalty;
+          handleProfileSave({ ...userProfile, credits: Math.max(0, newCredits) }, false);
+          
+          setTimeout(() => {
+            alert(`💔 CHALLENGE FAILED 💔\n\nYou scored ${percentage}%. To unlock the Achiever Plan, you need 95% or more.\n\nAs agreed, 50% of your credits (${penalty}) have been deducted. Don't give up, study harder and try again!`);
+          }, 1500);
+        }
+        return;
+      }
+
       // 1. General Reward: 90% score on 10+ questions quiz gets 50% refund
       if (qCount >= 10 && percentage >= 90) {
         const cost = calculateCost(AppMode.QUIZ, historyItem.formData);
@@ -617,6 +643,7 @@ const App: React.FC = () => {
   };
 
   const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
+    if (data.isAchieverChallenge) return 0;
     if (targetMode === AppMode.SUMMARY) return 10;
     if (targetMode === AppMode.HOMEWORK) {
       return 10;
@@ -1196,6 +1223,7 @@ const App: React.FC = () => {
               </div>
             )}
             <button
+              id="generate-quiz-btn"
               onClick={handleGenerate}
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
             >
@@ -1291,6 +1319,30 @@ const App: React.FC = () => {
               <StudentOffers 
                 userProfile={userProfile}
                 onUpdateProfile={(p) => handleProfileSave(p, false)}
+                onStartAchieverChallenge={() => {
+                  setQuizData(null);
+                  setError(null);
+                  setFormData({
+                    subject: userProfile.institution || 'General Knowledge',
+                    gradeClass: userProfile.grade || 'Global',
+                    board: 'Achiever Board',
+                    language: 'English',
+                    chapterName: 'The Ultimate Achiever Challenge',
+                    questionCount: 30,
+                    difficulty: 'Hard',
+                    isAchieverChallenge: true
+                  });
+                  setMode(AppMode.QUIZ);
+                  // We need to trigger generation after state updates
+                  // A small timeout or a tracking ref would be needed
+                  // But setMode + setFormData will render the InputForm for QUIZ
+                  // then handleGenerate must be clicked or auto-triggered
+                  // Let's auto-trigger by using a special effect or just calling it
+                  setTimeout(() => {
+                    const btn = document.getElementById('generate-quiz-btn');
+                    if (btn) btn.click();
+                  }, 100);
+                }}
               />
            </div>
         );

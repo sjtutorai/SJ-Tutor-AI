@@ -7,12 +7,18 @@ import { UserProfile } from '../types';
 interface StudentOffersProps {
   userProfile: UserProfile;
   onUpdateProfile: (newProfile: UserProfile) => void;
+  onStartAchieverChallenge?: () => void;
 }
 
-const StudentOffers: React.FC<StudentOffersProps> = ({ userProfile, onUpdateProfile }) => {
+const StudentOffers: React.FC<StudentOffersProps> = ({ userProfile, onUpdateProfile, onStartAchieverChallenge }) => {
   const [justClaimed, setJustClaimed] = useState<number | null>(null);
 
   const handleClaim = (id: number) => {
+    if (id === 4 && onStartAchieverChallenge) {
+      onStartAchieverChallenge();
+      return;
+    }
+    
     setJustClaimed(id);
     
     const newClaimedOffers = [...(userProfile.claimedOffers || []), id];

@@ -19,6 +19,45 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
 
+  // Persistence Key - unique per set of questions (using first question as a soft hash)
+  const persistenceKey = `sj_quiz_progress_${questions[0]?.question.substring(0, 20)}`;
+
+  // Load persistence
+  useEffect(() => {
+    if (existingScore === undefined) {
+      const saved = localStorage.getItem(persistenceKey);
+      if (saved) {
+        try {
+          const { index, currentScore, isCompleted } = JSON.parse(saved);
+          if (!isCompleted) {
+            setCurrentIndex(index);
+            setScore(currentScore);
+          }
+        } catch (e) {
+          console.error("Failed to load quiz progress", e);
+        }
+      }
+    }
+  }, [persistenceKey, existingScore]);
+
+  // Save persistence
+  useEffect(() => {
+    if (existingScore === undefined && !quizCompleted && questions.length > 0) {
+      localStorage.setItem(persistenceKey, JSON.stringify({
+        index: currentIndex,
+        currentScore: score,
+        isCompleted: false
+      }));
+    }
+  }, [currentIndex, score, quizCompleted, persistenceKey, existingScore, questions]);
+
+  // Clear persistence on completion
+  useEffect(() => {
+    if (quizCompleted) {
+      localStorage.removeItem(persistenceKey);
+    }
+  }, [quizCompleted, persistenceKey]);
+
   // Initialize view if there's an existing score (viewing history)
   useEffect(() => {
     if (existingScore !== undefined) {
