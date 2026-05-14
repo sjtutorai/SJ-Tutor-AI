@@ -27,7 +27,6 @@ import { auth } from './firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { 
-  BookOpen, 
   FileText, 
   BrainCircuit, 
   MessageCircle, 
@@ -50,6 +49,7 @@ import {
   Tag,
   QrCode,
   Eye,
+  Camera,
   User as UserIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -134,9 +134,15 @@ const App: React.FC = () => {
   
   // Content States
   const [summaryContent, setSummaryContent] = useState('');
-  const [essayContent, setEssayContent] = useState('');
+  const [homeworkContent, setHomeworkContent] = useState(() => localStorage.getItem('sj_resume_homework') || '');
+  const [homeworkImages, setHomeworkImages] = useState<string[]>([]);
   const [quizData, setQuizData] = useState<QuizQuestion[] | null>(null);
   const [existingQuizScore, setExistingQuizScore] = useState<number | undefined>(undefined);
+  
+  // Track consecutive high scores (95%+) for the Premium Offer
+  const [consecutiveHighScores, setConsecutiveHighScores] = useState(() => {
+    return parseInt(localStorage.getItem('sj_consecutive_95_scores') || '0');
+  });
   
   // Loading States
   const [loading, setLoading] = useState(false);
@@ -219,9 +225,9 @@ const App: React.FC = () => {
             if (item.type === AppMode.SUMMARY) {
               setSummaryContent(item.content);
               setMode(AppMode.SUMMARY);
-            } else if (item.type === AppMode.ESSAY) {
-              setEssayContent(item.content);
-              setMode(AppMode.ESSAY);
+            } else if (item.type === AppMode.HOMEWORK) {
+              setHomeworkContent(item.content);
+              setMode(AppMode.HOMEWORK);
             } else if (item.type === AppMode.QUIZ) {
               setQuizData(item.content);
               setMode(AppMode.QUIZ);
@@ -247,7 +253,7 @@ const App: React.FC = () => {
       };
       fetchShared();
     }
-  }, [setSummaryContent, setEssayContent, setQuizData, setMode, setFormData]);
+  }, [setSummaryContent, setHomeworkContent, setQuizData, setMode, setFormData]);
 
   // Sync formData language with settings whenever settings change
   useEffect(() => {
@@ -321,7 +327,7 @@ const App: React.FC = () => {
 
   // Auto-fill grade from profile when switching modes
   useEffect(() => {
-    if (mode === AppMode.SUMMARY || mode === AppMode.QUIZ || mode === AppMode.ESSAY) {
+    if (mode === AppMode.SUMMARY || mode === AppMode.QUIZ || mode === AppMode.HOMEWORK) {
       if (userProfile.grade && (!formData.gradeClass || formData.gradeClass === INITIAL_FORM_DATA.gradeClass)) {
         setFormData(prev => ({ ...prev, gradeClass: userProfile.grade }));
       }
@@ -556,6 +562,16 @@ const App: React.FC = () => {
     return true;
   };
 
+  const handleImageUpload = (base64: string | null) => {
+    if (base64) {
+      setHomeworkImages(prev => [...prev, base64]);
+    }
+  };
+
+  const handleRemoveHomeworkImage = (index: number) => {
+    setHomeworkImages(prev => prev.filter((_, i) => i !== index));
+  };
+
   const addToHistory = (type: AppMode, content: any) => {
     const newId = Date.now().toString();
     const newItem: HistoryItem = {
@@ -584,6 +600,67 @@ const App: React.FC = () => {
       const qCount = (historyItem.content as QuizQuestion[]).length;
       const percentage = (score / qCount) * 100;
       
+      // 0. Achiever Challenge Check
+      if (historyItem.formData.isAchieverChallenge) {
+        if (percentage >= 95) {
+          // Success: Unlock Achiever Plan for 1 month (simulated as just plan change)
+          handleProfileSave({ 
+            ...userProfile, 
+            planType: 'Achiever',
+            claimedOffers: [...(userProfile.claimedOffers || []), 4] 
+          }, false);
+          
+          setTimeout(() => {
+            alert(`🏆 CONGRATULATIONS ACHIEVER! 🏆\n\nYou scored ${percentage}% on the 30-question challenge!\n\nYou have UNLOCKED the Achiever Plan for 1 month. Enjoy your premium features!`);
+          }, 1500);
+        } else {
+          // Failure: Deduct 50% of current credits
+          const penalty = Math.floor(userProfile.credits * 0.5);
+          const newCredits = userProfile.credits - penalty;
+          handleProfileSave({ ...userProfile, credits: Math.max(0, newCredits) }, false);
+          
+          setTimeout(() => {
+            alert(`💔 CHALLENGE FAILED 💔\n\nYou scored ${percentage}%. To unlock the Achiever Plan, you need 95% or more.\n\nAs agreed, 50% of your credits (${penalty}) have been deducted. Don't give up, study harder and try again!`);
+          }, 1500);
+        }
+        return;
+      }
+
+      // 0.1 Consecutive Tracker for "Premium for Top 1%"
+      if (percentage >= 95) {
+        const nextCount = consecutiveHighScores + 1;
+        setConsecutiveHighScores(nextCount);
+        localStorage.setItem('sj_consecutive_95_scores', nextCount.toString());
+
+        if (nextCount >= 10) {
+           // Reward unlocked!
+           handleProfileSave({
+             ...userProfile,
+             planType: 'Achiever',
+             claimedOffers: [...(userProfile.claimedOffers || []), 4]
+           }, false);
+           setConsecutiveHighScores(0);
+           localStorage.setItem('sj_consecutive_95_scores', '0');
+           
+           setTimeout(() => {
+             alert("👑 ROYAL ACHIEVEMENT! 👑\n\nYou have scored 95%+ in 10 consecutive quizzes!\n\nYou have unlocked 1 Month of Achiever Plan for FREE.");
+           }, 2000);
+        } else {
+           setTimeout(() => {
+             alert(`🔥 STREAK! ${nextCount}/10 consecutive quizzes with 95%+. Keep it up to unlock Premium!`);
+           }, 1500);
+        }
+      } else {
+        // Reset streak if failed
+        if (consecutiveHighScores > 0) {
+          setConsecutiveHighScores(0);
+          localStorage.setItem('sj_consecutive_95_scores', '0');
+          setTimeout(() => {
+            alert("Streak Reset: You need 95%+ in 10 CONSECUTIVE quizzes to unlock Premium. Try again!");
+          }, 1500);
+        }
+      }
+
       // 1. General Reward: 90% score on 10+ questions quiz gets 50% refund
       if (qCount >= 10 && percentage >= 90) {
         const cost = calculateCost(AppMode.QUIZ, historyItem.formData);
@@ -616,8 +693,9 @@ const App: React.FC = () => {
   };
 
   const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
+    if (data.isAchieverChallenge) return 0;
     if (targetMode === AppMode.SUMMARY) return 10;
-    if (targetMode === AppMode.ESSAY) {
+    if (targetMode === AppMode.HOMEWORK) {
       return 10;
     }
     if (targetMode === AppMode.QUIZ) {
@@ -680,20 +758,21 @@ const App: React.FC = () => {
         addToHistory(AppMode.SUMMARY, text);
         deductCredit(cost);
 
-      } else if (mode === AppMode.ESSAY) {
-        setEssayContent('');
-        const stream = await GeminiService.generateEssayStream(formData);
+      } else if (mode === AppMode.HOMEWORK) {
+        setHomeworkContent('');
+        const stream = await GeminiService.solveHomeworkStream(formData, homeworkImages.length > 0 ? homeworkImages : undefined);
         
         let text = '';
          for await (const chunk of stream) {
             const c = chunk as GenerateContentResponse;
             if (c.text) {
                 text += c.text;
-                setEssayContent(text);
+                setHomeworkContent(text);
+                localStorage.setItem('sj_resume_homework', text);
             }
         }
 
-        addToHistory(AppMode.ESSAY, text);
+        addToHistory(AppMode.HOMEWORK, text);
         deductCredit(cost);
 
       } else if (mode === AppMode.QUIZ) {
@@ -735,9 +814,9 @@ const App: React.FC = () => {
     if (item.type === AppMode.SUMMARY) {
       setSummaryContent(item.content);
       setMode(AppMode.SUMMARY);
-    } else if (item.type === AppMode.ESSAY) {
-      setEssayContent(item.content);
-      setMode(AppMode.ESSAY);
+    } else if (item.type === AppMode.HOMEWORK) {
+      setHomeworkContent(item.content);
+      setMode(AppMode.HOMEWORK);
     } else if (item.type === AppMode.QUIZ) {
       setQuizData(item.content);
       setExistingQuizScore(item.score);
@@ -832,7 +911,7 @@ const App: React.FC = () => {
     { id: AppMode.ID_CARD, label: 'Student ID Card', icon: CreditCard },
     { id: AppMode.SUMMARY, label: 'Summary Generator', icon: FileText },
     { id: AppMode.QUIZ, label: 'Quiz Creator', icon: BrainCircuit },
-    { id: AppMode.ESSAY, label: 'Essay Writer', icon: BookOpen },
+    { id: AppMode.HOMEWORK, label: 'Homework Solver', icon: Camera },
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
@@ -858,7 +937,7 @@ const App: React.FC = () => {
     const stats = {
       summaries: history.filter(h => h.type === AppMode.SUMMARY).length,
       quizzes: history.filter(h => h.type === AppMode.QUIZ).length,
-      essays: history.filter(h => h.type === AppMode.ESSAY).length,
+      homeworks: history.filter(h => h.type === AppMode.HOMEWORK).length,
       chats: history.filter(h => h.type === AppMode.TUTOR).length,
     };
 
@@ -866,7 +945,7 @@ const App: React.FC = () => {
       { id: AppMode.ID_CARD, label: 'My ID Card', count: null, icon: CreditCard, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-[#FDF5E6] dark:bg-indigo-900/30' },
       { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.HOMEWORK, label: 'Homeworks', count: stats.homeworks, icon: Camera, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.OFFERS, label: 'Offers', count: null, icon: Tag, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-[#FDF5E6] dark:bg-rose-900/30' },
       { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
@@ -879,7 +958,7 @@ const App: React.FC = () => {
         switch(view) {
             case AppMode.SUMMARY: return 'Summary';
             case AppMode.QUIZ: return 'Quiz';
-            case AppMode.ESSAY: return 'Essay';
+            case AppMode.HOMEWORK: return 'Homework';
             case AppMode.TUTOR: return 'Chat';
             default: return 'Item';
         }
@@ -912,7 +991,8 @@ const App: React.FC = () => {
               <button
                 onClick={() => {
                   setSummaryContent('');
-                  setEssayContent('');
+                  setHomeworkContent('');
+                  setHomeworkImage(null);
                   setQuizData(null);
                   setExistingQuizScore(undefined);
                   setCurrentHistoryId(null);
@@ -945,7 +1025,7 @@ const App: React.FC = () => {
                     <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-100 dark:bg-slate-700 text-primary-600 dark:text-primary-400`}>
                       {item.type === AppMode.QUIZ ? <BrainCircuit className="w-4 h-4" /> :
                        item.type === AppMode.SUMMARY ? <FileText className="w-4 h-4" /> :
-                       item.type === AppMode.ESSAY ? <BookOpen className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
+                       item.type === AppMode.HOMEWORK ? <Camera className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
                     </div>
                     <div>
                       <h4 className="font-semibold text-slate-800 dark:text-white mb-0.5 group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors">{item.title}</h4>
@@ -1042,9 +1122,9 @@ const App: React.FC = () => {
                  <BrainCircuit className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                  New Quiz
               </button>
-               <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-blue-100 dark:hover:border-blue-900">
-                 <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                 Write Essay
+               <button onClick={() => setMode(AppMode.HOMEWORK)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-blue-100 dark:hover:border-blue-900">
+                 <Camera className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                 Solve HW
               </button>
               <button onClick={() => setMode(AppMode.TUTOR)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900">
                  <MessageCircle className="w-6 h-6 text-purple-600 dark:text-purple-400" />
@@ -1120,16 +1200,18 @@ const App: React.FC = () => {
           </div>
         );
 
-      case AppMode.ESSAY:
-         if (essayContent) {
+      case AppMode.HOMEWORK:
+         if (homeworkContent) {
           return (
             <ResultsView
               title={formData.chapterName}
-              content={essayContent}
-              type="Essay"
+              content={homeworkContent}
+              type="Homework Solution"
               isLoading={false}
               onBack={() => {
-                 setEssayContent('');
+                 setHomeworkContent('');
+                 setHomeworkImages([]);
+                 setFormData(prev => ({ ...prev, homeworkInstructions: '' }));
                  setCurrentHistoryId(null);
               }}
             />
@@ -1139,10 +1221,13 @@ const App: React.FC = () => {
           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <InputForm
               data={formData}
-              mode={AppMode.ESSAY}
+              mode={AppMode.HOMEWORK}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
               lockGradeClass={!!(userProfile.dob && userProfile.grade)}
+              onImageUpload={handleImageUpload}
+              homeworkImages={homeworkImages}
+              onRemoveImage={handleRemoveHomeworkImage}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -1152,10 +1237,11 @@ const App: React.FC = () => {
             )}
             <button
               onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+              disabled={homeworkImages.length === 0 && !formData.homeworkInstructions?.trim() && !formData.chapterName?.trim() && !formData.subject?.trim()}
+              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:transform-none"
             >
-              <BookOpen className="w-5 h-5 group-hover:animate-pulse" />
-              Write Essay
+              <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
+              Solve Homework
             </button>
           </div>
         );
@@ -1172,6 +1258,7 @@ const App: React.FC = () => {
               }} 
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
+              userId={user?.uid}
             />
           );
         }
@@ -1191,6 +1278,7 @@ const App: React.FC = () => {
               </div>
             )}
             <button
+              id="generate-quiz-btn"
               onClick={handleGenerate}
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
             >
@@ -1286,6 +1374,30 @@ const App: React.FC = () => {
               <StudentOffers 
                 userProfile={userProfile}
                 onUpdateProfile={(p) => handleProfileSave(p, false)}
+                onStartAchieverChallenge={() => {
+                  setQuizData(null);
+                  setError(null);
+                  setFormData({
+                    subject: userProfile.institution || 'General Knowledge',
+                    gradeClass: userProfile.grade || 'Global',
+                    board: 'Achiever Board',
+                    language: 'English',
+                    chapterName: 'The Ultimate Achiever Challenge',
+                    questionCount: 30,
+                    difficulty: 'Hard',
+                    isAchieverChallenge: true
+                  });
+                  setMode(AppMode.QUIZ);
+                  // We need to trigger generation after state updates
+                  // A small timeout or a tracking ref would be needed
+                  // But setMode + setFormData will render the InputForm for QUIZ
+                  // then handleGenerate must be clicked or auto-triggered
+                  // Let's auto-trigger by using a special effect or just calling it
+                  setTimeout(() => {
+                    const btn = document.getElementById('generate-quiz-btn');
+                    if (btn) btn.click();
+                  }, 100);
+                }}
               />
            </div>
         );
@@ -1311,7 +1423,7 @@ const App: React.FC = () => {
 
   if (!user) {
     // If we have shared content loaded or viewing public pages, show it in a public layout
-    const hasSharedContent = summaryContent || essayContent || quizData;
+    const hasSharedContent = summaryContent || homeworkContent || quizData;
     const isPublicPage = mode === AppMode.ABOUT || mode === AppMode.PRIVACY || mode === AppMode.TERMS;
     
     if (hasSharedContent || isPublicPage) {
@@ -1374,7 +1486,8 @@ const App: React.FC = () => {
               setMode(AppMode.DASHBOARD);
               setDashboardView('OVERVIEW');
               setSummaryContent('');
-              setEssayContent('');
+              setHomeworkContent('');
+              setHomeworkImage(null);
               setQuizData(null);
               setExistingQuizScore(undefined);
               setCurrentHistoryId(null);
@@ -1416,7 +1529,8 @@ const App: React.FC = () => {
                       setMode(item.id);
                       setDashboardView('OVERVIEW');
                       setSummaryContent('');
-                      setEssayContent('');
+                      setHomeworkContent('');
+                      setHomeworkImage(null);
                       setQuizData(null);
                       setExistingQuizScore(undefined);
                       setCurrentHistoryId(null);

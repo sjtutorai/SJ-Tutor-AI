@@ -26,7 +26,19 @@ app.use((req, res, next) => {
 });
 
 // API routes
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
 app.use("/api/auth", authRoutes);
+
+// API 404 Handler - Ensuring API errors are JSON, not HTML
+app.all("/api/*all", (req, res) => {
+  res.status(404).json({ 
+    message: "API endpoint not found",
+    path: req.originalUrl 
+  });
+});
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -46,7 +58,11 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static("dist"));
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*all", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {

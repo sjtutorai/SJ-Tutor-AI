@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
-import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone } from 'lucide-react';
+import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
+import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone, Search, Image as ImageIcon, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface QRScannerProps {
@@ -20,73 +20,92 @@ interface ScannedUser {
 const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   const [scannedData, setScannedData] = useState<ScannedUser | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [manualId, setManualId] = useState('');
+  const [isScanning, setIsScanning] = useState(true);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const processDecodedText = (decodedText: string) => {
+    try {
+      console.log("Processing Text:", decodedText);
+      const trimmed = decodedText.trim();
+      let data: ScannedUser;
+      
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        const parsed = JSON.parse(trimmed);
+        data = {
+          name: parsed.name || "Student",
+          id: parsed.id || trimmed,
+          institution: parsed.institution || "SJ Tutor AI",
+          grade: parsed.grade || "N/A",
+          plan: parsed.plan || "Scholar",
+          phone: parsed.phone || "N/A"
+        };
+      } else {
+        data = {
+          name: "Member",
+          id: trimmed,
+          institution: "SJ Tutor AI",
+          grade: "N/A",
+          plan: "Student"
+        };
+      }
+
+      if (data.id) {
+        setScannedData(data);
+        setError(null);
+        if (scannerRef.current) {
+          scannerRef.current.clear().catch(() => {});
+        }
+      } else {
+        setError("Unrecognized ID format.");
+      }
+    } catch (err) {
+      setError("Could not parse. Please try again.");
+    }
+  };
+
+  const handleManualSearch = () => {
+    if (!manualId.trim()) return;
+    processDecodedText(manualId);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const html5QrCode = new Html5Qrcode("qr-reader-hidden");
+    try {
+      const result = await html5QrCode.scanFile(file, true);
+      processDecodedText(result);
+    } catch (err) {
+      setError("No QR code found in this image.");
+    } finally {
+      html5QrCode.clear();
+    }
+  };
 
   useEffect(() => {
-    scannerRef.current = new Html5QrcodeScanner(
-      "qr-reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      /* verbose= */ false
-    );
+    if (isScanning && !scannedData) {
+      scannerRef.current = new Html5QrcodeScanner(
+        "qr-reader",
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        false
+      );
 
-        const onScanSuccess = (decodedText: string) => {
-          try {
-            console.log("Scanned QR Text:", decodedText);
-            const trimmed = decodedText.trim();
-            // Handle JSON format
-            let data: ScannedUser;
-            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-              const parsed = JSON.parse(trimmed);
-              data = {
-                name: parsed.name || "Student",
-                id: parsed.id || trimmed,
-                institution: parsed.institution || "SJ Tutor AI",
-                grade: parsed.grade || "N/A",
-                plan: parsed.plan || "Scholar",
-                phone: parsed.phone || "N/A"
-              };
-            } else {
-              // Plain text ID fallback
-              data = {
-                name: "Member",
-                id: trimmed,
-                institution: "SJ Tutor AI",
-                grade: "N/A",
-                plan: "Student"
-              };
-            }
-
-            if (data.id) {
-              setScannedData(data);
-              if (scannerRef.current) {
-                scannerRef.current.clear().catch(() => {});
-              }
-            } else {
-              setError("Unrecognized ID format.");
-            }
-          } catch (err) {
-            console.error("Scan Error:", err);
-            setError("Could not parse QR code. Please scan a valid SJ Tutor ID.");
-          }
-        };
-
-    const onScanFailure = () => {
-      // Optional: handle scan failures
-    };
-
-    scannerRef.current.render(onScanSuccess, onScanFailure);
+      scannerRef.current.render(processDecodedText, () => {});
+    }
 
     return () => {
       if (scannerRef.current) {
-        scannerRef.current.clear().catch(err => {
-          console.error("Failed to clear scanner", err);
-        });
+        scannerRef.current.clear().catch(() => {});
       }
     };
-  }, []);
+  }, [isScanning, scannedData]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div id="qr-reader-hidden" style={{ display: 'none' }}></div>
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -94,8 +113,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
       >
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">QR Code Scanner</h3>
-            <p className="text-xs text-slate-500">Scan an SJ Tutor Student ID</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Student Retrieval</h3>
+            <p className="text-xs text-slate-500">Scan, Upload, or Enter ID Manually</p>
           </div>
           <button 
             onClick={onClose}
@@ -109,21 +128,75 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
           <AnimatePresence mode="wait">
             {!scannedData ? (
               <motion.div 
-                key="scanner"
+                key="input-selection"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="space-y-4"
+                className="space-y-6"
               >
-                <div id="qr-reader" className="overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"></div>
+                <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                  <button 
+                    onClick={() => setIsScanning(true)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${isScanning ? 'bg-white dark:bg-slate-700 text-primary-600 shadow-sm' : 'text-slate-500'}`}
+                  >
+                    <Camera className="w-4 h-4" />
+                    Live Scan
+                  </button>
+                  <button 
+                    onClick={() => setIsScanning(false)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${!isScanning ? 'bg-white dark:bg-slate-700 text-primary-600 shadow-sm' : 'text-slate-500'}`}
+                  >
+                    <Search className="w-4 h-4" />
+                    Manual Entry
+                  </button>
+                </div>
+
+                {isScanning ? (
+                  <div className="space-y-4">
+                    <div id="qr-reader" className="overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"></div>
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full flex items-center justify-center gap-2 py-3 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-sm font-semibold"
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                      Upload QR Image
+                    </button>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      accept="image/*" 
+                      onChange={handleFileUpload}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-4 py-8">
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={manualId}
+                        onChange={(e) => setManualId(e.target.value)}
+                        placeholder="Enter SJ Tutor ID Number..."
+                        className="w-full px-4 py-4 pr-12 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary-500 outline-none transition-all font-mono"
+                      />
+                      <button 
+                        onClick={handleManualSearch}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-primary-600 text-white rounded-xl shadow-lg shadow-primary-500/20 active:scale-90 transition-all"
+                      >
+                        <Search className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <p className="text-center text-[10px] text-slate-400 uppercase tracking-widest font-bold">
+                      Example: SJT-2026-XXXX
+                    </p>
+                  </div>
+                )}
+
                 {error && (
                   <p className="text-red-500 text-xs text-center font-medium bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">
                     {error}
                   </p>
                 )}
-                <p className="text-center text-xs text-slate-400">
-                  Align ID card QR code within the frame to scan
-                </p>
               </motion.div>
             ) : (
               <motion.div 
@@ -133,45 +206,49 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
                 className="space-y-6"
               >
                 <div className="flex flex-col items-center text-center">
-                  <div className="w-20 h-20 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mb-4 border-2 border-primary-500 shadow-xl shadow-primary-500/10">
-                    <User className="w-10 h-10 text-primary-600" />
+                  <div className="w-24 h-24 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mb-4 border-4 border-white dark:border-slate-800 shadow-xl shadow-primary-500/20 relative">
+                    <User className="w-12 h-12 text-primary-600" />
+                    <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full border-2 border-white dark:border-slate-800 shadow-sm">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="text-xl font-bold text-slate-900 dark:text-white">{scannedData.name}</h4>
-                    <ShieldCheck className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mr-1.5">ID:</span>
+                  <h4 className="text-2xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tight leading-none">
+                    {scannedData.name || 'Anonymous Student'}
+                  </h4>
+                  <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full mb-6">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mr-1.5">Reg ID:</span>
                     <code className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono italic">{scannedData.id}</code>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2 text-slate-400 mb-1">
-                      <School className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Institution</span>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm col-span-2">
+                    <div className="flex items-center gap-2 text-primary-500 mb-2">
+                      <School className="w-4 h-4" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Institution / School</span>
                     </div>
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 line-clamp-1">
-                      {scannedData.institution || 'N/A'}
+                    <p className="text-base font-bold text-slate-800 dark:text-slate-100">
+                      {scannedData.institution || 'Not Specified'}
                     </p>
                   </div>
-                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2 text-slate-400 mb-1">
-                      <GraduationCap className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Grade</span>
+
+                  <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex items-center gap-2 text-amber-500 mb-2">
+                      <Phone className="w-4 h-4" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Phone Number</span>
                     </div>
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      {scannedData.phone || 'Not Provided'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex items-center gap-2 text-indigo-500 mb-2">
+                      <GraduationCap className="w-4 h-4" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Grade / Class</span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
                       {scannedData.grade || 'N/A'}
-                    </p>
-                  </div>
-                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 col-span-2">
-                    <div className="flex items-center gap-2 text-slate-400 mb-1">
-                      <Phone className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Contact Number</span>
-                    </div>
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                      {scannedData.phone || 'N/A'}
                     </p>
                   </div>
                 </div>

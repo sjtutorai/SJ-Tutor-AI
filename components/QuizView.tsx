@@ -9,15 +9,55 @@ interface QuizViewProps {
   onReset: () => void;
   onComplete?: (score: number) => void;
   existingScore?: number;
+  userId?: string;
 }
 
-const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, existingScore }) => {
+const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, existingScore, userId }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
+
+  // Persistence Key - unique per set of questions and user
+  const persistenceKey = `sj_quiz_progress_${userId || 'guest'}_${questions[0]?.question.substring(0, 20)}`;
+
+  // Load persistence
+  useEffect(() => {
+    if (existingScore === undefined) {
+      const saved = localStorage.getItem(persistenceKey);
+      if (saved) {
+        try {
+          const { index, currentScore, isCompleted } = JSON.parse(saved);
+          if (!isCompleted) {
+            setCurrentIndex(index);
+            setScore(currentScore);
+          }
+        } catch (e) {
+          console.error("Failed to load quiz progress", e);
+        }
+      }
+    }
+  }, [persistenceKey, existingScore]);
+
+  // Save persistence
+  useEffect(() => {
+    if (existingScore === undefined && !quizCompleted && questions.length > 0) {
+      localStorage.setItem(persistenceKey, JSON.stringify({
+        index: currentIndex,
+        currentScore: score,
+        isCompleted: false
+      }));
+    }
+  }, [currentIndex, score, quizCompleted, persistenceKey, existingScore, questions]);
+
+  // Clear persistence on completion
+  useEffect(() => {
+    if (quizCompleted) {
+      localStorage.removeItem(persistenceKey);
+    }
+  }, [quizCompleted, persistenceKey]);
 
   // Initialize view if there's an existing score (viewing history)
   useEffect(() => {
@@ -102,9 +142,16 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
         })
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Sharing failed');
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
 
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Invalid response from server");
+      }
+
+      const data = await response.json();
       const shareId = data.id;
       const shareUrl = `${window.location.origin}?share=${shareId}`;
       const text = `I scored ${score}/${questions.length} on my SJ Tutor AI Quiz! 🎓`;
