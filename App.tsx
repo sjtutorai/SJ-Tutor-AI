@@ -50,6 +50,7 @@ import {
   QrCode,
   Eye,
   Camera,
+  Home,
   User as UserIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -93,7 +94,7 @@ const App: React.FC = () => {
   });
 
   // App State
-  const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
+  const [mode, setMode] = useState<AppMode>(AppMode.LANDING);
   
   // Initialize form data with language from settings
   const [formData, setFormData] = useState<StudyRequestData>(() => {
@@ -907,6 +908,7 @@ const App: React.FC = () => {
   };
 
   const navItems = [
+    { id: AppMode.LANDING, label: 'Home', icon: Home },
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: AppMode.ID_CARD, label: 'Student ID Card', icon: CreditCard },
     { id: AppMode.SUMMARY, label: 'Summary Generator', icon: FileText },
@@ -1140,6 +1142,13 @@ const App: React.FC = () => {
     if (loading) return <LoadingState mode={mode} />;
 
     switch (mode) {
+      case AppMode.LANDING:
+        return (
+          <div className="-m-4 sm:-m-5 lg:-m-6">
+            <LandingPage onGetStarted={() => setMode(AppMode.DASHBOARD)} />
+          </div>
+        );
+
       case AppMode.DASHBOARD:
         return renderDashboard();
       
@@ -1483,7 +1492,7 @@ const App: React.FC = () => {
           <div 
             className="p-5 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             onClick={() => {
-              setMode(AppMode.DASHBOARD);
+              setMode(AppMode.LANDING);
               setDashboardView('OVERVIEW');
               setSummaryContent('');
               setHomeworkContent('');
@@ -1521,6 +1530,7 @@ const App: React.FC = () => {
                   key={item.id}
                   onClick={() => {
                     if (item.id !== AppMode.DASHBOARD && 
+                        item.id !== AppMode.LANDING &&
                         item.id !== AppMode.ABOUT && 
                         !user) {
                       setShowAuthModal(true);
