@@ -67,33 +67,10 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
       let studentDoc;
       try {
         studentDoc = await getDoc(doc(db, 'students', studentId));
-      } catch (error: any) {
-        console.error("Firestore Error:", error);
-        
-        // Follow integration[firebase] error handling requirements
-        const errInfo = {
-          error: error instanceof Error ? error.message : String(error),
-          authInfo: {
-            userId: null, // Scanners often run without auth
-            email: null,
-            emailVerified: null,
-            isAnonymous: null,
-            providerInfo: []
-          },
-          operationType: 'get',
-          path: `students/${studentId}`
-        };
-        console.error('Firestore Error: ', JSON.stringify(errInfo));
-        
-        const message = error.message || "";
-        if (message.includes("permission-denied")) {
-          setError("Access Denied: Please check Firestore Security Rules.");
-        } else if (message.includes("offline")) {
-          setError("Connections Error: You seem to be offline.");
-        } else {
-          setError("Error retrieving student details. Make sure Firestore is enabled.");
-        }
-        return;
+      } catch (dbErr: any) {
+        console.error("Firestore Error:", dbErr);
+        // If Firestore fails (not enabled/no rules), we still tell them about the ID
+        throw new Error(dbErr.message || "Database connection error");
       }
       
       if (studentDoc.exists()) {
