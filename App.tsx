@@ -135,7 +135,7 @@ const App: React.FC = () => {
   // Content States
   const [summaryContent, setSummaryContent] = useState('');
   const [homeworkContent, setHomeworkContent] = useState(() => localStorage.getItem('sj_resume_homework') || '');
-  const [homeworkImage, setHomeworkImage] = useState<string | null>(null);
+  const [homeworkImages, setHomeworkImages] = useState<string[]>([]);
   const [quizData, setQuizData] = useState<QuizQuestion[] | null>(null);
   const [existingQuizScore, setExistingQuizScore] = useState<number | undefined>(undefined);
   
@@ -562,6 +562,16 @@ const App: React.FC = () => {
     return true;
   };
 
+  const handleImageUpload = (base64: string | null) => {
+    if (base64) {
+      setHomeworkImages(prev => [...prev, base64]);
+    }
+  };
+
+  const handleRemoveHomeworkImage = (index: number) => {
+    setHomeworkImages(prev => prev.filter((_, i) => i !== index));
+  };
+
   const addToHistory = (type: AppMode, content: any) => {
     const newId = Date.now().toString();
     const newItem: HistoryItem = {
@@ -750,7 +760,7 @@ const App: React.FC = () => {
 
       } else if (mode === AppMode.HOMEWORK) {
         setHomeworkContent('');
-        const stream = await GeminiService.solveHomeworkStream(formData, homeworkImage || undefined);
+        const stream = await GeminiService.solveHomeworkStream(formData, homeworkImages.length > 0 ? homeworkImages : undefined);
         
         let text = '';
          for await (const chunk of stream) {
@@ -1200,6 +1210,8 @@ const App: React.FC = () => {
               isLoading={false}
               onBack={() => {
                  setHomeworkContent('');
+                 setHomeworkImages([]);
+                 setFormData(prev => ({ ...prev, homeworkInstructions: '' }));
                  setCurrentHistoryId(null);
               }}
             />
@@ -1213,8 +1225,9 @@ const App: React.FC = () => {
               onChange={handleFormChange}
               onFillSample={handleFillSample}
               lockGradeClass={!!(userProfile.dob && userProfile.grade)}
-              onImageUpload={setHomeworkImage}
-              homeworkImage={homeworkImage}
+              onImageUpload={handleImageUpload}
+              homeworkImages={homeworkImages}
+              onRemoveImage={handleRemoveHomeworkImage}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -1224,7 +1237,7 @@ const App: React.FC = () => {
             )}
             <button
               onClick={handleGenerate}
-              disabled={!formData.subject && !homeworkImage}
+              disabled={!formData.subject && homeworkImages.length === 0}
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:transform-none"
             >
               <Sparkles className="w-5 h-5 group-hover:animate-pulse" />

@@ -101,41 +101,48 @@ export const GeminiService = {
     return response;
   },
 
-  solveHomeworkStream: async (data: StudyRequestData, imageBase64?: string) => {
+  solveHomeworkStream: async (data: StudyRequestData, imagesBase64?: string[]) => {
     const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
     const prompt = `
       You are an expert tutor solving homework problems.
-      ${imageBase64 ? "I have attached an image of the problem." : ""}
+      ${imagesBase64 && imagesBase64.length > 0 ? `I have attached ${imagesBase64.length} image(s) of the homework problem(s).` : ""}
       
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
       Board: ${data.board}
       Language: ${language}
       Chapter/Topic: ${data.chapterName}
+
+      ${data.homeworkInstructions ? `Additional Student Instructions: ${data.homeworkInstructions}` : ""}
       
       Requirements:
-      1. Analyze the input (from image if provided, otherwise from text).
-      2. Provide a step-by-step solution.
+      1. Analyze the input (from image(s) if provided, otherwise from text).
+      2. Provide a step-by-step solution for all identified problems.
       3. Explain the underlying concepts clearly.
       4. ALL RESPONSES MUST BE IN ${language.toUpperCase()}.
       
-      If the image contains multiple problems, solve them one by one.
-      If the image is not clear or doesn't contain a study problem, kindly ask the student to re-align the camera.
+      If the images contain multiple problems, solve them one by one.
+      If any image is not clear or doesn't contain a study problem, kindly ask the student to re-align the camera or provide a better photo of that specific part.
     `;
 
-    const contents: any[] = [{ text: prompt }];
-    if (imageBase64) {
-      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-      contents.unshift({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
+    const parts: any[] = [];
+    
+    if (imagesBase64 && imagesBase64.length > 0) {
+      imagesBase64.forEach(img => {
+        const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+        parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
+      });
     }
+
+    parts.push({ text: prompt });
 
     const response = await ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',
       contents: {
-        parts: contents
+        parts: parts
       },
       config: {
         systemInstruction: `You are an expert Homework Solver and Academic Tutor. Tone: ${settings.aiTutor.personality}. You generate content only in ${language}.`,

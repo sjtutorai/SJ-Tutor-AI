@@ -29,6 +29,7 @@ export interface StudyRequestData {
   questionCount?: number;
   difficulty?: DifficultyLevel;
   isAchieverChallenge?: boolean;
+  homeworkInstructions?: string;
 }
 
 export interface QuizQuestion {
