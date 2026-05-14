@@ -108,24 +108,25 @@ export const GeminiService = {
 
     const prompt = `
       You are an expert tutor solving homework problems.
-      ${imagesBase64 && imagesBase64.length > 0 ? `I have attached ${imagesBase64.length} image(s) of the homework problem(s).` : ""}
       
-      Subject: ${data.subject}
+      ${imagesBase64 && imagesBase64.length > 0 ? `I have provided ${imagesBase64.length} photo(s) of the homework.` : "No photos provided."}
+      ${data.homeworkInstructions ? `Problem Statement / Instructions: ${data.homeworkInstructions}` : "No specific text instructions provided."}
+      
+      Subject: ${data.subject || "Not specified"}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
-      Board: ${data.board}
+      Board: ${data.board || "Not specified"}
       Language: ${language}
-      Chapter/Topic: ${data.chapterName}
-
-      ${data.homeworkInstructions ? `Additional Student Instructions: ${data.homeworkInstructions}` : ""}
+      Chapter/Topic: ${data.chapterName || "Not specified"}
       
       Requirements:
-      1. Analyze the input (from image(s) if provided, otherwise from text).
-      2. Provide a step-by-step solution for all identified problems.
-      3. Explain the underlying concepts clearly.
-      4. ALL RESPONSES MUST BE IN ${language.toUpperCase()}.
+      1. If photos are provided, analyze them carefully. If text is also provided, use it to focus your analysis or as the primary problem description.
+      2. If ONLY text is provided, solve the problem described in the text.
+      3. If ONLY photos are provided, solve all problems visible in the photos.
+      4. Provide a step-by-step solution for all identified problems.
+      5. Explain the underlying concepts clearly so the student learns how to do it.
+      6. ALL RESPONSES MUST BE IN ${language.toUpperCase()}.
       
-      If the images contain multiple problems, solve them one by one.
-      If any image is not clear or doesn't contain a study problem, kindly ask the student to re-align the camera or provide a better photo of that specific part.
+      If an image is not clear or doesn't contain a study problem, and there is no text instructions to clarify, kindly ask the student to provide a better description or photo.
     `;
 
     const parts: any[] = [];

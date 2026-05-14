@@ -151,12 +151,12 @@ const InputForm: React.FC<InputFormProps> = ({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Additional Instructions (Optional)</label>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Homework Problem / Instructions</label>
             <textarea
               value={data.homeworkInstructions || ''}
               onChange={(e) => onChange('homeworkInstructions', e.target.value)}
-              placeholder="e.g. Solve only question 5, or explain the core concept behind this problem..."
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-slate-900 text-sm min-h-[80px]"
+              placeholder="Type your problem here, or add any special instructions for the AI..."
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-slate-900 text-sm min-h-[100px]"
             />
           </div>
 

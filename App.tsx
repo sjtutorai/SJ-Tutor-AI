@@ -1237,7 +1237,7 @@ const App: React.FC = () => {
             )}
             <button
               onClick={handleGenerate}
-              disabled={!formData.subject && homeworkImages.length === 0}
+              disabled={homeworkImages.length === 0 && !formData.homeworkInstructions?.trim() && !formData.chapterName?.trim() && !formData.subject?.trim()}
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:transform-none"
             >
               <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
