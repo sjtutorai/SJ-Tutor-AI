@@ -45,33 +45,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
         }
       }
 
-      // 1. Check for Demo Case First (Always works)
-      if (studentId.startsWith("SJT-DEMO-")) {
-        setScannedData({
-          name: "Ankit Sharma",
-          id: studentId,
-          institution: "Delhi Public School",
-          grade: "12th Science",
-          plan: "Achiever",
-          phone: "+91 98765 43210",
-          photoURL: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&h=400&fit=crop"
-        });
-        setError(null);
-        if (scannerRef.current) {
-          scannerRef.current.clear().catch(() => {});
-        }
-        return;
-      }
-
-      // 2. Fetch from Firestore for real IDs
-      let studentDoc;
-      try {
-        studentDoc = await getDoc(doc(db, 'students', studentId));
-      } catch (dbErr: any) {
-        console.error("Firestore Error:", dbErr);
-        // If Firestore fails (not enabled/no rules), we still tell them about the ID
-        throw new Error(dbErr.message || "Database connection error");
-      }
+      // Fetch from Firestore
+      const studentDoc = await getDoc(doc(db, 'students', studentId));
       
       if (studentDoc.exists()) {
         const data = studentDoc.data();
@@ -89,18 +64,24 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
           scannerRef.current.clear().catch(() => {});
         }
       } else {
-        setError(`Student with ID ${studentId} not found.`);
+        // Mock fallback for testing if user explicitly provided a specific format
+        if (studentId.startsWith("SJT-DEMO-")) {
+            setScannedData({
+                name: "Ankit Sharma",
+                id: studentId,
+                institution: "Delhi Public School",
+                grade: "12th Science",
+                plan: "Achiever",
+                phone: "+91 98765 43210",
+                photoURL: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&h=400&fit=crop"
+            });
+        } else {
+            setError(`Student with ID ${studentId} not found.`);
+        }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      const message = err.message || "";
-      if (message.includes("permission-denied")) {
-        setError("Access Denied: Please check Firestore Security Rules.");
-      } else if (message.includes("offline")) {
-        setError("Connections Error: You seem to be offline.");
-      } else {
-        setError("Error retrieving student details. Make sure Firestore is enabled.");
-      }
+      setError("Error retrieving student details. Please try again.");
     } finally {
       setIsLoading(false);
     }
