@@ -9,9 +9,10 @@ interface QuizViewProps {
   onReset: () => void;
   onComplete?: (score: number) => void;
   existingScore?: number;
+  userId?: string;
 }
 
-const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, existingScore }) => {
+const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, existingScore, userId }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [score, setScore] = useState(0);
@@ -19,8 +20,8 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
 
-  // Persistence Key - unique per set of questions (using first question as a soft hash)
-  const persistenceKey = `sj_quiz_progress_${questions[0]?.question.substring(0, 20)}`;
+  // Persistence Key - unique per set of questions and user
+  const persistenceKey = `sj_quiz_progress_${userId || 'guest'}_${questions[0]?.question.substring(0, 20)}`;
 
   // Load persistence
   useEffect(() => {
@@ -141,9 +142,16 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
         })
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Sharing failed');
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
 
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Invalid response from server");
+      }
+
+      const data = await response.json();
       const shareId = data.id;
       const shareUrl = `${window.location.origin}?share=${shareId}`;
       const text = `I scored ${score}/${questions.length} on my SJ Tutor AI Quiz! 🎓`;

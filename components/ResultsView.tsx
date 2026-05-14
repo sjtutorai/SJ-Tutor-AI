@@ -82,18 +82,17 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
         });
 
         if (response.ok) {
-          const data = await response.json();
-          if (data.id) {
-            shareUrl = `${window.location.host.includes('localhost') ? 'http://' : 'https://'}${window.location.host}?share=${data.id}`;
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await response.json();
+            if (data.id) {
+              shareUrl = `${window.location.protocol}//${window.location.host}?share=${data.id}`;
+            }
           }
         } else {
-          try {
-            const errorData = await response.json();
-            console.warn("Backend share error status:", response.status, errorData);
-          } catch (e) {
-            const text = await response.text();
-            console.error("Backend share returned non-JSON error:", text.substring(0, 500));
-          }
+          console.warn("Backend share error status:", response.status);
+          const text = await response.text();
+          console.error("Backend share response:", text.substring(0, 200));
         }
       } catch (backendError: any) {
         console.warn("Sharing backend fetch failed", backendError);

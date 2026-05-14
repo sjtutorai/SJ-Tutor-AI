@@ -134,10 +134,15 @@ const App: React.FC = () => {
   
   // Content States
   const [summaryContent, setSummaryContent] = useState('');
-  const [homeworkContent, setHomeworkContent] = useState('');
+  const [homeworkContent, setHomeworkContent] = useState(() => localStorage.getItem('sj_resume_homework') || '');
   const [homeworkImage, setHomeworkImage] = useState<string | null>(null);
   const [quizData, setQuizData] = useState<QuizQuestion[] | null>(null);
   const [existingQuizScore, setExistingQuizScore] = useState<number | undefined>(undefined);
+  
+  // Track consecutive high scores (95%+) for the Premium Offer
+  const [consecutiveHighScores, setConsecutiveHighScores] = useState(() => {
+    return parseInt(localStorage.getItem('sj_consecutive_95_scores') || '0');
+  });
   
   // Loading States
   const [loading, setLoading] = useState(false);
@@ -248,7 +253,7 @@ const App: React.FC = () => {
       };
       fetchShared();
     }
-  }, [setSummaryContent, setEssayContent, setQuizData, setMode, setFormData]);
+  }, [setSummaryContent, setHomeworkContent, setQuizData, setMode, setFormData]);
 
   // Sync formData language with settings whenever settings change
   useEffect(() => {
@@ -611,6 +616,41 @@ const App: React.FC = () => {
         return;
       }
 
+      // 0.1 Consecutive Tracker for "Premium for Top 1%"
+      if (percentage >= 95) {
+        const nextCount = consecutiveHighScores + 1;
+        setConsecutiveHighScores(nextCount);
+        localStorage.setItem('sj_consecutive_95_scores', nextCount.toString());
+
+        if (nextCount >= 10) {
+           // Reward unlocked!
+           handleProfileSave({
+             ...userProfile,
+             planType: 'Achiever',
+             claimedOffers: [...(userProfile.claimedOffers || []), 4]
+           }, false);
+           setConsecutiveHighScores(0);
+           localStorage.setItem('sj_consecutive_95_scores', '0');
+           
+           setTimeout(() => {
+             alert("👑 ROYAL ACHIEVEMENT! 👑\n\nYou have scored 95%+ in 10 consecutive quizzes!\n\nYou have unlocked 1 Month of Achiever Plan for FREE.");
+           }, 2000);
+        } else {
+           setTimeout(() => {
+             alert(`🔥 STREAK! ${nextCount}/10 consecutive quizzes with 95%+. Keep it up to unlock Premium!`);
+           }, 1500);
+        }
+      } else {
+        // Reset streak if failed
+        if (consecutiveHighScores > 0) {
+          setConsecutiveHighScores(0);
+          localStorage.setItem('sj_consecutive_95_scores', '0');
+          setTimeout(() => {
+            alert("Streak Reset: You need 95%+ in 10 CONSECUTIVE quizzes to unlock Premium. Try again!");
+          }, 1500);
+        }
+      }
+
       // 1. General Reward: 90% score on 10+ questions quiz gets 50% refund
       if (qCount >= 10 && percentage >= 90) {
         const cost = calculateCost(AppMode.QUIZ, historyItem.formData);
@@ -718,6 +758,7 @@ const App: React.FC = () => {
             if (c.text) {
                 text += c.text;
                 setHomeworkContent(text);
+                localStorage.setItem('sj_resume_homework', text);
             }
         }
 
@@ -1204,6 +1245,7 @@ const App: React.FC = () => {
               }} 
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
+              userId={user?.uid}
             />
           );
         }

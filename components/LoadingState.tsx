@@ -24,11 +24,11 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
       "Drafting explanations...",
       "Calibrating difficulty..."
     ],
-    [AppMode.ESSAY]: [
-      "Brainstorming thesis...",
-      "Structuring arguments...",
-      "Drafting body paragraphs...",
-      "Polishing conclusion..."
+    [AppMode.HOMEWORK]: [
+      "Analyzing your problem...",
+      "Identifying core concepts...",
+      "Solving step-by-step...",
+      "Double-checking accuracy..."
     ],
     [AppMode.NOTES]: [
       "Analyzing exam date...",
@@ -52,7 +52,7 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [mode]);
+  }, [mode, messages]);
 
   return (
     <div className="flex flex-col items-center justify-center p-12 bg-white rounded-2xl shadow-sm border border-slate-100 min-h-[400px]">
@@ -76,7 +76,7 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
 
       <h3 className="text-xl font-bold text-slate-800 mb-2 animate-pulse">
         {mode === AppMode.NOTES ? 'SJ Tutor AI is Planning' : 
-         `SJ Tutor AI is Creating your ${mode === AppMode.SUMMARY ? 'Summary' : mode === AppMode.QUIZ ? 'Quiz' : 'Essay'}`
+         `SJ Tutor AI is ${mode === AppMode.SUMMARY ? 'Summarizing' : mode === AppMode.QUIZ ? 'Creating your Quiz' : mode === AppMode.HOMEWORK ? 'Solving your Problem' : 'Processing'}`
         }
       </h3>
       
