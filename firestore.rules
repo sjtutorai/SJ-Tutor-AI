@@ -12,22 +12,26 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "sjtutorai@gmail.com"
+      );
+    }
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
     // --- Student Rules ---
     match /students/{studentId} {
-      // Allow public retrieval of student info by ID (no auth required as it's a "retrieval" service)
-      // or we can require auth if that's safer, but usually QR scanners use public URLs or IDs.
-      // Let's allow public read for single documents to support the "Retreival" use case.
+      // Allow public retrieval of student info by ID
       allow get: if isValidId(studentId);
       
-      // Prevent listing all students
-      allow list: if false;
+      // Allow admin to manage students
+      allow create, update, delete: if isAdmin();
 
-      // Prevent anyone from writing directly from the client for now
-      allow create, update, delete: if false;
+      // Prevent listing all students
+      allow list: if isAdmin();
     }
   }
 }
