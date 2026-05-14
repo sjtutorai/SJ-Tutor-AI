@@ -1,8 +1,10 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
-import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone, Search, Image as ImageIcon, Camera } from 'lucide-react';
+import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone, Search, Image as ImageIcon, Camera, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { db } from '../firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface QRScannerProps {
   onClose: () => void;
@@ -15,6 +17,7 @@ interface ScannedUser {
   grade?: string;
   plan?: string;
   phone?: string;
+  photoURL?: string;
 }
 
 const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
@@ -22,46 +25,67 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   const [error, setError] = useState<string | null>(null);
   const [manualId, setManualId] = useState('');
   const [isScanning, setIsScanning] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const processDecodedText = (decodedText: string) => {
+  const processDecodedText = async (decodedText: string) => {
+    setIsLoading(true);
+    setError(null);
     try {
       console.log("Processing Text:", decodedText);
       const trimmed = decodedText.trim();
-      let data: ScannedUser;
+      let studentId = trimmed;
       
+      // If it looks like JSON, try to extract ID
       if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-        const parsed = JSON.parse(trimmed);
-        data = {
-          name: parsed.name || "Student",
-          id: parsed.id || trimmed,
-          institution: parsed.institution || "SJ Tutor AI",
-          grade: parsed.grade || "N/A",
-          plan: parsed.plan || "Scholar",
-          phone: parsed.phone || "N/A"
-        };
-      } else {
-        data = {
-          name: "Member",
-          id: trimmed,
-          institution: "SJ Tutor AI",
-          grade: "N/A",
-          plan: "Student"
-        };
+        try {
+          const parsed = JSON.parse(trimmed);
+          studentId = parsed.id || trimmed;
+        } catch (_e) {
+          // Fallback to searching the whole string if JSON parse fails
+        }
       }
 
-      if (data.id) {
-        setScannedData(data);
+      // Fetch from Firestore
+      const studentDoc = await getDoc(doc(db, 'students', studentId));
+      
+      if (studentDoc.exists()) {
+        const data = studentDoc.data();
+        setScannedData({
+          name: data.name || "Student",
+          id: studentId,
+          institution: data.institution || "SJ Tutor AI Member",
+          grade: data.grade || data.class || "N/A",
+          plan: data.plan || "Scholar",
+          phone: data.phone || data.phoneNumber || "N/A",
+          photoURL: data.photoURL || data.profilePicture
+        });
         setError(null);
         if (scannerRef.current) {
           scannerRef.current.clear().catch(() => {});
         }
       } else {
-        setError("Unrecognized ID format.");
+        // Mock fallback for testing if user explicitly provided a specific format
+        if (studentId.startsWith("SJT-DEMO-")) {
+            setScannedData({
+                name: "Ankit Sharma",
+                id: studentId,
+                institution: "Delhi Public School",
+                grade: "12th Science",
+                plan: "Achiever",
+                phone: "+91 98765 43210",
+                photoURL: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&h=400&fit=crop"
+            });
+        } else {
+            setError(`Student with ID ${studentId} not found.`);
+        }
       }
     } catch (err) {
-      setError("Could not parse. Please try again.");
+      console.error(err);
+      setError("Error retrieving student details. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -78,7 +102,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
     try {
       const result = await html5QrCode.scanFile(file, true);
       processDecodedText(result);
-    } catch (err) {
+    } catch (_err) {
       setError("No QR code found in this image.");
     } finally {
       html5QrCode.clear();
@@ -181,9 +205,10 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
                       />
                       <button 
                         onClick={handleManualSearch}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-primary-600 text-white rounded-xl shadow-lg shadow-primary-500/20 active:scale-90 transition-all"
+                        disabled={isLoading}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-primary-600 text-white rounded-xl shadow-lg shadow-primary-500/20 active:scale-90 transition-all disabled:opacity-50"
                       >
-                        <Search className="w-5 h-5" />
+                        {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                       </button>
                     </div>
                     <p className="text-center text-[10px] text-slate-400 uppercase tracking-widest font-bold">
@@ -206,8 +231,12 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
                 className="space-y-6"
               >
                 <div className="flex flex-col items-center text-center">
-                  <div className="w-24 h-24 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mb-4 border-4 border-white dark:border-slate-800 shadow-xl shadow-primary-500/20 relative">
-                    <User className="w-12 h-12 text-primary-600" />
+                  <div className="w-24 h-24 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4 border-4 border-white dark:border-slate-800 shadow-xl shadow-primary-500/20 relative overflow-hidden">
+                    {scannedData.photoURL ? (
+                      <img src={scannedData.photoURL} alt={scannedData.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-12 h-12 text-slate-400" />
+                    )}
                     <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full border-2 border-white dark:border-slate-800 shadow-sm">
                       <ShieldCheck className="w-3.5 h-3.5" />
                     </div>

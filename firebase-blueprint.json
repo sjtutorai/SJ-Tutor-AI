@@ -1,0 +1,25 @@
+{
+  "entities": {
+    "student": {
+      "title": "Student",
+      "description": "Represents a student in the SJ Tutor AI system.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "institution": { "type": "string" },
+        "grade": { "type": "string" },
+        "phone": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "registrationNumber": { "type": "string" },
+        "id": { "type": "string" }
+      },
+      "required": ["name", "institution", "id"]
+    }
+  },
+  "firestore": {
+    "/students/{studentId}": {
+      "schema": "student",
+      "description": "Publicly retrievable student info by ID."
+    }
+  }
+}
