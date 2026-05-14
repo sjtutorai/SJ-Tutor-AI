@@ -8,10 +8,8 @@ import {
   User, BookOpen, Bot, MessageSquare, Bell, Moon, Lock, 
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, ChevronDown, ChevronUp,
   Save, LogOut, Trash2, Globe, Shield, Activity, Eye, Type, Palette, Monitor, Zap,
-  Volume2, Terminal, Crown, Check, AlertTriangle, Clock, Mail, FileText, Loader2, Database
+  Volume2, Terminal, Crown, Check, AlertTriangle, Clock, Mail, FileText
 } from 'lucide-react';
-
-import { FirestoreService } from '../services/firestoreService';
 
 interface SettingsViewProps {
   userProfile: UserProfile;
@@ -34,20 +32,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   const [settings, setSettings] = useState<UserSettings>(SettingsService.getSettings());
   const [hasChanges, setHasChanges] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
-
-  const handleSeedData = async () => {
-    if (!window.confirm("Seed Firestore with demo student data?")) return;
-    setIsSeeding(true);
-    try {
-      await FirestoreService.seedDemoData();
-      alert("Registration data successfully added to Firestore!");
-    } catch (e: any) {
-      alert("Error seeding data: " + e.message);
-    } finally {
-      setIsSeeding(false);
-    }
-  };
+  
+  // Help Center State
   const [helpTab, setHelpTab] = useState<'FAQ' | 'TERMS'>('FAQ');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
@@ -215,27 +201,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                   <LogOut className="w-4 h-4 text-red-400" />
                </div>
             </div>
-
-            {/* Admin Utility - Only for SJ Tutor AI Admin email */}
-            {auth.currentUser?.email === 'sjtutorai@gmail.com' && (
-              <div className="bg-primary-50 dark:bg-primary-900/10 p-6 rounded-xl border border-primary-200 dark:border-primary-800/50">
-                 <div className="flex items-center gap-3 mb-3">
-                    <Database className="w-5 h-5 text-primary-600" />
-                    <h4 className="font-bold text-primary-800 dark:text-primary-300">Admin Utility</h4>
-                 </div>
-                 <p className="text-xs text-primary-700 dark:text-primary-400 mb-4">
-                    Populate the registration database with demo students to test the QR scanner.
-                 </p>
-                 <button 
-                   onClick={handleSeedData}
-                   disabled={isSeeding}
-                   className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-700 transition-all disabled:opacity-50"
-                 >
-                   {isSeeding ? <Loader2 className="w-5 h-5 animate-spin" /> : <Database className="w-5 h-5" />}
-                   Seed Student Database
-                 </button>
-              </div>
-            )}
 
             <div className="pt-6">
                <button className="flex items-center gap-2 text-red-500 text-sm font-medium hover:text-red-700">

@@ -14,8 +14,7 @@ export enum AppMode {
   PRIVACY = 'PRIVACY',
   TERMS = 'TERMS',
   OFFERS = 'OFFERS',
-  HISTORY = 'HISTORY',
-  LANDING = 'LANDING'
+  HISTORY = 'HISTORY'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
