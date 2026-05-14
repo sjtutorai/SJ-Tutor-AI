@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { X, User, School, GraduationCap, ShieldCheck, Zap } from 'lucide-react';
+import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface QRScannerProps {
@@ -14,6 +14,7 @@ interface ScannedUser {
   institution?: string;
   grade?: string;
   plan?: string;
+  phone?: string;
 }
 
 const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
@@ -41,7 +42,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
                 id: parsed.id || trimmed,
                 institution: parsed.institution || "SJ Tutor AI",
                 grade: parsed.grade || "N/A",
-                plan: parsed.plan || "Scholar"
+                plan: parsed.plan || "Scholar",
+                phone: parsed.phone || "N/A"
               };
             } else {
               // Plain text ID fallback
@@ -131,35 +133,48 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
                 className="space-y-6"
               >
                 <div className="flex flex-col items-center text-center">
-                  <div className="w-20 h-20 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mb-4 border-2 border-primary-500 shadow-xl shadow-primary-500/10">
-                    <User className="w-10 h-10 text-primary-600" />
+                  <div className="w-24 h-24 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mb-4 border-4 border-white dark:border-slate-800 shadow-xl shadow-primary-500/20 relative">
+                    <User className="w-12 h-12 text-primary-600" />
+                    <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1.5 rounded-full border-2 border-white dark:border-slate-800 shadow-sm">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="text-xl font-bold text-slate-900 dark:text-white">{scannedData.name}</h4>
-                    <ShieldCheck className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mr-1.5">ID:</span>
+                  <h4 className="text-2xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tight leading-none">
+                    {scannedData.name || 'Anonymous Student'}
+                  </h4>
+                  <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full mb-6">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mr-1.5">Reg ID:</span>
                     <code className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono italic">{scannedData.id}</code>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2 text-slate-400 mb-1">
-                      <School className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Institution</span>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm col-span-2">
+                    <div className="flex items-center gap-2 text-primary-500 mb-2">
+                      <School className="w-4 h-4" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Institution / School</span>
                     </div>
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 line-clamp-1">
-                      {scannedData.institution || 'N/A'}
+                    <p className="text-base font-bold text-slate-800 dark:text-slate-100">
+                      {scannedData.institution || 'Not Specified'}
                     </p>
                   </div>
-                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2 text-slate-400 mb-1">
-                      <GraduationCap className="w-3.5 h-3.5" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Grade</span>
+
+                  <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex items-center gap-2 text-amber-500 mb-2">
+                      <Phone className="w-4 h-4" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Phone Number</span>
                     </div>
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      {scannedData.phone || 'Not Provided'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div className="flex items-center gap-2 text-indigo-500 mb-2">
+                      <GraduationCap className="w-4 h-4" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Grade / Class</span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
                       {scannedData.grade || 'N/A'}
                     </p>
                   </div>

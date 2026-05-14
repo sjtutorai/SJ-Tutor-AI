@@ -3,7 +3,7 @@ export enum AppMode {
   DASHBOARD = 'DASHBOARD',
   SUMMARY = 'SUMMARY',
   QUIZ = 'QUIZ',
-  ESSAY = 'ESSAY',
+  HOMEWORK = 'HOMEWORK',
   TUTOR = 'TUTOR',
   PROFILE = 'PROFILE',
   NOTES = 'NOTES',

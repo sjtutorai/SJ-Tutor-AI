@@ -101,28 +101,44 @@ export const GeminiService = {
     return response;
   },
 
-  generateEssayStream: async (data: StudyRequestData) => {
+  solveHomeworkStream: async (data: StudyRequestData, imageBase64?: string) => {
     const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
     const prompt = `
-      Write a detailed, academic essay based on the topics covered in this chapter.
-      THE ENTIRE ESSAY MUST BE WRITTEN IN ${language.toUpperCase()}.
+      You are an expert tutor solving homework problems.
+      ${imageBase64 ? "I have attached an image of the problem." : ""}
       
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
       Board: ${data.board}
       Language: ${language}
-      Chapter: ${data.chapterName}
-      ${data.author ? `Author: ${data.author}` : ''}
+      Chapter/Topic: ${data.chapterName}
+      
+      Requirements:
+      1. Analyze the input (from image if provided, otherwise from text).
+      2. Provide a step-by-step solution.
+      3. Explain the underlying concepts clearly.
+      4. ALL RESPONSES MUST BE IN ${language.toUpperCase()}.
+      
+      If the image contains multiple problems, solve them one by one.
+      If the image is not clear or doesn't contain a study problem, kindly ask the student to re-align the camera.
     `;
+
+    const contents: any[] = [{ text: prompt }];
+    if (imageBase64) {
+      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+      contents.unshift({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
+    }
 
     const response = await ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',
-      contents: prompt,
+      contents: {
+        parts: contents
+      },
       config: {
-        systemInstruction: `You are an academic essay writer. Tone: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
+        systemInstruction: `You are an expert Homework Solver and Academic Tutor. Tone: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
       }
     });
 
