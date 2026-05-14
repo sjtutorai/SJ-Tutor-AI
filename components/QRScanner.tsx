@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
-import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone, Search, Image as ImageIcon, Camera, Loader2 } from 'lucide-react';
+import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
@@ -23,8 +23,6 @@ interface ScannedUser {
 const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   const [scannedData, setScannedData] = useState<ScannedUser | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [manualId, setManualId] = useState('');
-  const [isScanning, setIsScanning] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,7 +40,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
         try {
           const parsed = JSON.parse(trimmed);
           studentId = parsed.id || trimmed;
-        } catch (_e) {
+        } catch {
           // Fallback to searching the whole string if JSON parse fails
         }
       }
@@ -89,11 +87,6 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
     }
   };
 
-  const handleManualSearch = () => {
-    if (!manualId.trim()) return;
-    processDecodedText(manualId);
-  };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -102,7 +95,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
     try {
       const result = await html5QrCode.scanFile(file, true);
       processDecodedText(result);
-    } catch (_err) {
+    } catch {
       setError("No QR code found in this image.");
     } finally {
       html5QrCode.clear();
@@ -110,7 +103,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   };
 
   useEffect(() => {
-    if (isScanning && !scannedData) {
+    if (!scannedData) {
       scannerRef.current = new Html5QrcodeScanner(
         "qr-reader",
         { fps: 10, qrbox: { width: 250, height: 250 } },
@@ -125,7 +118,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
         scannerRef.current.clear().catch(() => {});
       }
     };
-  }, [isScanning, scannedData]);
+  }, [scannedData]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -138,7 +131,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Student Retrieval</h3>
-            <p className="text-xs text-slate-500">Scan, Upload, or Enter ID Manually</p>
+            <p className="text-xs text-slate-500">Scan QR Code or Upload Image</p>
           </div>
           <button 
             onClick={onClose}
@@ -158,69 +151,34 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
                 exit={{ opacity: 0 }}
                 className="space-y-6"
               >
-                <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                <div className="space-y-4">
+                  <div id="qr-reader" className="overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"></div>
                   <button 
-                    onClick={() => setIsScanning(true)}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${isScanning ? 'bg-white dark:bg-slate-700 text-primary-600 shadow-sm' : 'text-slate-500'}`}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 py-3 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-sm font-semibold"
                   >
-                    <Camera className="w-4 h-4" />
-                    Live Scan
+                    <ImageIcon className="w-4 h-4" />
+                    Upload QR Image
                   </button>
-                  <button 
-                    onClick={() => setIsScanning(false)}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${!isScanning ? 'bg-white dark:bg-slate-700 text-primary-600 shadow-sm' : 'text-slate-500'}`}
-                  >
-                    <Search className="w-4 h-4" />
-                    Manual Entry
-                  </button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept="image/*" 
+                    onChange={handleFileUpload}
+                  />
                 </div>
-
-                {isScanning ? (
-                  <div className="space-y-4">
-                    <div id="qr-reader" className="overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"></div>
-                    <button 
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full flex items-center justify-center gap-2 py-3 border-2 border-slate-100 dark:border-slate-800 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-sm font-semibold"
-                    >
-                      <ImageIcon className="w-4 h-4" />
-                      Upload QR Image
-                    </button>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      className="hidden" 
-                      accept="image/*" 
-                      onChange={handleFileUpload}
-                    />
-                  </div>
-                ) : (
-                  <div className="space-y-4 py-8">
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        value={manualId}
-                        onChange={(e) => setManualId(e.target.value)}
-                        placeholder="Enter SJ Tutor ID Number..."
-                        className="w-full px-4 py-4 pr-12 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary-500 outline-none transition-all font-mono"
-                      />
-                      <button 
-                        onClick={handleManualSearch}
-                        disabled={isLoading}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-primary-600 text-white rounded-xl shadow-lg shadow-primary-500/20 active:scale-90 transition-all disabled:opacity-50"
-                      >
-                        {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-                      </button>
-                    </div>
-                    <p className="text-center text-[10px] text-slate-400 uppercase tracking-widest font-bold">
-                      Example: SJT-2026-XXXX
-                    </p>
-                  </div>
-                )}
 
                 {error && (
                   <p className="text-red-500 text-xs text-center font-medium bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">
                     {error}
                   </p>
+                )}
+                
+                {isLoading && (
+                   <div className="flex justify-center p-4">
+                      <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
+                   </div>
                 )}
               </motion.div>
             ) : (
