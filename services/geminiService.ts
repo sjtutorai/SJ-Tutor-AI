@@ -101,52 +101,28 @@ export const GeminiService = {
     return response;
   },
 
-  solveHomeworkStream: async (data: StudyRequestData, imagesBase64?: string[]) => {
+  generateEssayStream: async (data: StudyRequestData) => {
     const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
     const prompt = `
-      You are an expert tutor solving homework problems.
+      Write a detailed, academic essay based on the topics covered in this chapter.
+      THE ENTIRE ESSAY MUST BE WRITTEN IN ${language.toUpperCase()}.
       
-      ${imagesBase64 && imagesBase64.length > 0 ? `I have provided ${imagesBase64.length} photo(s) of the homework.` : "No photos provided."}
-      ${data.homeworkInstructions ? `Problem Statement / Instructions: ${data.homeworkInstructions}` : "No specific text instructions provided."}
-      
-      Subject: ${data.subject || "Not specified"}
+      Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
-      Board: ${data.board || "Not specified"}
+      Board: ${data.board}
       Language: ${language}
-      Chapter/Topic: ${data.chapterName || "Not specified"}
-      
-      Requirements:
-      1. If photos are provided, analyze them carefully. If text is also provided, use it to focus your analysis or as the primary problem description.
-      2. If ONLY text is provided, solve the problem described in the text.
-      3. If ONLY photos are provided, solve all problems visible in the photos.
-      4. Provide a step-by-step solution for all identified problems.
-      5. Explain the underlying concepts clearly so the student learns how to do it.
-      6. ALL RESPONSES MUST BE IN ${language.toUpperCase()}.
-      
-      If an image is not clear or doesn't contain a study problem, and there is no text instructions to clarify, kindly ask the student to provide a better description or photo.
+      Chapter: ${data.chapterName}
+      ${data.author ? `Author: ${data.author}` : ''}
     `;
-
-    const parts: any[] = [];
-    
-    if (imagesBase64 && imagesBase64.length > 0) {
-      imagesBase64.forEach(img => {
-        const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-        parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
-      });
-    }
-
-    parts.push({ text: prompt });
 
     const response = await ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',
-      contents: {
-        parts: parts
-      },
+      contents: prompt,
       config: {
-        systemInstruction: `You are an expert Homework Solver and Academic Tutor. Tone: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
+        systemInstruction: `You are an academic essay writer. Tone: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
       }
     });
 

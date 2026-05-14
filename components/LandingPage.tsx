@@ -11,8 +11,7 @@ import {
   Users, 
   ArrowRight,
   ShieldCheck,
-  Zap,
-  Camera
+  Zap
 } from 'lucide-react';
 import Logo from './Logo';
 
@@ -79,7 +78,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             {[
               { icon: FileText, title: "Summary Generator", desc: "Turn long textbook chapters into short, easy-to-read notes in seconds.", color: "bg-blue-50 text-blue-600" },
               { icon: BrainCircuit, title: "Quick Quiz Creator", desc: "Practice for your upcoming tests with custom quizzes that challenge your knowledge.", color: "bg-emerald-50 text-emerald-600" },
-              { icon: Camera, title: "Homework Solver", desc: "Add a photo of your problem to get instant step-by-step solutions and explanations.", color: "bg-purple-50 text-purple-600" },
+              { icon: BookOpen, title: "Essay Writer", desc: "Get help organizing your thoughts and writing better essays with clear structure.", color: "bg-purple-50 text-purple-600" },
               { icon: MessageCircle, title: "24/7 AI Tutor", desc: "Ask any question about your studies and get an instant, simple explanation.", color: "bg-amber-50 text-amber-600" },
               { icon: Calendar, title: "Personal Study Planner", desc: "Create a study timetable that helps you stay organized and finish your syllabus on time.", color: "bg-rose-50 text-rose-600" },
               { icon: Languages, title: "Multi-Language Support", desc: "Get study help and explanations in the language you understand best.", color: "bg-indigo-50 text-indigo-600" }

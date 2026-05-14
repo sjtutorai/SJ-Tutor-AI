@@ -1,7 +1,7 @@
 
-import React, { useRef } from 'react';
+import React from 'react';
 import { StudyRequestData, AppMode, DifficultyLevel } from '../types';
-import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Crown, Camera, Image as ImageIcon, X, Plus } from 'lucide-react';
+import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Crown } from 'lucide-react';
 
 interface InputFormProps {
   data: StudyRequestData;
@@ -10,34 +10,21 @@ interface InputFormProps {
   onFillSample?: () => void;
   disabled?: boolean;
   lockGradeClass?: boolean;
-  onImageUpload?: (base64: string | null) => void;
-  homeworkImages?: string[];
-  onRemoveImage?: (index: number) => void;
 }
 
-const InputForm: React.FC<InputFormProps> = ({ 
-  data, 
-  mode, 
-  onChange, 
-  onFillSample, 
-  disabled, 
-  lockGradeClass,
-  onImageUpload,
-  homeworkImages = [],
-  onRemoveImage
-}) => {
+const InputForm: React.FC<InputFormProps> = ({ data, mode, onChange, onFillSample, disabled, lockGradeClass }) => {
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const isRewardMode = mode === AppMode.QUIZ && data.questionCount === 10 && data.difficulty === 'Hard';
 
   const getEstimatedCost = () => {
     if (mode === AppMode.SUMMARY) return 10;
-    if (mode === AppMode.HOMEWORK) {
-      // Cost increases slightly with more images? Maybe stay 10 for now.
+    if (mode === AppMode.ESSAY) {
       return 10;
     }
     if (mode === AppMode.QUIZ) {
+      // Reward Challenge: Free generation for 10 Hard Questions
       if (isRewardMode) return 0;
+
       let cost = 10;
       const qCount = data.questionCount || 5;
       cost += Math.ceil(qCount / 2);
@@ -45,19 +32,6 @@ const InputForm: React.FC<InputFormProps> = ({
       return cost;
     }
     return 0;
-  };
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && onImageUpload) {
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          onImageUpload(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      });
-    }
   };
 
   const cost = getEstimatedCost();
@@ -91,8 +65,8 @@ const InputForm: React.FC<InputFormProps> = ({
 
       <div className="flex justify-between items-center mb-5 relative z-10">
         <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-          {mode === AppMode.HOMEWORK ? <Camera className="w-4 h-4 text-primary-600" /> : <BookOpen className="w-4 h-4 text-primary-600" />}
-          {mode === AppMode.HOMEWORK ? 'Homework Solver' : 'Study Details'}
+          <BookOpen className="w-4 h-4 text-primary-600" />
+          Study Details
         </h2>
 
         <div className="flex items-center gap-2">
@@ -110,7 +84,7 @@ const InputForm: React.FC<InputFormProps> = ({
             )}
           </div>
           
-          {onFillSample && mode !== AppMode.HOMEWORK && (
+          {onFillSample && (
             <button
               onClick={onFillSample}
               disabled={disabled}
@@ -123,103 +97,32 @@ const InputForm: React.FC<InputFormProps> = ({
           )}
         </div>
       </div>
-
-      {mode === AppMode.HOMEWORK && (
-        <div className="mb-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {homeworkImages.map((img, idx) => (
-              <div key={idx} className="relative aspect-square rounded-xl border border-slate-200 overflow-hidden group shadow-sm bg-slate-50">
-                <img src={img} alt={`Homework ${idx + 1}`} className="w-full h-full object-cover" />
-                <button 
-                  onClick={() => onRemoveImage?.(idx)}
-                  className="absolute top-1.5 right-1.5 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-            
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="aspect-square border-2 border-dashed border-slate-200 bg-slate-50 rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-primary-50 hover:border-primary-300 transition-all text-slate-400 hover:text-primary-600 group"
-            >
-              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                <Plus className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider">Add Photo</span>
-            </button>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Homework Problem / Instructions</label>
-            <textarea
-              value={data.homeworkInstructions || ''}
-              onChange={(e) => onChange('homeworkInstructions', e.target.value)}
-              placeholder="Type your problem here, or add any special instructions for the AI..."
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-slate-900 text-sm min-h-[100px]"
-            />
-          </div>
-
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleImageChange} 
-            accept="image/*" 
-            className="hidden" 
-            multiple
-            capture="environment"
-          />
-        </div>
-      )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-4 mb-4 relative z-10">
-        {mode === AppMode.HOMEWORK ? (
-          <>
-            {renderInput("Subject", "subject", BookType, "e.g. Mathematics")}
-            {renderInput("Topic/Chapter", "chapterName", BookOpen, "e.g. Calculus / Integration")}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
-              <div className="relative group">
-                <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={data.gradeClass}
-                  onChange={(e) => onChange("gradeClass", e.target.value)}
-                  disabled={disabled || lockGradeClass}
-                  placeholder="e.g. 10th Grade"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm disabled:cursor-not-allowed"
-                />
+        {renderInput("Subject", "subject", BookType, "e.g. History")}
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
+          <div className="relative group">
+            <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={data.gradeClass}
+              onChange={(e) => onChange("gradeClass", e.target.value)}
+              disabled={disabled || lockGradeClass}
+              placeholder="e.g. 10th Grade"
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm disabled:cursor-not-allowed"
+            />
+            {lockGradeClass && (
+              <div className="absolute right-3 top-2.5">
+                <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
               </div>
-            </div>
-          </>
-        ) : (
-          <>
-            {renderInput("Subject", "subject", BookType, "e.g. History")}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
-              <div className="relative group">
-                <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={data.gradeClass}
-                  onChange={(e) => onChange("gradeClass", e.target.value)}
-                  disabled={disabled || lockGradeClass}
-                  placeholder="e.g. 10th Grade"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm disabled:cursor-not-allowed"
-                />
-                {lockGradeClass && (
-                  <div className="absolute right-3 top-2.5">
-                    <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  </div>
-                )}
-              </div>
-            </div>
-            {renderInput("Board", "board", School, "e.g. CBSE")}
-            {renderInput("Language", "language", Languages, "e.g. English")}
-            {renderInput("Chapter Name", "chapterName", BookOpen, "e.g. The French Revolution")}
-            {renderInput("Author (Optional)", "author", User, "e.g. NCERT")}
-          </>
-        )}
+            )}
+          </div>
+        </div>
+        {renderInput("Board", "board", School, "e.g. CBSE")}
+        {renderInput("Language", "language", Languages, "e.g. English")}
+        {renderInput("Chapter Name", "chapterName", BookOpen, "e.g. The French Revolution")}
+        {renderInput("Author (Optional)", "author", User, "e.g. NCERT")}
 
         {/* Quiz Specific Options */}
         {mode === AppMode.QUIZ && (
@@ -273,6 +176,8 @@ const InputForm: React.FC<InputFormProps> = ({
           </>
         )}
       </div>
+
+      {/* Essay Specific Options Removed */}
     </div>
   );
 };
