@@ -222,6 +222,9 @@ const App: React.FC = () => {
             if (item.type === AppMode.SUMMARY) {
               setSummaryContent(item.content);
               setMode(AppMode.SUMMARY);
+            } else if (item.type === AppMode.ESSAY) {
+              setEssayContent(item.content);
+              setMode(AppMode.ESSAY);
             } else if (item.type === AppMode.HOMEWORK) {
               setHomeworkContent(item.content);
               setMode(AppMode.HOMEWORK);
@@ -753,6 +756,9 @@ const App: React.FC = () => {
     if (item.type === AppMode.SUMMARY) {
       setSummaryContent(item.content);
       setMode(AppMode.SUMMARY);
+    } else if (item.type === AppMode.ESSAY) {
+      setEssayContent(item.content);
+      setMode(AppMode.ESSAY);
     } else if (item.type === AppMode.HOMEWORK) {
       setHomeworkContent(item.content);
       setMode(AppMode.HOMEWORK);
@@ -783,9 +789,11 @@ const App: React.FC = () => {
           })
         });
 
-        const data = await response.json();
-        if (response.ok && data.id) {
-          shareUrl = `${window.location.origin}?share=${data.id}`;
+        if (response.ok) {
+          const data = await response.json().catch(() => ({}));
+          if (data.id) {
+            shareUrl = `${window.location.origin}?share=${data.id}`;
+          }
         }
       } catch (e) {
         console.warn("Backend sharing unavailable, failing over to local share", e);
@@ -849,6 +857,7 @@ const App: React.FC = () => {
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: AppMode.ID_CARD, label: 'Student ID Card', icon: CreditCard },
     { id: AppMode.SUMMARY, label: 'Instant Summary', icon: FileText },
+    { id: AppMode.ESSAY, label: 'Essay Writer', icon: BookOpen },
     { id: AppMode.QUIZ, label: 'Quiz Creator', icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: 'Homework Writer', icon: Camera },
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
@@ -875,6 +884,7 @@ const App: React.FC = () => {
 
     const stats = {
       summaries: history.filter(h => h.type === AppMode.SUMMARY).length,
+      essays: history.filter(h => h.type === AppMode.ESSAY).length,
       quizzes: history.filter(h => h.type === AppMode.QUIZ).length,
       homeworks: history.filter(h => h.type === AppMode.HOMEWORK).length,
       chats: history.filter(h => h.type === AppMode.TUTOR).length,
@@ -883,6 +893,7 @@ const App: React.FC = () => {
     const dashboardCards = [
       { id: AppMode.ID_CARD, label: 'My ID Card', count: null, icon: CreditCard, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-[#FDF5E6] dark:bg-indigo-900/30' },
       { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.HOMEWORK, label: 'Homework Solutions', count: stats.homeworks, icon: Camera, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.TUTOR, label: 'Tutor Sessions', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
@@ -1057,8 +1068,12 @@ const App: React.FC = () => {
                  <FileText className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                  New Summary
               </button>
-              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900">
-                 <BrainCircuit className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900">
+                 <BookOpen className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                 New Essay
+              </button>
+              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900">
+                 <BrainCircuit className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                  New Quiz
               </button>
                <button onClick={() => setMode(AppMode.HOMEWORK)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-blue-100 dark:hover:border-blue-900">

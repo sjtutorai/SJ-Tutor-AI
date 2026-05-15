@@ -81,9 +81,13 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
           })
         });
 
-        const data = await response.json();
-        if (response.ok && data.id) {
-          shareUrl = `${window.location.origin}?share=${data.id}`;
+        if (response.ok) {
+          const data = await response.json().catch(() => ({}));
+          if (data.id) {
+            shareUrl = `${window.location.origin}?share=${data.id}`;
+          }
+        } else {
+          console.warn("Sharing backend returned non-OK status", response.status);
         }
       } catch (backendError) {
         console.warn("Sharing backend failed, using local share only", backendError);
