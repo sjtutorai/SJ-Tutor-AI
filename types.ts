@@ -13,8 +13,7 @@ export enum AppMode {
   TIMER = 'TIMER',
   PRIVACY = 'PRIVACY',
   TERMS = 'TERMS',
-  OFFERS = 'OFFERS',
-  HISTORY = 'HISTORY'
+  OFFERS = 'OFFERS'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
@@ -28,8 +27,6 @@ export interface StudyRequestData {
   author?: string;
   questionCount?: number;
   difficulty?: DifficultyLevel;
-  isAchieverChallenge?: boolean;
-  homeworkInstructions?: string;
 }
 
 export interface QuizQuestion {

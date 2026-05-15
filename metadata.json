@@ -1,6 +1,6 @@
 {
   "name": "SJ Tutor AI",
-  "description": "An all-in-one AI study companion that generates summaries, quizzes, and solves homework problems based on your curriculum, featuring an intelligent AI tutor.",
+  "description": "An all-in-one AI study companion that generates summaries, quizzes, and essays based on your curriculum, featuring an intelligent AI tutor.",
   "requestFramePermissions": [
     "microphone",
     "camera"
