@@ -10,8 +10,8 @@ interface InputFormProps {
   onFillSample?: () => void;
   disabled?: boolean;
   lockGradeClass?: boolean;
-  onImageUpload?: (base64: string | null) => void;
-  homeworkImage?: string | null;
+  onImagesUpload?: (base64s: string[]) => void;
+  homeworkImages?: string[];
 }
 
 const InputForm: React.FC<InputFormProps> = ({ 
@@ -21,8 +21,8 @@ const InputForm: React.FC<InputFormProps> = ({
   onFillSample, 
   disabled, 
   lockGradeClass,
-  onImageUpload,
-  homeworkImage
+  onImagesUpload,
+  homeworkImages = []
 }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,13 +45,27 @@ const InputForm: React.FC<InputFormProps> = ({
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && onImageUpload) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        onImageUpload(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    const files = e.target.files;
+    if (files && onImagesUpload) {
+      const readers = Array.from(files).map(file => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+      });
+      
+      Promise.all(readers).then(results => {
+        onImagesUpload([...homeworkImages, ...results]);
+      });
+    }
+  };
+
+  const removeImage = (index: number) => {
+    if (onImagesUpload) {
+      const newImages = [...homeworkImages];
+      newImages.splice(index, 1);
+      onImagesUpload(newImages);
     }
   };
 
@@ -87,7 +101,7 @@ const InputForm: React.FC<InputFormProps> = ({
       <div className="flex justify-between items-center mb-5 relative z-10">
         <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
           {mode === AppMode.HOMEWORK ? <Camera className="w-4 h-4 text-primary-600" /> : <BookOpen className="w-4 h-4 text-primary-600" />}
-          {mode === AppMode.HOMEWORK ? 'Homework Scanner' : 'Study Details'}
+          {mode === AppMode.HOMEWORK ? 'Homework Writer' : 'Study Details'}
         </h2>
 
         <div className="flex items-center gap-2">
@@ -105,7 +119,7 @@ const InputForm: React.FC<InputFormProps> = ({
             )}
           </div>
           
-          {onFillSample && mode !== AppMode.HOMEWORK && (
+          {onFillSample && (
             <button
               onClick={onFillSample}
               disabled={disabled}
@@ -120,49 +134,46 @@ const InputForm: React.FC<InputFormProps> = ({
       </div>
 
       {mode === AppMode.HOMEWORK && (
-        <div className="mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div 
-            onClick={() => !homeworkImage && fileInputRef.current?.click()}
-            className={`relative w-full aspect-[4/3] sm:aspect-[16/6] border-2 border-dashed rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer group overflow-hidden ${
-              homeworkImage 
-                ? 'border-emerald-200 bg-emerald-50/10' 
-                : 'border-slate-200 bg-slate-50 hover:bg-primary-50 hover:border-primary-300'
-            }`}
-          >
-            {homeworkImage ? (
-              <>
-                <img src={homeworkImage} alt="Homework Scan" className="w-full h-full object-contain" />
-                <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-md p-3 flex justify-between items-center animate-in slide-in-from-bottom-2">
-                  <div className="flex items-center gap-2 text-white">
-                    <Sparkles className="w-4 h-4 text-primary-400" />
-                    <span className="text-xs font-bold uppercase tracking-widest">Image Ready for AI Analysis</span>
-                  </div>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onImageUpload?.(null);
-                    }}
-                    className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="text-center p-8">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-md mx-auto mb-4 group-hover:scale-110 transition-transform">
-                  <ImageIcon className="w-8 h-8 text-slate-400 group-hover:text-primary-500" />
-                </div>
-                <h4 className="text-sm font-bold text-slate-700 mb-1">Click to Scan or Upload Foto</h4>
-                <p className="text-[10px] text-slate-500 font-medium">Capture a photo of your problem for a step-by-step solution</p>
+        <div className="mb-6 animate-in fade-in slide-in-from-top-4 duration-500 space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {homeworkImages.map((img, idx) => (
+              <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 shadow-sm group">
+                <img src={img} alt={`Homework Scan ${idx + 1}`} className="w-full h-full object-cover" />
+                <button 
+                  onClick={() => removeImage(idx)}
+                  className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <X className="w-3 h-3" />
+                </button>
               </div>
-            )}
+            ))}
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="aspect-square border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-primary-50 hover:border-primary-300 rounded-xl flex flex-col items-center justify-center transition-all group"
+            >
+              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm mb-2 group-hover:scale-110 transition-transform">
+                <ImageIcon className="w-5 h-5 text-slate-400 group-hover:text-primary-500" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Add Photo</span>
+            </button>
           </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Homework Text / Questions</label>
+            <textarea
+              value={data.homeworkQuery || ''}
+              onChange={(e) => onChange('homeworkQuery', e.target.value)}
+              placeholder="Type your questions here, or let the AI analyze the photos above..."
+              className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-slate-900 text-sm min-h-[100px] resize-none"
+            />
+          </div>
+
           <input 
             type="file" 
             ref={fileInputRef} 
             onChange={handleImageChange} 
             accept="image/*" 
+            multiple
             className="hidden" 
             capture="environment"
           />

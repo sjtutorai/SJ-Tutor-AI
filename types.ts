@@ -4,6 +4,7 @@ export enum AppMode {
   SUMMARY = 'SUMMARY',
   QUIZ = 'QUIZ',
   HOMEWORK = 'HOMEWORK',
+  ESSAY = 'ESSAY',
   TUTOR = 'TUTOR',
   PROFILE = 'PROFILE',
   NOTES = 'NOTES',
@@ -27,6 +28,7 @@ export interface StudyRequestData {
   author?: string;
   questionCount?: number;
   difficulty?: DifficultyLevel;
+  homeworkQuery?: string;
 }
 
 export interface QuizQuestion {

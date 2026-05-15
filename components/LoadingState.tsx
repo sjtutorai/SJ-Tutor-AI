@@ -30,6 +30,12 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
       "Drafting body paragraphs...",
       "Polishing conclusion..."
     ],
+    [AppMode.HOMEWORK]: [
+      "Analyzing problem photos...",
+      "Extracting text from images...",
+      "Calculating solutions...",
+      "Formatting step-by-step guide..."
+    ],
     [AppMode.NOTES]: [
       "Analyzing exam date...",
       "Evaluating syllabus...",
@@ -76,7 +82,7 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
 
       <h3 className="text-xl font-bold text-slate-800 mb-2 animate-pulse">
         {mode === AppMode.NOTES ? 'SJ Tutor AI is Planning' : 
-         `SJ Tutor AI is Creating your ${mode === AppMode.SUMMARY ? 'Summary' : mode === AppMode.QUIZ ? 'Quiz' : 'Essay'}`
+         `SJ Tutor AI is Creating your ${mode === AppMode.SUMMARY ? 'Summary' : mode === AppMode.QUIZ ? 'Quiz' : mode === AppMode.HOMEWORK ? 'Solution' : 'Essay'}`
         }
       </h3>
       

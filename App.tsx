@@ -50,6 +50,7 @@ import {
   QrCode,
   Eye,
   Camera,
+  BookOpen,
   User as UserIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -135,7 +136,8 @@ const App: React.FC = () => {
   // Content States
   const [summaryContent, setSummaryContent] = useState('');
   const [homeworkContent, setHomeworkContent] = useState('');
-  const [homeworkImage, setHomeworkImage] = useState<string | null>(null);
+  const [homeworkImages, setHomeworkImages] = useState<string[]>([]);
+  const [essayContent, setEssayContent] = useState('');
   const [quizData, setQuizData] = useState<QuizQuestion[] | null>(null);
   const [existingQuizScore, setExistingQuizScore] = useState<number | undefined>(undefined);
   
@@ -681,9 +683,24 @@ const App: React.FC = () => {
         addToHistory(AppMode.SUMMARY, text);
         deductCredit(cost);
 
+      } else if (mode === AppMode.ESSAY) {
+        setEssayContent('');
+        const stream = await GeminiService.generateSummaryStream({ ...formData, chapterName: `Essay on ${formData.chapterName}` });
+        
+        let text = '';
+        for await (const chunk of stream) {
+            const c = chunk as GenerateContentResponse;
+            if (c.text) {
+                text += c.text;
+                setEssayContent(text);
+            }
+        }
+        addToHistory(AppMode.ESSAY, text);
+        deductCredit(cost);
+
       } else if (mode === AppMode.HOMEWORK) {
         setHomeworkContent('');
-        const stream = await GeminiService.solveHomeworkStream(formData, homeworkImage || undefined);
+        const stream = await GeminiService.solveHomeworkStream(formData, homeworkImages);
         
         let text = '';
          for await (const chunk of stream) {
@@ -831,9 +848,9 @@ const App: React.FC = () => {
   const navItems = [
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: AppMode.ID_CARD, label: 'Student ID Card', icon: CreditCard },
-    { id: AppMode.SUMMARY, label: 'Summary Generator', icon: FileText },
+    { id: AppMode.SUMMARY, label: 'Instant Summary', icon: FileText },
     { id: AppMode.QUIZ, label: 'Quiz Creator', icon: BrainCircuit },
-    { id: AppMode.HOMEWORK, label: 'Homework Solver', icon: Camera },
+    { id: AppMode.HOMEWORK, label: 'Homework Writer', icon: Camera },
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
@@ -867,8 +884,8 @@ const App: React.FC = () => {
       { id: AppMode.ID_CARD, label: 'My ID Card', count: null, icon: CreditCard, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-[#FDF5E6] dark:bg-indigo-900/30' },
       { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.HOMEWORK, label: 'Homeworks', count: stats.homeworks, icon: Camera, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.TUTOR, label: 'Chats', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.HOMEWORK, label: 'Homework Solutions', count: stats.homeworks, icon: Camera, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.TUTOR, label: 'Tutor Sessions', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.OFFERS, label: 'Offers', count: null, icon: Tag, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-[#FDF5E6] dark:bg-rose-900/30' },
       { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
     ];
@@ -914,7 +931,7 @@ const App: React.FC = () => {
                 onClick={() => {
                   setSummaryContent('');
                   setHomeworkContent('');
-                  setHomeworkImage(null);
+                  setHomeworkImages([]);
                   setQuizData(null);
                   setExistingQuizScore(undefined);
                   setCurrentHistoryId(null);
@@ -1122,6 +1139,46 @@ const App: React.FC = () => {
           </div>
         );
 
+      case AppMode.ESSAY:
+        if (essayContent) {
+          return (
+            <ResultsView
+              title={formData.chapterName}
+              content={essayContent}
+              type="Essay"
+              isLoading={false}
+              onBack={() => {
+                 setEssayContent('');
+                 setCurrentHistoryId(null);
+              }}
+            />
+          );
+        }
+        return (
+          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <InputForm
+              data={formData}
+              mode={AppMode.ESSAY}
+              onChange={handleFormChange}
+              onFillSample={handleFillSample}
+              lockGradeClass={!!(userProfile.dob && userProfile.grade)}
+            />
+            {error && (
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+            <button
+              onClick={handleGenerate}
+              className="w-full py-4 bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+            >
+              <BookOpen className="w-5 h-5 group-hover:animate-pulse" />
+              Write Essay
+            </button>
+          </div>
+        );
+
       case AppMode.HOMEWORK:
          if (homeworkContent) {
           return (
@@ -1132,6 +1189,7 @@ const App: React.FC = () => {
               isLoading={false}
               onBack={() => {
                  setHomeworkContent('');
+                 setHomeworkImages([]);
                  setCurrentHistoryId(null);
               }}
             />
@@ -1145,8 +1203,8 @@ const App: React.FC = () => {
               onChange={handleFormChange}
               onFillSample={handleFillSample}
               lockGradeClass={!!(userProfile.dob && userProfile.grade)}
-              onImageUpload={setHomeworkImage}
-              homeworkImage={homeworkImage}
+              onImagesUpload={setHomeworkImages}
+              homeworkImages={homeworkImages}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -1156,7 +1214,7 @@ const App: React.FC = () => {
             )}
             <button
               onClick={handleGenerate}
-              disabled={!formData.subject && !homeworkImage}
+              disabled={!formData.subject && homeworkImages.length === 0 && !formData.homeworkQuery}
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:transform-none"
             >
               <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
@@ -1380,7 +1438,7 @@ const App: React.FC = () => {
               setDashboardView('OVERVIEW');
               setSummaryContent('');
               setHomeworkContent('');
-              setHomeworkImage(null);
+              setHomeworkImages([]);
               setQuizData(null);
               setExistingQuizScore(undefined);
               setCurrentHistoryId(null);
@@ -1423,7 +1481,7 @@ const App: React.FC = () => {
                       setDashboardView('OVERVIEW');
                       setSummaryContent('');
                       setHomeworkContent('');
-                      setHomeworkImage(null);
+                      setHomeworkImages([]);
                       setQuizData(null);
                       setExistingQuizScore(undefined);
                       setCurrentHistoryId(null);

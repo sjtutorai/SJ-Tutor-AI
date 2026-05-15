@@ -101,36 +101,42 @@ export const GeminiService = {
     return response;
   },
 
-  solveHomeworkStream: async (data: StudyRequestData, imageBase64?: string) => {
+  solveHomeworkStream: async (data: StudyRequestData, imagesBase64: string[] = []) => {
     const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
     const prompt = `
-      You are an expert tutor solving homework problems.
-      ${imageBase64 ? "I have attached an image of the problem." : ""}
+      You are an expert Homework Solver and Academic Tutor.
       
-      Subject: ${data.subject}
-      Class/Grade: ${data.gradeClass || settings.learning.grade}
-      Board: ${data.board}
-      Language: ${language}
-      Chapter/Topic: ${data.chapterName}
+      User Information:
+      - Subject: ${data.subject}
+      - Class/Grade: ${data.gradeClass || settings.learning.grade}
+      - Board: ${data.board}
+      - Language: ${language}
+      - Chapter/Topic: ${data.chapterName}
+
+      Input:
+      ${data.homeworkQuery ? `Text Question/Description: "${data.homeworkQuery}"` : "No text description provided."}
+      ${imagesBase64.length > 0 ? `Images: I have attached ${imagesBase64.length} image(s) of the homework/problem.` : "No images provided."}
       
       Requirements:
-      1. Analyze the input (from image if provided, otherwise from text).
-      2. Provide a step-by-step solution.
-      3. Explain the underlying concepts clearly.
-      4. ALL RESPONSES MUST BE IN ${language.toUpperCase()}.
+      1. Carefully analyze ALL inputs (text and images).
+      2. If images are provided, extract the text/problems from them.
+      3. Provide a clear, step-by-step solution for all identified problems.
+      4. Explain the underlying concepts simply so the student can learn, not just copy.
+      5. THE ENTIRE RESPONSE MUST BE IN ${language.toUpperCase()}.
       
-      If the image contains multiple problems, solve them one by one.
-      If the image is not clear or doesn't contain a study problem, kindly ask the student to re-align the camera.
+      If the inputs are unclear or do not contain educational problems, politely ask the student for more details or clearer photos.
     `;
 
     const contents: any[] = [{ text: prompt }];
-    if (imageBase64) {
-      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-      contents.unshift({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
-    }
+    
+    // Add all images to the request
+    imagesBase64.forEach(img => {
+      const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+      contents.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
+    });
 
     const response = await ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',

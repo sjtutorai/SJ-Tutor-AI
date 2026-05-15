@@ -91,22 +91,31 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
   const handleShare = async (platform: string) => {
     try {
       // 1. Save to backend to get a unique public ID
-      const response = await fetch('/api/auth/share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'QUIZ',
-          title: 'Quiz Challenge',
-          subtitle: `I scored ${score}/${questions.length} on this quiz!`,
-          content: questions
-        })
-      });
+      let shareId = '';
+      try {
+        const response = await fetch('/api/auth/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'QUIZ',
+            title: 'Quiz Challenge',
+            subtitle: `I scored ${score}/${questions.length} on this quiz!`,
+            content: questions
+          })
+        });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Sharing failed');
+        const contentType = response.headers.get("content-type");
+        if (response.ok && contentType && contentType.indexOf("application/json") !== -1) {
+          const data = await response.json();
+          shareId = data.id;
+        } else {
+          console.warn("Backend share endpoint failed or returned non-JSON. Falling back to local share.");
+        }
+      } catch (e) {
+        console.warn("Backend sharing unavailable, falling back to local share", e);
+      }
 
-      const shareId = data.id;
-      const shareUrl = `${window.location.origin}?share=${shareId}`;
+      const shareUrl = shareId ? `${window.location.origin}?share=${shareId}` : window.location.origin;
       const text = `I scored ${score}/${questions.length} on my SJ Tutor AI Quiz! 🎓`;
       const shareTextWithLink = `${text}\nCheck it out here: ${shareUrl}`;
       
