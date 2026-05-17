@@ -234,9 +234,22 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Check file size (limit to ~800KB to stay well within Firestore's 1MB document limit)
+      if (file.size > 800 * 1024) {
+        alert("Image size is too large. Please choose an image under 800KB.");
+        return;
+      }
+
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, photoURL: reader.result as string }));
+        const photoData = reader.result as string;
+        const updatedProfile = { ...formData, photoURL: photoData };
+        setFormData(updatedProfile);
+        
+        // If not onboarding, save immediately to Firestore as requested
+        if (!isOnboarding) {
+          onSave(updatedProfile, false);
+        }
       };
       reader.readAsDataURL(file);
     }
