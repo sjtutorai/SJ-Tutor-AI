@@ -283,24 +283,35 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             await updateProfile(result.user, {
                 displayName: name
             });
+
+            // PERSIST registration data immediately to localStorage so it's not lost on refresh
+            const initialProfile = {
+              displayName: name,
+              institution: school,
+              grade: grade,
+              phoneNumber: phoneNumber,
+              credits: 100,
+              planType: 'Free'
+            };
+            localStorage.setItem(`profile_${result.user.uid}`, JSON.stringify(initialProfile));
             
             // Send Email Verification
-        await sendEmailVerification(result.user, {
-          url: window.location.origin
-        });
+            await sendEmailVerification(result.user, {
+              url: window.location.origin
+            });
 
-        // Trigger SMS OTP
-        try {
-          await axios.post('/api/auth/send-otp', { phone: phoneNumber });
-          setView('otp');
-        } catch (otpErr) {
-          console.error("Failed to send OTP:", otpErr);
-          // Fallback to email verification only if OTP fails to send
-          setView('verify-email');
+            // Trigger SMS OTP
+            try {
+              await axios.post('/api/auth/send-otp', { phone: phoneNumber });
+              setView('otp');
+            } catch (otpErr) {
+              console.error("Failed to send OTP:", otpErr);
+              // Fallback to email verification only if OTP fails to send
+              setView('verify-email');
+            }
+            
+            setResendTimer(60);
         }
-        
-        setResendTimer(60);
-      }
     }
   } catch (err: any) {
       console.error(err);

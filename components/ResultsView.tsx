@@ -82,9 +82,12 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
         });
 
         if (response.ok) {
-          const data = await response.json().catch(() => ({}));
-          if (data.id) {
-            shareUrl = `${window.location.origin}?share=${data.id}`;
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const data = await response.json();
+            if (data.id) {
+              shareUrl = `${window.location.origin}?share=${data.id}`;
+            }
           }
         } else {
           console.warn("Sharing backend returned non-OK status", response.status);
