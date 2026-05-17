@@ -8,11 +8,11 @@ import {
   Calendar, 
   Languages, 
   CheckCircle2, 
-  Camera,
   Users, 
   ArrowRight,
   ShieldCheck,
-  Zap
+  Zap,
+  Camera
 } from 'lucide-react';
 import Logo from './Logo';
 
@@ -40,8 +40,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-amber-500">Finish Homework Faster</span>
           </h1>
           
-            <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
-            Your friendly AI study buddy that helps you solve homework, understand subjects easily, and prepares you for exams.
+          <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
+            Your friendly AI study buddy that helps you understand every subject easily and prepares you for your exams.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
@@ -77,9 +77,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
-              { icon: FileText, title: "Instant Summary", desc: "Turn long textbook chapters into short, easy-to-read notes in seconds.", color: "bg-blue-50 text-blue-600" },
+              { icon: FileText, title: "Summary Generator", desc: "Turn long textbook chapters into short, easy-to-read notes in seconds.", color: "bg-blue-50 text-blue-600" },
               { icon: BrainCircuit, title: "Quick Quiz Creator", desc: "Practice for your upcoming tests with custom quizzes that challenge your knowledge.", color: "bg-emerald-50 text-emerald-600" },
-              { icon: Camera, title: "Homework Writer", desc: "Solve difficult homework problems instantly by scanning photos or typing your questions.", color: "bg-purple-50 text-purple-600" },
+              { icon: Camera, title: "Homework Solver", desc: "Add a photo of your problem to get instant step-by-step solutions and explanations.", color: "bg-purple-50 text-purple-600" },
               { icon: MessageCircle, title: "24/7 AI Tutor", desc: "Ask any question about your studies and get an instant, simple explanation.", color: "bg-amber-50 text-amber-600" },
               { icon: Calendar, title: "Personal Study Planner", desc: "Create a study timetable that helps you stay organized and finish your syllabus on time.", color: "bg-rose-50 text-rose-600" },
               { icon: Languages, title: "Multi-Language Support", desc: "Get study help and explanations in the language you understand best.", color: "bg-indigo-50 text-indigo-600" }
@@ -107,7 +107,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             {[
               { step: "01", title: "Pick a Subject", desc: "Choose the subject and the class you are currently studying." },
               { step: "02", title: "Enter Your Topic", desc: "Type in the name of the chapter or the specific question you have." },
-              { step: "03", title: "Generate Results", desc: "Click a button to get an instant summary, a practice quiz, or a homework solution." },
+              { step: "03", title: "Generate Results", desc: "Click a button to get an instant summary, a practice quiz, or an essay." },
               { step: "04", title: "Study and Master", desc: "Use the AI-generated materials to learn the topic and ace your exams." }
             ].map((s, i) => (
               <div key={i} className="relative">

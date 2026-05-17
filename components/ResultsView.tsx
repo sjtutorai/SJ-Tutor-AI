@@ -82,15 +82,20 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
         });
 
         if (response.ok) {
-          const data = await response.json().catch(() => ({}));
-          if (data.id) {
-            shareUrl = `${window.location.origin}?share=${data.id}`;
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await response.json();
+            if (data.id) {
+              shareUrl = `${window.location.protocol}//${window.location.host}?share=${data.id}`;
+            }
           }
         } else {
-          console.warn("Sharing backend returned non-OK status", response.status);
+          console.warn("Backend share error status:", response.status);
+          const text = await response.text();
+          console.error("Backend share response:", text.substring(0, 200));
         }
-      } catch (backendError) {
-        console.warn("Sharing backend failed, using local share only", backendError);
+      } catch (backendError: any) {
+        console.warn("Sharing backend fetch failed", backendError);
       }
 
       const shareText = `${title} (${type})\n\n${content.substring(0, 300)}...\n\nRead more on SJ Tutor AI: ${shareUrl}`;

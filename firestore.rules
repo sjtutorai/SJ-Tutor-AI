@@ -1,0 +1,37 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "sjtutorai@gmail.com"
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Student Rules ---
+    match /students/{studentId} {
+      // Allow public retrieval of student info by ID
+      allow get: if isValidId(studentId);
+      
+      // Allow admin to manage students
+      allow create, update, delete: if isAdmin();
+
+      // Prevent listing all students
+      allow list: if isAdmin();
+    }
+  }
+}

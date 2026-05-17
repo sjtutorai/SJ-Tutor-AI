@@ -34,7 +34,7 @@ const PrivacyPolicyView: React.FC = () => {
               <p>We collect information to provide better services to all our users. This includes:</p>
               <ul className="list-disc pl-5 space-y-2 marker:text-primary-500">
                 <li><strong>Account Information:</strong> When you sign up, we collect your name, email address, and profile picture.</li>
-                <li><strong>Usage Data:</strong> We collect data about how you interact with our services, such as the quizzes you take, essays you generate, and your study history.</li>
+                <li><strong>Usage Data:</strong> We collect data about how you interact with our services, such as the quizzes you take, homework problems you solve, and your study history.</li>
                 <li><strong>Device Information:</strong> We may collect specific information about your device, such as the hardware model and operating system version.</li>
               </ul>
             </div>
