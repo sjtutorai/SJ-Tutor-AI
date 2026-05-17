@@ -61,7 +61,6 @@ export interface UserProfile {
   phoneNumber: string;
   institution: string;
   grade?: string;
-  board?: string;
   bio: string;
   photoURL?: string;
   learningGoal?: string;

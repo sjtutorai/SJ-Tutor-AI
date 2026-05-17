@@ -22,7 +22,6 @@ interface AuthProps {
   onSignUpSuccess?: (data?: Partial<UserProfile>) => void;
   onClose: () => void;
   onCountryDetected?: (countryCode: string | null) => void;
-  initialCountry?: string | null;
 }
 
 type AuthView = 'login' | 'signup' | 'forgot-password' | 'verify-email' | 'otp';
@@ -33,7 +32,7 @@ const AppleIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected, initialCountry }) => {
+const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected }) => {
   const [view, setView] = useState<AuthView>('login');
   
   // Login Fields
@@ -45,12 +44,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
   const [grade, setGrade] = useState('');
   const [school, setSchool] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-
-  useEffect(() => {
-    if (initialCountry === 'IN' && !phoneNumber) {
-      setPhoneNumber('+91 ');
-    }
-  }, [initialCountry]);
   const [otp, setOtp] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
 

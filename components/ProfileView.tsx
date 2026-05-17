@@ -71,36 +71,23 @@ const INDIAN_STATES = Object.keys(STATE_DISTRICT_MAPPING).sort();
 const INDIAN_SCHOOL_BOARDS = [
   'CBSE (Central Board of Secondary Education)',
   'ICSE (Council for the Indian School Certificate Examinations)',
-  'NIOS (National Institute of Open Schooling)',
-  'Andhra Pradesh - BIEAP / BSEAP',
-  'Assam - AHSEC / SEBA',
-  'Bihar - BSEB',
-  'Chhattisgarh - CGBSE',
-  'Goa - GBSHSE',
-  'Gujarat - GSEB',
-  'Haryana - HBSE',
-  'Himachal Pradesh - HPBOSE',
-  'Jammu & Kashmir - JKBOSE',
-  'Jharkhand - JAC',
-  'Karnataka - KSEEB / PUE',
-  'Kerala - KBPE',
-  'Madhya Pradesh - MPBSE',
-  'Maharashtra - MSBSHSE',
-  'Manipur - BSEM / COHSEM',
-  'Meghalaya - MBOSE',
-  'Mizoram - MBSE',
-  'Nagaland - NBSE',
-  'Odisha - CHSE / BSE',
-  'Punjab - PSEB',
-  'Rajasthan - BSER',
-  'Tamil Nadu - TNSCERT',
-  'Telangana - TS BIE / SSC',
-  'Tripura - TBSE',
-  'Uttar Pradesh - UPMSP',
-  'Uttarakhand - UBSE',
-  'West Bengal - WBBSE / WBCHSE',
+  'State Board (Andhra Pradesh)',
+  'State Board (Assam)',
+  'State Board (Bihar)',
+  'State Board (Gujarat)',
+  'State Board (Haryana)',
+  'State Board (Karnataka)',
+  'State Board (Kerala)',
+  'State Board (Maharashtra)',
+  'State Board (Madhya Pradesh)',
+  'State Board (Rajasthan)',
+  'State Board (Tamil Nadu)',
+  'State Board (Telangana)',
+  'State Board (Uttar Pradesh)',
+  'State Board (West Bengal)',
   'International Baccalaureate (IB)',
-  'IGCSE (Cambridge)'
+  'IGCSE (Cambridge)',
+  'NIOS (National Institute of Open Schooling)'
 ];
 
 const COMMON_SCHOOL_TYPES = [
@@ -594,25 +581,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
                       placeholder="e.g. 10th Grade"
                     />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Academic Board</label>
-                  <div className="relative">
-                     <BookOpen className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
-                     <input
-                      type="text"
-                      list="board-list"
-                      disabled={!isEditing}
-                      value={formData.board || ''}
-                      onChange={(e) => handleInputChange('board', e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
-                      placeholder="e.g. CBSE / ICSE / State Board"
-                    />
-                    <datalist id="board-list">
-                      {INDIAN_SCHOOL_BOARDS.map(b => <option key={b} value={b} />)}
-                    </datalist>
                   </div>
                 </div>
 
