@@ -14,6 +14,7 @@ import axios from 'axios';
 import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, Inbox, RefreshCw, Fingerprint, Smartphone } from 'lucide-react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
+import { saveProfileToFirestore } from '../utils/firebaseUtils';
 
 import { validateAndParsePhone } from '../utils/phoneUtils';
 
@@ -21,6 +22,7 @@ interface AuthProps {
   onSignUpSuccess?: (data?: Partial<UserProfile>) => void;
   onClose: () => void;
   onCountryDetected?: (countryCode: string | null) => void;
+  initialCountry?: string | null;
 }
 
 type AuthView = 'login' | 'signup' | 'forgot-password' | 'verify-email' | 'otp';
@@ -31,7 +33,7 @@ const AppleIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
+const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected, initialCountry }) => {
   const [view, setView] = useState<AuthView>('login');
   
   // Login Fields
@@ -43,6 +45,12 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
   const [grade, setGrade] = useState('');
   const [school, setSchool] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+
+  useEffect(() => {
+    if (initialCountry === 'IN' && !phoneNumber) {
+      setPhoneNumber('+91 ');
+    }
+  }, [initialCountry]);
   const [otp, setOtp] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
 
@@ -316,6 +324,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
               planType: 'Free'
             };
             localStorage.setItem(`profile_${result.user.uid}`, JSON.stringify(initialProfile));
+            await saveProfileToFirestore(result.user.uid, initialProfile);
             
             // Send Email Verification
             await sendEmailVerification(result.user, {

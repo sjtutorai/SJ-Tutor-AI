@@ -36,13 +36,20 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, countryCode }) 
             SJ Tutor AI
           </div>
           
+          {countryCode === 'IN' && (
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 rounded-full text-emerald-700 dark:text-emerald-400 text-xs font-bold mb-4 animate-in fade-in zoom-in duration-500">
+               <span className="text-sm">🇮🇳</span> 
+               Optimized for India (+91)
+            </div>
+          )}
+          
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-slate-900 dark:text-white mb-6 leading-tight animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
             Learn Smarter and <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-amber-500">Finish Homework Faster</span>
           </h1>
           
             <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
-            Your friendly AI study buddy {countryCode === 'IN' ? 'for Students in India ' : ''}that helps you solve homework, understand subjects easily, and prepares you for exams.
+            Your friendly AI study buddy {countryCode === 'IN' ? '🇮🇳 for Students in India (+91) ' : ''}that helps you solve homework, understand subjects easily, and prepares you for exams.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">

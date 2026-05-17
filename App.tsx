@@ -20,6 +20,7 @@ import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
 import StudentOffers from './components/StudentOffers';
 import Tutorial from './components/Tutorial';
+import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebaseUtils';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
@@ -146,6 +147,36 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detectedCountry, setDetectedCountry] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Basic detection for India
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz.includes('Kolkata') || tz.includes('Calcutta') || tz.includes('India')) {
+      setDetectedCountry('IN');
+    }
+  }, []);
+
+  // Helper for navigation with form pre-fill
+  const navigateToMode = (newMode: AppMode) => {
+    setMode(newMode);
+    setDashboardView('OVERVIEW');
+    setSummaryContent('');
+    setHomeworkContent('');
+    setHomeworkImages([]);
+    setQuizData(null);
+    setExistingQuizScore(undefined);
+    setCurrentHistoryId(null);
+    setError(null);
+    
+    // Reset form with profile defaults
+    const settings = SettingsService.getSettings();
+    setFormData({
+      ...INITIAL_FORM_DATA,
+      language: settings.learning.language || INITIAL_FORM_DATA.language,
+      gradeClass: userProfile.grade || INITIAL_FORM_DATA.gradeClass,
+      board: userProfile.board || INITIAL_FORM_DATA.board || ''
+    });
+  };
 
   // Notification Timer Ref
   const lastNotificationCheck = useRef(Date.now());
@@ -390,9 +421,18 @@ const App: React.FC = () => {
       }
       
       const savedProfile = localStorage.getItem(`profile_${user.uid}`);
-      if (savedProfile) {
-        try {
-          const parsed = JSON.parse(savedProfile);
+      
+      const loadProfile = async () => {
+        // Try local storage first for speed
+        let parsed = savedProfile ? JSON.parse(savedProfile) : null;
+        
+        // Then try Firestore for cross-device persistence
+        const firestoreProfile = await getProfileFromFirestore(user.uid);
+        if (firestoreProfile) {
+          parsed = { ...parsed, ...firestoreProfile };
+        }
+
+        if (parsed) {
           const completeProfile = { 
             ...initialProfileState, 
             ...parsed,
@@ -401,6 +441,9 @@ const App: React.FC = () => {
           };
           setUserProfile(completeProfile);
           
+          // Sync back to local storage
+          localStorage.setItem(`profile_${user.uid}`, JSON.stringify(completeProfile));
+          
           // Check for completion reminder
           const completion = calculateProfileCompletion(completeProfile);
           if (completion < 100) {
@@ -408,22 +451,22 @@ const App: React.FC = () => {
               setShowCompletionReminder(true);
             }, 2000);
           }
-        } catch (_e) {
-          console.error("Failed to parse profile", _e);
+        } else {
+          const initial = {
+             ...initialProfileState,
+             displayName: user.displayName || '',
+             photoURL: user.photoURL || '',
+             credits: 100
+          };
+          setUserProfile(initial);
+          const completion = calculateProfileCompletion(initial);
+          if (completion < 100) {
+            setShowCompletionReminder(true);
+          }
         }
-      } else {
-        const initial = {
-           ...initialProfileState,
-           displayName: user.displayName || '',
-           photoURL: user.photoURL || '',
-           credits: 100
-        };
-        setUserProfile(initial);
-        const completion = calculateProfileCompletion(initial);
-        if (completion < 100) {
-          setShowCompletionReminder(true);
-        }
-      }
+      };
+
+      loadProfile();
     }
   }, [user]);
 
@@ -460,10 +503,11 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const handleProfileSave = (newProfile: UserProfile, redirectDashboard = false) => {
+  const handleProfileSave = async (newProfile: UserProfile, redirectDashboard = false) => {
     setUserProfile(newProfile);
     if (user) {
       localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
+      await saveProfileToFirestore(user.uid, newProfile);
     }
     if (isNewUser) {
       setIsNewUser(false);
@@ -474,13 +518,14 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSignUpSuccess = (initialData?: Partial<UserProfile>) => {
+  const handleSignUpSuccess = async (initialData?: Partial<UserProfile>) => {
     setIsNewUser(true);
     const newProfile = { ...initialProfileState, ...initialData };
     setUserProfile(newProfile);
     
     if (auth.currentUser) {
         localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(newProfile));
+        await saveProfileToFirestore(auth.currentUser.uid, newProfile);
     }
     
     setShowAuthModal(false);
@@ -1069,23 +1114,23 @@ const App: React.FC = () => {
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
            <h3 className="font-bold text-slate-800 dark:text-white mb-4">Quick Actions</h3>
            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <button onClick={() => setMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900">
+              <button onClick={() => navigateToMode(AppMode.SUMMARY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900">
                  <FileText className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                  New Summary
               </button>
-              <button onClick={() => setMode(AppMode.ESSAY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900">
+              <button onClick={() => navigateToMode(AppMode.ESSAY)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900">
                  <BookOpen className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                  HW Writer
               </button>
-              <button onClick={() => setMode(AppMode.QUIZ)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900">
+              <button onClick={() => navigateToMode(AppMode.QUIZ)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900">
                  <BrainCircuit className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                  New Quiz
               </button>
-               <button onClick={() => setMode(AppMode.HOMEWORK)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-blue-100 dark:hover:border-blue-900">
+               <button onClick={() => navigateToMode(AppMode.HOMEWORK)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-blue-100 dark:hover:border-blue-900">
                  <CameraIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                  Solve HW
               </button>
-              <button onClick={() => setMode(AppMode.TUTOR)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900">
+              <button onClick={() => navigateToMode(AppMode.TUTOR)} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900">
                  <MessageCircle className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                  Ask Tutor
               </button>
@@ -1442,6 +1487,7 @@ const App: React.FC = () => {
             onClose={() => setShowAuthModal(false)} 
             onSignUpSuccess={handleSignUpSuccess}
             onCountryDetected={setDetectedCountry}
+            initialCountry={detectedCountry}
           />
         )}
       </div>
@@ -1505,21 +1551,7 @@ const App: React.FC = () => {
                       setShowAuthModal(true);
                       setIsSidebarOpen(false); 
                     } else {
-                      setMode(item.id);
-                      setDashboardView('OVERVIEW');
-                      setSummaryContent('');
-                      setHomeworkContent('');
-                      setHomeworkImages([]);
-                      setQuizData(null);
-                      setExistingQuizScore(undefined);
-                      setCurrentHistoryId(null);
-                      setError(null);
-                      const settings = SettingsService.getSettings();
-                      setFormData({
-                        ...INITIAL_FORM_DATA,
-                        language: settings.learning.language || INITIAL_FORM_DATA.language,
-                        gradeClass: userProfile.grade || INITIAL_FORM_DATA.gradeClass
-                      });
+                      navigateToMode(item.id);
                     }
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group text-sm ${
@@ -1735,6 +1767,7 @@ const App: React.FC = () => {
         <Auth 
           onClose={() => setShowAuthModal(false)} 
           onSignUpSuccess={handleSignUpSuccess}
+          onCountryDetected={setDetectedCountry}
         />
       )}
       
