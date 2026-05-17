@@ -15,9 +15,12 @@ import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyR
 import { UserProfile } from '../types';
 import Logo from './Logo';
 
+import { validateAndParsePhone } from '../utils/phoneUtils';
+
 interface AuthProps {
   onSignUpSuccess?: (data?: Partial<UserProfile>) => void;
   onClose: () => void;
+  onCountryDetected?: (countryCode: string | null) => void;
 }
 
 type AuthView = 'login' | 'signup' | 'forgot-password' | 'verify-email' | 'otp';
@@ -42,6 +45,25 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
+
+  const [countryFlag, setCountryFlag] = useState<string | null>(null);
+
+  const handlePhoneChange = (val: string) => {
+    setPhoneNumber(val);
+    if (val.length > 2) {
+      const result = validateAndParsePhone(val);
+      if (result.country) {
+        setCountryFlag(result.country.flag);
+        if (onCountryDetected) onCountryDetected(result.country.code);
+      } else {
+        setCountryFlag(null);
+        if (onCountryDetected) onCountryDetected(null);
+      }
+    } else {
+      setCountryFlag(null);
+      if (onCountryDetected) onCountryDetected(null);
+    }
+  };
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -728,11 +750,17 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
                 <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Phone Number</label>
                   <div className="relative">
-                      <Phone className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                      <div className="absolute left-3 top-3 w-5 h-5 flex items-center justify-center pointer-events-none">
+                        {countryFlag ? (
+                          <span className="text-lg leading-none">{countryFlag}</span>
+                        ) : (
+                          <Phone className="w-5 h-5 text-slate-400" />
+                        )}
+                      </div>
                       <input
                       type="tel"
                       value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
                       placeholder="+91 9876543210"
                       required={view === 'signup'}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-slate-900"

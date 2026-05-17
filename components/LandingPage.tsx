@@ -18,9 +18,10 @@ import Logo from './Logo';
 
 interface LandingPageProps {
   onGetStarted: () => void;
+  countryCode?: string | null;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, countryCode }) => {
   return (
     <div className="bg-white dark:bg-slate-900 overflow-hidden">
       {/* 1. Hero Section */}
@@ -41,7 +42,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
           </h1>
           
             <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
-            Your friendly AI study buddy that helps you solve homework, understand subjects easily, and prepares you for exams.
+            Your friendly AI study buddy {countryCode === 'IN' ? 'for Students in India ' : ''}that helps you solve homework, understand subjects easily, and prepares you for exams.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
@@ -71,8 +72,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
       <section className="py-24">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">Smart Features for Smart Students</h2>
-            <p className="text-slate-500 max-w-2xl mx-auto">Everything you need to excel in your academics, all in one place.</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
+              Smart Features for {countryCode === 'IN' ? 'Indian Students' : 'Smart Students'}
+            </h2>
+            <p className="text-slate-500 max-w-2xl mx-auto">
+              {countryCode === 'IN' 
+                ? 'Everything you need to excel in NCERT, CBSE, and State Board exams, all in one place.' 
+                : 'Everything you need to excel in your academics, all in one place.'}
+            </p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

@@ -145,6 +145,7 @@ const App: React.FC = () => {
   // Loading States
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [detectedCountry, setDetectedCountry] = useState<string | null>(null);
 
   // Notification Timer Ref
   const lastNotificationCheck = useRef(Date.now());
@@ -1423,6 +1424,7 @@ const App: React.FC = () => {
             <Auth 
               onClose={() => setShowAuthModal(false)} 
               onSignUpSuccess={handleSignUpSuccess}
+              onCountryDetected={setDetectedCountry}
             />
           )}
         </div>
@@ -1431,11 +1433,15 @@ const App: React.FC = () => {
 
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
-        <LandingPage onGetStarted={() => setShowAuthModal(true)} />
+        <LandingPage 
+          onGetStarted={() => setShowAuthModal(true)} 
+          countryCode={detectedCountry}
+        />
         {showAuthModal && (
           <Auth 
             onClose={() => setShowAuthModal(false)} 
             onSignUpSuccess={handleSignUpSuccess}
+            onCountryDetected={setDetectedCountry}
           />
         )}
       </div>
