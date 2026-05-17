@@ -9,7 +9,8 @@ import {
   Search, 
   Trash2, 
   Filter,
-  Clock
+  Clock,
+  Camera
 } from 'lucide-react';
 
 interface HistoryViewProps {
@@ -33,7 +34,8 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onLoadItem, onDelete
     switch (type) {
       case AppMode.QUIZ: return <BrainCircuit className="w-5 h-5" />;
       case AppMode.SUMMARY: return <FileText className="w-5 h-5" />;
-      case AppMode.HOMEWORK: return <BookOpen className="w-5 h-5" />;
+      case AppMode.HOMEWORK: return <Camera className="w-5 h-5" />;
+      case AppMode.ESSAY: return <BookOpen className="w-5 h-5" />;
       case AppMode.TUTOR: return <MessageCircle className="w-5 h-5" />;
       default: return <Clock className="w-5 h-5" />;
     }
@@ -43,7 +45,8 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onLoadItem, onDelete
     switch (type) {
       case AppMode.QUIZ: return 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400';
       case AppMode.SUMMARY: return 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400';
-      case AppMode.HOMEWORK: return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400';
+      case AppMode.HOMEWORK: return 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400';
+      case AppMode.ESSAY: return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400';
       case AppMode.TUTOR: return 'text-violet-600 bg-violet-50 dark:bg-violet-900/20 dark:text-violet-400';
       default: return 'text-slate-600 bg-slate-50 dark:bg-slate-800 dark:text-slate-400';
     }
@@ -83,8 +86,9 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onLoadItem, onDelete
             >
               <option value="ALL">All Items</option>
               <option value={AppMode.SUMMARY}>Summaries</option>
+              <option value={AppMode.HOMEWORK}>Homeworks</option>
               <option value={AppMode.QUIZ}>Quizzes</option>
-              <option value={AppMode.HOMEWORK}>Homework</option>
+              <option value={AppMode.ESSAY}>Essays</option>
               <option value={AppMode.TUTOR}>Chats</option>
             </select>
           </div>

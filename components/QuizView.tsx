@@ -9,55 +9,15 @@ interface QuizViewProps {
   onReset: () => void;
   onComplete?: (score: number) => void;
   existingScore?: number;
-  userId?: string;
 }
 
-const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, existingScore, userId }) => {
+const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, existingScore }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
-
-  // Persistence Key - unique per set of questions and user
-  const persistenceKey = `sj_quiz_progress_${userId || 'guest'}_${questions[0]?.question.substring(0, 20)}`;
-
-  // Load persistence
-  useEffect(() => {
-    if (existingScore === undefined) {
-      const saved = localStorage.getItem(persistenceKey);
-      if (saved) {
-        try {
-          const { index, currentScore, isCompleted } = JSON.parse(saved);
-          if (!isCompleted) {
-            setCurrentIndex(index);
-            setScore(currentScore);
-          }
-        } catch (e) {
-          console.error("Failed to load quiz progress", e);
-        }
-      }
-    }
-  }, [persistenceKey, existingScore]);
-
-  // Save persistence
-  useEffect(() => {
-    if (existingScore === undefined && !quizCompleted && questions.length > 0) {
-      localStorage.setItem(persistenceKey, JSON.stringify({
-        index: currentIndex,
-        currentScore: score,
-        isCompleted: false
-      }));
-    }
-  }, [currentIndex, score, quizCompleted, persistenceKey, existingScore, questions]);
-
-  // Clear persistence on completion
-  useEffect(() => {
-    if (quizCompleted) {
-      localStorage.removeItem(persistenceKey);
-    }
-  }, [quizCompleted, persistenceKey]);
 
   // Initialize view if there's an existing score (viewing history)
   useEffect(() => {
@@ -131,29 +91,31 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
   const handleShare = async (platform: string) => {
     try {
       // 1. Save to backend to get a unique public ID
-      const response = await fetch('/api/auth/share', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'QUIZ',
-          title: 'Quiz Challenge',
-          subtitle: `I scored ${score}/${questions.length} on this quiz!`,
-          content: questions
-        })
-      });
+      let shareId = '';
+      try {
+        const response = await fetch('/api/auth/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'QUIZ',
+            title: 'Quiz Challenge',
+            subtitle: `I scored ${score}/${questions.length} on this quiz!`,
+            content: questions
+          })
+        });
 
-      if (!response.ok) {
-        throw new Error(`Server returned ${response.status}`);
+        const contentType = response.headers.get("content-type");
+        if (response.ok && contentType && contentType.indexOf("application/json") !== -1) {
+          const data = await response.json();
+          shareId = data.id;
+        } else {
+          console.warn("Backend share endpoint failed or returned non-JSON. Falling back to local share.");
+        }
+      } catch (e) {
+        console.warn("Backend sharing unavailable, falling back to local share", e);
       }
 
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Invalid response from server");
-      }
-
-      const data = await response.json();
-      const shareId = data.id;
-      const shareUrl = `${window.location.origin}?share=${shareId}`;
+      const shareUrl = shareId ? `${window.location.origin}?share=${shareId}` : window.location.origin;
       const text = `I scored ${score}/${questions.length} on my SJ Tutor AI Quiz! 🎓`;
       const shareTextWithLink = `${text}\nCheck it out here: ${shareUrl}`;
       

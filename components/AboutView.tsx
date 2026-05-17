@@ -59,7 +59,7 @@ const AboutView: React.FC<AboutViewProps> = ({ onNavigateToLegal }) => {
            </p>
            <ul className="space-y-2 text-sm text-slate-500 dark:text-slate-400">
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div> Generate instant summaries & homework solutions
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div> Generate instant summaries & essays
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div> Create practice quizzes from any topic
