@@ -10,7 +10,8 @@ import {
   updateProfile,
   sendEmailVerification
 } from 'firebase/auth';
-import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, Inbox, RefreshCw, Fingerprint } from 'lucide-react';
+import axios from 'axios';
+import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, Inbox, RefreshCw, Fingerprint, Smartphone } from 'lucide-react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
 
@@ -19,7 +20,7 @@ interface AuthProps {
   onClose: () => void;
 }
 
-type AuthView = 'login' | 'signup' | 'forgot-password' | 'verify-email';
+type AuthView = 'login' | 'signup' | 'forgot-password' | 'verify-email' | 'otp';
 
 const AppleIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 384 512" fill="currentColor">
@@ -39,6 +40,8 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
   const [grade, setGrade] = useState('');
   const [school, setSchool] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -282,16 +285,24 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
             });
             
             // Send Email Verification
-            await sendEmailVerification(result.user, {
-              url: window.location.origin
-            });
-        }
+        await sendEmailVerification(result.user, {
+          url: window.location.origin
+        });
 
-        // Instead of closing immediately, show email verification screen
-        setView('verify-email');
+        // Trigger SMS OTP
+        try {
+          await axios.post('/api/auth/send-otp', { phone: phoneNumber });
+          setView('otp');
+        } catch (otpErr) {
+          console.error("Failed to send OTP:", otpErr);
+          // Fallback to email verification only if OTP fails to send
+          setView('verify-email');
+        }
+        
         setResendTimer(60);
       }
-    } catch (err: any) {
+    }
+  } catch (err: any) {
       console.error(err);
       let msg = "Authentication failed.";
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
@@ -319,6 +330,104 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       onClose();
     }
   };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp) {
+      setError("Please enter the OTP.");
+      return;
+    }
+    setOtpLoading(true);
+    setError(null);
+    try {
+      const response = await axios.post('/api/auth/verify-otp', {
+        phone: phoneNumber,
+        otp: otp
+      });
+      if (response.data.success) {
+        setView('verify-email');
+      } else {
+        setError(response.data.message || "Invalid OTP.");
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to verify OTP.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendTimer > 0) return;
+    try {
+      await axios.post('/api/auth/send-otp', { phone: phoneNumber });
+      setResendTimer(60);
+      setResendStatus("New OTP sent to your phone!");
+      setTimeout(() => setResendStatus(null), 5000);
+    } catch (err) {
+      setError("Failed to resend OTP.");
+    }
+  };
+
+  if (view === 'otp') {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div className="relative bg-white p-8 rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md text-center animate-in fade-in zoom-in duration-300">
+            <button onClick={onClose} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600">
+              <Smartphone className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Verify your Phone</h2>
+            <p className="text-slate-500 mb-6 text-sm">
+              We&apos;ve sent a 6-digit code to <span className="font-bold text-slate-700">{phoneNumber}</span> via SMS.
+            </p>
+            
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Enter 6-digit code"
+                  className="w-full text-center tracking-[0.5em] text-2xl font-black py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition-all"
+                  required
+                />
+              </div>
+
+              {error && <div className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg border border-red-100">{error}</div>}
+
+              <button
+                type="submit"
+                disabled={otpLoading || otp.length < 6}
+                className="w-full py-3.5 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-50"
+              >
+                {otpLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify OTP"}
+              </button>
+
+              <button 
+                type="button"
+                onClick={handleResendOtp}
+                disabled={resendTimer > 0}
+                className="w-full py-2 text-sm font-semibold text-primary-600 hover:text-primary-700 disabled:opacity-50"
+              >
+                {resendTimer > 0 ? `Resend code in ${resendTimer}s` : "Resend SMS Code"}
+              </button>
+            </form>
+
+            {resendStatus && (
+               <div className="mt-4 text-emerald-600 font-bold text-sm bg-emerald-50 py-2 rounded-lg animate-in fade-in">
+                 {resendStatus}
+               </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'forgot-password' && resetSent) {
     return (
