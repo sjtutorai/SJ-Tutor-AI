@@ -101,7 +101,7 @@ const InputForm: React.FC<InputFormProps> = ({
       <div className="flex justify-between items-center mb-5 relative z-10">
         <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
           {mode === AppMode.HOMEWORK ? <Camera className="w-4 h-4 text-primary-600" /> : <BookOpen className="w-4 h-4 text-primary-600" />}
-          {mode === AppMode.HOMEWORK ? 'Homework Writer' : 'Study Details'}
+          {mode === AppMode.HOMEWORK ? 'Homework Solver' : 'Study Details'}
         </h2>
 
         <div className="flex items-center gap-2">

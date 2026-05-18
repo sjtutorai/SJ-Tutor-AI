@@ -877,9 +877,8 @@ const App: React.FC = () => {
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: AppMode.ID_CARD, label: 'Student ID Card', icon: CreditCard },
     { id: AppMode.SUMMARY, label: 'Instant Summary', icon: FileText },
-    { id: AppMode.ESSAY, label: 'Home work writer', icon: BookOpen },
     { id: AppMode.QUIZ, label: 'Quiz Creator', icon: BrainCircuit },
-    { id: AppMode.HOMEWORK, label: 'Photo Scan Solver', icon: CameraIcon },
+    { id: AppMode.HOMEWORK, label: 'Homework Solver', icon: CameraIcon },
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
@@ -913,7 +912,6 @@ const App: React.FC = () => {
     const dashboardCards = [
       { id: AppMode.ID_CARD, label: 'My ID Card', count: null, icon: CreditCard, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-[#FDF5E6] dark:bg-indigo-900/30' },
       { id: AppMode.SUMMARY, label: 'Summaries', count: stats.summaries, icon: FileText, color: 'text-amber-800 dark:text-amber-300', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.ESSAY, label: 'Essays', count: stats.essays, icon: BookOpen, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.HOMEWORK, label: 'Homework Solutions', count: stats.homeworks, icon: CameraIcon, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.TUTOR, label: 'Tutor Sessions', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
@@ -1194,7 +1192,7 @@ const App: React.FC = () => {
           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <InputForm
               data={formData}
-              mode={AppMode.HOMEWORK} // Use homework mode UI for the new Home Work Writer
+              mode={AppMode.HOMEWORK} 
               onChange={handleFormChange}
               onFillSample={handleFillSample}
               lockGradeClass={!!(userProfile.dob && userProfile.grade)}
