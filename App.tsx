@@ -18,7 +18,7 @@ import LandingPage from './components/LandingPage';
 import StudyTimerView from './components/StudyTimerView';
 import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
-import StudentOffers from './components/StudentOffers';
+import { NotificationsView } from './components/NotificationsView';
 import Tutorial from './components/Tutorial';
 import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebaseUtils';
 import Logo from './components/Logo';
@@ -51,7 +51,9 @@ import {
   QrCode,
   Eye,
   Camera as CameraIcon,
-  User as UserIcon
+  User as UserIcon,
+  Bell,
+  BellRing
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
@@ -106,6 +108,7 @@ const App: React.FC = () => {
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Shared Content State
   const [sharedContent, setSharedContent] = useState<any>(null);
@@ -326,6 +329,55 @@ const App: React.FC = () => {
       console.warn("API_KEY is missing in environment variables!");
     }
   }, []);
+
+  // Sync real-time notification & reminders unread badge count
+  useEffect(() => {
+    const updateNotificationCounts = () => {
+      const activeRemindersKey = user ? `reminders_${user.uid}` : 'reminders_guest';
+      const feedKey = user ? `notifications_feed_${user.uid}` : 'notifications_feed_guest';
+      
+      let remindersUncompleted = 0;
+      let feedUnread = 0;
+      
+      try {
+        const storedReminders = localStorage.getItem(activeRemindersKey);
+        if (storedReminders) {
+          const items = JSON.parse(storedReminders);
+          remindersUncompleted = items.filter((item: any) => !item.completed).length;
+        }
+      } catch (err) {
+        // Ignore JSON parse errors
+      }
+      
+      try {
+        const storedFeed = localStorage.getItem(feedKey);
+        if (storedFeed) {
+          const items = JSON.parse(storedFeed);
+          feedUnread = items.filter((item: any) => !item.read).length;
+        } else {
+          // Defaults if no notifications are loaded yet
+          feedUnread = 2; // Default to showing unread count 2 from getDefaultNotifications()
+        }
+      } catch (err) {
+        // Ignore JSON parse errors
+      }
+      
+      setUnreadCount(remindersUncompleted + feedUnread);
+    };
+
+    updateNotificationCounts();
+    
+    // Check every 5 seconds, sync also on storage and settings modifications
+    const interval = setInterval(updateNotificationCounts, 5000);
+    window.addEventListener('storage', updateNotificationCounts);
+    window.addEventListener('settings-changed', updateNotificationCounts);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', updateNotificationCounts);
+      window.removeEventListener('settings-changed', updateNotificationCounts);
+    };
+  }, [user]);
 
   // Auto-fill grade from profile when switching modes
   useEffect(() => {
@@ -914,7 +966,7 @@ const App: React.FC = () => {
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.HOMEWORK, label: 'Homework Solutions', count: stats.homeworks, icon: CameraIcon, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.TUTOR, label: 'Tutor Sessions', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.OFFERS, label: 'Offers', count: null, icon: Tag, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-[#FDF5E6] dark:bg-rose-900/30' },
+      { id: AppMode.NOTIFICATIONS, label: 'Notifications', count: null, icon: Bell, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-[#FDF5E6] dark:bg-rose-900/30' },
       { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
     ];
 
@@ -1053,8 +1105,8 @@ const App: React.FC = () => {
                     setMode(AppMode.NOTES);
                  } else if (card.id === AppMode.ID_CARD) {
                     setMode(AppMode.ID_CARD);
-                 } else if (card.id === AppMode.OFFERS) {
-                    setMode(AppMode.OFFERS);
+                 } else if (card.id === AppMode.NOTIFICATIONS) {
+                    setMode(AppMode.NOTIFICATIONS);
                  } else {
                     setDashboardView(card.id as any);
                  }
@@ -1374,12 +1426,12 @@ const App: React.FC = () => {
            </div>
         );
 
-      case AppMode.OFFERS:
+      case AppMode.NOTIFICATIONS:
         return (
            <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <StudentOffers 
+              <NotificationsView 
                 userProfile={userProfile}
-                onUpdateProfile={(p) => handleProfileSave(p, false)}
+                userId={user ? user.uid : null}
               />
            </div>
         );
@@ -1701,18 +1753,22 @@ const App: React.FC = () => {
             </button>
             <button 
               onClick={() => {
-                setMode(AppMode.OFFERS);
+                setMode(AppMode.NOTIFICATIONS);
                 setDashboardView('OVERVIEW');
               }}
               className={`p-2 rounded-full transition-all relative border ${
-                mode === AppMode.OFFERS 
+                mode === AppMode.NOTIFICATIONS 
                 ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 border-primary-200 dark:border-primary-800' 
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700'
               }`}
-              title="Student Offers"
+              title="Notifications"
             >
-              <Tag className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></span>
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-rose-500 border border-white dark:border-slate-900 rounded-full text-[9px] font-black text-white px-0.5 flex items-center justify-center animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
             </button>
 
             <button 
