@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
+import { syncRemindersWithServer } from '../src/utils/pushNotifications';
 
 interface NotesViewProps {
   userId: string | null;
@@ -72,6 +73,11 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
     localStorage.setItem(`reminders_${key}`, JSON.stringify(reminders));
     localStorage.setItem(`timetable_${key}`, JSON.stringify(timetable));
   }, [notes, reminders, timetable, userId]);
+
+  // Synchronize reminders with device push notifications server when modified
+  useEffect(() => {
+    syncRemindersWithServer(userId, reminders);
+  }, [reminders, userId]);
 
   // Derived
   const subjects = Array.from(new Set(notes.map(n => n.subject)));

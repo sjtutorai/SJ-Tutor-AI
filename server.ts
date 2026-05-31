@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
 import geminiRoutes from "./server/routes/gemini";
+import pushRoutes, { checkRemindersAndPush } from "./server/routes/push";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -29,6 +30,8 @@ app.use((req, res, next) => {
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/gemini", geminiRoutes);
+app.use("/api/push", pushRoutes);
+app.use("/api/notifications", pushRoutes);
 
 // Global Error Handler
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -54,6 +57,15 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    
+    // Poll reminders every 15 seconds to trigger Web Push even if website is closed
+    setInterval(() => {
+      try {
+        checkRemindersAndPush();
+      } catch (err) {
+        console.error("Error in background checkRemindersAndPush:", err);
+      }
+    }, 15000);
   });
 }
 

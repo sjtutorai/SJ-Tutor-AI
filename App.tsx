@@ -25,6 +25,7 @@ import Logo from './components/Logo';
 import { StreakToy } from './components/StreakToy';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
+import { PushService } from './services/pushService';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
@@ -500,6 +501,39 @@ const App: React.FC = () => {
         console.error("Failed to parse saved active quiz:", e);
       }
     }
+  }, [user]);
+
+  // Register service worker, subscribe to device push and sync reminders to backend
+  useEffect(() => {
+    const setupDevicePush = async () => {
+      await PushService.registerSW();
+      
+      // Subscribe if notification permission is already allowed
+      if ('Notification' in window && Notification.permission === 'granted') {
+        await PushService.subscribeToPush(user?.uid || null);
+      }
+
+      // Sync local reminders with the backend for offline push delivery
+      const remindersKey = user ? `reminders_${user.uid}` : 'reminders_guest';
+      const storedReminders = localStorage.getItem(remindersKey);
+      if (storedReminders) {
+        try {
+          const items = JSON.parse(storedReminders);
+          await PushService.syncReminders(user?.uid || null, items);
+        } catch (e) {
+          // ignore parsing error
+        }
+      }
+    };
+
+    setupDevicePush();
+
+    // Listen to local changes to reminders across tabs and sync
+    const handler = () => {
+      setupDevicePush();
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
   }, [user]);
 
   // History Persistence
