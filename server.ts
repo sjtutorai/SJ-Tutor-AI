@@ -3,6 +3,7 @@ import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
+import geminiRoutes from "./server/routes/gemini";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -27,9 +28,11 @@ app.use((req, res, next) => {
 
 // API routes
 app.use("/api/auth", authRoutes);
+app.use("/api/gemini", geminiRoutes);
 
 // Global Error Handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("❌ Global Error Handler:", err);
   res.status(500).json({ 
     message: "Internal Server Error", 

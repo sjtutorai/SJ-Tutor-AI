@@ -22,6 +22,7 @@ import { NotificationsView } from './components/NotificationsView';
 import Tutorial from './components/Tutorial';
 import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebaseUtils';
 import Logo from './components/Logo';
+import { StreakToy } from './components/StreakToy';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
 import { auth } from './firebaseConfig';
@@ -323,13 +324,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Check API Key
-  useEffect(() => {
-    if (!process.env.API_KEY) {
-      console.warn("API_KEY is missing in environment variables!");
-    }
-  }, []);
-
   // Sync real-time notification & reminders unread badge count
   useEffect(() => {
     const updateNotificationCounts = () => {
@@ -488,6 +482,23 @@ const App: React.FC = () => {
       };
 
       loadProfile();
+    }
+  }, [user]);
+
+  // Load active incomplete quiz on startup or user change
+  useEffect(() => {
+    const suffix = user?.uid ? `active_quiz_${user.uid}` : `active_quiz_guest`;
+    const saved = localStorage.getItem(suffix);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.questions && !parsed.quizCompleted) {
+          setQuizData(parsed.questions);
+          setExistingQuizScore(undefined);
+        }
+      } catch (e) {
+        console.error("Failed to parse saved active quiz:", e);
+      }
     }
   }, [user]);
 
@@ -726,11 +737,6 @@ const App: React.FC = () => {
       return;
     }
     
-    if (!process.env.API_KEY) {
-      setError("Configuration Error: API_KEY is missing. Please check your environment variables.");
-      return;
-    }
-
     if (!validateForm()) return;
     
     setLoading(true);
@@ -952,6 +958,54 @@ const App: React.FC = () => {
        } catch { return 0; }
     })();
 
+    const streak = (() => {
+      try {
+        const key = user ? user.uid : 'guest';
+        const milestones = JSON.parse(localStorage.getItem(`study_milestones_${key}`) || '[]');
+        const actionDates = new Set<string>();
+        
+        history.forEach(item => {
+          if (item.timestamp) {
+            actionDates.add(new Date(item.timestamp).toDateString());
+          }
+        });
+
+        milestones.forEach((m: any) => {
+          if (m.timestamp) {
+            actionDates.add(new Date(m.timestamp).toDateString());
+          } else if (m.date) {
+            actionDates.add(new Date(m.date).toDateString());
+          }
+        });
+
+        if (actionDates.size === 0) return 0;
+
+        let currentStreak = 0;
+        let checkDate = new Date();
+        const todayStr = checkDate.toDateString();
+        checkDate.setDate(checkDate.getDate() - 1);
+        const yesterdayStr = checkDate.toDateString();
+
+        if (!actionDates.has(todayStr) && !actionDates.has(yesterdayStr)) {
+          return 0;
+        }
+
+        checkDate = new Date();
+        if (!actionDates.has(todayStr) && actionDates.has(yesterdayStr)) {
+          checkDate.setDate(checkDate.getDate() - 1);
+        }
+
+        while (actionDates.has(checkDate.toDateString())) {
+          currentStreak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        }
+
+        return currentStreak;
+      } catch {
+        return 0;
+      }
+    })();
+
     const stats = {
       summaries: history.filter(h => h.type === AppMode.SUMMARY).length,
       essays: history.filter(h => h.type === AppMode.ESSAY).length,
@@ -1089,6 +1143,14 @@ const App: React.FC = () => {
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
             <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
           </div>
+
+          {/* Dynamic Interactive Gamified Streak Toy */}
+          <StreakToy 
+            userProfile={userProfile} 
+            streak={streak} 
+            userId={user?.uid || null} 
+            history={history} 
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -1175,7 +1237,7 @@ const App: React.FC = () => {
       case AppMode.TIMER:
         return (
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <StudyTimerView userProfile={userProfile} />
+             <StudyTimerView userProfile={userProfile} userId={user?.uid || null} />
           </div>
         );
 
@@ -1311,7 +1373,10 @@ const App: React.FC = () => {
           return (
             <QuizView 
               questions={quizData} 
+              userId={user?.uid}
               onReset={() => {
+                const suffix = user?.uid ? `active_quiz_${user.uid}` : `active_quiz_guest`;
+                localStorage.removeItem(suffix);
                 setQuizData(null);
                 setExistingQuizScore(undefined);
                 setCurrentHistoryId(null);

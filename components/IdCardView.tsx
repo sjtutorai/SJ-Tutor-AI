@@ -195,7 +195,7 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                               district: userProfile.district || 'N/A',
                               plan: userProfile.planType || 'Scholar'
                             })}
-                            size={55}
+                            size={75}
                             level="M"
                             includeMargin={false}
                           />

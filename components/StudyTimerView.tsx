@@ -8,11 +8,14 @@ const PRESETS = [
   { label: 'Deep Work', minutes: 50, icon: Zap },
 ];
 
+import { UserProfile } from '../types';
+
 interface StudyTimerViewProps {
   userProfile: UserProfile;
+  userId?: string | null;
 }
 
-const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile }) => {
+const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile, userId }) => {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<'FOCUS' | 'BREAK'>('FOCUS');
@@ -59,6 +62,35 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile }) => {
     } else if (timeLeft === 0) {
       setIsActive(false);
       if (intervalRef.current) clearInterval(intervalRef.current);
+      
+      if (mode === 'FOCUS') {
+        try {
+          const focusMins = Math.floor(initialTime / 60) || 25;
+          const key = userId || 'guest';
+          const currentMins = parseFloat(localStorage.getItem(`timer_study_minutes_${key}`) || '0');
+          const updatedMins = currentMins + focusMins;
+          localStorage.setItem(`timer_study_minutes_${key}`, updatedMins.toString());
+          
+          // Log milestone for Streak check
+          const streakKey = `study_milestones_${key}`;
+          const milestones = JSON.parse(localStorage.getItem(streakKey) || '[]');
+          milestones.push({ 
+            id: `timer-${Date.now()}`, 
+            type: 'Timer Focus Session', 
+            date: new Date().toDateString(), 
+            timestamp: Date.now() 
+          });
+          localStorage.setItem(streakKey, JSON.stringify(milestones));
+          
+          // Dispatch storage events for instant update
+          window.dispatchEvent(new Event('storage'));
+          window.dispatchEvent(new Event('study-hours-updated'));
+          window.dispatchEvent(new Event('streak-updated'));
+        } catch (e) {
+          console.error("Timer tracking save failed", e);
+        }
+      }
+
       // Play sound or notify
       if (Notification.permission === 'granted') {
         new Notification("Time's up!", {
