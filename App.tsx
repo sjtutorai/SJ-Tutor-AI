@@ -24,6 +24,7 @@ import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebas
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
+import { playSynthSound } from './utils/soundUtils';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
@@ -163,6 +164,33 @@ const App: React.FC = () => {
       const key = user ? `reminders_${user.uid}` : 'reminders_guest';
       
       try {
+        // Quiet Hours Check
+        const quietEnabled = localStorage.getItem('quiet_hours_enabled') === 'true';
+        if (quietEnabled) {
+          const quietStart = localStorage.getItem('quiet_hours_start') || '22:00';
+          const quietEnd = localStorage.getItem('quiet_hours_end') || '07:00';
+          
+          const nowTime = new Date();
+          const currentMinutes = nowTime.getHours() * 60 + nowTime.getMinutes();
+          
+          const [startH, startM] = quietStart.split(':').map(Number);
+          const [endH, endM] = quietEnd.split(':').map(Number);
+          const startMinutes = startH * 60 + startM;
+          const endMinutes = endH * 60 + endM;
+          
+          let insideQuiet = false;
+          if (startMinutes <= endMinutes) {
+            insideQuiet = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+          } else {
+            insideQuiet = currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+          }
+          
+          if (insideQuiet) {
+            // Silenced during quiet hours, skip notification checking!
+            return;
+          }
+        }
+
         const storedReminders = localStorage.getItem(key);
         if (storedReminders) {
           const items = JSON.parse(storedReminders);
@@ -173,6 +201,13 @@ const App: React.FC = () => {
               const dueTime = new Date(item.dueTime).getTime();
               // Check if the due time fell within the last check interval window
               if (dueTime > lastCheck && dueTime <= now) {
+                // Play corresponding custom audio tone
+                const isExam = /exam|quiz|test|prep|final/i.test(item.task || '');
+                const chosenSound = isExam 
+                  ? (localStorage.getItem('exam_alert_sound') || 'laser')
+                  : (localStorage.getItem('study_reminder_sound') || 'bell');
+                playSynthSound(chosenSound);
+
                 if (Notification.permission === "granted") {
                   new Notification("SJ Tutor AI Reminder", {
                     body: item.task,
