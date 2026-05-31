@@ -18,13 +18,12 @@ import LandingPage from './components/LandingPage';
 import StudyTimerView from './components/StudyTimerView';
 import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
-import NotificationsView from './components/NotificationsView';
+import StudentOffers from './components/StudentOffers';
 import Tutorial from './components/Tutorial';
 import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebaseUtils';
 import Logo from './components/Logo';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
-import { playSynthSound } from './utils/soundUtils';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
@@ -48,7 +47,7 @@ import {
   Info,
   Share2,
   CreditCard,
-  Bell,
+  Tag,
   QrCode,
   Eye,
   Camera as CameraIcon,
@@ -164,33 +163,6 @@ const App: React.FC = () => {
       const key = user ? `reminders_${user.uid}` : 'reminders_guest';
       
       try {
-        // Quiet Hours Check
-        const quietEnabled = localStorage.getItem('quiet_hours_enabled') === 'true';
-        if (quietEnabled) {
-          const quietStart = localStorage.getItem('quiet_hours_start') || '22:00';
-          const quietEnd = localStorage.getItem('quiet_hours_end') || '07:00';
-          
-          const nowTime = new Date();
-          const currentMinutes = nowTime.getHours() * 60 + nowTime.getMinutes();
-          
-          const [startH, startM] = quietStart.split(':').map(Number);
-          const [endH, endM] = quietEnd.split(':').map(Number);
-          const startMinutes = startH * 60 + startM;
-          const endMinutes = endH * 60 + endM;
-          
-          let insideQuiet = false;
-          if (startMinutes <= endMinutes) {
-            insideQuiet = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
-          } else {
-            insideQuiet = currentMinutes >= startMinutes || currentMinutes <= endMinutes;
-          }
-          
-          if (insideQuiet) {
-            // Silenced during quiet hours, skip notification checking!
-            return;
-          }
-        }
-
         const storedReminders = localStorage.getItem(key);
         if (storedReminders) {
           const items = JSON.parse(storedReminders);
@@ -201,13 +173,6 @@ const App: React.FC = () => {
               const dueTime = new Date(item.dueTime).getTime();
               // Check if the due time fell within the last check interval window
               if (dueTime > lastCheck && dueTime <= now) {
-                // Play corresponding custom audio tone
-                const isExam = /exam|quiz|test|prep|final/i.test(item.task || '');
-                const chosenSound = isExam 
-                  ? (localStorage.getItem('exam_alert_sound') || 'laser')
-                  : (localStorage.getItem('study_reminder_sound') || 'bell');
-                playSynthSound(chosenSound);
-
                 if (Notification.permission === "granted") {
                   new Notification("SJ Tutor AI Reminder", {
                     body: item.task,
@@ -949,7 +914,7 @@ const App: React.FC = () => {
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.HOMEWORK, label: 'Homework Solutions', count: stats.homeworks, icon: CameraIcon, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.TUTOR, label: 'Tutor Sessions', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.NOTIFICATIONS, label: 'Notifications', count: null, icon: Bell, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
+      { id: AppMode.OFFERS, label: 'Offers', count: null, icon: Tag, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-[#FDF5E6] dark:bg-rose-900/30' },
       { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
     ];
 
@@ -1088,8 +1053,8 @@ const App: React.FC = () => {
                     setMode(AppMode.NOTES);
                  } else if (card.id === AppMode.ID_CARD) {
                     setMode(AppMode.ID_CARD);
-                 } else if (card.id === AppMode.NOTIFICATIONS) {
-                    setMode(AppMode.NOTIFICATIONS);
+                 } else if (card.id === AppMode.OFFERS) {
+                    setMode(AppMode.OFFERS);
                  } else {
                     setDashboardView(card.id as any);
                  }
@@ -1409,13 +1374,12 @@ const App: React.FC = () => {
            </div>
         );
 
-      case AppMode.NOTIFICATIONS:
+      case AppMode.OFFERS:
         return (
            <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <NotificationsView 
-                userId={user ? user.uid : null}
-                onNavigateToNotes={() => setMode(AppMode.NOTES)}
+              <StudentOffers 
                 userProfile={userProfile}
+                onUpdateProfile={(p) => handleProfileSave(p, false)}
               />
            </div>
         );
@@ -1737,17 +1701,17 @@ const App: React.FC = () => {
             </button>
             <button 
               onClick={() => {
-                setMode(AppMode.NOTIFICATIONS);
+                setMode(AppMode.OFFERS);
                 setDashboardView('OVERVIEW');
               }}
               className={`p-2 rounded-full transition-all relative border ${
-                mode === AppMode.NOTIFICATIONS 
+                mode === AppMode.OFFERS 
                 ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 border-primary-200 dark:border-primary-800' 
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700'
               }`}
-              title="Notifications"
+              title="Student Offers"
             >
-              <Bell className="w-5 h-5" />
+              <Tag className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></span>
             </button>
 
