@@ -34,7 +34,6 @@ app.use("/api/push", pushRoutes);
 app.use("/api/notifications", pushRoutes);
 
 // Global Error Handler
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("❌ Global Error Handler:", err);
   res.status(500).json({ 

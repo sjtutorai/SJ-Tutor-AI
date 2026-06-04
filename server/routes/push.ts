@@ -306,15 +306,13 @@ export function checkRemindersAndPush() {
   const now = Date.now();
   let fileUpdated = false;
 
-  currentSubs.forEach((entry, entryIdx) => {
-    let entryDirty = false;
+  currentSubs.forEach((entry) => {
     entry.reminders.forEach((r) => {
       if (!r.completed && !r.notified && r.dueTime) {
         const dueTimeMs = new Date(r.dueTime).getTime();
         // Trigger notification if due time has passed
         if (dueTimeMs <= now) {
           r.notified = true;
-          entryDirty = true;
           fileUpdated = true;
 
           console.log(`[Push Notification Service] Sending Push: "${r.task}" to subscription at endpoint: ${entry.subscription.endpoint.slice(0, 45)}...`);

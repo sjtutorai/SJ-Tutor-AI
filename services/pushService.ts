@@ -21,7 +21,7 @@ export const PushService = {
   registerSW: async () => {
     if ('serviceWorker' in navigator) {
       try {
-        const registration = await navigator.serviceWorker.register('/service-worker.js');
+        const registration = await navigator.serviceWorker.register('/sw.js');
         console.log('✅ Service Worker registered successfully with scope:', registration.scope);
         return registration;
       } catch (err) {

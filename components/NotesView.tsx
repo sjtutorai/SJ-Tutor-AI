@@ -26,6 +26,27 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   const [editingNote, setEditingNote] = useState<Partial<NoteItem> | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoaded, setIsLoaded] = useState(false);
+  
+  // Custom non-blocking modal and toast states
+  const [noteIdToDelete, setNoteIdToDelete] = useState<string | null>(null);
+  const [showUnsavedModal, setShowUnsavedModal] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'info' | 'error' | 'success'>('info');
+
+  const showToast = (message: string, type: 'info' | 'error' | 'success' = 'info') => {
+    setToastMessage(message);
+    setToastType(type);
+  };
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
   
   // Reminders/Timetable (Existing Logic Preserved)
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
@@ -41,13 +62,26 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
 
   // Load/Persist
   useEffect(() => {
+    setIsLoaded(false);
     const key = userId || 'guest';
     const savedNotes = localStorage.getItem(`notes_${key}`);
     const savedReminders = localStorage.getItem(`reminders_${key}`);
     const savedTimetable = localStorage.getItem(`timetable_${key}`);
-    if (savedNotes) setNotes(JSON.parse(savedNotes));
-    if (savedReminders) setReminders(JSON.parse(savedReminders));
-    if (savedTimetable) setTimetable(JSON.parse(savedTimetable));
+    if (savedNotes) {
+      setNotes(JSON.parse(savedNotes));
+    } else {
+      setNotes([]);
+    }
+    if (savedReminders) {
+      setReminders(JSON.parse(savedReminders));
+    } else {
+      setReminders([]);
+    }
+    if (savedTimetable) {
+      setTimetable(JSON.parse(savedTimetable));
+    } else {
+      setTimetable([]);
+    }
 
     const loadMinsAndTarget = () => {
       const minsStr = localStorage.getItem(`timer_study_minutes_${key}`) || '0';
@@ -61,6 +95,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
 
     window.addEventListener('storage', loadMinsAndTarget);
     window.addEventListener('study-hours-updated', loadMinsAndTarget);
+    
+    setIsLoaded(true);
+
     return () => {
       window.removeEventListener('storage', loadMinsAndTarget);
       window.removeEventListener('study-hours-updated', loadMinsAndTarget);
@@ -68,11 +105,12 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   }, [userId]);
 
   useEffect(() => {
+    if (!isLoaded) return;
     const key = userId || 'guest';
     localStorage.setItem(`notes_${key}`, JSON.stringify(notes));
     localStorage.setItem(`reminders_${key}`, JSON.stringify(reminders));
     localStorage.setItem(`timetable_${key}`, JSON.stringify(timetable));
-  }, [notes, reminders, timetable, userId]);
+  }, [notes, reminders, timetable, userId, isLoaded]);
 
   // Synchronize reminders with device push notifications server when modified
   useEffect(() => {
@@ -124,8 +162,65 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
 
   const handleSaveNote = () => {
     if (!editingNote?.id) return;
-    setNotes(prev => prev.map(n => n.id === editingNote.id ? { ...n, ...editingNote } as NoteItem : n));
+    setNotes(prev => {
+      const updatedNotes = prev.map(n => n.id === editingNote.id ? { ...n, ...editingNote } as NoteItem : n);
+      const key = userId || 'guest';
+      localStorage.setItem(`notes_${key}`, JSON.stringify(updatedNotes));
+      return updatedNotes;
+    });
+    if (editingNote.subject) {
+      setSelectedSubject(editingNote.subject);
+    }
     setViewMode('LIST');
+    setEditingNote(null);
+  };
+
+  const handleDeleteNote = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setNoteIdToDelete(id);
+  };
+
+  const confirmDeleteNote = () => {
+    if (!noteIdToDelete) return;
+    const id = noteIdToDelete;
+    setNotes(prev => {
+      const updated = prev.filter(n => n.id !== id);
+      const key = userId || 'guest';
+      localStorage.setItem(`notes_${key}`, JSON.stringify(updated));
+      
+      // Since subjects derives from notes, check if selectedSubject still has notes
+      if (selectedSubject) {
+        const remainingForSubject = updated.filter(n => n.subject === selectedSubject).length;
+        if (remainingForSubject === 0) {
+          setSelectedSubject(null);
+          setViewMode('SUBJECTS');
+        }
+      }
+      return updated;
+    });
+    if (editingNote?.id === id) {
+      setEditingNote(null);
+      setViewMode(selectedSubject ? 'LIST' : 'SUBJECTS');
+    }
+    setNoteIdToDelete(null);
+    showToast("Note deleted successfully.", "success");
+  };
+
+  const handleCancelEdit = () => {
+    if (editingNote?.id) {
+      const noteInList = notes.find(n => n.id === editingNote.id);
+      
+      // If it's an empty "Untitled Note", clean it up
+      if (editingNote.title === 'Untitled Note' && (!editingNote.content || editingNote.content.trim() === '')) {
+        setNotes(prev => prev.filter(n => n.id !== editingNote.id));
+      } else {
+        // Automatically save on cancel/back! No prompt needed, extremely clean and robust.
+        handleSaveNote();
+        showToast("Note saved.", "success");
+        return;
+      }
+    }
+    setViewMode(selectedSubject ? 'LIST' : 'SUBJECTS');
     setEditingNote(null);
   };
 
@@ -134,7 +229,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
     
     const cost = 5;
     if (!onDeductCredit(cost)) {
-      alert(`AI actions cost ${cost} credits.`);
+      showToast(`AI actions cost ${cost} credits. Insufficient credits!`, "error");
       return;
     }
 
@@ -146,9 +241,10 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
           ...editingNote,
           content: `${editingNote.content}\n\n---\n### AI ${task.toUpperCase()}\n${result}`
         });
+        showToast("AI action completed successfully!", "success");
       }
     } catch (e) {
-      alert("AI request failed. Please try again.");
+      showToast("AI request failed. Please try again.", "error");
     } finally {
       setIsAiLoading(false);
     }
@@ -246,9 +342,10 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
       }
       
       pdf.save(`SJ_Tutor_Note_${(editingNote.title || 'Note').replace(/\s+/g, '_')}.pdf`);
+      showToast("PDF exported successfully!", "success");
     } catch (err) {
       console.error("PDF export failed:", err);
-      alert("Failed to export as PDF. Please try again.");
+      showToast("Failed to export as PDF. Please try again.", "error");
     } finally {
       document.body.removeChild(printContainer);
     }
@@ -360,7 +457,16 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                         }`}>
                           {note.template}
                         </div>
-                        <StatusIcon status={note.status} />
+                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <StatusIcon status={note.status} />
+                          <button 
+                            onClick={(e) => handleDeleteNote(note.id, e)}
+                            className="p-1 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors"
+                            title="Delete Note"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <h4 className="font-bold text-slate-800 dark:text-white line-clamp-1 mb-2 group-hover:text-primary-600">{note.title}</h4>
                       <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-3 mb-4">{note.content.replace(/[#*]/g, '')}</p>
@@ -381,12 +487,12 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
             {viewMode === 'EDITOR' && editingNote && (
               <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden animate-in zoom-in-95 duration-300">
                 {/* Editor Header */}
-                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                   <div className="flex items-center gap-3">
-                    <button onClick={() => setViewMode('LIST')} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg">
-                      <X className="w-5 h-5 text-slate-400" />
+                    <button onClick={handleCancelEdit} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg" title="Back">
+                      <ChevronRight className="w-5 h-5 text-slate-400 rotate-180" />
                     </button>
-                    <div className="flex flex-col">
+                    <div className="flex flex-col flex-1">
                       <input 
                         type="text" 
                         value={editingNote.title} 
@@ -394,10 +500,35 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                         className="font-bold text-slate-800 dark:text-white bg-transparent outline-none border-b border-transparent focus:border-primary-500"
                         placeholder="Note Title"
                       />
-                      <span className="text-[10px] text-slate-400 font-bold uppercase">{editingNote.subject} • {editingNote.chapter}</span>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className="text-[10px] text-slate-400 font-extrabold uppercase select-none">Subject:</span>
+                        <input 
+                          type="text" 
+                          value={editingNote.subject || ''} 
+                          onChange={(e) => setEditingNote({...editingNote, subject: e.target.value})}
+                          className="text-[10px] font-bold uppercase bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded outline-none text-slate-600 dark:text-slate-200 focus:ring-1 focus:ring-primary-500 w-24"
+                          placeholder="General"
+                        />
+                        <span className="text-slate-300 dark:text-slate-600 font-black text-xs select-none">•</span>
+                        <span className="text-[10px] text-slate-400 font-extrabold uppercase select-none">Chapter:</span>
+                        <input 
+                          type="text" 
+                          value={editingNote.chapter || ''} 
+                          onChange={(e) => setEditingNote({...editingNote, chapter: e.target.value})}
+                          className="text-[10px] font-bold uppercase bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded outline-none text-slate-600 dark:text-slate-200 focus:ring-1 focus:ring-primary-500 w-24"
+                          placeholder="New Chapter"
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <button 
+                      onClick={() => editingNote.id && handleDeleteNote(editingNote.id)} 
+                      className="p-2 bg-slate-100 hover:bg-red-50 dark:bg-slate-700 hover:text-red-500 text-slate-400 rounded-xl transition-colors"
+                      title="Delete Note"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
                     <button 
                       onClick={handleExportPDF} 
                       className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
@@ -405,7 +536,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                     >
                       <Download className="w-3.5 h-3.5" /> Export PDF
                     </button>
-                    <button onClick={handleSaveNote} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20">
+                    <button onClick={handleSaveNote} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20">
                       <Save className="w-4 h-4" /> Save
                     </button>
                   </div>
@@ -609,12 +740,22 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                   <button 
                     onClick={async () => {
                       if (!examDate || !examSubjects) return;
-                      if (!onDeductCredit(10)) return;
+                      if (!onDeductCredit(10)) {
+                        showToast("Plan generation requires 10 credits. Insufficient credits!", "error");
+                        return;
+                      }
                       setIsGenerating(true);
                       try {
                         const schedule = await GeminiService.generateStudyTimetable(examDate, examSubjects, studyHours);
-                        if (schedule) setTimetable(schedule);
-                      } catch (e) { alert("Failed to generate."); } finally { setIsGenerating(false); }
+                        if (schedule) {
+                          setTimetable(schedule);
+                          showToast("Study plan generated successfully!", "success");
+                        }
+                      } catch (e) { 
+                        showToast("Failed to generate plan. Please try again.", "error"); 
+                      } finally { 
+                        setIsGenerating(false); 
+                      }
                     }}
                     className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold shadow-lg"
                   >
@@ -652,6 +793,47 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
           </div>
         )}
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div id="notes-toast" className="fixed bottom-6 right-6 z-[1000] animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className={`px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 font-medium text-xs text-white ${
+            toastType === 'success' ? 'bg-emerald-600' :
+            toastType === 'error' ? 'bg-red-600' : 'bg-slate-800'
+          }`}>
+            <span>{toastMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {noteIdToDelete && (
+        <div id="delete-confirm-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[990] flex items-center justify-center p-4 min-h-screen">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95 duration-200 text-center">
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-2">Delete Note</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 font-medium">
+              Are you sure you want to delete this note? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setNoteIdToDelete(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDeleteNote}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-colors shadow-lg shadow-red-500/20"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

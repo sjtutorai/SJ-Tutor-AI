@@ -327,10 +327,14 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfil
     SettingsService.saveSettings(updatedSettings);
     window.dispatchEvent(new Event('settings-changed'));
 
-    // Request permissions if user turned push on
+    // Request permissions and register service worker subscription if user turned push on
     if (key === 'push' && updatedSettings.notifications.push) {
-      if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
+      if ('Notification' in window) {
+        import('../src/utils/pushNotifications').then(({ registerServiceWorkerAndSubscribe }) => {
+          registerServiceWorkerAndSubscribe(userId).catch(err => {
+            console.error("Failed to register and subscribe device push subscription:", err);
+          });
+        });
       }
     }
   };
