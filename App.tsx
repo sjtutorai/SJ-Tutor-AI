@@ -18,7 +18,7 @@ import LandingPage from './components/LandingPage';
 import StudyTimerView from './components/StudyTimerView';
 import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
-import { NotificationsView } from './components/NotificationsView';
+import StudentOffers from './components/StudentOffers';
 import Tutorial from './components/Tutorial';
 import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebaseUtils';
 import Logo from './components/Logo';
@@ -51,9 +51,7 @@ import {
   QrCode,
   Eye,
   Camera as CameraIcon,
-  User as UserIcon,
-  Bell,
-  BellRing
+  User as UserIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
@@ -108,7 +106,6 @@ const App: React.FC = () => {
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   // Shared Content State
   const [sharedContent, setSharedContent] = useState<any>(null);
@@ -329,55 +326,6 @@ const App: React.FC = () => {
       console.warn("API_KEY is missing in environment variables!");
     }
   }, []);
-
-  // Sync real-time notification & reminders unread badge count
-  useEffect(() => {
-    const updateNotificationCounts = () => {
-      const activeRemindersKey = user ? `reminders_${user.uid}` : 'reminders_guest';
-      const feedKey = user ? `notifications_feed_${user.uid}` : 'notifications_feed_guest';
-      
-      let remindersUncompleted = 0;
-      let feedUnread = 0;
-      
-      try {
-        const storedReminders = localStorage.getItem(activeRemindersKey);
-        if (storedReminders) {
-          const items = JSON.parse(storedReminders);
-          remindersUncompleted = items.filter((item: any) => !item.completed).length;
-        }
-      } catch (err) {
-        // Ignore JSON parse errors
-      }
-      
-      try {
-        const storedFeed = localStorage.getItem(feedKey);
-        if (storedFeed) {
-          const items = JSON.parse(storedFeed);
-          feedUnread = items.filter((item: any) => !item.read).length;
-        } else {
-          // Defaults if no notifications are loaded yet
-          feedUnread = 2; // Default to showing unread count 2 from getDefaultNotifications()
-        }
-      } catch (err) {
-        // Ignore JSON parse errors
-      }
-      
-      setUnreadCount(remindersUncompleted + feedUnread);
-    };
-
-    updateNotificationCounts();
-    
-    // Check every 5 seconds, sync also on storage and settings modifications
-    const interval = setInterval(updateNotificationCounts, 5000);
-    window.addEventListener('storage', updateNotificationCounts);
-    window.addEventListener('settings-changed', updateNotificationCounts);
-    
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('storage', updateNotificationCounts);
-      window.removeEventListener('settings-changed', updateNotificationCounts);
-    };
-  }, [user]);
 
   // Auto-fill grade from profile when switching modes
   useEffect(() => {
@@ -952,54 +900,6 @@ const App: React.FC = () => {
        } catch { return 0; }
     })();
 
-    const streak = (() => {
-      try {
-        const key = user ? user.uid : 'guest';
-        const milestones = JSON.parse(localStorage.getItem(`study_milestones_${key}`) || '[]');
-        const actionDates = new Set<string>();
-        
-        history.forEach(item => {
-          if (item.timestamp) {
-            actionDates.add(new Date(item.timestamp).toDateString());
-          }
-        });
-
-        milestones.forEach((m: any) => {
-          if (m.timestamp) {
-            actionDates.add(new Date(m.timestamp).toDateString());
-          } else if (m.date) {
-            actionDates.add(new Date(m.date).toDateString());
-          }
-        });
-
-        if (actionDates.size === 0) return 0;
-
-        let currentStreak = 0;
-        let checkDate = new Date();
-        const todayStr = checkDate.toDateString();
-        checkDate.setDate(checkDate.getDate() - 1);
-        const yesterdayStr = checkDate.toDateString();
-
-        if (!actionDates.has(todayStr) && !actionDates.has(yesterdayStr)) {
-          return 0;
-        }
-
-        checkDate = new Date();
-        if (!actionDates.has(todayStr) && actionDates.has(yesterdayStr)) {
-          checkDate.setDate(checkDate.getDate() - 1);
-        }
-
-        while (actionDates.has(checkDate.toDateString())) {
-          currentStreak++;
-          checkDate.setDate(checkDate.getDate() - 1);
-        }
-
-        return currentStreak;
-      } catch {
-        return 0;
-      }
-    })();
-
     const stats = {
       summaries: history.filter(h => h.type === AppMode.SUMMARY).length,
       essays: history.filter(h => h.type === AppMode.ESSAY).length,
@@ -1014,7 +914,7 @@ const App: React.FC = () => {
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.HOMEWORK, label: 'Homework Solutions', count: stats.homeworks, icon: CameraIcon, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.TUTOR, label: 'Tutor Sessions', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.NOTIFICATIONS, label: 'Notifications', count: null, icon: Bell, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-[#FDF5E6] dark:bg-rose-900/30' },
+      { id: AppMode.OFFERS, label: 'Offers', count: null, icon: Tag, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-[#FDF5E6] dark:bg-rose-900/30' },
       { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
     ];
 
@@ -1137,22 +1037,6 @@ const App: React.FC = () => {
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
             <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
           </div>
-
-          {/* Study Streak Badge */}
-          <div className="flex items-center gap-3 bg-[#fdf5e6] dark:bg-amber-900/30 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-2xl shadow-sm self-start sm:self-center transition-all hover:scale-102">
-             <div className="bg-amber-500 text-white p-2 rounded-xl flex items-center justify-center shadow-md animate-pulse">
-                <Zap className="w-5 h-5 fill-white text-amber-100" />
-             </div>
-             <div>
-                <div className="flex items-baseline gap-1">
-                   <span className="text-xl font-extrabold text-amber-700 dark:text-amber-400 leading-none">{streak}</span>
-                   <span className="text-[10px] text-amber-700 dark:text-amber-400 font-bold uppercase tracking-wider">Day Streak</span>
-                </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-300 leading-tight">
-                   {streak > 0 ? "You're on fire! Keep it up." : "Complete a quiz or summary to start!"}
-                </p>
-             </div>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -1169,8 +1053,8 @@ const App: React.FC = () => {
                     setMode(AppMode.NOTES);
                  } else if (card.id === AppMode.ID_CARD) {
                     setMode(AppMode.ID_CARD);
-                 } else if (card.id === AppMode.NOTIFICATIONS) {
-                    setMode(AppMode.NOTIFICATIONS);
+                 } else if (card.id === AppMode.OFFERS) {
+                    setMode(AppMode.OFFERS);
                  } else {
                     setDashboardView(card.id as any);
                  }
@@ -1239,7 +1123,7 @@ const App: React.FC = () => {
       case AppMode.TIMER:
         return (
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <StudyTimerView userProfile={userProfile} userId={user?.uid || null} />
+             <StudyTimerView userProfile={userProfile} />
           </div>
         );
 
@@ -1490,12 +1374,12 @@ const App: React.FC = () => {
            </div>
         );
 
-      case AppMode.NOTIFICATIONS:
+      case AppMode.OFFERS:
         return (
            <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <NotificationsView 
+              <StudentOffers 
                 userProfile={userProfile}
-                userId={user ? user.uid : null}
+                onUpdateProfile={(p) => handleProfileSave(p, false)}
               />
            </div>
         );
@@ -1817,22 +1701,18 @@ const App: React.FC = () => {
             </button>
             <button 
               onClick={() => {
-                setMode(AppMode.NOTIFICATIONS);
+                setMode(AppMode.OFFERS);
                 setDashboardView('OVERVIEW');
               }}
               className={`p-2 rounded-full transition-all relative border ${
-                mode === AppMode.NOTIFICATIONS 
+                mode === AppMode.OFFERS 
                 ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 border-primary-200 dark:border-primary-800' 
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700'
               }`}
-              title="Notifications"
+              title="Student Offers"
             >
-              <Bell className="w-5 h-5" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-rose-500 border border-white dark:border-slate-900 rounded-full text-[9px] font-black text-white px-0.5 flex items-center justify-center animate-pulse">
-                  {unreadCount}
-                </span>
-              )}
+              <Tag className="w-5 h-5" />
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></span>
             </button>
 
             <button 
