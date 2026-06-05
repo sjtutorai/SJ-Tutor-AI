@@ -17,13 +17,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile, ReminderItem } from '../types';
 import { SettingsService } from '../services/settingsService';
-import { 
-  isPushSupported, 
-  registerServiceWorkerAndSubscribe, 
-  syncRemindersWithServer, 
-  sendTestPush, 
-  getSubscription 
-} from '../src/utils/pushNotifications';
 
 interface NotificationsViewProps {
   userProfile: UserProfile;
@@ -48,72 +41,6 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfil
   const [showToast, setShowToast] = useState<{ show: boolean; title: string; message: string } | null>(null);
 
   const remindersKey = userId ? `reminders_${userId}` : 'reminders_guest';
-
-  // Background Push States
-  const [isPushAvailable, setIsPushAvailable] = useState(false);
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const [pushLoading, setPushLoading] = useState(false);
-  const [testPushLoading, setTestPushLoading] = useState(false);
-
-  // Monitor subscription status on load
-  useEffect(() => {
-    const checkPushStatus = async () => {
-      const supported = isPushSupported();
-      setIsPushAvailable(supported);
-      if (supported) {
-        try {
-          const sub = await getSubscription();
-          setIsSubscribed(!!sub);
-        } catch (e) {
-          console.error("Subscription retrieval check failed:", e);
-        }
-      }
-    };
-    checkPushStatus();
-  }, []);
-
-  const handleDeviceRegister = async () => {
-    setPushLoading(true);
-    try {
-      const sub = await registerServiceWorkerAndSubscribe(userId);
-      setIsSubscribed(!!sub);
-      setShowToast({
-        show: true,
-        title: "Device Registered Successfully! 📱",
-        message: "This device can now receive study notifications even when the website is closed!"
-      });
-      setTimeout(() => setShowToast(null), 4500);
-    } catch (err: any) {
-      alert("Device registration failed: " + (err.message || err));
-    } finally {
-      setPushLoading(false);
-    }
-  };
-
-  const handleSendTestPush = async () => {
-    setTestPushLoading(true);
-    try {
-      const success = await sendTestPush(
-        userId,
-        "SJ Tutor AI ⏰",
-        "Brilliant! Device delivery completed. This background notification works even when the app is completely closed!"
-      );
-      if (success) {
-        setShowToast({
-          show: true,
-          title: "Test Dispatched! 🚀",
-          message: "A test push is on its way. You can close this tab and see it arrive!"
-        });
-        setTimeout(() => setShowToast(null), 4500);
-      } else {
-        alert("Server failed to dispatch the push. Verify you granted notification permission and registered the device!");
-      }
-    } catch (err: any) {
-      alert("Error sending test push: " + (err.message || err));
-    } finally {
-      setTestPushLoading(false);
-    }
-  };
 
   // Load notifications and reminders
   useEffect(() => {
@@ -298,9 +225,6 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfil
     localStorage.setItem(remindersKey, JSON.stringify(updated));
     // Dispatch event to update other views like NotesView
     window.dispatchEvent(new Event('storage'));
-    
-    // Sync reminders backend push channel
-    syncRemindersWithServer(userId, updated);
   };
 
   const deleteReminder = (id: string, e: React.MouseEvent) => {
@@ -309,9 +233,6 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfil
     setLocalReminders(updated);
     localStorage.setItem(remindersKey, JSON.stringify(updated));
     window.dispatchEvent(new Event('storage'));
-    
-    // Sync reminders backend push channel
-    syncRemindersWithServer(userId, updated);
   };
 
   // Notification Settings Fast-Toggler
@@ -327,14 +248,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfil
     SettingsService.saveSettings(updatedSettings);
     window.dispatchEvent(new Event('settings-changed'));
 
-    // Request permissions and register service worker subscription if user turned push on
+    // Request permissions if user turned push on
     if (key === 'push' && updatedSettings.notifications.push) {
-      if ('Notification' in window) {
-        import('../src/utils/pushNotifications').then(({ registerServiceWorkerAndSubscribe }) => {
-          registerServiceWorkerAndSubscribe(userId).catch(err => {
-            console.error("Failed to register and subscribe device push subscription:", err);
-          });
-        });
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
       }
     }
   };
@@ -646,70 +563,6 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfil
               </div>
             </div>
           </div>
-
-          {/* Background Device Notifications Registration Card */}
-          <div className="bg-slate-50 dark:bg-slate-800/45 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/70 shadow-sm flex flex-col gap-4">
-            <h3 className="font-extrabold text-slate-900 dark:text-white text-base flex items-center gap-2">
-              <span className="text-lg">⚙️</span>
-              Background Device Setup
-            </h3>
-            
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              To receive instant study triggers on your computer or phone <strong className="text-slate-900 dark:text-slate-100">even when the website is closed</strong>, register this device to our persistent push server.
-            </p>
-
-            <div className="flex flex-col gap-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3.5 rounded-xl text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-500 dark:text-slate-400">Push-Manager Support:</span>
-                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider ${isPushAvailable ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'}`}>
-                  {isPushAvailable ? 'SUPPORTED' : 'UNSUPPORTED'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-800 pt-2 mt-1">
-                <span className="font-semibold text-slate-500 dark:text-slate-400">Your Device Connection:</span>
-                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider ${isSubscribed ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'}`}>
-                  {isSubscribed ? '🟢 REGISTERED & ACTIVE' : '🔴 NOT CONNECTED'}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <button
-                disabled={pushLoading}
-                onClick={handleDeviceRegister}
-                className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-slate-950 font-bold py-2 px-4 rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer border border-primary-600 hover:border-primary-700"
-              >
-                {pushLoading ? (
-                  <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-slate-950 border-t-transparent"></span>
-                ) : isSubscribed ? (
-                  'Re-register Device / Update Sync'
-                ) : (
-                  'Register This Device Now'
-                )}
-              </button>
-
-              {isSubscribed && (
-                <button
-                  disabled={testPushLoading}
-                  onClick={handleSendTestPush}
-                  className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 disabled:opacity-50 text-slate-700 dark:text-slate-200 font-bold py-2 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700"
-                >
-                  {testPushLoading ? (
-                    <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-slate-700 dark:border-slate-200 border-t-transparent"></span>
-                  ) : (
-                    '⚡ Send Test Background Push'
-                  )}
-                </button>
-              )}
-            </div>
-            
-            {isSubscribed && (
-              <p className="text-[10px] text-center italic text-amber-600 dark:text-amber-400">
-                ⭐ Test tip: Click the test button, then close your browser immediately to watch the push arrive!
-              </p>
-            )}
-          </div>
-
 
           {/* Quick Stats / Info Banner */}
           <div className="bg-gradient-to-tr from-primary-600 to-primary-700 rounded-2xl p-6 text-white relative overflow-hidden shadow-md shadow-primary-500/10">

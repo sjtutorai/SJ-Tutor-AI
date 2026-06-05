@@ -21,13 +21,9 @@ import TermsOfServiceView from './components/TermsOfServiceView';
 import { NotificationsView } from './components/NotificationsView';
 import Tutorial from './components/Tutorial';
 import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebaseUtils';
-import { StreakHubModal } from './components/StreakHubModal';
-import { DraggableStreakWidget } from './components/DraggableStreakWidget';
 import Logo from './components/Logo';
-import WeeklyGoalTracker from './components/WeeklyGoalTracker';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
-import { PushService } from './services/pushService';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
@@ -57,10 +53,7 @@ import {
   Camera as CameraIcon,
   User as UserIcon,
   Bell,
-  BellRing,
-  Flame,
-  X,
-  CheckCircle2
+  BellRing
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
@@ -137,98 +130,10 @@ const App: React.FC = () => {
     registrationNumber: ''
   };
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfileState);
-  
-  // Streak Modal States & Toasts
-  const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
-  const [activeMilestoneAlert, setActiveMilestoneAlert] = useState<{
-    streak: number;
-    title: string;
-    desc: string;
-  } | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
-  
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToast({ message, type });
-  };
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3500);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [dashboardView, setDashboardView] = useState<AppMode | 'OVERVIEW'>('OVERVIEW');
-
-  // Streak State & Calculation
-  const [streak, setStreak] = useState<number>(0);
-
-  useEffect(() => {
-    const calculateStreak = () => {
-      try {
-        const key = user ? user.uid : 'guest';
-        const milestones = JSON.parse(localStorage.getItem(`study_milestones_${key}`) || '[]');
-        const actionDates = new Set<string>();
-        
-        history.forEach(item => {
-          if (item.timestamp) {
-            actionDates.add(new Date(item.timestamp).toDateString());
-          }
-        });
-
-        milestones.forEach((m: any) => {
-          if (m.timestamp) {
-            actionDates.add(new Date(m.timestamp).toDateString());
-          } else if (m.date) {
-            actionDates.add(new Date(m.date).toDateString());
-          }
-        });
-
-        if (actionDates.size === 0) {
-          setStreak(0);
-          return;
-        }
-
-        let currentStreak = 0;
-        let checkDate = new Date();
-        const todayStr = checkDate.toDateString();
-        checkDate.setDate(checkDate.getDate() - 1);
-        const yesterdayStr = checkDate.toDateString();
-
-        if (!actionDates.has(todayStr) && !actionDates.has(yesterdayStr)) {
-          setStreak(0);
-          return;
-        }
-
-        checkDate = new Date();
-        if (!actionDates.has(todayStr) && actionDates.has(yesterdayStr)) {
-          checkDate.setDate(checkDate.getDate() - 1);
-        }
-
-        while (actionDates.has(checkDate.toDateString())) {
-          currentStreak++;
-          checkDate.setDate(checkDate.getDate() - 1);
-        }
-
-        setStreak(currentStreak);
-      } catch (err) {
-        setStreak(0);
-      }
-    };
-
-    calculateStreak();
-
-    // Re-verify streak when milestones or storage triggers changes
-    window.addEventListener('storage', calculateStreak);
-    window.addEventListener('streak-updated', calculateStreak);
-
-    return () => {
-      window.removeEventListener('storage', calculateStreak);
-      window.removeEventListener('streak-updated', calculateStreak);
-    };
-  }, [user, history]);
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   
   // Content States
@@ -418,6 +323,13 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Check API Key
+  useEffect(() => {
+    if (!process.env.API_KEY) {
+      console.warn("API_KEY is missing in environment variables!");
+    }
+  }, []);
+
   // Sync real-time notification & reminders unread badge count
   useEffect(() => {
     const updateNotificationCounts = () => {
@@ -492,16 +404,7 @@ const App: React.FC = () => {
       
       if (!currentUser) {
         setIsNewUser(false);
-        const savedGuest = localStorage.getItem('profile_guest');
-        if (savedGuest) {
-          try {
-            setUserProfile({ ...initialProfileState, ...JSON.parse(savedGuest) });
-          } catch (e) {
-            setUserProfile(initialProfileState);
-          }
-        } else {
-          setUserProfile(initialProfileState);
-        }
+        setUserProfile(initialProfileState);
         setMode(AppMode.DASHBOARD);
       }
     }, (err) => {
@@ -586,56 +489,6 @@ const App: React.FC = () => {
 
       loadProfile();
     }
-  }, [user]);
-
-  // Load active incomplete quiz on startup or user change
-  useEffect(() => {
-    const suffix = user?.uid ? `active_quiz_${user.uid}` : `active_quiz_guest`;
-    const saved = localStorage.getItem(suffix);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.questions && !parsed.quizCompleted) {
-          setQuizData(parsed.questions);
-          setExistingQuizScore(undefined);
-        }
-      } catch (e) {
-        console.error("Failed to parse saved active quiz:", e);
-      }
-    }
-  }, [user]);
-
-  // Register service worker, subscribe to device push and sync reminders to backend
-  useEffect(() => {
-    const setupDevicePush = async () => {
-      await PushService.registerSW();
-      
-      // Subscribe if notification permission is already allowed
-      if ('Notification' in window && Notification.permission === 'granted') {
-        await PushService.subscribeToPush(user?.uid || null);
-      }
-
-      // Sync local reminders with the backend for offline push delivery
-      const remindersKey = user ? `reminders_${user.uid}` : 'reminders_guest';
-      const storedReminders = localStorage.getItem(remindersKey);
-      if (storedReminders) {
-        try {
-          const items = JSON.parse(storedReminders);
-          await PushService.syncReminders(user?.uid || null, items);
-        } catch (e) {
-          // ignore parsing error
-        }
-      }
-    };
-
-    setupDevicePush();
-
-    // Listen to local changes to reminders across tabs and sync
-    const handler = () => {
-      setupDevicePush();
-    };
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
   }, [user]);
 
   // History Persistence
@@ -792,113 +645,7 @@ const App: React.FC = () => {
     setCurrentHistoryId(newId);
   };
 
-  const handleLearningActivityCompleted = (type: 'quiz' | 'lesson' | 'assignment' | 'practice') => {
-    setUserProfile(prevProfile => {
-      const getLocalDateString = (dateInput = new Date()) => {
-        const tzOffset = dateInput.getTimezoneOffset() * 60000;
-        const localTime = new Date(dateInput.getTime() - tzOffset);
-        return localTime.toISOString().split('T')[0];
-      };
-      
-      const getYesterdayDateString = () => {
-        const today = new Date();
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        return getLocalDateString(yesterday);
-      };
-
-      const todayStr = getLocalDateString();
-      const yesterdayStr = getYesterdayDateString();
-      
-      const currentStreak = prevProfile.streak || 0;
-      const lastDate = prevProfile.lastActivityDate;
-      
-      let newStreak = currentStreak;
-      let streakUpdated = false;
-      
-      if (!lastDate) {
-        newStreak = 1;
-        streakUpdated = true;
-      } else if (lastDate === todayStr) {
-        newStreak = currentStreak;
-        streakUpdated = false;
-      } else if (lastDate === yesterdayStr) {
-        newStreak = currentStreak + 1;
-        streakUpdated = true;
-      } else {
-        newStreak = 1;
-        streakUpdated = true;
-      }
-      
-      const newHistory = Array.from(new Set([...(prevProfile.streakHistory || []), todayStr]));
-      const newHighest = Math.max(prevProfile.highestStreak || 0, newStreak);
-      
-      const updatedProfile: UserProfile = {
-        ...prevProfile,
-        streak: newStreak,
-        lastActivityDate: todayStr,
-        highestStreak: newHighest,
-        streakHistory: newHistory
-      };
-      
-      if (auth.currentUser) {
-        localStorage.setItem(`profile_${auth.currentUser.uid}`, JSON.stringify(updatedProfile));
-        saveProfileToFirestore(auth.currentUser.uid, updatedProfile);
-      } else {
-        localStorage.setItem(`profile_guest`, JSON.stringify(updatedProfile));
-      }
-
-      const MILESTONES_MAP: Record<number, { title: string; desc: string }> = {
-        3: { title: "Beginner Learner 🔥", desc: "Fantastic start! You have studied for 3 consecutive days." },
-        7: { title: "Consistent Learner ⚡", desc: "Amazing consistency! A full week of daily learning." },
-        15: { title: "Dedicated Learner 🏆", desc: "Incredible dedication! You are unstoppable." },
-        30: { title: "Streak Master 🌟", desc: "A whole month! You are officially a Streak Master." },
-        100: { title: "SJ Tutor AI Legend 👑", desc: "100 days of pure excellence! You are an SJ Tutor AI Legend." }
-      };
-
-      if (streakUpdated) {
-        if (MILESTONES_MAP[newStreak]) {
-          setTimeout(() => {
-            setActiveMilestoneAlert({
-              streak: newStreak,
-              title: MILESTONES_MAP[newStreak].title,
-              desc: MILESTONES_MAP[newStreak].desc
-            });
-          }, 300);
-        } else {
-          setTimeout(() => {
-            showToast(`Learning activity logged! Streak continued: 🔥 Day ${newStreak}`, "success");
-          }, 300);
-        }
-      } else {
-        setTimeout(() => {
-          showToast(`Quest Completed! Today's streak is active and secure 🔥`, "success");
-        }, 300);
-      }
-      
-      return updatedProfile;
-    });
-  };
-
-  useEffect(() => {
-    const handleActivityEvent = (e: Event) => {
-      const cev = e as CustomEvent;
-      const type = cev.detail?.type || 'lesson';
-      handleLearningActivityCompleted(type);
-    };
-    const handleLegacyStreakUpdated = () => {
-      handleLearningActivityCompleted('lesson');
-    };
-    window.addEventListener('learning-activity-completed', handleActivityEvent);
-    window.addEventListener('streak-updated', handleLegacyStreakUpdated);
-    return () => {
-      window.removeEventListener('learning-activity-completed', handleActivityEvent);
-      window.removeEventListener('streak-updated', handleLegacyStreakUpdated);
-    };
-  }, []);
-
   const handleQuizComplete = (score: number) => {
-    handleLearningActivityCompleted('quiz');
     if (currentHistoryId) {
       const historyItem = history.find(item => item.id === currentHistoryId);
       if (!historyItem) return;
@@ -945,7 +692,7 @@ const App: React.FC = () => {
   const calculateCost = (targetMode: AppMode, data: StudyRequestData): number => {
     if (targetMode === AppMode.SUMMARY) return 10;
     if (targetMode === AppMode.HOMEWORK) {
-      return 5;
+      return 10;
     }
     if (targetMode === AppMode.QUIZ) {
       if (data.questionCount === 10 && data.difficulty === 'Hard') return 0;
@@ -979,6 +726,11 @@ const App: React.FC = () => {
       return;
     }
     
+    if (!process.env.API_KEY) {
+      setError("Configuration Error: API_KEY is missing. Please check your environment variables.");
+      return;
+    }
+
     if (!validateForm()) return;
     
     setLoading(true);
@@ -1200,6 +952,53 @@ const App: React.FC = () => {
        } catch { return 0; }
     })();
 
+    const streak = (() => {
+      try {
+        const key = user ? user.uid : 'guest';
+        const milestones = JSON.parse(localStorage.getItem(`study_milestones_${key}`) || '[]');
+        const actionDates = new Set<string>();
+        
+        history.forEach(item => {
+          if (item.timestamp) {
+            actionDates.add(new Date(item.timestamp).toDateString());
+          }
+        });
+
+        milestones.forEach((m: any) => {
+          if (m.timestamp) {
+            actionDates.add(new Date(m.timestamp).toDateString());
+          } else if (m.date) {
+            actionDates.add(new Date(m.date).toDateString());
+          }
+        });
+
+        if (actionDates.size === 0) return 0;
+
+        let currentStreak = 0;
+        let checkDate = new Date();
+        const todayStr = checkDate.toDateString();
+        checkDate.setDate(checkDate.getDate() - 1);
+        const yesterdayStr = checkDate.toDateString();
+
+        if (!actionDates.has(todayStr) && !actionDates.has(yesterdayStr)) {
+          return 0;
+        }
+
+        checkDate = new Date();
+        if (!actionDates.has(todayStr) && actionDates.has(yesterdayStr)) {
+          checkDate.setDate(checkDate.getDate() - 1);
+        }
+
+        while (actionDates.has(checkDate.toDateString())) {
+          currentStreak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        }
+
+        return currentStreak;
+      } catch {
+        return 0;
+      }
+    })();
 
     const stats = {
       summaries: history.filter(h => h.type === AppMode.SUMMARY).length,
@@ -1338,6 +1137,22 @@ const App: React.FC = () => {
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
             <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
           </div>
+
+          {/* Study Streak Badge */}
+          <div className="flex items-center gap-3 bg-[#fdf5e6] dark:bg-amber-900/30 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-2xl shadow-sm self-start sm:self-center transition-all hover:scale-102">
+             <div className="bg-amber-500 text-white p-2 rounded-xl flex items-center justify-center shadow-md animate-pulse">
+                <Zap className="w-5 h-5 fill-white text-amber-100" />
+             </div>
+             <div>
+                <div className="flex items-baseline gap-1">
+                   <span className="text-xl font-extrabold text-amber-700 dark:text-amber-400 leading-none">{streak}</span>
+                   <span className="text-[10px] text-amber-700 dark:text-amber-400 font-bold uppercase tracking-wider">Day Streak</span>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-300 leading-tight">
+                   {streak > 0 ? "You're on fire! Keep it up." : "Complete a quiz or summary to start!"}
+                </p>
+             </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -1378,9 +1193,6 @@ const App: React.FC = () => {
             </button>
           ))}
         </div>
-
-        {/* Weekly Study Goal Progress Tracker */}
-        <WeeklyGoalTracker userId={user?.uid || null} />
 
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
            <h3 className="font-bold text-slate-800 dark:text-white mb-4">Quick Actions</h3>
@@ -1563,10 +1375,7 @@ const App: React.FC = () => {
           return (
             <QuizView 
               questions={quizData} 
-              userId={user?.uid}
               onReset={() => {
-                const suffix = user?.uid ? `active_quiz_${user.uid}` : `active_quiz_guest`;
-                localStorage.removeItem(suffix);
                 setQuizData(null);
                 setExistingQuizScore(undefined);
                 setCurrentHistoryId(null);
@@ -2034,8 +1843,6 @@ const App: React.FC = () => {
               <QrCode className="w-5 h-5" />
             </button>
 
-
-
             {user && (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
                 <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
@@ -2166,115 +1973,6 @@ const App: React.FC = () => {
                 </div>
               </div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 1. Daily Streak Hub Modal */}
-      <StreakHubModal 
-        isOpen={isStreakModalOpen}
-        onClose={() => setIsStreakModalOpen(false)}
-        userProfile={userProfile}
-        onActivityComplete={(type) => handleLearningActivityCompleted(type)}
-      />
-
-      {/* Floating Draggable Streak Widget - Visible across all screens */}
-      <DraggableStreakWidget 
-        userProfile={userProfile}
-        onClick={() => setIsStreakModalOpen(true)}
-        onPositionSave={(x, y) => {
-          handleProfileSave({
-            ...userProfile,
-            streakWidgetX: x,
-            streakWidgetY: y
-          }, false);
-        }}
-      />
-
-      {/* 2. Congratulatory Milestone Pop-up */}
-      <AnimatePresence>
-        {activeMilestoneAlert && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-slate-900 border border-orange-500/30 text-white rounded-3xl p-8 max-w-md w-full text-center shadow-[0_0_50px_rgba(249,115,22,0.25)] relative overflow-hidden"
-            >
-              {/* Confetti Glow Background Effect */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-gradient-to-br from-orange-500 to-red-600 opacity-15 blur-3xl rounded-full" />
-              
-              {/* Exit button */}
-              <button 
-                onClick={() => setActiveMilestoneAlert(null)}
-                className="absolute top-4 right-4 p-1 rounded-full bg-white/10 text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="relative z-10 space-y-6">
-                {/* Glowing milestone badge */}
-                <div className="mx-auto w-24 h-24 rounded-full bg-gradient-to-tr from-orange-500 to-red-650 flex items-center justify-center p-0.5 shadow-[0_0_30px_rgba(249,115,22,0.4)] animate-bounce">
-                  <div className="w-full h-full rounded-full bg-slate-900 flex flex-col items-center justify-center relative">
-                    <Calendar className="w-10 h-10 text-orange-400" />
-                    <Flame className="absolute -bottom-1 -right-1 w-8 h-8 text-red-500 fill-red-500 animate-pulse" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-550/10 bg-orange-500/10 border border-orange-550/30 border-orange-500/30 text-orange-400 text-xs font-black uppercase tracking-wider animate-pulse">
-                    🏆 New Milestone Reached!
-                  </div>
-                  <h3 className="text-3xl font-black bg-gradient-to-r from-orange-400 via-amber-300 to-red-500 bg-clip-text text-transparent">
-                    {activeMilestoneAlert.title}
-                  </h3>
-                  <p className="text-sm font-semibold text-orange-400">🔥 Reached {activeMilestoneAlert.streak} Days!</p>
-                </div>
-
-                <p className="text-sm text-slate-300 font-medium leading-relaxed">
-                  {activeMilestoneAlert.desc}
-                </p>
-
-                <div className="pt-2">
-                  <button 
-                    onClick={() => setActiveMilestoneAlert(null)}
-                    className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-sm font-black rounded-2xl shadow-lg hover:shadow-orange-500/20 transform active:scale-95 transition-all"
-                  >
-                    Awesome, Keep Going! 🚀
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 3. Global Floating Toast notifications */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div 
-            initial={{ opacity: 0, y: 30, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 30, scale: 0.9 }}
-            className="fixed bottom-6 right-6 z-[2500] max-w-sm w-full bg-slate-900 border border-slate-800 text-white rounded-2xl p-4 shadow-2xl flex items-center gap-3"
-          >
-            <div className="p-2 rounded-xl bg-orange-500/20 text-orange-400">
-              <Flame className="w-5 h-5 animate-pulse" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-bold leading-relaxed">{toast.message}</p>
-            </div>
-            <button 
-              onClick={() => setToast(null)}
-              className="text-slate-400 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </motion.div>
         )}
       </AnimatePresence>

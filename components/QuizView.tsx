@@ -9,104 +9,32 @@ interface QuizViewProps {
   onReset: () => void;
   onComplete?: (score: number) => void;
   existingScore?: number;
-  userId?: string;
 }
 
-const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, existingScore, userId }) => {
-  // Helper to retrieve saved quiz state
-  const getSavedQuizState = () => {
-    if (existingScore !== undefined) return null;
-    try {
-      const suffix = userId ? `active_quiz_${userId}` : `active_quiz_guest`;
-      const saved = localStorage.getItem(suffix);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const isSameQuiz = JSON.stringify(parsed.questions) === JSON.stringify(questions);
-        if (isSameQuiz && !parsed.quizCompleted) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error("Error retrieving saved quiz progress:", e);
-    }
-    return null;
-  };
+const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, existingScore }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [score, setScore] = useState(0);
+  const [showResult, setShowResult] = useState(false);
+  const [quizCompleted, setQuizCompleted] = useState(false);
+  const [showResultModal, setShowResultModal] = useState(false);
 
-  const savedState = getSavedQuizState();
-
-  const [currentIndex, setCurrentIndex] = useState(() => savedState?.currentIndex ?? 0);
-  const [selectedOption, setSelectedOption] = useState<number | null>(() => savedState?.selectedOption ?? null);
-  const [score, setScore] = useState(() => savedState?.score ?? 0);
-  const [showResult, setShowResult] = useState(() => savedState?.showResult ?? false);
-  const [quizCompleted, setQuizCompleted] = useState(() => {
-    if (existingScore !== undefined) return true;
-    return savedState?.quizCompleted ?? false;
-  });
-  const [showResultModal, setShowResultModal] = useState(() => {
-    if (existingScore !== undefined) return true;
-    return savedState?.showResultModal ?? false;
-  });
-
-  // Save active quiz progress on changes
-  useEffect(() => {
-    if (existingScore !== undefined) return;
-
-    try {
-      const suffix = userId ? `active_quiz_${userId}` : `active_quiz_guest`;
-      const stateToSave = {
-        questions,
-        currentIndex,
-        score,
-        selectedOption,
-        showResult,
-        quizCompleted,
-        showResultModal,
-        updatedAt: Date.now()
-      };
-      localStorage.setItem(suffix, JSON.stringify(stateToSave));
-    } catch (e) {
-      console.error("Error saving quiz progress:", e);
-    }
-  }, [currentIndex, score, selectedOption, showResult, quizCompleted, showResultModal, questions, userId, existingScore]);
-
-  // Handle viewing past history items or dynamic questions changes
+  // Initialize view if there's an existing score (viewing history)
   useEffect(() => {
     if (existingScore !== undefined) {
       setScore(existingScore);
       setQuizCompleted(true);
       setShowResultModal(true);
     } else {
-      const suffix = userId ? `active_quiz_${userId}` : `active_quiz_guest`;
-      const saved = localStorage.getItem(suffix);
-      let loaded = false;
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          const isSameQuiz = JSON.stringify(parsed.questions) === JSON.stringify(questions);
-          if (isSameQuiz && !parsed.quizCompleted) {
-            setCurrentIndex(parsed.currentIndex ?? 0);
-            setSelectedOption(parsed.selectedOption ?? null);
-            setScore(parsed.score ?? 0);
-            setShowResult(parsed.showResult ?? false);
-            setQuizCompleted(false);
-            setShowResultModal(parsed.showResultModal ?? false);
-            loaded = true;
-          }
-        } catch (e) {
-          console.error("Error loading saved quiz progress in useEffect:", e);
-        }
-      }
-
-      if (!loaded) {
-        setCurrentIndex(0);
-        setSelectedOption(null);
-        setScore(0);
-        setShowResult(false);
-        setQuizCompleted(false);
-        setShowResultModal(false);
-      }
+      // Reset state for new quiz
+      setCurrentIndex(0);
+      setScore(0);
+      setQuizCompleted(false);
+      setShowResult(false);
+      setSelectedOption(null);
+      setShowResultModal(false);
     }
-  }, [existingScore, questions, userId]);
+  }, [existingScore, questions]);
 
   const currentQuestion = questions[currentIndex];
 
@@ -400,17 +328,7 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
             <span className="text-xs font-bold text-primary-600 uppercase tracking-wider bg-primary-50 px-2 py-1 rounded">
               Question {currentIndex + 1} of {questions.length}
             </span>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-slate-500">Score: {score}</span>
-              {existingScore === undefined && (
-                <button
-                  onClick={onReset}
-                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-                >
-                  Quit Quiz
-                </button>
-              )}
-            </div>
+            <span className="text-sm font-medium text-slate-500">Score: {score}</span>
           </div>
 
           <h3 className="text-xl font-semibold text-slate-800 mb-6">

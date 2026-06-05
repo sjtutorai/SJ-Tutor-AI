@@ -78,8 +78,7 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile, userId }) 
             id: `timer-${Date.now()}`, 
             type: 'Timer Focus Session', 
             date: new Date().toDateString(), 
-            timestamp: Date.now(),
-            durationMinutes: focusMins
+            timestamp: Date.now() 
           });
           localStorage.setItem(streakKey, JSON.stringify(milestones));
           
