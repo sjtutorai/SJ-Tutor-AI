@@ -28,13 +28,8 @@ export const isPushSupported = (): boolean => {
 
 export const getSubscription = async (): Promise<PushSubscription | null> => {
   if (!isPushSupported()) return null;
-  try {
-    const registration = await navigator.serviceWorker.ready;
-    return await registration.pushManager.getSubscription();
-  } catch (e) {
-    console.warn("⚠️ [Push] getSubscription error or sandboxed environment skipped:", e);
-    return null;
-  }
+  const registration = await navigator.serviceWorker.ready;
+  return await registration.pushManager.getSubscription();
 };
 
 export const registerServiceWorkerAndSubscribe = async (userId: string | null): Promise<PushSubscription | null> => {
@@ -52,24 +47,13 @@ export const registerServiceWorkerAndSubscribe = async (userId: string | null): 
 
     // 2. Register Service Worker from public root
     console.log("Registering Service Worker...");
-    let registration;
-    try {
-      registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/'
-      });
-      console.log("Service Worker registered successfully:", registration);
-    } catch (swErr: any) {
-      console.warn("⚠️ Service Worker registration skipped or failed in this context:", swErr?.message || swErr);
-      return null;
-    }
+    const registration = await navigator.serviceWorker.register('/sw.js', {
+      scope: '/'
+    });
+    console.log("Service Worker registered successfully:", registration);
 
     // Wait for the service worker to become ready
-    try {
-      await navigator.serviceWorker.ready;
-    } catch (readyErr) {
-      console.warn("⚠️ Service Worker ready status check skipped:", readyErr);
-      return null;
-    }
+    await navigator.serviceWorker.ready;
 
     // 3. Retrieve VAPID Public Key from the server
     const keyResponse = await fetch('/api/notifications/vapid-public-key');
@@ -120,14 +104,14 @@ export const registerServiceWorkerAndSubscribe = async (userId: string | null): 
         const reminders = JSON.parse(saved);
         await syncRemindersWithServer(userId, reminders);
       } catch (e) {
-        console.warn("Failed to parsed and synced initial reminders:", e);
+        console.error("Failed to parsed and synced initial reminders:", e);
       }
     }
 
     return subscription;
-  } catch (error: any) {
-    console.warn("⚠️ Error registering / subscribing push notification:", error?.message || error);
-    return null;
+  } catch (error) {
+    console.error("Error registering / subscribing push notification:", error);
+    throw error;
   }
 };
 
@@ -135,13 +119,7 @@ export const syncRemindersWithServer = async (userId: string | null, reminders: 
   if (!isPushSupported()) return;
 
   try {
-    let registration;
-    try {
-      registration = await navigator.serviceWorker.ready;
-    } catch (err) {
-      return;
-    }
-    if (!registration) return;
+    const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
@@ -161,8 +139,8 @@ export const syncRemindersWithServer = async (userId: string | null, reminders: 
       })
     });
     console.log("[Push] Synced reminders to background push server successfully.");
-  } catch (e: any) {
-    console.warn("[Push] Error syncing reminders with backend server:", e?.message || e);
+  } catch (e) {
+    console.error("[Push] Error syncing reminders with backend server:", e);
   }
 };
 
@@ -170,13 +148,7 @@ export const sendTestPush = async (userId: string | null, title: string, message
   if (!isPushSupported()) return false;
   
   try {
-    let registration;
-    try {
-      registration = await navigator.serviceWorker.ready;
-    } catch (err) {
-      return false;
-    }
-    if (!registration) return false;
+    const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
     
     if (!subscription) {
@@ -196,8 +168,8 @@ export const sendTestPush = async (userId: string | null, title: string, message
     });
 
     return response.ok;
-  } catch (e: any) {
-    console.warn("[Push] Error trigger test push:", e?.message || e);
+  } catch (e) {
+    console.error("[Push] Error trigger test push:", e);
     return false;
   }
 };

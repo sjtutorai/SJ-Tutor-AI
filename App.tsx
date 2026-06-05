@@ -19,7 +19,6 @@ import StudyTimerView from './components/StudyTimerView';
 import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
 import { NotificationsView } from './components/NotificationsView';
-import { StudyGroupsView } from './components/StudyGroupsView';
 import Tutorial from './components/Tutorial';
 import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebaseUtils';
 import { StreakHubModal } from './components/StreakHubModal';
@@ -61,11 +60,7 @@ import {
   BellRing,
   Flame,
   X,
-  CheckCircle2,
-  Sun,
-  Moon,
-  Monitor,
-  Users
+  CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
@@ -95,28 +90,8 @@ const THEME_COLORS: Record<string, Record<string, string>> = {
 
 const App: React.FC = () => {
   // Auth State
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-      const savedPersist = localStorage.getItem('sjtutor_persistent_user');
-      if (savedPersist) {
-        return JSON.parse(savedPersist) as unknown as User;
-      }
-    } catch (e) {
-      // ignore
-    }
-    return null;
-  });
-  const [authLoading, setAuthLoading] = useState(() => {
-    try {
-      const savedPersist = localStorage.getItem('sjtutor_persistent_user');
-      if (savedPersist) {
-        return false;
-      }
-    } catch (e) {
-      // ignore
-    }
-    return true;
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -141,34 +116,6 @@ const App: React.FC = () => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-
-  // Theme support toggle states
-  const [currentTheme, setCurrentTheme] = useState<'Light' | 'Dark' | 'System'>(() => {
-    return SettingsService.getSettings().appearance.theme;
-  });
-
-  useEffect(() => {
-    const handleSettingsChangeForTheme = () => {
-      setCurrentTheme(SettingsService.getSettings().appearance.theme);
-    };
-    window.addEventListener('settings-changed', handleSettingsChangeForTheme);
-    return () => window.removeEventListener('settings-changed', handleSettingsChangeForTheme);
-  }, []);
-
-  const toggleTheme = () => {
-    const settings = SettingsService.getSettings();
-    let nextTheme: 'Light' | 'Dark' | 'System' = 'Light';
-    if (settings.appearance.theme === 'Light') {
-      nextTheme = 'Dark';
-    } else if (settings.appearance.theme === 'Dark') {
-      nextTheme = 'System';
-    } else {
-      nextTheme = 'Light';
-    }
-    settings.appearance.theme = nextTheme;
-    SettingsService.saveSettings(settings);
-    window.dispatchEvent(new Event('settings-changed'));
-  };
 
   // Shared Content State
   const [sharedContent, setSharedContent] = useState<any>(null);
@@ -532,54 +479,33 @@ const App: React.FC = () => {
   // Auth Listener
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      setAuthLoading(false);
+      if (authLoading) {
+        console.warn("Auth check timed out, defaulting to guest.");
+        setAuthLoading(false);
+      }
     }, 4000);
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
       setAuthLoading(false);
       clearTimeout(timeoutId); 
       
-      if (currentUser) {
-        setUser(currentUser);
-        try {
-          localStorage.setItem('sjtutor_persistent_user', JSON.stringify({
-            uid: currentUser.uid,
-            email: currentUser.email,
-            displayName: currentUser.displayName,
-            photoURL: currentUser.photoURL,
-            isAnonymous: currentUser.isAnonymous,
-          }));
-        } catch (e) {
-          // ignore
-        }
-      } else {
-        // Fallback for sandboxed iframe environments where IndexedDB might fail to restore Firebase sessions on reload
-        const savedPersist = localStorage.getItem('sjtutor_persistent_user');
-        if (savedPersist) {
+      if (!currentUser) {
+        setIsNewUser(false);
+        const savedGuest = localStorage.getItem('profile_guest');
+        if (savedGuest) {
           try {
-            const parsed = JSON.parse(savedPersist) as unknown as User;
-            setUser(parsed);
+            setUserProfile({ ...initialProfileState, ...JSON.parse(savedGuest) });
           } catch (e) {
-            setUser(null);
-          }
-        } else {
-          setUser(null);
-          setIsNewUser(false);
-          const savedGuest = localStorage.getItem('profile_guest');
-          if (savedGuest) {
-            try {
-              setUserProfile({ ...initialProfileState, ...JSON.parse(savedGuest) });
-            } catch (e) {
-              setUserProfile(initialProfileState);
-            }
-          } else {
             setUserProfile(initialProfileState);
           }
-          setMode(AppMode.DASHBOARD);
+        } else {
+          setUserProfile(initialProfileState);
         }
+        setMode(AppMode.DASHBOARD);
       }
     }, (err) => {
-      console.warn("Auth load skipped or failed (common in sandboxed iframes):", err);
+      console.error("Auth Error:", err);
       setAuthLoading(false); 
       clearTimeout(timeoutId);
     });
@@ -615,9 +541,15 @@ const App: React.FC = () => {
       const savedProfile = localStorage.getItem(`profile_${user.uid}`);
       
       const loadProfile = async () => {
-        // Try local storage first for instant speed and responsive UI
-        const parsed = savedProfile ? JSON.parse(savedProfile) : null;
+        // Try local storage first for speed
+        let parsed = savedProfile ? JSON.parse(savedProfile) : null;
         
+        // Then try Firestore for cross-device persistence
+        const firestoreProfile = await getProfileFromFirestore(user.uid);
+        if (firestoreProfile) {
+          parsed = { ...parsed, ...firestoreProfile };
+        }
+
         if (parsed) {
           const completeProfile = { 
             ...initialProfileState, 
@@ -627,77 +559,32 @@ const App: React.FC = () => {
           };
           setUserProfile(completeProfile);
           
-          // Check for completion reminder (optimistic)
+          // Sync back to local storage
+          localStorage.setItem(`profile_${user.uid}`, JSON.stringify(completeProfile));
+          
+          // Check for completion reminder
           const completion = calculateProfileCompletion(completeProfile);
           if (completion < 100) {
              setTimeout(() => {
               setShowCompletionReminder(true);
             }, 2000);
           }
-        }
-
-        try {
-          // Then try Firestore asynchronously for cross-device persistence
-          const firestoreProfile = await getProfileFromFirestore(user.uid);
-          if (firestoreProfile) {
-            const mergedParsed = { ...parsed, ...firestoreProfile };
-            const completeProfile = { 
-              ...initialProfileState, 
-              ...mergedParsed,
-              displayName: mergedParsed.displayName || user.displayName || '',
-              photoURL: mergedParsed.photoURL || user.photoURL || '' 
-            };
-            setUserProfile(completeProfile);
-            
-            // Sync back to local storage
-            localStorage.setItem(`profile_${user.uid}`, JSON.stringify(completeProfile));
-          } else if (!parsed) {
-            // No profile found anywhere - construct initial profile
-            const initial = {
-               ...initialProfileState,
-               displayName: user.displayName || '',
-               photoURL: user.photoURL || '',
-               credits: 100
-            };
-            setUserProfile(initial);
-            localStorage.setItem(`profile_${user.uid}`, JSON.stringify(initial));
-            const completion = calculateProfileCompletion(initial);
-            if (completion < 100) {
-              setShowCompletionReminder(true);
-            }
-          }
-        } catch (err) {
-          console.warn("Background Firestore profile load skipped or failed:", err);
-          if (!parsed) {
-            const initial = {
-               ...initialProfileState,
-               displayName: user.displayName || '',
-               photoURL: user.photoURL || '',
-               credits: 100
-            };
-            setUserProfile(initial);
+        } else {
+          const initial = {
+             ...initialProfileState,
+             displayName: user.displayName || '',
+             photoURL: user.photoURL || '',
+             credits: 100
+          };
+          setUserProfile(initial);
+          const completion = calculateProfileCompletion(initial);
+          if (completion < 100) {
+            setShowCompletionReminder(true);
           }
         }
       };
 
       loadProfile();
-    }
-  }, [user]);
-
-  // Sync user changes to persistent local storage cache
-  useEffect(() => {
-    if (user) {
-      try {
-        localStorage.setItem('sjtutor_persistent_user', JSON.stringify({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          isAnonymous: user.isAnonymous,
-        }));
-      } catch (e) {
-        // ignore
-      }
     }
   }, [user]);
 
@@ -1278,8 +1165,6 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      localStorage.removeItem('sjtutor_persistent_user');
-      setUser(null);
       setMode(AppMode.DASHBOARD);
       setDashboardView('OVERVIEW');
     } catch (error) {
@@ -1296,7 +1181,6 @@ const App: React.FC = () => {
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
-    { id: AppMode.STUDY_GROUPS, label: 'Study Groups', icon: Users },
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
   ];
@@ -1807,16 +1691,6 @@ const App: React.FC = () => {
            </div>
         );
 
-      case AppMode.STUDY_GROUPS:
-        return (
-           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <StudyGroupsView 
-                userId={user ? user.uid : null}
-                userName={userProfile.name || 'You'}
-              />
-           </div>
-        );
-
       default:
         return renderDashboard();
     }
@@ -1851,24 +1725,12 @@ const App: React.FC = () => {
                </div>
                <h1 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">SJ Tutor AI</h1>
             </div>
-            <div className="flex items-center gap-2">
-              {/* Manual Theme Toggle Button */}
-              <button 
-                onClick={toggleTheme}
-                className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all flex items-center justify-center animate-in duration-300"
-                title={`Theme: ${currentTheme} (Click to toggle)`}
-              >
-                {currentTheme === 'Light' && <Sun className="w-4 h-4 text-amber-500" />}
-                {currentTheme === 'Dark' && <Moon className="w-4 h-4 text-indigo-400" />}
-                {currentTheme === 'System' && <Monitor className="w-4 h-4 text-slate-500" />}
-              </button>
-              <button 
-                onClick={() => setShowAuthModal(true)}
-                className="px-4 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                Get Started
-              </button>
-            </div>
+            <button 
+              onClick={() => setShowAuthModal(true)}
+              className="px-4 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Get Started
+            </button>
           </header>
           <main className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
             {renderContent()}
@@ -2172,18 +2034,28 @@ const App: React.FC = () => {
               <QrCode className="w-5 h-5" />
             </button>
 
-            {/* Manual Theme Toggle Button */}
-            <button 
-              onClick={toggleTheme}
-              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all flex items-center justify-center animate-in duration-300"
-              title={`Theme: ${currentTheme} (Click to toggle)`}
+            {/* Daily Streak Fire Icon */}
+            <div 
+              onClick={() => setIsStreakModalOpen(true)}
+              className="relative group flex items-center gap-1.5 cursor-pointer select-none"
             >
-              {currentTheme === 'Light' && <Sun className="w-5 h-5 text-amber-500" />}
-              {currentTheme === 'Dark' && <Moon className="w-5 h-5 text-indigo-400" />}
-              {currentTheme === 'System' && <Monitor className="w-5 h-5 text-slate-500 dark:text-slate-400" />}
-            </button>
+              <div className="relative flex items-center justify-center p-2 rounded-full bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-850/50 hover:bg-orange-100 dark:hover:bg-orange-950/40 transition-all active:scale-95 shadow-2xs hover:shadow-md">
+                <span className="absolute inset-0 rounded-full bg-orange-500/20 animate-ping opacity-75" />
+                <Calendar className="w-4.5 h-4.5 text-orange-500 relative z-10" />
+                <Flame className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 text-red-500 fill-red-500 animate-pulse z-20" />
+              </div>
+              <span className="text-xs font-black bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text text-transparent transform hover:scale-105 transition-all">
+                {userProfile.streak || 0}
+              </span>
 
-
+              {/* Hover Tooltip */}
+              <div className="absolute right-0 top-full mt-2 hidden group-hover:block z-[999] bg-slate-900 border border-slate-700 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl w-48 text-center animate-in fade-in slide-in-from-top-2 duration-150">
+                <p>Keep learning daily to maintain your streak! 🔥</p>
+                {userProfile.lastActivityDate && (
+                  <p className="text-[9px] text-orange-400 font-bold mt-1">Last activity: {userProfile.lastActivityDate}</p>
+                )}
+              </div>
+            </div>
 
             {user && (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">

@@ -429,7 +429,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                           btn.textContent = "Permission Granted & Registered! 🎉";
                           btn.className = "bg-green-50 dark:bg-green-900/10 text-green-700 dark:text-green-300 px-4 py-2 rounded-lg text-xs font-bold border border-green-200 dark:border-green-800/30 transition-colors shadow-sm";
                         } catch (err) {
-                          console.warn("SW registration skipped or failed:", err);
+                          console.error("SW registration failed:", err);
                           btn.textContent = "Registered! 🎉";
                         }
                       } else {
