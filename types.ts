@@ -8,7 +8,6 @@ export enum AppMode {
   TUTOR = 'TUTOR',
   PROFILE = 'PROFILE',
   NOTES = 'NOTES',
-  AI_NOTES = 'AI_NOTES',
   SETTINGS = 'SETTINGS',
   ABOUT = 'ABOUT',
   ID_CARD = 'ID_CARD',

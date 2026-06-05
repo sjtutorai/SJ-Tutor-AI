@@ -9,61 +9,42 @@ export const getStreakLeaderboardFromFirestore = async (): Promise<Array<{ displ
   }
   try {
     const usersColRef = collection(db, "users");
-    let querySnapshot = await getDocs(usersColRef);
-    
-    // Seed default competitors into Firestore if they don't already exist in the database,
-    // ensuring the leaderboard is always populated with competitive records from Firebase.
-    const initialScholars = [
-      { id: "peer_scholar_0", displayName: "Aarav Sharma", streak: 42, lastActivityDate: "2026-06-03", credits: 500, institution: "National Academic School", bio: "Fascinated by astrophysics!" },
-      { id: "peer_scholar_1", displayName: "Chloe Jenkins", streak: 31, lastActivityDate: "2026-06-03", credits: 380, institution: "Oakridge Secondary School", bio: "Chemistry olympiad competitor" },
-      { id: "peer_scholar_2", displayName: "Kenji Sato", streak: 25, lastActivityDate: "2026-06-04", credits: 400, institution: "Tokyo Tech Academy", bio: "Passionate math enthusiast" },
-      { id: "peer_scholar_3", displayName: "Maria Rodriguez", streak: 18, lastActivityDate: "2026-06-03", credits: 210, institution: "St. Jude Prep Center", bio: "History and literature major" },
-      { id: "peer_scholar_4", displayName: "Li Wei", streak: 12, lastActivityDate: "2026-06-04", credits: 150, institution: "Eastside High School", bio: "Competitive coding fan" }
-    ];
-
-    let hasPeers = false;
-    querySnapshot.forEach((docSnap) => {
-      if (docSnap.id.startsWith("peer_scholar_")) {
-        hasPeers = true;
-      }
-    });
-
-    if (!hasPeers || querySnapshot.empty) {
-      for (const peer of initialScholars) {
-        const peerDocRef = doc(db, "users", peer.id);
-        const peerDocSnap = await getDoc(peerDocRef);
-        if (!peerDocSnap.exists()) {
-          const { id, ...peerData } = peer;
-          await setDoc(peerDocRef, {
-            ...peerData,
-            phoneNumber: "",
-            bio: peer.bio,
-            institution: peer.institution,
-            credits: peer.credits,
-            planType: "Scholar",
-            streak: peer.streak,
-            lastActivityDate: peer.lastActivityDate,
-            highestStreak: peer.streak
-          }, { merge: true });
-        }
-      }
-      // Re-query to get the absolute, complete set of Firebase documents
-      querySnapshot = await getDocs(usersColRef);
-    }
-
+    const querySnapshot = await getDocs(usersColRef);
     const leaderboard: Array<{ displayName: string; streak: number; lastActivityDate?: string }> = [];
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (data && typeof data.streak === 'number' && data.streak > 0) {
+    
+    if (querySnapshot.empty) {
+      // Seed initial high-performing scholars in Firestore to make sure the board has active data
+      const initialScholars = [
+        { displayName: "Aarav Sharma", streak: 42, lastActivityDate: "2026-06-03", mainSubject: "Physics", credits: 500 },
+        { displayName: "Chloe Jenkins", streak: 31, lastActivityDate: "2026-06-03", mainSubject: "Chemistry", credits: 380 },
+        { displayName: "Kenji Sato", streak: 25, lastActivityDate: "2026-06-04", mainSubject: "Mathematics", credits: 400 },
+        { displayName: "Maria Rodriguez", streak: 18, lastActivityDate: "2026-06-03", mainSubject: "History", credits: 210 },
+        { displayName: "Li Wei", streak: 12, lastActivityDate: "2026-06-04", mainSubject: "Computer Science", credits: 150 }
+      ];
+
+      for (let i = 0; i < initialScholars.length; i++) {
+        const peer = initialScholars[i];
+        const peerDocRef = doc(db, "users", `peer_scholar_${i}`);
+        await setDoc(peerDocRef, peer, { merge: true });
         leaderboard.push({
-          displayName: data.displayName || "Anonymous Scholar",
-          streak: data.streak,
-          lastActivityDate: data.lastActivityDate
+          displayName: peer.displayName,
+          streak: peer.streak,
+          lastActivityDate: peer.lastActivityDate
         });
       }
-    });
+    } else {
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data && typeof data.streak === 'number' && data.streak > 0) {
+          leaderboard.push({
+            displayName: data.displayName || "Anonymous Scholar",
+            streak: data.streak,
+            lastActivityDate: data.lastActivityDate
+          });
+        }
+      });
+    }
     
-    // Return leaderboard sorted by streak (descending) directly fetched from Firebase
     return leaderboard.sort((a, b) => b.streak - a.streak).slice(0, 10);
   } catch (error) {
     console.error("Error fetching streak leaderboard:", error);
