@@ -11,6 +11,7 @@ import Auth from './components/Auth';
 import PremiumModal from './components/PremiumModal';
 import LoadingState from './components/LoadingState'; 
 import NotesView from './components/NotesView';
+import AiNotesGeneratorView from './components/AiNotesGeneratorView';
 import SettingsView from './components/SettingsView';
 import AboutView from './components/AboutView';
 import IdCardView from './components/IdCardView';
@@ -483,7 +484,7 @@ const App: React.FC = () => {
         console.warn("Auth check timed out, defaulting to guest.");
         setAuthLoading(false);
       }
-    }, 4000);
+    }, 650);
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -1176,6 +1177,7 @@ const App: React.FC = () => {
     { id: AppMode.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
     { id: AppMode.ID_CARD, label: 'Student ID Card', icon: CreditCard },
     { id: AppMode.SUMMARY, label: 'Instant Summary', icon: FileText },
+    { id: AppMode.AI_NOTES, label: 'AI Notes Creator', icon: Sparkles },
     { id: AppMode.QUIZ, label: 'Quiz Creator', icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: 'Homework Solver', icon: CameraIcon },
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
@@ -1632,6 +1634,17 @@ const App: React.FC = () => {
             <NotesView 
                userId={user ? user.uid : null} 
                onDeductCredit={deductCredit}
+            />
+          </div>
+        );
+
+      case AppMode.AI_NOTES:
+        return (
+          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <AiNotesGeneratorView 
+               userId={user ? user.uid : null} 
+               onDeductCredit={deductCredit}
+               onNavigateToNotes={() => setMode(AppMode.NOTES)}
             />
           </div>
         );
