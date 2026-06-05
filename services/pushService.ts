@@ -24,13 +24,8 @@ export const PushService = {
         const registration = await navigator.serviceWorker.register('/sw.js');
         console.log('✅ Service Worker registered successfully with scope:', registration.scope);
         return registration;
-      } catch (err: any) {
-        const errMsg = err?.message || '';
-        if (errMsg.includes('invalid state') || errMsg.includes('SecurityError') || err?.name === 'SecurityError' || err?.name === 'InvalidStateError') {
-          console.warn('⚠️ Service Worker status: registration skipped or not permitted in this context (e.g., iframe environment).');
-        } else {
-          console.warn('⚠️ Service Worker registration failed:', err);
-        }
+      } catch (err) {
+        console.error('❌ Service Worker registration failed:', err);
       }
     }
     return null;
@@ -47,16 +42,9 @@ export const PushService = {
 
     try {
       // Ensure Service Worker is registered and ready
-      let registration;
-      try {
-        registration = await navigator.serviceWorker.ready;
-      } catch (e: any) {
-        console.warn('Service worker ready state check skipped:', e?.message || e);
-        return false;
-      }
-      
+      const registration = await navigator.serviceWorker.ready;
       if (!registration) {
-        console.warn('Service worker not active or ready.');
+        console.error('Service worker not active or ready.');
         return false;
       }
 
@@ -102,8 +90,8 @@ export const PushService = {
 
       console.log('🚀 Push subscription integrated successfully is server.');
       return true;
-    } catch (err: any) {
-      console.warn('Push notification setup skipped or failed:', err?.message || err);
+    } catch (err) {
+      console.error('Error during push notification setup:', err);
       return false;
     }
   },
@@ -113,13 +101,7 @@ export const PushService = {
    */
   syncReminders: async (userId: string | null, reminders: any[]) => {
     try {
-      let registration;
-      try {
-        registration = await navigator.serviceWorker.ready;
-      } catch (e) {
-        return;
-      }
-      if (!registration) return;
+      const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
 
       const res = await fetch('/api/push/sync-reminders', {
@@ -134,8 +116,8 @@ export const PushService = {
       if (!res.ok) {
         console.warn('Reminder backend sync returned status:', res.status);
       }
-    } catch (e: any) {
-      console.warn('Failed to sync reminders to Express backend:', e?.message || e);
+    } catch (e) {
+      console.error('Failed to sync reminders to Express backend:', e);
     }
   },
 
@@ -144,15 +126,7 @@ export const PushService = {
    */
   testPushNotification: async (userId: string | null, title: string, message: string) => {
     try {
-      let registration;
-      try {
-        registration = await navigator.serviceWorker.ready;
-      } catch (err) {
-        return { success: false, error: 'Service worker ready state not available' };
-      }
-      if (!registration) {
-        return { success: false, error: 'Service worker not active' };
-      }
+      const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
 
       const res = await fetch('/api/push/test-notification', {
@@ -166,8 +140,8 @@ export const PushService = {
       });
       const data = await res.json();
       return data;
-    } catch (e: any) {
-      console.warn('Error triggering push test:', e?.message || e);
+    } catch (e) {
+      console.error('Error triggering push test:', e);
       return { success: false, error: e };
     }
   }

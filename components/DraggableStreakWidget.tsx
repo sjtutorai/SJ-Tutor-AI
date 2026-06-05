@@ -110,8 +110,7 @@ export const DraggableStreakWidget: React.FC<DraggableStreakWidgetProps> = ({
     const deltaX = e.clientX - dragStartRef.current.x;
     const deltaY = e.clientY - dragStartRef.current.y;
 
-    // Use a higher threshold (10px) to prevent tiny touch drifts from canceling clicks
-    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
       hasMovedRef.current = true;
     }
 
@@ -142,20 +141,20 @@ export const DraggableStreakWidget: React.FC<DraggableStreakWidgetProps> = ({
       widgetRef.current.releasePointerCapture(e.pointerId);
     }
 
-    // Only treat as drag and save position if movement surpassed the threshold
-    if (hasMovedRef.current) {
-      localStorage.setItem('streak_widget_pos', JSON.stringify(position));
-      if (onPositionSave) {
-        onPositionSave(position.x, position.y);
-      }
-      
+    // Save position statically
+    localStorage.setItem('streak_widget_pos', JSON.stringify(position));
+    if (onPositionSave) {
+      onPositionSave(position.x, position.y);
+    }
+
+    // If there was no substantial movement, treat as click
+    if (!hasMovedRef.current) {
+      onClick();
+    } else {
       // Temporarily trigger tooltip to show target guidance on drop spot
       setShowTooltip(true);
       const timer = setTimeout(() => setShowTooltip(false), 3000);
       return () => clearTimeout(timer);
-    } else {
-      // It was a clean tap/click! Trigger modal launch.
-      onClick();
     }
   };
 
