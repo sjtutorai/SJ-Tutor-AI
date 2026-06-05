@@ -65,7 +65,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfil
           const sub = await getSubscription();
           setIsSubscribed(!!sub);
         } catch (e) {
-          console.error("Subscription retrieval check failed:", e);
+          console.warn("Subscription retrieval check skipped (common in sandboxed iframes):", e);
         }
       }
     };
@@ -332,7 +332,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfil
       if ('Notification' in window) {
         import('../src/utils/pushNotifications').then(({ registerServiceWorkerAndSubscribe }) => {
           registerServiceWorkerAndSubscribe(userId).catch(err => {
-            console.error("Failed to register and subscribe device push subscription:", err);
+            console.warn("Skipped or failed to register and subscribe device push subscription (can occur in iframe environments):", err);
           });
         });
       }
