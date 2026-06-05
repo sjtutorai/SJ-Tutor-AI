@@ -19,6 +19,7 @@ import StudyTimerView from './components/StudyTimerView';
 import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
 import { NotificationsView } from './components/NotificationsView';
+import { StudyGroupsView } from './components/StudyGroupsView';
 import Tutorial from './components/Tutorial';
 import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebaseUtils';
 import { StreakHubModal } from './components/StreakHubModal';
@@ -60,7 +61,11 @@ import {
   BellRing,
   Flame,
   X,
-  CheckCircle2
+  CheckCircle2,
+  Sun,
+  Moon,
+  Monitor,
+  Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
@@ -136,6 +141,34 @@ const App: React.FC = () => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Theme support toggle states
+  const [currentTheme, setCurrentTheme] = useState<'Light' | 'Dark' | 'System'>(() => {
+    return SettingsService.getSettings().appearance.theme;
+  });
+
+  useEffect(() => {
+    const handleSettingsChangeForTheme = () => {
+      setCurrentTheme(SettingsService.getSettings().appearance.theme);
+    };
+    window.addEventListener('settings-changed', handleSettingsChangeForTheme);
+    return () => window.removeEventListener('settings-changed', handleSettingsChangeForTheme);
+  }, []);
+
+  const toggleTheme = () => {
+    const settings = SettingsService.getSettings();
+    let nextTheme: 'Light' | 'Dark' | 'System' = 'Light';
+    if (settings.appearance.theme === 'Light') {
+      nextTheme = 'Dark';
+    } else if (settings.appearance.theme === 'Dark') {
+      nextTheme = 'System';
+    } else {
+      nextTheme = 'Light';
+    }
+    settings.appearance.theme = nextTheme;
+    SettingsService.saveSettings(settings);
+    window.dispatchEvent(new Event('settings-changed'));
+  };
 
   // Shared Content State
   const [sharedContent, setSharedContent] = useState<any>(null);
@@ -1263,6 +1296,7 @@ const App: React.FC = () => {
     { id: AppMode.NOTES, label: 'Notes & Schedule', icon: Calendar },
     { id: AppMode.TUTOR, label: 'AI Tutor', icon: MessageCircle },
     { id: AppMode.TIMER, label: 'Study Timer', icon: Clock },
+    { id: AppMode.STUDY_GROUPS, label: 'Study Groups', icon: Users },
     { id: AppMode.ABOUT, label: 'About Us', icon: Info },
     { id: AppMode.SETTINGS, label: 'Settings', icon: Settings },
   ];
@@ -1773,6 +1807,16 @@ const App: React.FC = () => {
            </div>
         );
 
+      case AppMode.STUDY_GROUPS:
+        return (
+           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <StudyGroupsView 
+                userId={user ? user.uid : null}
+                userName={userProfile.name || 'You'}
+              />
+           </div>
+        );
+
       default:
         return renderDashboard();
     }
@@ -1807,12 +1851,24 @@ const App: React.FC = () => {
                </div>
                <h1 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">SJ Tutor AI</h1>
             </div>
-            <button 
-              onClick={() => setShowAuthModal(true)}
-              className="px-4 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              Get Started
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Manual Theme Toggle Button */}
+              <button 
+                onClick={toggleTheme}
+                className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all flex items-center justify-center animate-in duration-300"
+                title={`Theme: ${currentTheme} (Click to toggle)`}
+              >
+                {currentTheme === 'Light' && <Sun className="w-4 h-4 text-amber-500" />}
+                {currentTheme === 'Dark' && <Moon className="w-4 h-4 text-indigo-400" />}
+                {currentTheme === 'System' && <Monitor className="w-4 h-4 text-slate-500" />}
+              </button>
+              <button 
+                onClick={() => setShowAuthModal(true)}
+                className="px-4 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                Get Started
+              </button>
+            </div>
           </header>
           <main className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
             {renderContent()}
@@ -2114,6 +2170,17 @@ const App: React.FC = () => {
               title="Scan Student ID"
             >
               <QrCode className="w-5 h-5" />
+            </button>
+
+            {/* Manual Theme Toggle Button */}
+            <button 
+              onClick={toggleTheme}
+              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all flex items-center justify-center animate-in duration-300"
+              title={`Theme: ${currentTheme} (Click to toggle)`}
+            >
+              {currentTheme === 'Light' && <Sun className="w-5 h-5 text-amber-500" />}
+              {currentTheme === 'Dark' && <Moon className="w-5 h-5 text-indigo-400" />}
+              {currentTheme === 'System' && <Monitor className="w-5 h-5 text-slate-500 dark:text-slate-400" />}
             </button>
 
 
