@@ -11,7 +11,8 @@ import {
   Camera as CameraIcon,
   Users, 
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Zap
 } from 'lucide-react';
 import Logo from './Logo';
 
