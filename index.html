@@ -14,6 +14,22 @@
     <script>
       // Safety polyfill for process.env to prevent "process is not defined" errors in browser
       window.process = window.process || { env: {} };
+
+      // Gracefully disable Service Workers inside sandboxed iframes (e.g. AI Studio development environment)
+      // to prevent "DOMException: Failed to register a ServiceWorker: The document is in an invalid state."
+      try {
+        if (window.self !== window.top) {
+          if ('serviceWorker' in navigator) {
+            Object.defineProperty(navigator, 'serviceWorker', {
+              get() { return undefined; },
+              configurable: true
+            });
+            console.info("Service Workers disabled dynamically to prevent invalid document state in iframe sandbox.");
+          }
+        }
+      } catch (e) {
+        console.warn("Could not patch serviceWorker:", e);
+      }
     </script>
     <script>
       tailwind.config = {
