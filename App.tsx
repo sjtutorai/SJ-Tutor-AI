@@ -2034,28 +2034,7 @@ const App: React.FC = () => {
               <QrCode className="w-5 h-5" />
             </button>
 
-            {/* Daily Streak Fire Icon */}
-            <div 
-              onClick={() => setIsStreakModalOpen(true)}
-              className="relative group flex items-center gap-1.5 cursor-pointer select-none"
-            >
-              <div className="relative flex items-center justify-center p-2 rounded-full bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-850/50 hover:bg-orange-100 dark:hover:bg-orange-950/40 transition-all active:scale-95 shadow-2xs hover:shadow-md">
-                <span className="absolute inset-0 rounded-full bg-orange-500/20 animate-ping opacity-75" />
-                <Calendar className="w-4.5 h-4.5 text-orange-500 relative z-10" />
-                <Flame className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 text-red-500 fill-red-500 animate-pulse z-20" />
-              </div>
-              <span className="text-xs font-black bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text text-transparent transform hover:scale-105 transition-all">
-                {userProfile.streak || 0}
-              </span>
 
-              {/* Hover Tooltip */}
-              <div className="absolute right-0 top-full mt-2 hidden group-hover:block z-[999] bg-slate-900 border border-slate-700 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl w-48 text-center animate-in fade-in slide-in-from-top-2 duration-150">
-                <p>Keep learning daily to maintain your streak! 🔥</p>
-                {userProfile.lastActivityDate && (
-                  <p className="text-[9px] text-orange-400 font-bold mt-1">Last activity: {userProfile.lastActivityDate}</p>
-                )}
-              </div>
-            </div>
 
             {user && (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">

@@ -18,82 +18,6 @@ const getAI = () => {
   });
 };
 
-async function generateContentWithFallback(ai: any, params: any, maxRetries = 2) {
-  const modelsToTry = [params.model || 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
-  let lastError: any = null;
-
-  for (const model of modelsToTry) {
-    let delay = 500;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`[SJ Tutor AI] Attempting generateContent using model ${model}, attempt ${attempt}/${maxRetries}`);
-        const response = await ai.models.generateContent({
-          ...params,
-          model: model,
-        });
-        return response;
-      } catch (err: any) {
-        lastError = err;
-        console.error(`[SJ Tutor AI] Attempt ${attempt} with model ${model} failed:`, err.message || err);
-        
-        const errMsg = String(err.message || "").toUpperCase();
-        const errStatus = err.status || (err.error && err.error.code) || 0;
-        const isTransient = errStatus === 503 || errStatus === 429 ||
-                            errMsg.includes("503") || errMsg.includes("429") ||
-                            errMsg.includes("UNAVAILABLE") || errMsg.includes("RESOURCE_EXHAUSTED") ||
-                            errMsg.includes("HIGH DEMAND") || errMsg.includes("TEMPORARY");
-        
-        if (!isTransient || attempt === maxRetries) {
-          break; // Try next model in fallback list, or fail out if last
-        }
-
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 1.5;
-      }
-    }
-  }
-
-  throw lastError;
-}
-
-async function generateContentStreamWithFallback(ai: any, params: any, maxRetries = 2) {
-  const modelsToTry = [params.model || 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
-  let lastError: any = null;
-
-  for (const model of modelsToTry) {
-    let delay = 500;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`[SJ Tutor AI] Attempting generateContentStream using model ${model}, attempt ${attempt}/${maxRetries}`);
-        const stream = await ai.models.generateContentStream({
-          ...params,
-          model: model,
-        });
-        return stream;
-      } catch (err: any) {
-        lastError = err;
-        console.error(`[SJ Tutor AI] Stream attempt ${attempt} with model ${model} failed:`, err.message || err);
-
-        const errMsg = String(err.message || "").toUpperCase();
-        const errStatus = err.status || (err.error && err.error.code) || 0;
-        const isTransient = errStatus === 503 || errStatus === 429 ||
-                            errMsg.includes("503") || errMsg.includes("429") ||
-                            errMsg.includes("UNAVAILABLE") || errMsg.includes("RESOURCE_EXHAUSTED") ||
-                            errMsg.includes("HIGH DEMAND") || errMsg.includes("TEMPORARY");
-        
-        if (!isTransient || attempt === maxRetries) {
-          break;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 1.5;
-      }
-    }
-  }
-
-  throw lastError;
-}
-
 async function streamToResponse(res: express.Response, responseGen: any) {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -127,7 +51,7 @@ router.post("/process-note", async (req, res) => {
       translate: `Translate this note professionally into ${language}, maintaining academic terminology where appropriate.`
     };
 
-    const response = await generateContentWithFallback(ai, {
+    const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
       contents: `${taskPrompts[task as keyof typeof taskPrompts]}\n\nNOTE CONTENT:\n${content}`,
       config: {
@@ -163,7 +87,7 @@ router.post("/generate-template", async (req, res) => {
       - ALL TEXT MUST BE IN ${language.toUpperCase()}.
     `;
 
-    const response = await generateContentWithFallback(ai, {
+    const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
       contents: prompt,
     });
@@ -184,7 +108,7 @@ router.post("/timetable", async (req, res) => {
 
     const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
-    const response = await generateContentWithFallback(ai, {
+    const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
@@ -230,7 +154,7 @@ router.post("/timetable-update", async (req, res) => {
 
     const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
 
-    const response = await generateContentWithFallback(ai, {
+    const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
@@ -276,7 +200,7 @@ router.post("/validate-payment", async (req, res) => {
 
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
 
-    const response = await generateContentWithFallback(ai, {
+    const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
       contents: {
         parts: [
@@ -328,7 +252,7 @@ router.post("/quiz", async (req, res) => {
       Language: ${language}
     `;
 
-    const response = await generateContentWithFallback(ai, {
+    const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
@@ -376,7 +300,7 @@ router.post("/summary-stream", async (req, res) => {
       Style Preference: ${settings.aiTutor.explanationStyle}
     `;
 
-    const responseGen = await generateContentStreamWithFallback(ai, {
+    const responseGen = await ai.models.generateContentStream({
       model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
@@ -430,7 +354,7 @@ router.post("/solve-homework-stream", async (req, res) => {
       contents.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
     });
 
-    const responseGen = await generateContentStreamWithFallback(ai, {
+    const responseGen = await ai.models.generateContentStream({
       model: 'gemini-3.5-flash',
       contents: {
         parts: contents
@@ -477,7 +401,7 @@ router.post("/chat-stream", async (req, res) => {
       { role: "user", parts: [{ text: latestMessage }] }
     ];
 
-    const responseGen = await generateContentStreamWithFallback(ai, {
+    const responseGen = await ai.models.generateContentStream({
       model: 'gemini-3.5-flash',
       contents,
       config: {
