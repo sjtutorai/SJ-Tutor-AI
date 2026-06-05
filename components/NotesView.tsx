@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { NoteItem, ReminderItem, TimetableEntry, SJTUTOR_AVATAR, NoteStatus, NoteTemplate } from '../types';
 import { 
   Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, 
-  StickyNote, Bell, Edit3, Loader2, Folder, 
-  ChevronRight, Star, Tag, Book, Lightbulb, Languages, Download,
+  StickyNote, Bell, Edit3, Loader2, Edit, Share2, Folder, 
+  ChevronRight, Star, Tag, Book, Lightbulb, Languages, Download, MoreVertical,
   CheckCircle2, Circle
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
@@ -35,8 +35,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   const [examDate, setExamDate] = useState('');
   const [examSubjects, setExamSubjects] = useState('');
   const [studyHours, setStudyHours] = useState(4);
-  const [completedTimerMins, setCompletedTimerMins] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showEditTimetable, setShowEditTimetable] = useState(false);
+  const [editInstruction, setEditInstruction] = useState('');
 
   // Load/Persist
   useEffect(() => {
@@ -47,23 +48,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
     if (savedNotes) setNotes(JSON.parse(savedNotes));
     if (savedReminders) setReminders(JSON.parse(savedReminders));
     if (savedTimetable) setTimetable(JSON.parse(savedTimetable));
-
-    const loadMinsAndTarget = () => {
-      const minsStr = localStorage.getItem(`timer_study_minutes_${key}`) || '0';
-      setCompletedTimerMins(parseFloat(minsStr));
-      const targetStr = localStorage.getItem(`studyHours_target_${key}`);
-      if (targetStr) {
-        setStudyHours(parseInt(targetStr) || 4);
-      }
-    };
-    loadMinsAndTarget();
-
-    window.addEventListener('storage', loadMinsAndTarget);
-    window.addEventListener('study-hours-updated', loadMinsAndTarget);
-    return () => {
-      window.removeEventListener('storage', loadMinsAndTarget);
-      window.removeEventListener('study-hours-updated', loadMinsAndTarget);
-    };
   }, [userId]);
 
   useEffect(() => {
@@ -145,106 +129,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
       alert("AI request failed. Please try again.");
     } finally {
       setIsAiLoading(false);
-    }
-  };
-
-  const handleExportPDF = async () => {
-    if (!editingNote) return;
-    
-    // Create an elegant off-screen container for the PDF print layout
-    const printContainer = document.createElement('div');
-    printContainer.style.position = 'absolute';
-    printContainer.style.left = '-9999px';
-    printContainer.style.top = '-9999px';
-    printContainer.style.width = '800px';
-    printContainer.style.backgroundColor = '#ffffff';
-    printContainer.style.color = '#1e293b';
-    printContainer.style.padding = '40px';
-    printContainer.style.fontFamily = 'Inter, system-ui, sans-serif';
-    
-    const noteText = editingNote.content || '';
-    
-    // HTML structure for the PDF template with full styling
-    printContainer.innerHTML = `
-      <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <h1 style="font-size: 24px; font-weight: 800; color: #1e1b4b; margin: 0; text-transform: uppercase; tracking-tight: -0.05em;">${editingNote.title || 'Untitled Note'}</h1>
-          <p style="font-size: 11px; font-weight: 700; color: #64748b; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.15em;">
-            Subject: ${editingNote.subject || 'General'} &bull; Chapter: ${editingNote.chapter || 'Overview'}
-          </p>
-        </div>
-        <div style="text-align: right;">
-          <span style="font-size: 9px; font-weight: 700; background-color: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; text-transform: uppercase;">
-            ${editingNote.status || 'Active'} Note
-          </span>
-          <p style="font-size: 9px; color: #94a3b8; margin: 6px 0 0 0;">Generated on ${editingNote.date ? new Date(editingNote.date).toLocaleDateString() : new Date().toLocaleDateString()}</p>
-        </div>
-      </div>
-      
-      <div style="font-size: 14px; line-height: 1.7; color: #334155; margin-bottom: 30px;">
-        ${noteText ? noteText.split('\n').map(p => {
-          if (p.trim().startsWith('#')) {
-            const level = p.match(/^#+/)?.[0].length || 1;
-            const size = level === 1 ? '18px' : level === 2 ? '15px' : '13px';
-            const text = p.replace(/^#+\s*/, '');
-            return `<h${level} style="font-size: ${size}; font-weight: 800; color: #1e293b; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #f8fafc; padding-bottom: 4px;">${text}</h${level}>`;
-          }
-          if (p.trim().startsWith('-') || p.trim().startsWith('*')) {
-            return `<li style="margin-left: 16px; margin-bottom: 6px; list-style-type: disc;">${p.replace(/^[-*]\s*/, '')}</li>`;
-          }
-          if (p.trim().match(/^\d+\.\s*/)) {
-             return `<li style="margin-left: 16px; margin-bottom: 6px; list-style-type: decimal;">${p.replace(/^\d+\.\s*/, '')}</li>`;
-          }
-          return p.trim() ? `<p style="margin-bottom: 14px;">${p}</p>` : '';
-        }).join('') : '*No content yet*'}
-      </div>
-
-      <div style="border-top: 1px solid #f1f5f9; padding-top: 14px; margin-top: 40px; text-align: center; font-size: 10px; color: #94a3b8; font-weight: 600; display: flex; justify-content: space-between;">
-        <span>SJ Tutor AI Academy &copy; 2026</span>
-        <span>Empowering Students Smarter</span>
-      </div>
-    `;
-    
-    document.body.appendChild(printContainer);
-    
-    try {
-      const { jsPDF } = await import('jspdf');
-      // @ts-expect-error - html2canvas missing types
-      const html2canvas = (await import('html2canvas')).default;
-      
-      const canvas = await html2canvas(printContainer, {
-        scale: 2, 
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      const imgWidth = 210; 
-      const pageHeight = 295; 
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-      
-      pdf.addMetadata("Author", "SJ Tutor AI");
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-      
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-      
-      pdf.save(`SJ_Tutor_Note_${(editingNote.title || 'Note').replace(/\s+/g, '_')}.pdf`);
-    } catch (err) {
-      console.error("PDF export failed:", err);
-      alert("Failed to export as PDF. Please try again.");
-    } finally {
-      document.body.removeChild(printContainer);
     }
   };
 
@@ -392,13 +276,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button 
-                      onClick={handleExportPDF} 
-                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
-                      title="Export Note to PDF"
-                    >
-                      <Download className="w-3.5 h-3.5" /> Export PDF
-                    </button>
                     <button onClick={handleSaveNote} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20">
                       <Save className="w-4 h-4" /> Save
                     </button>
@@ -543,44 +420,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
 
         {/* --- TIMETABLE TAB --- (Preserved Logic) */}
         {activeTab === 'TIMETABLE' && (
-          <div className="animate-in fade-in duration-300 space-y-6">
-            {/* Dynamic Tracked Study Log Progress Bar */}
-            <div className="bg-gradient-to-r from-primary-500/10 to-primary-610/10 border border-primary-500/20 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 mb-2 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-primary-500 text-white rounded-xl">
-                  <Clock className="w-6 h-6" />
-                </div>
-                <div className="text-left">
-                  <h4 className="font-extrabold text-slate-800 dark:text-white text-sm">Study Timer Integration</h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Formulated study sessions from your timer automatically sync with SJ Planner.</p>
-                </div>
-              </div>
-              
-              <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-primary-100 dark:border-slate-700 flex items-center gap-4 min-w-[220px] justify-between shadow-sm">
-                <div className="text-center flex-1">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Completed Sessions</span>
-                  <span className="text-base font-black text-primary-600 dark:text-primary-400">{(completedTimerMins / 60).toFixed(1)} hrs</span>
-                </div>
-                <div className="text-center flex-1 border-l border-slate-100 dark:border-slate-700">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Planned Daily Target</span>
-                  <div className="flex items-center justify-center gap-1">
-                    <input 
-                      type="number" 
-                      value={studyHours} 
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 1;
-                        setStudyHours(val);
-                        const key = userId || 'guest';
-                        localStorage.setItem(`studyHours_target_${key}`, val.toString());
-                      }}
-                      className="w-12 text-center font-bold text-slate-800 dark:text-white bg-slate-50 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-700 px-1 text-sm outline-none focus:ring-1 focus:ring-primary-500"
-                    />
-                    <span className="text-xs font-bold text-slate-400">hrs</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
+          <div className="animate-in fade-in duration-300">
             {timetable.length === 0 && !isGenerating ? (
               <div className="max-w-2xl mx-auto bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
                 <div className="text-center mb-8">

@@ -184,18 +184,14 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
                        <div className="bg-white p-1 rounded-md shadow-sm border border-slate-100 flex-shrink-0">
                           <QRCodeSVG 
                             value={JSON.stringify({
-                              v: 3,
                               id: userProfile.registrationNumber || studentId,
-                              name: userProfile.displayName || 'Student',
-                              email: email || 'student@sjtutor.ai',
-                              phone: userProfile.phoneNumber || 'N/A',
-                              institution: userProfile.institution || 'SJ Tutor AI',
-                              grade: userProfile.grade || 'N/A',
-                              state: userProfile.state || 'N/A',
-                              district: userProfile.district || 'N/A',
-                              plan: userProfile.planType || 'Scholar'
+                              n: userProfile.displayName || 'Student',
+                              p: userProfile.phoneNumber || 'N/A',
+                              i: userProfile.institution || 'SJ Tutor AI',
+                              g: userProfile.grade || 'N/A',
+                              pl: userProfile.planType || 'Scholar'
                             })}
-                            size={75}
+                            size={68}
                             level="M"
                             includeMargin={false}
                           />

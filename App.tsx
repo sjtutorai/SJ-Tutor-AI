@@ -18,13 +18,13 @@ import LandingPage from './components/LandingPage';
 import StudyTimerView from './components/StudyTimerView';
 import PrivacyPolicyView from './components/PrivacyPolicyView';
 import TermsOfServiceView from './components/TermsOfServiceView';
-import { NotificationsView } from './components/NotificationsView';
+import NotificationsView from './components/NotificationsView';
 import Tutorial from './components/Tutorial';
 import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebaseUtils';
 import Logo from './components/Logo';
-import { StreakToy } from './components/StreakToy';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
+import { playSynthSound } from './utils/soundUtils';
 import { auth } from './firebaseConfig';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import type { User } from 'firebase/auth';
@@ -48,13 +48,11 @@ import {
   Info,
   Share2,
   CreditCard,
-  Tag,
+  Bell,
   QrCode,
   Eye,
   Camera as CameraIcon,
-  User as UserIcon,
-  Bell,
-  BellRing
+  User as UserIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
@@ -109,7 +107,6 @@ const App: React.FC = () => {
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   // Shared Content State
   const [sharedContent, setSharedContent] = useState<any>(null);
@@ -167,6 +164,33 @@ const App: React.FC = () => {
       const key = user ? `reminders_${user.uid}` : 'reminders_guest';
       
       try {
+        // Quiet Hours Check
+        const quietEnabled = localStorage.getItem('quiet_hours_enabled') === 'true';
+        if (quietEnabled) {
+          const quietStart = localStorage.getItem('quiet_hours_start') || '22:00';
+          const quietEnd = localStorage.getItem('quiet_hours_end') || '07:00';
+          
+          const nowTime = new Date();
+          const currentMinutes = nowTime.getHours() * 60 + nowTime.getMinutes();
+          
+          const [startH, startM] = quietStart.split(':').map(Number);
+          const [endH, endM] = quietEnd.split(':').map(Number);
+          const startMinutes = startH * 60 + startM;
+          const endMinutes = endH * 60 + endM;
+          
+          let insideQuiet = false;
+          if (startMinutes <= endMinutes) {
+            insideQuiet = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+          } else {
+            insideQuiet = currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+          }
+          
+          if (insideQuiet) {
+            // Silenced during quiet hours, skip notification checking!
+            return;
+          }
+        }
+
         const storedReminders = localStorage.getItem(key);
         if (storedReminders) {
           const items = JSON.parse(storedReminders);
@@ -177,6 +201,13 @@ const App: React.FC = () => {
               const dueTime = new Date(item.dueTime).getTime();
               // Check if the due time fell within the last check interval window
               if (dueTime > lastCheck && dueTime <= now) {
+                // Play corresponding custom audio tone
+                const isExam = /exam|quiz|test|prep|final/i.test(item.task || '');
+                const chosenSound = isExam 
+                  ? (localStorage.getItem('exam_alert_sound') || 'laser')
+                  : (localStorage.getItem('study_reminder_sound') || 'bell');
+                playSynthSound(chosenSound);
+
                 if (Notification.permission === "granted") {
                   new Notification("SJ Tutor AI Reminder", {
                     body: item.task,
@@ -324,54 +355,12 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Sync real-time notification & reminders unread badge count
+  // Check API Key
   useEffect(() => {
-    const updateNotificationCounts = () => {
-      const activeRemindersKey = user ? `reminders_${user.uid}` : 'reminders_guest';
-      const feedKey = user ? `notifications_feed_${user.uid}` : 'notifications_feed_guest';
-      
-      let remindersUncompleted = 0;
-      let feedUnread = 0;
-      
-      try {
-        const storedReminders = localStorage.getItem(activeRemindersKey);
-        if (storedReminders) {
-          const items = JSON.parse(storedReminders);
-          remindersUncompleted = items.filter((item: any) => !item.completed).length;
-        }
-      } catch (err) {
-        // Ignore JSON parse errors
-      }
-      
-      try {
-        const storedFeed = localStorage.getItem(feedKey);
-        if (storedFeed) {
-          const items = JSON.parse(storedFeed);
-          feedUnread = items.filter((item: any) => !item.read).length;
-        } else {
-          // Defaults if no notifications are loaded yet
-          feedUnread = 2; // Default to showing unread count 2 from getDefaultNotifications()
-        }
-      } catch (err) {
-        // Ignore JSON parse errors
-      }
-      
-      setUnreadCount(remindersUncompleted + feedUnread);
-    };
-
-    updateNotificationCounts();
-    
-    // Check every 5 seconds, sync also on storage and settings modifications
-    const interval = setInterval(updateNotificationCounts, 5000);
-    window.addEventListener('storage', updateNotificationCounts);
-    window.addEventListener('settings-changed', updateNotificationCounts);
-    
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('storage', updateNotificationCounts);
-      window.removeEventListener('settings-changed', updateNotificationCounts);
-    };
-  }, [user]);
+    if (!process.env.API_KEY) {
+      console.warn("API_KEY is missing in environment variables!");
+    }
+  }, []);
 
   // Auto-fill grade from profile when switching modes
   useEffect(() => {
@@ -720,6 +709,11 @@ const App: React.FC = () => {
       return;
     }
     
+    if (!process.env.API_KEY) {
+      setError("Configuration Error: API_KEY is missing. Please check your environment variables.");
+      return;
+    }
+
     if (!validateForm()) return;
     
     setLoading(true);
@@ -941,54 +935,6 @@ const App: React.FC = () => {
        } catch { return 0; }
     })();
 
-    const streak = (() => {
-      try {
-        const key = user ? user.uid : 'guest';
-        const milestones = JSON.parse(localStorage.getItem(`study_milestones_${key}`) || '[]');
-        const actionDates = new Set<string>();
-        
-        history.forEach(item => {
-          if (item.timestamp) {
-            actionDates.add(new Date(item.timestamp).toDateString());
-          }
-        });
-
-        milestones.forEach((m: any) => {
-          if (m.timestamp) {
-            actionDates.add(new Date(m.timestamp).toDateString());
-          } else if (m.date) {
-            actionDates.add(new Date(m.date).toDateString());
-          }
-        });
-
-        if (actionDates.size === 0) return 0;
-
-        let currentStreak = 0;
-        let checkDate = new Date();
-        const todayStr = checkDate.toDateString();
-        checkDate.setDate(checkDate.getDate() - 1);
-        const yesterdayStr = checkDate.toDateString();
-
-        if (!actionDates.has(todayStr) && !actionDates.has(yesterdayStr)) {
-          return 0;
-        }
-
-        checkDate = new Date();
-        if (!actionDates.has(todayStr) && actionDates.has(yesterdayStr)) {
-          checkDate.setDate(checkDate.getDate() - 1);
-        }
-
-        while (actionDates.has(checkDate.toDateString())) {
-          currentStreak++;
-          checkDate.setDate(checkDate.getDate() - 1);
-        }
-
-        return currentStreak;
-      } catch {
-        return 0;
-      }
-    })();
-
     const stats = {
       summaries: history.filter(h => h.type === AppMode.SUMMARY).length,
       essays: history.filter(h => h.type === AppMode.ESSAY).length,
@@ -1003,7 +949,7 @@ const App: React.FC = () => {
       { id: AppMode.QUIZ, label: 'Quizzes', count: stats.quizzes, icon: BrainCircuit, color: 'text-amber-700 dark:text-amber-400', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.HOMEWORK, label: 'Homework Solutions', count: stats.homeworks, icon: CameraIcon, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.TUTOR, label: 'Tutor Sessions', count: stats.chats, icon: MessageCircle, color: 'text-amber-900 dark:text-amber-200', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
-      { id: AppMode.NOTIFICATIONS, label: 'Notifications', count: null, icon: Bell, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-[#FDF5E6] dark:bg-rose-900/30' },
+      { id: AppMode.NOTIFICATIONS, label: 'Notifications', count: null, icon: Bell, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-[#FDF5E6] dark:bg-amber-900/30' },
       { id: AppMode.NOTES, label: 'Notes', count: noteCount, icon: Calendar, color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-[#FDF5E6] dark:bg-emerald-900/30' },
     ];
 
@@ -1126,14 +1072,6 @@ const App: React.FC = () => {
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome back, {userProfile.displayName || 'Scholar'}! 👋</h2>
             <p className="text-slate-500 dark:text-slate-400">Ready to learn something new today?</p>
           </div>
-
-          {/* Dynamic Interactive Gamified Streak Toy */}
-          <StreakToy 
-            userProfile={userProfile} 
-            streak={streak} 
-            userId={user?.uid || null} 
-            history={history} 
-          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -1220,7 +1158,7 @@ const App: React.FC = () => {
       case AppMode.TIMER:
         return (
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <StudyTimerView userProfile={userProfile} userId={user?.uid || null} />
+             <StudyTimerView userProfile={userProfile} />
           </div>
         );
 
@@ -1475,8 +1413,9 @@ const App: React.FC = () => {
         return (
            <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <NotificationsView 
-                userProfile={userProfile}
                 userId={user ? user.uid : null}
+                onNavigateToNotes={() => setMode(AppMode.NOTES)}
+                userProfile={userProfile}
               />
            </div>
         );
@@ -1809,11 +1748,7 @@ const App: React.FC = () => {
               title="Notifications"
             >
               <Bell className="w-5 h-5" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-rose-500 border border-white dark:border-slate-900 rounded-full text-[9px] font-black text-white px-0.5 flex items-center justify-center animate-pulse">
-                  {unreadCount}
-                </span>
-              )}
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></span>
             </button>
 
             <button 
