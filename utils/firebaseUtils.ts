@@ -12,38 +12,16 @@ export const getStreakLeaderboardFromFirestore = async (): Promise<Array<{ displ
     const querySnapshot = await getDocs(usersColRef);
     const leaderboard: Array<{ displayName: string; streak: number; lastActivityDate?: string }> = [];
     
-    if (querySnapshot.empty) {
-      // Seed initial high-performing scholars in Firestore to make sure the board has active data
-      const initialScholars = [
-        { displayName: "Aarav Sharma", streak: 42, lastActivityDate: "2026-06-03", mainSubject: "Physics", credits: 500 },
-        { displayName: "Chloe Jenkins", streak: 31, lastActivityDate: "2026-06-03", mainSubject: "Chemistry", credits: 380 },
-        { displayName: "Kenji Sato", streak: 25, lastActivityDate: "2026-06-04", mainSubject: "Mathematics", credits: 400 },
-        { displayName: "Maria Rodriguez", streak: 18, lastActivityDate: "2026-06-03", mainSubject: "History", credits: 210 },
-        { displayName: "Li Wei", streak: 12, lastActivityDate: "2026-06-04", mainSubject: "Computer Science", credits: 150 }
-      ];
-
-      for (let i = 0; i < initialScholars.length; i++) {
-        const peer = initialScholars[i];
-        const peerDocRef = doc(db, "users", `peer_scholar_${i}`);
-        await setDoc(peerDocRef, peer, { merge: true });
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data && typeof data.streak === 'number' && data.streak > 0) {
         leaderboard.push({
-          displayName: peer.displayName,
-          streak: peer.streak,
-          lastActivityDate: peer.lastActivityDate
+          displayName: data.displayName || "Anonymous Scholar",
+          streak: data.streak,
+          lastActivityDate: data.lastActivityDate
         });
       }
-    } else {
-      querySnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data && typeof data.streak === 'number' && data.streak > 0) {
-          leaderboard.push({
-            displayName: data.displayName || "Anonymous Scholar",
-            streak: data.streak,
-            lastActivityDate: data.lastActivityDate
-          });
-        }
-      });
-    }
+    });
     
     return leaderboard.sort((a, b) => b.streak - a.streak).slice(0, 10);
   } catch (error) {

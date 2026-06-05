@@ -1,22 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  ChevronRight, 
-  ChevronLeft, 
-  X, 
-  Sparkles, 
-  BookOpen, 
-  BrainCircuit, 
-  MessageCircle, 
-  LayoutDashboard,
-  PenTool,
-  ClipboardCheck,
-  Library,
-  Flame,
-  Timer,
-  IdCard
-} from 'lucide-react';
+import { ChevronRight, ChevronLeft, X, Sparkles, BookOpen, BrainCircuit, MessageCircle, LayoutDashboard } from 'lucide-react';
 
 interface TutorialProps {
   onClose: () => void;
@@ -28,58 +13,28 @@ const Tutorial: React.FC<TutorialProps> = ({ onClose }) => {
   const steps = [
     {
       title: "Welcome to SJ Tutor AI",
-      description: "Your ultimate AI-powered personalized study companion. Let's take a quick tour of how you can boost your learning journey.",
+      description: "Your ultimate AI-powered study companion. Let's take a quick tour of how you can boost your learning journey.",
       icon: <Sparkles className="w-12 h-12 text-primary-500" />
     },
     {
-      title: "Student Dashboard",
-      description: "Manage your credits, review your academic dashboard statistics, track completion statuses, and stay on top of live notifications.",
-      icon: <LayoutDashboard className="w-12 h-12 text-primary-500" />
-    },
-    {
       title: "Smart Summarizer",
-      description: "Convert any educational topic or textbook chapter into structured, concise summaries. Perfect for quick exam revision.",
+      description: "Generate concise, structured summaries from any topic. Perfect for quick revisions and grasping core concepts.",
       icon: <BookOpen className="w-12 h-12 text-primary-500" />
     },
     {
-      title: "Interactive AI Quizzes",
-      description: "Test yourself with dynamic, curriculum-customized quizzes. Beat hard questions to earn bonus student credits!",
+      title: "AI Quiz Creator",
+      description: "Test your knowledge with custom quizzes. Earn credits for mastering hard challenges and track your progress.",
       icon: <BrainCircuit className="w-12 h-12 text-primary-500" />
     },
     {
-      title: "AI Homework Assistant",
-      description: "Get targeted, step-by-step math, science, and humanities feedback to master tough homework questions and assignments.",
-      icon: <ClipboardCheck className="w-12 h-12 text-primary-500" />
-    },
-    {
-      title: "Essay Genius",
-      description: "Compose elegant responses and receive instant grammar checkup, grading evaluation, and guidance on style improvements.",
-      icon: <PenTool className="w-12 h-12 text-primary-500" />
-    },
-    {
-      title: "Custom 24/7 AI Tutor",
-      description: "Engage with your virtual tutor at any hour to clarify course doubts, discuss complex problems, or learn novel material.",
+      title: "Intelligent AI Tutor",
+      description: "Need help? Our 24/7 AI Tutor is here to explain complex topics, solve doubts, and guide you through your curriculum.",
       icon: <MessageCircle className="w-12 h-12 text-primary-500" />
     },
     {
-      title: "Smart Study Notes",
-      description: "Keep structured notes, organize chapters by subject, and search or revision-query your notebooks continuously.",
-      icon: <Library className="w-12 h-12 text-primary-500" />
-    },
-    {
-      title: "Draggable Daily Streaks",
-      description: "Drag and place your streak tracker anywhere on-screen! Complete 1 study action daily to level up, build streaks, and rule the leaderboards.",
-      icon: <Flame className="w-12 h-12 text-primary-500" />
-    },
-    {
-      title: "Pomodoro Study Timer",
-      description: "Boost focus and reach ultimate flow state using the integrated study trainer timer. Track your active focus minutes seamlessly.",
-      icon: <Timer className="w-12 h-12 text-primary-500" />
-    },
-    {
-      title: "Virtual Student ID Card",
-      description: "Generate a premium digital student badge with an integrated barcode. Scan profile QR codes instantly to share credentials.",
-      icon: <IdCard className="w-12 h-12 text-primary-500" />
+      title: "Dashboard & History",
+      description: "Access all your previous generations, track your credits, and manage your student ID card from one central hub.",
+      icon: <LayoutDashboard className="w-12 h-12 text-primary-500" />
     }
   ];
 
