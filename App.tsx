@@ -90,8 +90,28 @@ const THEME_COLORS: Record<string, Record<string, string>> = {
 
 const App: React.FC = () => {
   // Auth State
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const savedPersist = localStorage.getItem('sjtutor_persistent_user');
+      if (savedPersist) {
+        return JSON.parse(savedPersist) as unknown as User;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  });
+  const [authLoading, setAuthLoading] = useState(() => {
+    try {
+      const savedPersist = localStorage.getItem('sjtutor_persistent_user');
+      if (savedPersist) {
+        return false;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return true;
+  });
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -479,33 +499,54 @@ const App: React.FC = () => {
   // Auth Listener
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (authLoading) {
-        console.warn("Auth check timed out, defaulting to guest.");
-        setAuthLoading(false);
-      }
+      setAuthLoading(false);
     }, 4000);
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
       setAuthLoading(false);
       clearTimeout(timeoutId); 
       
-      if (!currentUser) {
-        setIsNewUser(false);
-        const savedGuest = localStorage.getItem('profile_guest');
-        if (savedGuest) {
+      if (currentUser) {
+        setUser(currentUser);
+        try {
+          localStorage.setItem('sjtutor_persistent_user', JSON.stringify({
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            photoURL: currentUser.photoURL,
+            isAnonymous: currentUser.isAnonymous,
+          }));
+        } catch (e) {
+          // ignore
+        }
+      } else {
+        // Fallback for sandboxed iframe environments where IndexedDB might fail to restore Firebase sessions on reload
+        const savedPersist = localStorage.getItem('sjtutor_persistent_user');
+        if (savedPersist) {
           try {
-            setUserProfile({ ...initialProfileState, ...JSON.parse(savedGuest) });
+            const parsed = JSON.parse(savedPersist) as unknown as User;
+            setUser(parsed);
           } catch (e) {
-            setUserProfile(initialProfileState);
+            setUser(null);
           }
         } else {
-          setUserProfile(initialProfileState);
+          setUser(null);
+          setIsNewUser(false);
+          const savedGuest = localStorage.getItem('profile_guest');
+          if (savedGuest) {
+            try {
+              setUserProfile({ ...initialProfileState, ...JSON.parse(savedGuest) });
+            } catch (e) {
+              setUserProfile(initialProfileState);
+            }
+          } else {
+            setUserProfile(initialProfileState);
+          }
+          setMode(AppMode.DASHBOARD);
         }
-        setMode(AppMode.DASHBOARD);
       }
     }, (err) => {
-      console.error("Auth Error:", err);
+      console.warn("Auth load skipped or failed (common in sandboxed iframes):", err);
       setAuthLoading(false); 
       clearTimeout(timeoutId);
     });
@@ -607,6 +648,23 @@ const App: React.FC = () => {
       };
 
       loadProfile();
+    }
+  }, [user]);
+
+  // Sync user changes to persistent local storage cache
+  useEffect(() => {
+    if (user) {
+      try {
+        localStorage.setItem('sjtutor_persistent_user', JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          isAnonymous: user.isAnonymous,
+        }));
+      } catch (e) {
+        // ignore
+      }
     }
   }, [user]);
 
@@ -1187,6 +1245,8 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      localStorage.removeItem('sjtutor_persistent_user');
+      setUser(null);
       setMode(AppMode.DASHBOARD);
       setDashboardView('OVERVIEW');
     } catch (error) {
