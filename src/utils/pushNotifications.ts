@@ -18,6 +18,47 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
+let isLocalSWActive = false;
+
+// Safe utility to check registrations and see if SW is registered
+async function checkSWStatus(): Promise<boolean> {
+  if (!('serviceWorker' in navigator)) {
+    return false;
+  }
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    if (regs && regs.length > 0) {
+      isLocalSWActive = true;
+      return true;
+    }
+  } catch (e) {
+    isLocalSWActive = false;
+    return false;
+  }
+  return isLocalSWActive;
+}
+
+// Safe wrapper around navigator.serviceWorker.ready with a 3-second timeout to prevent hangs
+async function getSafeReadyRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (!('serviceWorker' in navigator)) {
+    return null;
+  }
+  
+  const isOk = await checkSWStatus();
+  if (!isOk) {
+    return null;
+  }
+
+  try {
+    const readyPromise = navigator.serviceWorker.ready;
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+    const result = await Promise.race([readyPromise, timeoutPromise]);
+    return result;
+  } catch (err) {
+    return null;
+  }
+}
+
 export const isPushSupported = (): boolean => {
   return (
     'serviceWorker' in navigator &&
@@ -28,7 +69,8 @@ export const isPushSupported = (): boolean => {
 
 export const getSubscription = async (): Promise<PushSubscription | null> => {
   if (!isPushSupported()) return null;
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await getSafeReadyRegistration();
+  if (!registration) return null;
   return await registration.pushManager.getSubscription();
 };
 
@@ -47,13 +89,28 @@ export const registerServiceWorkerAndSubscribe = async (userId: string | null): 
 
     // 2. Register Service Worker from public root
     console.log("Registering Service Worker...");
-    const registration = await navigator.serviceWorker.register('/sw.js', {
-      scope: '/'
-    });
-    console.log("Service Worker registered successfully:", registration);
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js', {
+        scope: '/'
+      });
+      console.log("Service Worker registered successfully:", registration);
+      isLocalSWActive = true;
+    } catch (swErr: any) {
+      isLocalSWActive = false;
+      const isInvalidState = swErr && (swErr.name === 'InvalidStateError' || swErr.message?.includes('invalid state') || swErr.message?.includes('sandbox'));
+      if (isInvalidState) {
+        console.log("Service Worker registration skipped: running in an iframe / invalid-state sandbox.");
+        return null;
+      }
+      throw swErr;
+    }
 
     // Wait for the service worker to become ready
-    await navigator.serviceWorker.ready;
+    const registration = await getSafeReadyRegistration();
+    if (!registration) {
+      console.log("Service Worker registration ready check failed or timed out.");
+      return null;
+    }
 
     // 3. Retrieve VAPID Public Key from the server
     const keyResponse = await fetch('/api/notifications/vapid-public-key');
@@ -104,13 +161,18 @@ export const registerServiceWorkerAndSubscribe = async (userId: string | null): 
         const reminders = JSON.parse(saved);
         await syncRemindersWithServer(userId, reminders);
       } catch (e) {
-        console.error("Failed to parsed and synced initial reminders:", e);
+        console.warn("Failed to parsed and synced initial reminders:", e);
       }
     }
 
     return subscription;
-  } catch (error) {
-    console.error("Error registering / subscribing push notification:", error);
+  } catch (error: any) {
+    const isInvalidState = error && (error.name === 'InvalidStateError' || error.message?.includes('invalid state') || error.message?.includes('sandbox'));
+    if (isInvalidState) {
+      console.log("Error registering / subscribing push notification: running in sandboxed environment.");
+    } else {
+      console.log("Error registering / subscribing push notification:", error);
+    }
     throw error;
   }
 };
@@ -119,7 +181,8 @@ export const syncRemindersWithServer = async (userId: string | null, reminders: 
   if (!isPushSupported()) return;
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await getSafeReadyRegistration();
+    if (!registration) return;
     const subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
@@ -140,7 +203,7 @@ export const syncRemindersWithServer = async (userId: string | null, reminders: 
     });
     console.log("[Push] Synced reminders to background push server successfully.");
   } catch (e) {
-    console.error("[Push] Error syncing reminders with backend server:", e);
+    console.log("[Push] Error syncing reminders with backend server:", e);
   }
 };
 
@@ -148,7 +211,8 @@ export const sendTestPush = async (userId: string | null, title: string, message
   if (!isPushSupported()) return false;
   
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await getSafeReadyRegistration();
+    if (!registration) return false;
     const subscription = await registration.pushManager.getSubscription();
     
     if (!subscription) {
@@ -169,7 +233,7 @@ export const sendTestPush = async (userId: string | null, title: string, message
 
     return response.ok;
   } catch (e) {
-    console.error("[Push] Error trigger test push:", e);
+    console.log("[Push] Error trigger test push:", e);
     return false;
   }
 };
