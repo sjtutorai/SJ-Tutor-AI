@@ -104,7 +104,17 @@ const App: React.FC = () => {
   });
 
   // App State
-  const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
+  const [mode, setMode] = useState<AppMode>(() => {
+    const saved = localStorage.getItem('sjtutor_app_mode');
+    return saved && Object.values(AppMode).includes(saved as AppMode) 
+      ? (saved as AppMode) 
+      : AppMode.DASHBOARD;
+  });
+
+  // Persist selected mode to localStorage on modification
+  useEffect(() => {
+    localStorage.setItem('sjtutor_app_mode', mode);
+  }, [mode]);
   
   // Initialize form data with language from settings
   const [formData, setFormData] = useState<StudyRequestData>(() => {
@@ -484,7 +494,7 @@ const App: React.FC = () => {
         console.warn("Auth check timed out, defaulting to guest.");
         setAuthLoading(false);
       }
-    }, 650);
+    }, 5000);
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
