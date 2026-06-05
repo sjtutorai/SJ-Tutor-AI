@@ -10,8 +10,11 @@ import {
   Trash2, 
   Filter,
   Clock,
-  Camera
+  Camera,
+  TrendingUp,
+  Award
 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface HistoryViewProps {
   history: HistoryItem[];
@@ -28,6 +31,31 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onLoadItem, onDelete
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           item.subtitle.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesFilter && matchesSearch;
+  });
+
+  const quizItems = history
+    .filter(item => item.type === AppMode.QUIZ)
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  const parsedQuizData = quizItems.map((item, idx) => {
+    let numericScore = 0;
+    if (typeof item.score === 'number') {
+      numericScore = item.score;
+    } else if (typeof item.score === 'string') {
+      if (item.score.includes('/')) {
+        const [num, den] = item.score.split('/').map(Number);
+        numericScore = den ? Math.round((num / den) * 100) : num;
+      } else {
+        numericScore = parseFloat(item.score.replace(/[^0-9.]/g, '')) || 0;
+      }
+    }
+    return {
+      index: idx + 1,
+      date: new Date(item.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      subject: item.subtitle,
+      score: numericScore,
+      rawScore: item.score || `${numericScore}%`
+    };
   });
 
   const getIcon = (type: AppMode) => {
@@ -94,6 +122,82 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onLoadItem, onDelete
           </div>
         </div>
       </div>
+
+      {/* Quiz Progress & Trend Chart Section */}
+      {(filter === 'ALL' || filter === AppMode.QUIZ) && parsedQuizData.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm mb-8 animate-in slide-in-from-top-4 duration-500">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h3 className="text-lg font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-amber-500" />
+                Quiz Score Trend over Time
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Track and visualize your chronological evaluation scores across mock exams.</p>
+            </div>
+            
+            <div className="flex gap-4 items-center self-start sm:self-center">
+              <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-450 px-3 py-1.5 rounded-xl border border-emerald-100 dark:border-emerald-900/30 text-xs font-bold font-sans">
+                <Award className="w-4 h-4" />
+                <span>Average Score: {Math.round(parsedQuizData.reduce((acc, c) => acc + c.score, 0) / parsedQuizData.length)}%</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={parsedQuizData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.01}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:hidden" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" className="hidden dark:block" />
+                <XAxis 
+                  dataKey="date" 
+                  tickLine={false} 
+                  axisLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                />
+                <YAxis 
+                  domain={[0, 100]} 
+                  tickLine={false} 
+                  axisLine={false}
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                  tickFormatter={(val) => `${val}%`}
+                />
+                <Tooltip 
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-slate-900 text-white p-3 rounded-xl border border-slate-700 shadow-xl text-xs max-w-sm">
+                          <p className="font-bold text-[10px] text-amber-400 uppercase tracking-wider mb-0.5">{data.date}</p>
+                          <p className="font-semibold text-white truncate max-w-[200px]">{data.subject}</p>
+                          <div className="mt-1.5 pt-1.5 border-t border-slate-800 flex justify-between items-center gap-4">
+                            <span className="text-slate-400">Score Achieved:</span>
+                            <span className="font-bold text-emerald-400">{data.rawScore} ({data.score}%)</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="score" 
+                  stroke="#f59e0b" 
+                  strokeWidth={3} 
+                  fillOpacity={1} 
+                  fill="url(#colorScore)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {filteredHistory.length === 0 ? (
         <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">

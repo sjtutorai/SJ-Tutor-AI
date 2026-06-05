@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
@@ -19,7 +20,7 @@
     "firebase": "^12.6.0",
     "html2canvas": "^1.4.1",
     "html5-qrcode": "^2.3.8",
-    "jspdf": "^2.5.1",
+    "jspdf": "^2.5.2",
     "libphonenumber-js": "^1.12.37",
     "lucide-react": "^0.556.0",
     "motion": "^12.38.0",
@@ -27,15 +28,19 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-markdown": "^10.1.0",
+    "recharts": "^3.8.1",
     "tsx": "^4.21.0",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.14.0",
+    "@types/web-push": "^3.6.4",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@typescript-eslint/parser": "^8.56.0",
     "@vitejs/plugin-react": "^5.1.2",
+    "esbuild": "^0.28.0",
     "eslint": "^8.57.1",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",

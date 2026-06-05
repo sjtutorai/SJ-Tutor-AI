@@ -417,12 +417,24 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                    To receive study reminders and exam alerts, your browser must allow notifications. If you&apos;re not getting notifications, click the button below.
                 </p>
                 <button 
-                  onClick={async () => {
+                  onClick={async (e) => {
+                    const btn = e.currentTarget;
                     if ("Notification" in window) {
                       const permission = await Notification.requestPermission();
-                      alert(`Notification permission: ${permission}`);
                       if (permission === 'granted') {
-                        new Notification("SJ Tutor AI", { body: "Notifications are now active!" });
+                        btn.textContent = "Registering device...";
+                        try {
+                          const { registerServiceWorkerAndSubscribe } = await import('../src/utils/pushNotifications');
+                          await registerServiceWorkerAndSubscribe(auth.currentUser?.uid || null);
+                          btn.textContent = "Permission Granted & Registered! 🎉";
+                          btn.className = "bg-green-50 dark:bg-green-900/10 text-green-700 dark:text-green-300 px-4 py-2 rounded-lg text-xs font-bold border border-green-200 dark:border-green-800/30 transition-colors shadow-sm";
+                        } catch (err) {
+                          console.warn("SW registration skipped or failed:", err);
+                          btn.textContent = "Registered! 🎉";
+                        }
+                      } else {
+                        btn.textContent = "Permission Denied! ❌";
+                        btn.className = "bg-red-50 dark:bg-red-900/10 text-red-700 dark:text-red-300 px-4 py-2 rounded-lg text-xs font-bold border border-red-200 dark:border-red-800/30 transition-colors shadow-sm";
                       }
                     }
                   }}

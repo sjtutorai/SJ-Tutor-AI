@@ -15,7 +15,8 @@ import {
   Briefcase, 
   Layers, 
   BookOpen, 
-  ArrowRight 
+  ArrowRight,
+  Flame
 } from 'lucide-react';
 import { validateAndParsePhone, CountryPhone } from '../utils/phoneUtils';
 import { calculateProfileCompletion, generateRegistrationNumber, calculateGradeFromAge, getMissingProfileFields } from '../utils/profileUtils';
@@ -418,6 +419,59 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                  </div>
                </div>
                
+            </div>
+
+            {/* Daily Streak Stats Card */}
+            <div className="w-full mt-5 bg-gradient-to-br from-orange-50 to-red-50 dark:from-slate-800/40 dark:to-slate-850/20 border border-orange-200/60 dark:border-slate-700/60 rounded-2xl p-4 text-left shadow-2xs animate-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between mb-3 border-b border-orange-100 dark:border-slate-700/80 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="relative p-1.5 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400">
+                    <Calendar className="w-4 h-4" />
+                    <Flame className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 text-red-500 fill-red-500 animate-pulse" />
+                  </div>
+                  <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">
+                    Daily Streaks
+                  </span>
+                </div>
+                <span className="text-xs font-black text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-950/40 px-2 py-0.5 rounded-full shadow-3xs">
+                  🔥 {profile.streak || 0}
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-350">
+                  <span>Current Streak</span>
+                  <span className="font-black text-orange-600 dark:text-orange-400">🔥 {profile.streak || 0} Days</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-350">
+                  <span>Highest Streak</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">⭐ {profile.highestStreak || 0} Days</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600 dark:text-slate-350">
+                  <span>Last Activity Date</span>
+                  <span className="font-bold text-slate-800 dark:text-white">{profile.lastActivityDate || 'Never'}</span>
+                </div>
+
+                {/* History Section */}
+                <div className="pt-2 border-t border-dashed border-orange-200/40 dark:border-slate-700/60 mt-2">
+                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5">Streak Activity History</span>
+                  {(!profile.streakHistory || profile.streakHistory.length === 0) ? (
+                    <p className="text-[11px] text-slate-400 italic font-medium">No learning check-ins logged yet.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1 max-h-[100px] overflow-y-auto pt-0.5 custom-scrollbar">
+                      {profile.streakHistory.map((date) => (
+                        <span 
+                          key={date} 
+                          className="text-[10px] bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold flex items-center gap-0.5 shadow-2xs"
+                        >
+                          <CheckCircle className="w-3 h-3 text-orange-500" />
+                          {date}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {!isOnboarding && !isEditing ? (
