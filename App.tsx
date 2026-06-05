@@ -541,15 +541,9 @@ const App: React.FC = () => {
       const savedProfile = localStorage.getItem(`profile_${user.uid}`);
       
       const loadProfile = async () => {
-        // Try local storage first for speed
-        let parsed = savedProfile ? JSON.parse(savedProfile) : null;
+        // Try local storage first for instant speed and responsive UI
+        const parsed = savedProfile ? JSON.parse(savedProfile) : null;
         
-        // Then try Firestore for cross-device persistence
-        const firestoreProfile = await getProfileFromFirestore(user.uid);
-        if (firestoreProfile) {
-          parsed = { ...parsed, ...firestoreProfile };
-        }
-
         if (parsed) {
           const completeProfile = { 
             ...initialProfileState, 
@@ -559,27 +553,55 @@ const App: React.FC = () => {
           };
           setUserProfile(completeProfile);
           
-          // Sync back to local storage
-          localStorage.setItem(`profile_${user.uid}`, JSON.stringify(completeProfile));
-          
-          // Check for completion reminder
+          // Check for completion reminder (optimistic)
           const completion = calculateProfileCompletion(completeProfile);
           if (completion < 100) {
              setTimeout(() => {
               setShowCompletionReminder(true);
             }, 2000);
           }
-        } else {
-          const initial = {
-             ...initialProfileState,
-             displayName: user.displayName || '',
-             photoURL: user.photoURL || '',
-             credits: 100
-          };
-          setUserProfile(initial);
-          const completion = calculateProfileCompletion(initial);
-          if (completion < 100) {
-            setShowCompletionReminder(true);
+        }
+
+        try {
+          // Then try Firestore asynchronously for cross-device persistence
+          const firestoreProfile = await getProfileFromFirestore(user.uid);
+          if (firestoreProfile) {
+            const mergedParsed = { ...parsed, ...firestoreProfile };
+            const completeProfile = { 
+              ...initialProfileState, 
+              ...mergedParsed,
+              displayName: mergedParsed.displayName || user.displayName || '',
+              photoURL: mergedParsed.photoURL || user.photoURL || '' 
+            };
+            setUserProfile(completeProfile);
+            
+            // Sync back to local storage
+            localStorage.setItem(`profile_${user.uid}`, JSON.stringify(completeProfile));
+          } else if (!parsed) {
+            // No profile found anywhere - construct initial profile
+            const initial = {
+               ...initialProfileState,
+               displayName: user.displayName || '',
+               photoURL: user.photoURL || '',
+               credits: 100
+            };
+            setUserProfile(initial);
+            localStorage.setItem(`profile_${user.uid}`, JSON.stringify(initial));
+            const completion = calculateProfileCompletion(initial);
+            if (completion < 100) {
+              setShowCompletionReminder(true);
+            }
+          }
+        } catch (err) {
+          console.warn("Background Firestore profile load skipped or failed:", err);
+          if (!parsed) {
+            const initial = {
+               ...initialProfileState,
+               displayName: user.displayName || '',
+               photoURL: user.photoURL || '',
+               credits: 100
+            };
+            setUserProfile(initial);
           }
         }
       };
