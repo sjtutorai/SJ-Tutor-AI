@@ -31,7 +31,7 @@ const InputForm: React.FC<InputFormProps> = ({
   const getEstimatedCost = () => {
     if (mode === AppMode.SUMMARY) return 10;
     if (mode === AppMode.HOMEWORK) {
-      return 10;
+      return 5;
     }
     if (mode === AppMode.QUIZ) {
       if (isRewardMode) return 0;

@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
-import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone, Sparkles } from 'lucide-react';
+import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
+import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone, Image, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface QRScannerProps {
@@ -22,53 +22,118 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   const [error, setError] = useState<string | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
+  const onScanSuccess = (decodedText: string) => {
+    try {
+      console.log("Scanned QR Text:", decodedText);
+      const trimmed = decodedText.trim();
+      // Handle JSON format
+      let data: ScannedUser;
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        const parsed = JSON.parse(trimmed);
+        data = {
+          name: parsed.name || "Student",
+          id: parsed.id || trimmed,
+          institution: parsed.institution || "SJ Tutor AI",
+          grade: parsed.grade || "N/A",
+          plan: parsed.plan || "Scholar",
+          phone: parsed.phone || "N/A"
+        };
+      } else {
+        // Plain text ID fallback
+        data = {
+          name: "Member",
+          id: trimmed,
+          institution: "SJ Tutor AI",
+          grade: "N/A",
+          plan: "Student"
+        };
+      }
+
+      if (data.id) {
+        setScannedData(data);
+        if (scannerRef.current) {
+          scannerRef.current.clear().catch(() => {});
+        }
+      } else {
+        setError("Unrecognized ID format.");
+      }
+    } catch (err) {
+      console.error("Scan Error:", err);
+      setError("Could not parse QR code. Please scan a valid SJ Tutor ID.");
+    }
+  };
+
+  const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError(null);
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+
+    // Create a temporary element to mount the reader
+    const tempId = "temp-qr-file-reader";
+    let tempDiv = document.getElementById(tempId);
+    if (!tempDiv) {
+      tempDiv = document.createElement("div");
+      tempDiv.id = tempId;
+      tempDiv.style.display = "none";
+      document.body.appendChild(tempDiv);
+    }
+
+    try {
+      const html5Qrcode = new Html5Qrcode(tempId);
+      const decodedText = await html5Qrcode.scanFile(file, true);
+      onScanSuccess(decodedText);
+    } catch (err) {
+      console.error("File scanning error:", err);
+      setError("No solid QR Code found in the image. Ensure the image is high resolution.");
+    }
+  };
+
+  const handleSimulateScan = () => {
+    setError(null);
+    try {
+      // Find possible localStorage profile representation or fallback
+      const keys = Object.keys(localStorage);
+      const profileKey = keys.find(k => k.startsWith('profile_') && !k.endsWith('_settings')) || 'profile_guest';
+      const stored = localStorage.getItem(profileKey);
+
+      let name = "Shivabasavaraj Sadashivappa Jyoti";
+      let id = "SJ-22026";
+      let institution = "SJ Tutor AI Academy";
+      let grade = "10th Grade";
+      let plan = "Scholar";
+      let phone = "+91 98765 43210";
+
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed.displayName) name = parsed.displayName;
+          if (parsed.registrationNumber) id = parsed.registrationNumber;
+          if (parsed.institution) institution = parsed.institution;
+          if (parsed.grade) grade = parsed.grade;
+          if (parsed.planType) plan = parsed.planType;
+          if (parsed.phoneNumber) phone = parsed.phoneNumber;
+        } catch (err) {
+          console.warn("Failed to parse stored profile", err);
+        }
+      }
+
+      const simData: ScannedUser = { name, id, institution, grade, plan, phone };
+      setScannedData(simData);
+
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(() => {});
+      }
+    } catch {
+      setError("Error executing simulated scan.");
+    }
+  };
+
   useEffect(() => {
     scannerRef.current = new Html5QrcodeScanner(
       "qr-reader",
       { fps: 10, qrbox: { width: 250, height: 250 } },
       /* verbose= */ false
     );
-
-        const onScanSuccess = (decodedText: string) => {
-          try {
-            console.log("Scanned QR Text:", decodedText);
-            const trimmed = decodedText.trim();
-            // Handle JSON format
-            let data: ScannedUser;
-            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-              const parsed = JSON.parse(trimmed);
-              data = {
-                name: parsed.n || parsed.name || "Student",
-                id: parsed.id || trimmed,
-                institution: parsed.i || parsed.institution || "SJ Tutor AI",
-                grade: parsed.g || parsed.grade || "N/A",
-                plan: parsed.pl || parsed.plan || "Scholar",
-                phone: parsed.p || parsed.phone || "N/A"
-              };
-            } else {
-              // Plain text ID fallback
-              data = {
-                name: "Member",
-                id: trimmed,
-                institution: "SJ Tutor AI",
-                grade: "N/A",
-                plan: "Student"
-              };
-            }
-
-            if (data.id) {
-              setScannedData(data);
-              if (scannerRef.current) {
-                scannerRef.current.clear().catch(() => {});
-              }
-            } else {
-              setError("Unrecognized ID format.");
-            }
-          } catch (err) {
-            console.error("Scan Error:", err);
-            setError("Could not parse QR code. Please scan a valid SJ Tutor ID.");
-          }
-        };
 
     const onScanFailure = () => {
       // Optional: handle scan failures
@@ -116,26 +181,44 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
                 className="space-y-4"
               >
                 <div id="qr-reader" className="overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"></div>
+                
                 {error && (
-                  <p className="text-red-500 text-xs text-center font-medium bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">
+                  <p className="text-red-500 text-xs text-center font-medium bg-red-50 dark:bg-red-900/20 p-2 rounded-lg border border-red-100 dark:border-red-900/20">
                     {error}
                   </p>
                 )}
-                <p className="text-center text-xs text-slate-400">
-                  Align ID card QR code within the frame to scan
-                </p>
 
-                <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4 border border-slate-100 dark:border-slate-800/80 mt-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <h4 className="text-xs font-bold text-slate-700 dark:text-white mb-1.5 flex items-center gap-1.5 justify-center sm:justify-start">
-                    <Sparkles className="w-3.5 h-3.5 text-primary-500 animate-pulse" />
-                    Fail-Safe Scanning Tips
-                  </h4>
-                  <ul className="text-[11px] text-slate-500 dark:text-slate-400 list-disc list-inside space-y-1 text-left">
-                    <li>Hold the card steady about <span className="font-semibold text-slate-700 dark:text-slate-300">6–12 inches</span> away from the camera lens.</li>
-                    <li>Avoid bright screen reflection, overhead glares, or shadows on the QR pattern.</li>
-                    <li>If using the <span className="font-semibold text-slate-700 dark:text-slate-300">Scan an Image File</span> option, download a fresh card from <span className="font-semibold text-slate-700 dark:text-slate-300">My ID Card</span>.</li>
-                  </ul>
+                <div className="flex flex-col gap-2 pt-2">
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleFileScan}
+                      className="hidden" 
+                      id="qr-file-upload"
+                    />
+                    <label 
+                      htmlFor="qr-file-upload"
+                      className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer border border-dashed border-slate-300 dark:border-slate-600 transition-colors"
+                    >
+                      <Image className="w-4 h-4 text-slate-500" />
+                      Upload & Scan ID Image
+                    </label>
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={handleSimulateScan}
+                    className="w-full py-2.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-amber-500/25"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Quick-Simulate My ID Card
+                  </button>
                 </div>
+
+                <p className="text-center text-xs text-slate-400">
+                  Align ID Card QR frame, upload an ID photo, or quick-simulate.
+                </p>
               </motion.div>
             ) : (
               <motion.div 

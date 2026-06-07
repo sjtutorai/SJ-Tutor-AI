@@ -1,727 +1,743 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Bell, 
-  Settings, 
-  Sparkles, 
-  Calendar, 
+  BellRing, 
+  Check, 
   Trash2, 
-  Info, 
-  CheckCircle, 
-  AlertTriangle,
-  Clock,
-  ArrowRight,
-  Volume2,
-  Moon,
-  BarChart2 as BarChartIcon
+  AlertCircle, 
+  Calendar, 
+  Sparkles, 
+  ShieldCheck, 
+  Plus, 
+  Settings, 
+  Volume2, 
+  VolumeX,
+  Play
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer 
-} from 'recharts';
 import { UserProfile, ReminderItem } from '../types';
 import { SettingsService } from '../services/settingsService';
-import { playSynthSound } from '../utils/soundUtils';
+import { 
+  isPushSupported, 
+  registerServiceWorkerAndSubscribe, 
+  syncRemindersWithServer, 
+  sendTestPush, 
+  getSubscription 
+} from '../src/utils/pushNotifications';
 
 interface NotificationsViewProps {
   userProfile: UserProfile;
   userId: string | null;
-  onNavigateToNotes: () => void;
 }
 
-interface SystemNotification {
+interface InAppNotification {
   id: string;
   title: string;
-  content: string;
-  time: string;
-  type: 'info' | 'success' | 'alert' | 'tip';
+  message: string;
+  timestamp: number;
+  type: 'system' | 'study' | 'achievement' | 'alert';
   read: boolean;
 }
 
-const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfile, userId, onNavigateToNotes }) => {
-  const [settings, setSettings] = useState(SettingsService.getSettings());
-  const [permission, setPermission] = useState<NotificationPermission>('default');
-  const [reminders, setReminders] = useState<ReminderItem[]>([]);
+export const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfile, userId }) => {
+  const [activeTab, setActiveTab] = useState<'all' | 'alerts' | 'reminders'>('all');
+  const [inAppNotifications, setInAppNotifications] = useState<InAppNotification[]>([]);
+  const [localReminders, setLocalReminders] = useState<ReminderItem[]>([]);
+  const [isSoundEnabled, setIsSoundEnabled] = useState(true);
+  const [settings, setSettings] = useState(() => SettingsService.getSettings());
+  const [showToast, setShowToast] = useState<{ show: boolean; title: string; message: string } | null>(null);
 
-  // Quiet Hours states
-  const [quietEnabled, setQuietEnabled] = useState(() => {
-    return localStorage.getItem('quiet_hours_enabled') === 'true';
-  });
-  const [quietStart, setQuietStart] = useState(() => {
-    return localStorage.getItem('quiet_hours_start') || '22:00';
-  });
-  const [quietEnd, setQuietEnd] = useState(() => {
-    return localStorage.getItem('quiet_hours_end') || '07:00';
-  });
+  const remindersKey = userId ? `reminders_${userId}` : 'reminders_guest';
 
-  // Sound settings
-  const [studySound, setStudySound] = useState(() => {
-    return localStorage.getItem('study_reminder_sound') || 'bell';
-  });
-  const [examSound, setExamSound] = useState(() => {
-    return localStorage.getItem('exam_alert_sound') || 'laser';
-  });
+  // Background Push States
+  const [isPushAvailable, setIsPushAvailable] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [testPushLoading, setTestPushLoading] = useState(false);
 
-  // Quiet hours change handlers
-  const handleQuietHoursToggle = () => {
-    const val = !quietEnabled;
-    setQuietEnabled(val);
-    localStorage.setItem('quiet_hours_enabled', String(val));
-    window.dispatchEvent(new Event('quieth-changed'));
-  };
+  // Monitor subscription status on load
+  useEffect(() => {
+    const checkPushStatus = async () => {
+      const supported = isPushSupported();
+      setIsPushAvailable(supported);
+      if (supported) {
+        try {
+          const sub = await getSubscription();
+          setIsSubscribed(!!sub);
+        } catch (e) {
+          console.error("Subscription retrieval check failed:", e);
+        }
+      }
+    };
+    checkPushStatus();
+  }, []);
 
-  const handleQuietStartChange = (val: string) => {
-    setQuietStart(val);
-    localStorage.setItem('quiet_hours_start', val);
-    window.dispatchEvent(new Event('quieth-changed'));
-  };
-
-  const handleQuietEndChange = (val: string) => {
-    setQuietEnd(val);
-    localStorage.setItem('quiet_hours_end', val);
-    window.dispatchEvent(new Event('quieth-changed'));
-  };
-
-  // Sound setters
-  const handleStudySoundChange = (val: string) => {
-    setStudySound(val);
-    localStorage.setItem('study_reminder_sound', val);
-    playSynthSound(val);
-  };
-
-  const handleExamSoundChange = (val: string) => {
-    setExamSound(val);
-    localStorage.setItem('exam_alert_sound', val);
-    playSynthSound(val);
-  };
-
-  // 7-day frequency calculator
-  const generateChartData = () => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const data = [];
-    const now = new Date();
-    
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(now.getDate() - i);
-      const dayName = days[d.getDay()];
-      const dateFormatted = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      
-      let remindersCount = Math.floor(Math.sin((d.getDate() + 3) * 0.8) * 3) + 4;
-      let alertsCount = Math.floor(Math.cos(d.getDate() * 1.1) * 2) + 2;
-      if (remindersCount < 0) remindersCount = 1;
-      if (alertsCount < 0) alertsCount = 0;
-      
-      data.push({
-        name: dayName,
-        date: dateFormatted,
-        'Study Reminders': remindersCount,
-        'Exam Alerts': alertsCount,
-        Total: remindersCount + alertsCount
+  const handleDeviceRegister = async () => {
+    setPushLoading(true);
+    try {
+      const sub = await registerServiceWorkerAndSubscribe(userId);
+      setIsSubscribed(!!sub);
+      setShowToast({
+        show: true,
+        title: "Device Registered Successfully! 📱",
+        message: "This device can now receive study notifications even when the website is closed!"
       });
+      setTimeout(() => setShowToast(null), 4500);
+    } catch (err: any) {
+      alert("Device registration failed: " + (err.message || err));
+    } finally {
+      setPushLoading(false);
     }
-    return data;
   };
 
-  // System alerts/notifications list - initially seeded
-  const [systemNotifications, setSystemNotifications] = useState<SystemNotification[]>([
+  const handleSendTestPush = async () => {
+    setTestPushLoading(true);
+    try {
+      const success = await sendTestPush(
+        userId,
+        "SJ Tutor AI ⏰",
+        "Brilliant! Device delivery completed. This background notification works even when the app is completely closed!"
+      );
+      if (success) {
+        setShowToast({
+          show: true,
+          title: "Test Dispatched! 🚀",
+          message: "A test push is on its way. You can close this tab and see it arrive!"
+        });
+        setTimeout(() => setShowToast(null), 4500);
+      } else {
+        alert("Server failed to dispatch the push. Verify you granted notification permission and registered the device!");
+      }
+    } catch (err: any) {
+      alert("Error sending test push: " + (err.message || err));
+    } finally {
+      setTestPushLoading(false);
+    }
+  };
+
+  // Load notifications and reminders
+  useEffect(() => {
+    // Load local storage custom notifications if any, else populate default simulated real-time events
+    const notifsKey = userId ? `notifications_feed_${userId}` : 'notifications_feed_guest';
+    const storedNotifs = localStorage.getItem(notifsKey);
+    if (storedNotifs) {
+      try {
+        setInAppNotifications(JSON.parse(storedNotifs));
+      } catch (e) {
+        setInAppNotifications(getDefaultNotifications());
+      }
+    } else {
+      const defaults = getDefaultNotifications();
+      setInAppNotifications(defaults);
+      localStorage.setItem(notifsKey, JSON.stringify(defaults));
+    }
+
+    // Load active reminders
+    const loadReminders = () => {
+      const storedReminders = localStorage.getItem(remindersKey);
+      if (storedReminders) {
+        try {
+          setLocalReminders(JSON.parse(storedReminders));
+        } catch (e) {
+          setLocalReminders([]);
+        }
+      } else {
+        setLocalReminders([]);
+      }
+    };
+
+    loadReminders();
+
+    // Listen to changes in reminders or settings
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === remindersKey) {
+        loadReminders();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [userId, remindersKey]);
+
+  const getDefaultNotifications = (): InAppNotification[] => [
     {
-      id: 'sys-welcome',
-      title: 'Welcome to SJ Tutor AI! 🎉',
-      content: `Hello ${userProfile.displayName || 'Student'}! Your ultimate school companion and AI-powered tutor is fully set up. Try the Photo Scan Homework Solver to begin!`,
-      time: 'Just now',
-      type: 'success',
+      id: 'notif-1',
+      title: 'Welcome to Real-Time Updates!',
+      message: 'Experience live study progress, achievements, and smart alerts instantly.',
+      timestamp: Date.now() - 60000 * 5, // 5 min ago
+      type: 'system',
       read: false
     },
     {
-      id: 'sys-credits',
-      title: 'Active Learning Mode Enabled ⚡',
-      content: `Your account is active with the standard student credit balance. Score 90%+ on quizzes to unlock more rewards.`,
-      time: '1 hour ago',
-      type: 'info',
+      id: 'notif-2',
+      title: 'Study Reward Unlocked 🏆',
+      message: 'You unlocked a credit bonus challenge! Score 75% or higher on a Hard quiz to claim it.',
+      timestamp: Date.now() - 60000 * 30, // 30 min ago
+      type: 'achievement',
       read: false
     },
     {
-      id: 'sys-ai-tip',
-      title: 'AI Tip: Chunk Your Learning Sessions 🧠',
-      content: 'Use our built-in Study Timer (Pomodoro technique) to study for 25 minutes, then take a 5-minute breather for optimal retention.',
-      time: '2 hours ago',
-      type: 'tip',
-      read: true
-    },
-    {
-      id: 'sys-privacy-verify',
-      title: 'Keep Your Student ID Secure 💳',
-      content: 'Ensure all profile details like District, Board, and Grade are correctly specified. Generate your Student ID card instantly in the main menu!',
-      time: '1 day ago',
+      id: 'notif-3',
+      title: 'Exam Season Commenced 🎓',
+      message: 'Study smart with customized AI guides for your current grade syllabus.',
+      timestamp: Date.now() - 3600000 * 2, // 2 hours ago
       type: 'alert',
       read: true
     }
-  ]);
+  ];
 
-  // Load reminders from local storage
-  useEffect(() => {
-    if ('Notification' in window) {
-      setPermission(Notification.permission);
-    }
-    
-    // Fetch user reminders
-    const key = userId ? `reminders_${userId}` : 'reminders_guest';
+  const saveNotifications = (updated: InAppNotification[]) => {
+    setInAppNotifications(updated);
+    const notifsKey = userId ? `notifications_feed_${userId}` : 'notifications_feed_guest';
+    localStorage.setItem(notifsKey, JSON.stringify(updated));
+  };
+
+  // Sound generator
+  const playNotificationSound = () => {
+    if (!isSoundEnabled) return;
     try {
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        setReminders(JSON.parse(saved));
-      }
+      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      
+      osc.connect(gain);
+      gain.connect(context.destination);
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, context.currentTime); // C5
+      osc.frequency.setValueAtTime(659.25, context.currentTime + 0.1); // E5
+      osc.frequency.setValueAtTime(783.99, context.currentTime + 0.2); // G5
+      
+      gain.gain.setValueAtTime(0.1, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.4);
+      
+      osc.start();
+      osc.stop(context.currentTime + 0.45);
     } catch (e) {
-      console.error("Failed to parse reminders", e);
+      // Audio context error or blocked
     }
-  }, [userId]);
+  };
 
-  const requestNotificationPermission = async () => {
-    if (!('Notification' in window)) {
-      alert("This browser does not support desktop notifications.");
-      return;
-    }
-    
-    const status = await Notification.requestPermission();
-    setPermission(status);
-    
-    if (status === 'granted') {
-      new Notification("SJ Tutor AI", {
-        body: "System notifications are active! You will receive timely alerts for your studies.",
-        icon: "https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg"
+  // Real-time Simulation Alert Trigger
+  const triggerSimulation = () => {
+    const simulationPool = [
+      {
+        title: 'New Study Smart Tip 💡',
+        message: 'Review formulas for 10 minutes right after study sessions to double knowledge retention.',
+        type: 'system' as const
+      },
+      {
+        title: 'Streak Alert 🔥',
+        message: 'Excellent consistency! Keep learning to protect your study streak.',
+        type: 'achievement' as const
+      },
+      {
+        title: 'Academic Alert ⚠️',
+        message: 'Your study goal for today is 30% complete. Continue to stay ahead!',
+        type: 'alert' as const
+      }
+    ];
+
+    const randomChoice = simulationPool[Math.floor(Math.random() * simulationPool.length)];
+    const newNotif: InAppNotification = {
+      id: `sim-${Date.now()}`,
+      title: randomChoice.title,
+      message: randomChoice.message,
+      timestamp: Date.now(),
+      type: randomChoice.type,
+      read: false
+    };
+
+    const updated = [newNotif, ...inAppNotifications];
+    saveNotifications(updated);
+    playNotificationSound();
+
+    // Trigger standard browser Notification if permitted
+    if ('Notification' in window && Notification.permission === 'granted' && settings.notifications.push) {
+      new Notification(randomChoice.title, {
+        body: randomChoice.message,
+        icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
       });
     }
+
+    // Trigger an exquisite in-app Toast
+    setShowToast({
+      show: true,
+      title: randomChoice.title,
+      message: randomChoice.message
+    });
+    setTimeout(() => {
+      setShowToast(null);
+    }, 4500);
   };
 
-  const handleSettingChange = (key: 'studyReminders' | 'examAlerts' | 'aiTips' | 'push') => {
-    const newSettings = { ...settings };
-    newSettings.notifications = {
-      ...newSettings.notifications,
-      [key]: !newSettings.notifications[key]
+  const markAllRead = () => {
+    const updated = inAppNotifications.map(n => ({ ...n, read: true }));
+    saveNotifications(updated);
+  };
+
+  const clearAllNotifications = () => {
+    // Only clears simulated system notifications
+    saveNotifications([]);
+  };
+
+  const toggleReadStatus = (id: string) => {
+    const updated = inAppNotifications.map(n => n.id === id ? { ...n, read: !n.read } : n);
+    saveNotifications(updated);
+  };
+
+  const deleteNotification = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = inAppNotifications.filter(n => n.id !== id);
+    saveNotifications(updated);
+  };
+
+  // Reminder management
+  const toggleReminderCompleted = (id: string) => {
+    const updated = localReminders.map(r => r.id === id ? { ...r, completed: !r.completed } : r);
+    setLocalReminders(updated);
+    localStorage.setItem(remindersKey, JSON.stringify(updated));
+    // Dispatch event to update other views like NotesView
+    window.dispatchEvent(new Event('storage'));
+    
+    // Sync reminders backend push channel
+    syncRemindersWithServer(userId, updated);
+  };
+
+  const deleteReminder = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = localReminders.filter(r => r.id !== id);
+    setLocalReminders(updated);
+    localStorage.setItem(remindersKey, JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+    
+    // Sync reminders backend push channel
+    syncRemindersWithServer(userId, updated);
+  };
+
+  // Notification Settings Fast-Toggler
+  const handleToggleSetting = (key: 'studyReminders' | 'examAlerts' | 'aiTips' | 'push') => {
+    const updatedSettings = {
+      ...settings,
+      notifications: {
+        ...settings.notifications,
+        [key]: !settings.notifications[key]
+      }
     };
-    
-    setSettings(newSettings);
-    SettingsService.saveSettings(newSettings);
-    // Dispatch event to recalculate theme/language/etc in parent
+    setSettings(updatedSettings);
+    SettingsService.saveSettings(updatedSettings);
     window.dispatchEvent(new Event('settings-changed'));
-  };
 
-  const markAllAsRead = () => {
-    setSystemNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
-  };
-
-  const clearNotification = (id: string) => {
-    setSystemNotifications(prev => prev.filter(notif => notif.id !== id));
-  };
-
-  const toggleReminderCompleted = (reminderId: string) => {
-    const updated = reminders.map(r => r.id === reminderId ? { ...r, completed: !r.completed } : r);
-    setReminders(updated);
-    
-    const key = userId ? `reminders_${userId}` : 'reminders_guest';
-    localStorage.setItem(key, JSON.stringify(updated));
-    // Trigger custom event so schedule component also knows about the completion change
-    window.dispatchEvent(new Event('reminders-changed'));
-  };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'success':
-        return <CheckCircle className="w-5 h-5 text-emerald-500" />;
-      case 'alert':
-        return <AlertTriangle className="w-5 h-5 text-rose-500" />;
-      case 'tip':
-        return <Sparkles className="w-5 h-5 text-amber-500" />;
-      default:
-        return <Info className="w-5 h-5 text-blue-500" />;
+    // Request permissions and register service worker subscription if user turned push on
+    if (key === 'push' && updatedSettings.notifications.push) {
+      if ('Notification' in window) {
+        import('../src/utils/pushNotifications').then(({ registerServiceWorkerAndSubscribe }) => {
+          registerServiceWorkerAndSubscribe(userId).catch(err => {
+            console.error("Failed to register and subscribe device push subscription:", err);
+          });
+        });
+      }
     }
   };
 
-  const getTypeBadgeStyles = (type: string) => {
-    switch (type) {
-      case 'success':
-        return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
-      case 'alert':
-        return 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300';
-      case 'tip':
-        return 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
-      default:
-        return 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+  // Filter lists based on tab
+  const getFilteredItems = () => {
+    if (activeTab === 'alerts') {
+      return inAppNotifications;
     }
+    if (activeTab === 'reminders') {
+      return []; //handled separately to list all
+    }
+    return inAppNotifications;
   };
+
+  const filteredNotifs = getFilteredItems();
+  const unreadCount = inAppNotifications.filter(n => !n.read).length;
+  const activeRemindersCount = localReminders.filter(r => !r.completed).length;
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 pb-20">
-      {/* Title & Stats */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+      
+      {/* Dynamic Toast Alert */}
+      <AnimatePresence>
+        {showToast && showToast.show && (
+          <motion.div 
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            className="fixed top-6 right-6 z-[60] max-w-sm w-full bg-slate-900 border border-amber-500/20 shadow-2xl p-4 rounded-2xl flex gap-3 text-white backdrop-blur-md"
+          >
+            <div className="h-10 w-10 flex-shrink-0 bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-bold rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/10">
+              <BellRing className="w-5 h-5 animate-bounce" />
+            </div>
+            <div className="flex-1">
+              <h5 className="font-bold text-sm text-yellow-400">{showToast.title}</h5>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed">{showToast.message}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white flex items-center gap-3">
-            <Bell className="w-8 h-8 text-amber-500 animate-wiggle" />
-            Notifications Center
+          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2 flex items-center gap-3">
+            <div className="relative">
+              <Bell className="w-8 h-8 text-primary-600" />
+              {unreadCount + activeRemindersCount > 0 && (
+                <span className="absolute top-0 right-0 w-3 h-3 bg-rose-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
+              )}
+            </div>
+            Real-Time Notifications
           </h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-2 max-w-2xl">
-            Stay aligned with your study goals, test prep reminders, and personalized system announcements.
+          <p className="text-slate-600 dark:text-slate-400">
+            Keep track of live updates, reminders, study streaks, and personal achievements immediately.
           </p>
         </div>
-        
-        {systemNotifications.some(n => !n.read) && (
-          <button 
-            onClick={markAllAsRead}
-            className="text-sm font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 px-4 py-2 hover:bg-primary-50 dark:hover:bg-slate-800 rounded-lg transition-colors shrink-0"
+
+        <div className="flex items-center gap-2自 justify-start sm:justify-end">
+          <button
+            onClick={triggerSimulation}
+            className="px-4 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-bold flex items-center gap-2 text-sm shadow-md shadow-primary-500/10 transition-all hover:-translate-y-0.5"
+            id="trigger-live-notification-btn"
           >
-            Mark all as read
+            <Sparkles className="w-4 h-4" />
+            Simulate Live Alert
           </button>
-        )}
+          
+          <button
+            onClick={() => setIsSoundEnabled(!isSoundEnabled)}
+            className="p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 transition-colors"
+            title={isSoundEnabled ? "Disable Notification Sound" : "Enable Notification Sound"}
+          >
+            {isSoundEnabled ? <Volume2 className="w-5 h-5 text-emerald-600" /> : <VolumeX className="w-5 h-5 text-slate-400" />}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left 2 Columns: Notifications Stream */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Active Notifications Block */}
-          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary-500"></span>
-              Recent Announcements
-            </h2>
+        
+        {/* Main Feed */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex bg-slate-100 dark:bg-slate-800/60 p-1 rounded-xl">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'all' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            >
+              All Notifications ({unreadCount})
+            </button>
+            <button
+              onClick={() => setActiveTab('alerts')}
+              className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'alerts' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            >
+              System Alerts
+            </button>
+            <button
+              onClick={() => setActiveTab('reminders')}
+              className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'reminders' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            >
+              Due Reminders ({activeRemindersCount})
+            </button>
+          </div>
 
-            {systemNotifications.length === 0 ? (
-              <div className="text-center py-12 text-slate-400 dark:text-slate-500">
-                <Bell className="w-12 h-12 mx-auto opacity-30 mb-3" />
-                <p>All cleared! You are completely up to date.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <AnimatePresence initial={false}>
-                  {systemNotifications.map((notif) => (
+          <div className="flex items-center justify-between px-2 text-xs font-semibold text-slate-400 uppercase tracking-widest">
+            <span>{activeTab === 'reminders' ? 'Your Schedule Reminders' : 'Recent Updates'}</span>
+            <div className="flex gap-4">
+              {activeTab !== 'reminders' && inAppNotifications.length > 0 && (
+                <>
+                  <button onClick={markAllRead} className="hover:text-primary-600 transition-colors">Mark all read</button>
+                  <button onClick={clearAllNotifications} className="hover:text-red-500 transition-colors flex items-center gap-1">
+                    <Trash2 className="w-3.5 h-3.5" /> Clear All
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <AnimatePresence mode="popLayout">
+              {/* If active tab is Reminders */}
+              {activeTab === 'reminders' && (
+                localReminders.length === 0 ? (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700"
+                  >
+                    <Calendar className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                    <h4 className="font-bold text-slate-700 dark:text-slate-300">No active study reminders</h4>
+                    <p className="text-slate-400 text-xs max-w-sm mx-auto mt-2">
+                      Add custom reminders inside the {"Notes & Schedule"} tab to receive live sound and push notifications.
+                    </p>
+                  </motion.div>
+                ) : (
+                  localReminders.map((reminder) => (
                     <motion.div
-                      key={notif.id}
-                      initial={{ opacity: 0, x: 40 }}
+                      key={reminder.id}
+                      layout
+                      initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
-                      exit={{ x: -400, opacity: 0, height: 0, paddingTop: 0, paddingBottom: 0, marginTop: 0, marginBottom: 0, transition: { duration: 0.3 } }}
-                      transition={{ type: 'spring', stiffness: 280, damping: 22 }}
-                      className={`p-4 rounded-2xl border transition-all duration-300 ${
-                        notif.read 
-                          ? 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800' 
-                          : 'bg-white dark:bg-slate-800 border-indigo-100 hover:border-indigo-200 dark:border-slate-700 dark:hover:border-slate-600 shadow-sm'
-                      }`}
+                      exit={{ opacity: 0, x: 20 }}
+                      className={`p-4 rounded-xl border transition-all ${reminder.completed ? 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-100 dark:border-slate-850 opacity-60' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm'}`}
                     >
-                      <div className="flex gap-3 items-start">
-                        <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl shrink-0">
-                          {getTypeIcon(notif.type)}
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="font-bold text-slate-800 dark:text-white text-sm sm:text-base">
-                              {notif.title}
-                            </h3>
-                            <span className="text-[10px] font-medium text-slate-400 shrink-0 whitespace-nowrap">
-                              {notif.time}
-                            </span>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => toggleReminderCompleted(reminder.id)}
+                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${reminder.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 hover:border-primary-500'}`}
+                          >
+                            {reminder.completed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          </button>
+                          <div>
+                            <p className={`font-semibold text-sm ${reminder.completed ? 'line-through text-slate-400' : 'text-slate-800 dark:text-white'}`}>
+                              {reminder.task}
+                            </p>
+                            <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                              <Calendar className="w-3 h-3 text-primary-400" />
+                              {new Date(reminder.dueTime).toLocaleString()}
+                            </p>
                           </div>
-                          
-                          <p className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm mt-1 leading-relaxed">
-                            {notif.content}
-                          </p>
+                        </div>
 
-                          <div className="flex items-center justify-between mt-3 flex-wrap gap-2">
-                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${getTypeBadgeStyles(notif.type)}`}>
-                              {notif.type}
-                            </span>
-                            
-                            <button
-                              onClick={() => clearNotification(notif.id)}
-                              className="text-xs text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 transition-colors flex items-center gap-1 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Dismiss
-                            </button>
-                          </div>
-                        </div>
+                        <button 
+                          onClick={(e) => deleteReminder(reminder.id, e)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
-          </div>
+                  ))
+                )
+              )}
 
-          {/* Active Reminders Integration */}
-          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-indigo-500" />
-                Study Reminders & Tasks
-              </h2>
-              <span className="text-xs font-semibold px-2 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full">
-                {reminders.filter(r => !r.completed).length} active
-              </span>
-            </div>
-
-            {reminders.length === 0 ? (
-              <div className="bg-slate-50 dark:bg-slate-900/30 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-8 text-center">
-                <Clock className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                  No timed study tasks at the moment.
-                </p>
-                <button
-                  onClick={onNavigateToNotes}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 mx-auto shadow-md"
-                >
-                  Create Study Task 
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 max-h-80 overflow-y-auto pr-1">
-                {reminders.map((rem) => (
-                  <div
-                    key={rem.id}
-                    className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${
-                      rem.completed
-                        ? 'bg-slate-50/50 dark:bg-slate-900/15 border-slate-100 dark:border-slate-800 opacity-60'
-                        : 'bg-indigo-50/30 dark:bg-indigo-950/10 border-indigo-100/60 dark:border-slate-700'
-                    }`}
+              {/* If active tab is all or system alerts */}
+              {activeTab !== 'reminders' && (
+                filteredNotifs.length === 0 ? (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={rem.completed}
-                        onChange={() => toggleReminderCompleted(rem.id)}
-                        className="w-4 h-4 text-indigo-600 border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 focus:ring-indigo-500 h-4 w-4"
-                      />
-                      <div className="min-w-0">
-                        <p className={`text-sm font-semibold truncate ${
-                          rem.completed ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-slate-700 dark:text-slate-200'
-                        }`}>
-                          {rem.task}
-                        </p>
-                        <span className="text-[10px] font-medium text-indigo-500 dark:text-indigo-400 flex items-center gap-1 mt-0.5">
-                          <Clock className="w-3 h-3 shrink-0" />
-                          {new Date(rem.dueTime).toLocaleString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
+                    <BellRing className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                    <h4 className="font-bold text-slate-700 dark:text-slate-300">Clean slate!</h4>
+                    <p className="text-slate-400 text-xs max-w-sm mx-auto mt-2">
+                      No notifications to show. Click {"Simulate Live Alert"} above to fire a sample updates log event!
+                    </p>
+                  </motion.div>
+                ) : (
+                  filteredNotifs.map((notif) => (
+                    <motion.div
+                      key={notif.id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      onClick={() => toggleReadStatus(notif.id)}
+                      className={`p-4 rounded-xl border cursor-pointer hover:shadow-sm transition-all flex gap-4 ${notif.read ? 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-100 dark:border-slate-850 opacity-75' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm border-l-4 border-l-primary-500'}`}
+                    >
+                      <div className={`p-2.5 h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                        notif.type === 'achievement' ? 'bg-amber-50 dark:bg-slate-700 text-amber-500' :
+                        notif.type === 'alert' ? 'bg-rose-50 dark:bg-slate-700 text-rose-500' :
+                        'bg-blue-50 dark:bg-slate-700 text-blue-500'
+                      }`}>
+                        {notif.type === 'achievement' ? <Sparkles className="w-5 h-5 animate-pulse" /> :
+                         notif.type === 'alert' ? <AlertCircle className="w-5 h-5" /> :
+                         <Bell className="w-5 h-5" />}
                       </div>
-                    </div>
-                    
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase transition-all ${
-                      rem.completed 
-                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400' 
-                        : 'bg-emerald-500 text-white animate-pulse'
-                    }`}>
-                      {rem.completed ? 'Done' : 'Active'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
-          {/* Notification Analytics Bar Chart */}
-          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-              <div>
-                <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                  <BarChartIcon className="w-5 h-5 text-emerald-500 animate-pulse" />
-                  Notification Frequency
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Notification and task reminder activity logs over the last 7 days
-                </p>
-              </div>
-              <div className="flex items-center gap-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-amber-500 inline-block"></span>
-                  <span>Study Reminders</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-indigo-500 inline-block"></span>
-                  <span>Exam Alerts</span>
-                </div>
-              </div>
-            </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <h4 className={`font-bold text-sm truncate ${notif.read ? 'text-slate-600 dark:text-slate-400' : 'text-slate-800 dark:text-white'}`}>
+                            {notif.title}
+                          </h4>
+                          <span className="text-[10px] text-slate-400 flex-shrink-0 font-medium">
+                            {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className={`text-xs ${notif.read ? 'text-slate-400 dark:text-slate-500' : 'text-slate-600 dark:text-slate-300'} leading-relaxed`}>
+                          {notif.message}
+                        </p>
+                      </div>
 
-            <div className="w-full h-64 select-none">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={generateChartData()} margin={{ top: 10, right: 10, left: -22, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" className="dark:stroke-slate-700" />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: 500 }}
-                  />
-                  <YAxis 
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: 500 }}
-                  />
-                  <Tooltip 
-                    cursor={{ fill: 'rgba(148, 163, 184, 0.05)', radius: 8 }}
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                      border: 'none',
-                      borderRadius: '12px',
-                      color: '#FFF',
-                      fontSize: '12px',
-                    }}
-                    itemStyle={{ color: '#F1F5F9' }}
-                    labelStyle={{ fontWeight: 'bold', color: '#F59E0B', marginBottom: '4px' }}
-                  />
-                  <Bar dataKey="Study Reminders" fill="#F59E0B" radius={[4, 4, 0, 0]} stackId="a" maxBarSize={28} />
-                  <Bar dataKey="Exam Alerts" fill="#6366F1" radius={[4, 4, 0, 0]} stackId="a" maxBarSize={28} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+                      <div className="flex flex-col justify-between items-end">
+                        <button
+                          onClick={(e) => deleteNotification(notif.id, e)}
+                          className="p-1 text-slate-400 hover:text-red-500 rounded-lg transition-colors"
+                          title="Delete notification"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        {!notif.read && (
+                          <div className="w-2 h-2 rounded-full bg-primary-500"></div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))
+                )
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
-        {/* Right 1 Column: Notification settings & permission */}
+        {/* Configurations Side Cards */}
         <div className="space-y-6">
-          {/* Real-time system permissions status card */}
-          <div className="bg-slate-900 dark:bg-slate-950 rounded-3xl p-6 text-white relative overflow-hidden shadow-xl shadow-slate-900/10">
-            <div className="relative z-10">
-              <h2 className="text-lg font-extrabold mb-2 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-amber-500" />
-                Browser Settings
-              </h2>
-              <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-                Allow desktop push notifications to get real-time audio and flash alerts for your registered study schedule.
-              </p>
-              
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-6">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold text-slate-300">Browser Authorization</span>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase ${
-                    permission === 'granted' 
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                      : permission === 'denied' 
-                        ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
-                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                  }`}>
-                    {permission}
-                  </span>
+          
+          {/* Settings Sync card */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700 shadow-sm">
+            <h3 className="font-extrabold text-slate-900 dark:text-white text-base mb-4 flex items-center gap-2">
+              <Settings className="w-4 h-4 text-primary-500" />
+              Notification Settings
+            </h3>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <label htmlFor="toggle-push-notifications" className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Push Notifications</label>
+                  <p className="text-[10px] text-slate-400 leading-tight">Enable real-time push alerts on this device</p>
                 </div>
-                <p className="text-[10px] text-slate-400">
-                  {permission === 'granted' 
-                    ? 'Successfully authorized active alert systems.' 
-                    : permission === 'denied' 
-                      ? 'Notifications are blocked. Please enable them in browser settings.' 
-                      : 'Not determined. Click button to authorize.'}
-                </p>
+                <input
+                  id="toggle-push-notifications"
+                  type="checkbox"
+                  checked={settings.notifications.push}
+                  onChange={() => handleToggleSetting('push')}
+                  className="w-10 h-5 bg-slate-200 rounded-full appearance-none cursor-pointer relative checked:bg-primary-600 before:content-[''] before:absolute before:h-4 before:w-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 before:transition-all checked:before:translate-x-5 shadow-inner"
+                />
               </div>
 
-              {permission !== 'granted' && (
+              <div className="flex items-center justify-between gap-4 border-t border-slate-50 dark:border-slate-700/50 pt-3">
+                <div>
+                  <label htmlFor="toggle-study-reminders" className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Study Reminders</label>
+                  <p className="text-[10px] text-slate-400 leading-tight">Notify about scheduled notes & routines</p>
+                </div>
+                <input
+                  id="toggle-study-reminders"
+                  type="checkbox"
+                  checked={settings.notifications.studyReminders}
+                  onChange={() => handleToggleSetting('studyReminders')}
+                  className="w-10 h-5 bg-slate-200 rounded-full appearance-none cursor-pointer relative checked:bg-primary-600 before:content-[''] before:absolute before:h-4 before:w-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 before:transition-all checked:before:translate-x-5 shadow-inner"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-4 border-t border-slate-50 dark:border-slate-700/50 pt-3">
+                <div>
+                  <label htmlFor="toggle-exam-alerts" className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Exam Alerts</label>
+                  <p className="text-[10px] text-slate-400 leading-tight">Important announcements & test periods</p>
+                </div>
+                <input
+                  id="toggle-exam-alerts"
+                  type="checkbox"
+                  checked={settings.notifications.examAlerts}
+                  onChange={() => handleToggleSetting('examAlerts')}
+                  className="w-10 h-5 bg-slate-200 rounded-full appearance-none cursor-pointer relative checked:bg-primary-600 before:content-[''] before:absolute before:h-4 before:w-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 before:transition-all checked:before:translate-x-5 shadow-inner"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-4 border-t border-slate-50 dark:border-slate-700/50 pt-3">
+                <div>
+                  <label htmlFor="toggle-ai-tips" className="text-xs font-bold text-slate-700 dark:text-slate-300 block">AI Smart Tips</label>
+                  <p className="text-[10px] text-slate-400 leading-tight">Daily personalized memory hints</p>
+                </div>
+                <input
+                  id="toggle-ai-tips"
+                  type="checkbox"
+                  checked={settings.notifications.aiTips}
+                  onChange={() => handleToggleSetting('aiTips')}
+                  className="w-10 h-5 bg-slate-200 rounded-full appearance-none cursor-pointer relative checked:bg-primary-600 before:content-[''] before:absolute before:h-4 before:w-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 before:transition-all checked:before:translate-x-5 shadow-inner"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Background Device Notifications Registration Card */}
+          <div className="bg-slate-50 dark:bg-slate-800/45 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/70 shadow-sm flex flex-col gap-4">
+            <h3 className="font-extrabold text-slate-900 dark:text-white text-base flex items-center gap-2">
+              <span className="text-lg">⚙️</span>
+              Background Device Setup
+            </h3>
+            
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              To receive instant study triggers on your computer or phone <strong className="text-slate-900 dark:text-slate-100">even when the website is closed</strong>, register this device to our persistent push server.
+            </p>
+
+            <div className="flex flex-col gap-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3.5 rounded-xl text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-500 dark:text-slate-400">Push-Manager Support:</span>
+                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider ${isPushAvailable ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'}`}>
+                  {isPushAvailable ? 'SUPPORTED' : 'UNSUPPORTED'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-800 pt-2 mt-1">
+                <span className="font-semibold text-slate-500 dark:text-slate-400">Your Device Connection:</span>
+                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider ${isSubscribed ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'}`}>
+                  {isSubscribed ? '🟢 REGISTERED & ACTIVE' : '🔴 NOT CONNECTED'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                disabled={pushLoading}
+                onClick={handleDeviceRegister}
+                className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-slate-950 font-bold py-2 px-4 rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer border border-primary-600 hover:border-primary-700"
+              >
+                {pushLoading ? (
+                  <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-slate-950 border-t-transparent"></span>
+                ) : isSubscribed ? (
+                  'Re-register Device / Update Sync'
+                ) : (
+                  'Register This Device Now'
+                )}
+              </button>
+
+              {isSubscribed && (
                 <button
-                  onClick={requestNotificationPermission}
-                  className="w-full py-3 bg-white text-slate-900 font-bold rounded-xl text-center hover:bg-slate-50 transition-colors shadow-lg active:scale-[0.98] text-xs flex items-center justify-center gap-2"
+                  disabled={testPushLoading}
+                  onClick={handleSendTestPush}
+                  className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 disabled:opacity-50 text-slate-700 dark:text-slate-200 font-bold py-2 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700"
                 >
-                  <Bell className="w-4 h-4 text-slate-900" />
-                  Request Permission
+                  {testPushLoading ? (
+                    <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-slate-700 dark:border-slate-200 border-t-transparent"></span>
+                  ) : (
+                    '⚡ Send Test Background Push'
+                  )}
                 </button>
               )}
             </div>
-
-            {/* Abstract ambient shapes */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500 opacity-10 rounded-full blur-3xl -mr-10 -mt-10"></div>
-          </div>
-
-          {/* Setting Preference Toggles */}
-          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-            <h2 className="text-base font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary-500" />
-              Preference Details
-            </h2>
-
-            <div className="space-y-4">
-              {[
-                { 
-                  id: 'studyReminders', 
-                  label: 'Study Reminders', 
-                  desc: 'Hourly & daily prompts to review agenda.'
-                },
-                { 
-                  id: 'examAlerts', 
-                  label: 'Exam & Test Alerts', 
-                  desc: 'Notifications of upcoming quiz deadlines.'
-                },
-                { 
-                  id: 'aiTips', 
-                  label: 'AI Tutor Quick Tips', 
-                  desc: 'Unclog memory tricks & study hacks.'
-                },
-                { 
-                  id: 'push', 
-                  label: 'Desktop Prompts', 
-                  desc: 'Sound signals and dynamic desktop pop-ups.'
-                }
-              ].map((item) => (
-                <div key={item.id} className="flex gap-3 justify-between items-start py-1.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200">
-                      {item.label}
-                    </p>
-                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5">
-                      {item.desc}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => handleSettingChange(item.id as any)}
-                    className={`relative shrink-0 inline-flex h-5 w-10 items-center rounded-full transition-all duration-300 focus:outline-none ${
-                      (settings.notifications as any)[item.id] 
-                        ? 'bg-primary-600' 
-                        : 'bg-slate-200 dark:bg-slate-700'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-300 ${
-                        (settings.notifications as any)[item.id] ? 'translate-x-5.5' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Quiet Hours Card */}
-          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <Moon className="w-5 h-5 text-indigo-500" />
-                Quiet Hours
-              </h2>
-              
-              <button
-                onClick={handleQuietHoursToggle}
-                className={`relative shrink-0 inline-flex h-5 w-10 items-center rounded-full transition-all duration-300 focus:outline-none ${
-                  quietEnabled 
-                    ? 'bg-amber-600' 
-                    : 'bg-slate-200 dark:bg-slate-700'
-                }`}
-              >
-                <span
-                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-300 ${
-                    quietEnabled ? 'translate-x-5.5' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
             
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
-              Silence all study alarms and alert reminders automatically during set hours.
-            </p>
-
-            {quietEnabled && (
-              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-2xl animate-in fade-in duration-200">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Start Time
-                  </label>
-                  <input
-                    type="time"
-                    value={quietStart}
-                    onChange={(e) => handleQuietStartChange(e.target.value)}
-                    className="w-full px-2 py-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    End Time
-                  </label>
-                  <input
-                    type="time"
-                    value={quietEnd}
-                    onChange={(e) => handleQuietEndChange(e.target.value)}
-                    className="w-full px-2 py-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  />
-                </div>
-              </div>
+            {isSubscribed && (
+              <p className="text-[10px] text-center italic text-amber-600 dark:text-amber-400">
+                ⭐ Test tip: Click the test button, then close your browser immediately to watch the push arrive!
+              </p>
             )}
           </div>
 
-          {/* Notification Sounds Card */}
-          <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-6 shadow-sm">
-            <h2 className="text-base font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-              <Volume2 className="w-5 h-5 text-amber-500" />
-              Alert Sounds
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
-              Customize distinct synthetic audio tones to easily separate your study prompts and test alerts.
+
+          {/* Quick Stats / Info Banner */}
+          <div className="bg-gradient-to-tr from-primary-600 to-primary-700 rounded-2xl p-6 text-white relative overflow-hidden shadow-md shadow-primary-500/10">
+            <h3 className="font-extrabold text-lg mb-2 relative z-10">Real-Time Sync Engine</h3>
+            <p className="text-primary-100 text-xs mb-4 leading-relaxed relative z-10">
+              System schedules and background reminders are verified live every 10 seconds. Your learning patterns are prioritized dynamically!
             </p>
-
-            <div className="space-y-4">
-              {/* Study Reminders Sound */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex justify-between items-center">
-                  <span>Study Reminders</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Sound type</span>
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    value={studySound}
-                    onChange={(e) => handleStudySoundChange(e.target.value)}
-                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  >
-                    <option value="bell">Classic Bell Tone</option>
-                    <option value="chime">Chime Ascent</option>
-                    <option value="digital">Digital Beep Beep</option>
-                    <option value="ping">Soft High Ping</option>
-                    <option value="gong">Resonant Gong</option>
-                  </select>
-                  <button
-                    onClick={() => playSynthSound(studySound)}
-                    className="p-1.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-colors shrink-0 text-amber-500"
-                    title="Preview Sound"
-                  >
-                    <Volume2 className="w-4 h-4" />
-                  </button>
-                </div>
+            <div className="flex gap-4 relative z-10">
+              <div className="flex-1 bg-white/10 backdrop-blur-sm p-3 rounded-xl border border-white/10">
+                <span className="text-[10px] font-bold text-primary-200 uppercase tracking-widest block">In Queue</span>
+                <span className="text-xl font-extrabold">{activeRemindersCount}</span>
               </div>
-
-              {/* Exam Alerts Sound */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex justify-between items-center">
-                  <span>Exam & Test Alerts</span>
-                  <span className="text-[10px] text-slate-400 font-normal">Sound type</span>
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    value={examSound}
-                    onChange={(e) => handleExamSoundChange(e.target.value)}
-                    className="flex-1 px-3 py-1.5 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  >
-                    <option value="laser">Sci-Fi Cyber Laser</option>
-                    <option value="warning">Emergency Sweeper</option>
-                    <option value="melody">Polite Short Melody</option>
-                    <option value="gong">Aura Deep Gong</option>
-                  </select>
-                  <button
-                    onClick={() => playSynthSound(examSound)}
-                    className="p-1.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-colors shrink-0 text-amber-500"
-                    title="Preview Sound"
-                  >
-                    <Volume2 className="w-4 h-4" />
-                  </button>
-                </div>
+              <div className="flex-1 bg-white/10 backdrop-blur-sm p-3 rounded-xl border border-white/10">
+                <span className="text-[10px] font-bold text-primary-200 uppercase tracking-widest block">Feed Health</span>
+                <span className="text-xl font-extrabold flex items-center gap-1">
+                  100%
+                </span>
               </div>
             </div>
+
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-[0.03] rounded-full -mr-10 -mt-10 blur-xl"></div>
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-slate-900 opacity-[0.05] rounded-full -ml-16 -mb-16 blur-2xl"></div>
           </div>
+
         </div>
+
       </div>
+
     </div>
   );
 };
-
-export default NotificationsView;
