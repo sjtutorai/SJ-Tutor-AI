@@ -34,9 +34,8 @@ async function* streamFetchHelper(responsePromise: Promise<Response>) {
             }
             yield parsed;
           } catch (e: any) {
-            if (e.message?.includes("GEMINI_API_KEY_MISSING")) {
-              throw e;
-            }
+            console.error("Stream reader parse error:", e);
+            throw e;
           }
         }
       }
