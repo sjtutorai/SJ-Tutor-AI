@@ -95,6 +95,7 @@ export interface UserSettings {
     answerFormat: 'Text Only' | 'Text + Examples' | 'Text + Code';
     followUp: boolean;
     memory: boolean;
+    customApiKey?: string;
   };
   chat: {
     autoSave: boolean;
@@ -174,6 +175,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     answerFormat: 'Text + Examples',
     followUp: true,
     memory: true,
+    customApiKey: '',
   },
   chat: {
     autoSave: true,

@@ -3,8 +3,9 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 const router = express.Router();
 
-const getAI = () => {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+const getAI = (req?: express.Request) => {
+  const customKey = req?.body?.settings?.aiTutor?.customApiKey || req?.body?.customApiKey;
+  const apiKey = customKey || process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY_MISSING: The Gemini API Key is missing on the server. Please check your settings.");
   }
@@ -17,6 +18,13 @@ const getAI = () => {
     }
   });
 };
+
+router.get("/key-check", (req, res) => {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  res.json({
+    hasServerKey: !!apiKey
+  });
+});
 
 async function streamToResponse(res: express.Response, responseGen: any) {
   res.setHeader("Content-Type", "text/event-stream");
@@ -41,7 +49,7 @@ async function streamToResponse(res: express.Response, responseGen: any) {
 router.post("/process-note", async (req, res) => {
   try {
     const { content, task, targetLang, settings } = req.body;
-    const ai = getAI();
+    const ai = getAI(req);
     const language = targetLang || settings.learning.language;
 
     const taskPrompts = {
@@ -69,7 +77,7 @@ router.post("/process-note", async (req, res) => {
 router.post("/generate-template", async (req, res) => {
   try {
     const { subject, chapter, templateType, settings } = req.body;
-    const ai = getAI();
+    const ai = getAI(req);
     const language = settings.learning.language;
 
     const prompt = `
@@ -102,7 +110,7 @@ router.post("/generate-template", async (req, res) => {
 router.post("/timetable", async (req, res) => {
   try {
     const { examDate, subjects, hoursPerDay, settings } = req.body;
-    const ai = getAI();
+    const ai = getAI(req);
     const language = settings.learning.language;
     const today = new Date().toDateString();
 
@@ -149,7 +157,7 @@ router.post("/timetable", async (req, res) => {
 router.post("/timetable-update", async (req, res) => {
   try {
     const { currentTimetable, instruction, settings } = req.body;
-    const ai = getAI();
+    const ai = getAI(req);
     const language = settings.learning.language;
 
     const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
@@ -195,7 +203,7 @@ router.post("/timetable-update", async (req, res) => {
 router.post("/validate-payment", async (req, res) => {
   try {
     const { imageBase64, planName, price } = req.body;
-    const ai = getAI();
+    const ai = getAI(req);
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
@@ -231,7 +239,7 @@ router.post("/validate-payment", async (req, res) => {
 router.post("/quiz", async (req, res) => {
   try {
     const { data, settings } = req.body;
-    const ai = getAI();
+    const ai = getAI(req);
     const language = data.language || settings.learning.language;
     const count = data.questionCount || 5;
     const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
@@ -283,7 +291,7 @@ router.post("/quiz", async (req, res) => {
 router.post("/summary-stream", async (req, res) => {
   try {
     const { data, settings } = req.body;
-    const ai = getAI();
+    const ai = getAI(req);
     const language = data.language || settings.learning.language;
 
     const prompt = `
@@ -320,7 +328,7 @@ router.post("/summary-stream", async (req, res) => {
 router.post("/solve-homework-stream", async (req, res) => {
   try {
     const { data, imagesBase64 = [], settings } = req.body;
-    const ai = getAI();
+    const ai = getAI(req);
     const language = data.language || settings.learning.language;
 
     const prompt = `
@@ -376,7 +384,7 @@ router.post("/solve-homework-stream", async (req, res) => {
 router.post("/chat-stream", async (req, res) => {
   try {
     const { messages = [], latestMessage, settings } = req.body;
-    const ai = getAI();
+    const ai = getAI(req);
     const language = settings.learning.language;
 
     const systemInstruction = `
