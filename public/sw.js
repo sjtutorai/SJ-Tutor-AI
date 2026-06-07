@@ -49,7 +49,10 @@ if (workbox) {
   // 3. Network first with fallback cache for key API configurations
   // Keeps profile/streak statistics fluid and instantly available on sluggish connections
   workbox.routing.registerRoute(
-    ({ url }) => url.pathname.startsWith('/api/') || url.hostname.includes('firestore'),
+    ({ url, request }) => 
+      request.method === 'GET' && 
+      !url.pathname.includes('-stream') &&
+      (url.pathname.startsWith('/api/') || url.hostname.includes('firestore')),
     new workbox.strategies.NetworkFirst({
       cacheName: CACHE_NAMES.apis,
       networkTimeoutSeconds: 3, // Fall back to cache after 3 seconds on slow connections
