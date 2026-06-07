@@ -24,7 +24,6 @@ import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebas
 import { StreakHubModal } from './components/StreakHubModal';
 import { DraggableStreakWidget } from './components/DraggableStreakWidget';
 import Logo from './components/Logo';
-import WeeklyGoalTracker from './components/WeeklyGoalTracker';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
 import { PushService } from './services/pushService';
@@ -1430,9 +1429,6 @@ const App: React.FC = () => {
             </button>
           ))}
         </div>
-
-        {/* Weekly Study Goal Progress Tracker */}
-        <WeeklyGoalTracker userId={user?.uid || null} />
 
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
            <h3 className="font-bold text-slate-800 dark:text-white mb-4">Quick Actions</h3>
