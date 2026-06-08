@@ -7,7 +7,7 @@ import { sendPasswordResetEmail, verifyBeforeUpdateEmail } from 'firebase/auth';
 import { 
   User, BookOpen, Bot, MessageSquare, Bell, Moon, Lock, 
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, ChevronDown, ChevronUp,
-  Save, LogOut, Trash2, Globe, Shield, Activity, Eye, EyeOff, Key, Type, Palette, Monitor, Zap,
+  Save, LogOut, Trash2, Globe, Shield, Activity, Eye, Type, Palette, Monitor, Zap,
   Volume2, Terminal, Crown, Check, AlertTriangle, Clock, Mail, FileText
 } from 'lucide-react';
 
@@ -36,16 +36,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   // Help Center State
   const [helpTab, setHelpTab] = useState<'FAQ' | 'TERMS'>('FAQ');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
-
-  const [hasServerKey, setHasServerKey] = useState<boolean | null>(null);
-  const [showApiKey, setShowApiKey] = useState(false);
-
-  useEffect(() => {
-    fetch('/api/gemini/key-check')
-      .then(res => res.json())
-      .then(data => setHasServerKey(!!data.hasServerKey))
-      .catch(() => setHasServerKey(false));
-  }, []);
 
   const handleSettingChange = (category: keyof UserSettings, field: string, value: any) => {
     setSettings(prev => ({
@@ -350,79 +340,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     <input type="checkbox" checked={settings.aiTutor.memory} onChange={(e) => handleSettingChange('aiTutor', 'memory', e.target.checked)} className="sr-only peer" />
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                  </label>
-              </div>
-
-              <div className="border-t border-slate-100 dark:border-slate-700 pt-6 mt-6 space-y-4">
-                 <div className="flex items-center gap-2">
-                    <Key className="w-5 h-5 text-primary-500" />
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-800 dark:text-white">Google Gemini API Credentials</h4>
-                      <p className="text-xs text-slate-400">View and manage your Gemini API Key connection</p>
-                    </div>
-                 </div>
-
-                 {/* Server Status Badge */}
-                 <div className="p-3.5 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-900/30 border-slate-100 dark:border-slate-800">
-                    <div className="space-y-1">
-                       <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 block uppercase tracking-wider">Connection Status</span>
-                       {settings.aiTutor.customApiKey ? (
-                          <div className="flex items-center gap-2">
-                             <div className="w-2.5 h-2.5 bg-violet-500 rounded-full animate-pulse shadow-sm shadow-violet-400"></div>
-                             <span className="text-xs font-bold text-violet-700 dark:text-violet-400">User Override Key Active</span>
-                          </div>
-                       ) : hasServerKey === true ? (
-                          <div className="flex items-center gap-2">
-                             <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-sm shadow-emerald-400"></div>
-                             <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 font-mono">System Default Key Active</span>
-                          </div>
-                       ) : hasServerKey === false ? (
-                          <div className="flex items-center gap-2">
-                             <div className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse shadow-sm shadow-rose-400"></div>
-                             <span className="text-xs font-bold text-rose-700 dark:text-rose-400 font-mono">No Environment Key Found</span>
-                          </div>
-                       ) : (
-                          <div className="flex items-center gap-2">
-                             <div className="w-2 h-2 bg-slate-400 rounded-full animate-ping"></div>
-                             <span className="text-xs text-slate-400">Querying platform environment...</span>
-                          </div>
-                       )}
-                    </div>
-                    <span className="text-[11px] text-slate-400 dark:text-slate-500 max-w-sm leading-relaxed">
-                       {settings.aiTutor.customApiKey 
-                          ? "Using your custom Google Gemini API Key. Happy learning!" 
-                          : hasServerKey === true 
-                             ? "You are connected via our secure server-side gateway. No custom key is required!" 
-                             : "Please insert a custom Google Gemini API Key below to activate smart AI tutoring."}
-                    </span>
-                 </div>
-
-                 {/* API Key Input */}
-                 <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center justify-between">
-                       <span>Custom API Key Override</span>
-                       <span className="text-[10px] text-slate-400 font-medium">(Optional • Saved locally on this device)</span>
-                    </label>
-                    <div className="relative">
-                       <input 
-                          type={showApiKey ? 'text' : 'password'} 
-                          placeholder={hasServerKey ? "Using secure server-side credential (not shown)..." : "AIxxxxxxxxxxx_xxxxxxxxxxxxxxxxxxxxxx"}
-                          value={settings.aiTutor.customApiKey || ''}
-                          onChange={(e) => handleSettingChange('aiTutor', 'customApiKey', e.target.value)}
-                          className="w-full pl-4 pr-10 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono select-all outline-none focus:ring-2 focus:ring-primary-500 leading-relaxed transition-all text-slate-800 dark:text-slate-200"
-                       />
-                       <button
-                          type="button"
-                          onClick={() => setShowApiKey(!showApiKey)}
-                          className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
-                          title={showApiKey ? "Hide Key" : "Show Key"}
-                       >
-                          {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                       </button>
-                    </div>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed">
-                       Get a free Google Gemini key from <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" className="text-primary-600 dark:text-primary-400 font-bold hover:underline">Google AI Studio</a>. Paste it above and click &quot;Save Changes&quot; at the bottom to apply.
-                    </p>
-                 </div>
               </div>
 
             </div>

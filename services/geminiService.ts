@@ -1,26 +1,12 @@
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate, ChatMessage } from "../types";
 import { SettingsService } from "./settingsService";
-import { ApiLogger } from "./apiLogger";
 
-async function* streamFetchHelper(responsePromise: Promise<Response>, endpoint: string, payload: any) {
-  let response: Response;
-  try {
-    response = await responsePromise;
-  } catch (err: any) {
-    ApiLogger.log(endpoint, 0, payload, err.message || "Network request failed");
-    throw err;
-  }
-
+async function* streamFetchHelper(responsePromise: Promise<Response>) {
+  const response = await responsePromise;
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
-    const errorMsg = errorBody.error || errorBody.message || `HTTP ${response.status}`;
-    ApiLogger.log(endpoint, response.status, payload, errorMsg);
-    throw new Error(errorMsg);
+    throw new Error(errorBody.error || errorBody.message || `HTTP ${response.status}`);
   }
-
-  // Log successful initiation
-  ApiLogger.log(endpoint, response.status, payload);
-
   const reader = response.body?.getReader();
   if (!reader) return;
   const decoder = new TextDecoder();
@@ -48,8 +34,9 @@ async function* streamFetchHelper(responsePromise: Promise<Response>, endpoint: 
             }
             yield parsed;
           } catch (e: any) {
-            console.error("Stream reader parse error:", e);
-            throw e;
+            if (e.message?.includes("GEMINI_API_KEY_MISSING")) {
+              throw e;
+            }
           }
         }
       }
@@ -65,29 +52,17 @@ export const GeminiService = {
    */
   processNoteAI: async (content: string, task: 'summarize' | 'simplify' | 'mcq' | 'translate', targetLang?: string) => {
     const settings = SettingsService.getSettings();
-    const endpoint = "/api/gemini/process-note";
-    const payload = { content, task, targetLang, settings };
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const errorMsg = err.error || `HTTP ${res.status}`;
-        ApiLogger.log(endpoint, res.status, payload, errorMsg);
-        throw new Error(errorMsg);
-      }
-      const data = await res.json();
-      ApiLogger.log(endpoint, res.status, payload);
-      return data.text;
-    } catch (err: any) {
-      if (!err.message || !err.message.includes("HTTP")) {
-        ApiLogger.log(endpoint, 0, payload, err.message);
-      }
-      throw err;
+    const res = await fetch("/api/gemini/process-note", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, task, targetLang, settings })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
     }
+    const data = await res.json();
+    return data.text;
   },
 
   /**
@@ -95,29 +70,17 @@ export const GeminiService = {
    */
   generateNoteTemplate: async (subject: string, chapter: string, templateType: NoteTemplate) => {
     const settings = SettingsService.getSettings();
-    const endpoint = "/api/gemini/generate-template";
-    const payload = { subject, chapter, templateType, settings };
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const errorMsg = err.error || `HTTP ${res.status}`;
-        ApiLogger.log(endpoint, res.status, payload, errorMsg);
-        throw new Error(errorMsg);
-      }
-      const data = await res.json();
-      ApiLogger.log(endpoint, res.status, payload);
-      return data.text;
-    } catch (err: any) {
-      if (!err.message || !err.message.includes("HTTP")) {
-        ApiLogger.log(endpoint, 0, payload, err.message);
-      }
-      throw err;
+    const res = await fetch("/api/gemini/generate-template", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subject, chapter, templateType, settings })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
     }
+    const data = await res.json();
+    return data.text;
   },
 
   /**
@@ -125,14 +88,12 @@ export const GeminiService = {
    */
   generateSummaryStream: async (data: StudyRequestData) => {
     const settings = SettingsService.getSettings();
-    const endpoint = "/api/gemini/summary-stream";
-    const payload = { data, settings };
-    const responsePromise = fetch(endpoint, {
+    const responsePromise = fetch("/api/gemini/summary-stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ data, settings })
     });
-    return streamFetchHelper(responsePromise, endpoint, payload);
+    return streamFetchHelper(responsePromise);
   },
 
   /**
@@ -140,14 +101,12 @@ export const GeminiService = {
    */
   solveHomeworkStream: async (data: StudyRequestData, imagesBase64: string[] = []) => {
     const settings = SettingsService.getSettings();
-    const endpoint = "/api/gemini/solve-homework-stream";
-    const payload = { data, imagesBase64, settings };
-    const responsePromise = fetch(endpoint, {
+    const responsePromise = fetch("/api/gemini/solve-homework-stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ data, imagesBase64, settings })
     });
-    return streamFetchHelper(responsePromise, endpoint, payload);
+    return streamFetchHelper(responsePromise);
   },
 
   /**
@@ -155,29 +114,16 @@ export const GeminiService = {
    */
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
     const settings = SettingsService.getSettings();
-    const endpoint = "/api/gemini/quiz";
-    const payload = { data, settings };
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const errorMsg = err.error || `HTTP ${res.status}`;
-        ApiLogger.log(endpoint, res.status, payload, errorMsg);
-        throw new Error(errorMsg);
-      }
-      const quizRes = await res.json();
-      ApiLogger.log(endpoint, res.status, payload);
-      return quizRes;
-    } catch (err: any) {
-      if (!err.message || !err.message.includes("HTTP")) {
-        ApiLogger.log(endpoint, 0, payload, err.message);
-      }
-      throw err;
+    const res = await fetch("/api/gemini/quiz", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data, settings })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
     }
+    return await res.json();
   },
 
   /**
@@ -185,29 +131,16 @@ export const GeminiService = {
    */
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
     const settings = SettingsService.getSettings();
-    const endpoint = "/api/gemini/timetable";
-    const payload = { examDate, subjects, hoursPerDay, settings };
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const errorMsg = err.error || `HTTP ${res.status}`;
-        ApiLogger.log(endpoint, res.status, payload, errorMsg);
-        throw new Error(errorMsg);
-      }
-      const ttRes = await res.json();
-      ApiLogger.log(endpoint, res.status, payload);
-      return ttRes;
-    } catch (err: any) {
-      if (!err.message || !err.message.includes("HTTP")) {
-        ApiLogger.log(endpoint, 0, payload, err.message);
-      }
-      throw err;
+    const res = await fetch("/api/gemini/timetable", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ examDate, subjects, hoursPerDay, settings })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
     }
+    return await res.json();
   },
 
   /**
@@ -215,29 +148,16 @@ export const GeminiService = {
    */
   updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
     const settings = SettingsService.getSettings();
-    const endpoint = "/api/gemini/timetable-update";
-    const payload = { currentTimetable, instruction, settings };
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const errorMsg = err.error || `HTTP ${res.status}`;
-        ApiLogger.log(endpoint, res.status, payload, errorMsg);
-        throw new Error(errorMsg);
-      }
-      const ttRes = await res.json();
-      ApiLogger.log(endpoint, res.status, payload);
-      return ttRes;
-    } catch (err: any) {
-      if (!err.message || !err.message.includes("HTTP")) {
-        ApiLogger.log(endpoint, 0, payload, err.message);
-      }
-      throw err;
+    const res = await fetch("/api/gemini/timetable-update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentTimetable, instruction, settings })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
     }
+    return await res.json();
   },
 
   /**
@@ -248,22 +168,21 @@ export const GeminiService = {
     return {
       sendMessageStream: async ({ message }: { message: string }) => {
         const settings = SettingsService.getSettings();
-        const endpoint = "/api/gemini/chat-stream";
-        const payload = {
-          messages: [...chatHistory],
-          latestMessage: message,
-          settings
-        };
-        const responsePromise = fetch(endpoint, {
+        // Request the stream from the server using the accumulated conversation history
+        const responsePromise = fetch("/api/gemini/chat-stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({
+            messages: [...chatHistory],
+            latestMessage: message,
+            settings
+          })
         });
 
         // Add user statement to history
         chatHistory.push({ role: 'user', text: message, timestamp: Date.now() });
 
-        const streamGen = streamFetchHelper(responsePromise, endpoint, payload);
+        const streamGen = streamFetchHelper(responsePromise);
         let fullAssistantText = '';
 
         async function* handleResponse() {
@@ -286,28 +205,15 @@ export const GeminiService = {
    * Validates a paid subscription screenshot.
    */
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
-    const endpoint = "/api/gemini/validate-payment";
-    const payload = { imageBase64, planName, price };
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const errorMsg = err.error || `HTTP ${res.status}`;
-        ApiLogger.log(endpoint, res.status, payload, errorMsg);
-        throw new Error(errorMsg);
-      }
-      const validateRes = await res.json();
-      ApiLogger.log(endpoint, res.status, payload);
-      return validateRes;
-    } catch (err: any) {
-      if (!err.message || !err.message.includes("HTTP")) {
-        ApiLogger.log(endpoint, 0, payload, err.message);
-      }
-      throw err;
+    const res = await fetch("/api/gemini/validate-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64, planName, price })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
     }
+    return await res.json();
   }
 };

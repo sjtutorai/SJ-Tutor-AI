@@ -23,8 +23,8 @@ import Tutorial from './components/Tutorial';
 import { saveProfileToFirestore, getProfileFromFirestore } from './utils/firebaseUtils';
 import { StreakHubModal } from './components/StreakHubModal';
 import { DraggableStreakWidget } from './components/DraggableStreakWidget';
-import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import Logo from './components/Logo';
+import WeeklyGoalTracker from './components/WeeklyGoalTracker';
 import { GeminiService } from './services/geminiService';
 import { SettingsService } from './services/settingsService';
 import { PushService } from './services/pushService';
@@ -60,8 +60,7 @@ import {
   BellRing,
   Flame,
   X,
-  CheckCircle2,
-  Terminal
+  CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GenerateContentResponse } from '@google/genai';
@@ -108,7 +107,6 @@ const App: React.FC = () => {
   });
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -510,26 +508,24 @@ const App: React.FC = () => {
         };
         localStorage.setItem('sjtutor_cached_user', JSON.stringify(cachedUser));
         setUser(currentUser);
-        // Direct authenticated users straight to DASHBOARD upon initial load
-        if (mode === AppMode.DASHBOARD || !mode) {
-          setMode(AppMode.DASHBOARD);
-        }
       } else {
-        // Correct session persistence: when firebase reports no session, clear cache and prompt login/guest
-        localStorage.removeItem('sjtutor_cached_user');
-        setUser(null);
-        setIsNewUser(false);
-        const savedGuest = localStorage.getItem('profile_guest');
-        if (savedGuest) {
-          try {
-            setUserProfile({ ...initialProfileState, ...JSON.parse(savedGuest) });
-          } catch (e) {
+        // Only trigger log out UI flow if there is indeed no cached session in localStorage either
+        const cached = localStorage.getItem('sjtutor_cached_user');
+        if (!cached) {
+          setUser(null);
+          setIsNewUser(false);
+          const savedGuest = localStorage.getItem('profile_guest');
+          if (savedGuest) {
+            try {
+              setUserProfile({ ...initialProfileState, ...JSON.parse(savedGuest) });
+            } catch (e) {
+              setUserProfile(initialProfileState);
+            }
+          } else {
             setUserProfile(initialProfileState);
           }
-        } else {
-          setUserProfile(initialProfileState);
+          setMode(AppMode.DASHBOARD);
         }
-        setMode(AppMode.DASHBOARD);
       }
       setAuthLoading(false);
       clearTimeout(timeoutId); 
@@ -538,19 +534,6 @@ const App: React.FC = () => {
       setAuthLoading(false); 
       clearTimeout(timeoutId);
     });
-
-    // Service Worker Registration for instant offline asset buffering
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then((registration) => {
-            console.log('Workbox ServiceWorker loaded on scope: ', registration.scope);
-          })
-          .catch((err) => {
-            console.warn('ServiceWorker registration deferred: ', err);
-          });
-      });
-    }
 
     return () => {
       unsubscribe();
@@ -1448,6 +1431,9 @@ const App: React.FC = () => {
           ))}
         </div>
 
+        {/* Weekly Study Goal Progress Tracker */}
+        <WeeklyGoalTracker userId={user?.uid || null} />
+
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
            <h3 className="font-bold text-slate-800 dark:text-white mb-4">Quick Actions</h3>
            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1522,18 +1508,9 @@ const App: React.FC = () => {
               lockGradeClass={!!(userProfile.dob && userProfile.grade)}
             />
             {error && (
-              <div className="bg-red-50 dark:bg-rose-950/20 text-red-600 dark:text-rose-400 p-4 rounded-lg mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in slide-in-from-top-2 border border-red-100 dark:border-rose-900/30">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <p className="text-sm font-medium">{error}</p>
-                </div>
-                <button
-                  onClick={() => setShowDiagnostics(true)}
-                  className="px-3 py-1.5 bg-red-100 hover:bg-red-200 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-red-700 dark:text-rose-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 self-start md:self-auto cursor-pointer"
-                >
-                  <Terminal className="w-3.5 h-3.5" />
-                  Inspect Error Logs
-                </button>
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
               </div>
             )}
             <button
@@ -1574,18 +1551,9 @@ const App: React.FC = () => {
               homeworkImages={essayImages}
             />
             {error && (
-              <div className="bg-red-50 dark:bg-rose-950/20 text-red-600 dark:text-rose-400 p-4 rounded-lg mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in slide-in-from-top-2 border border-red-100 dark:border-rose-900/30">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <p className="text-sm font-medium">{error}</p>
-                </div>
-                <button
-                  onClick={() => setShowDiagnostics(true)}
-                  className="px-3 py-1.5 bg-red-100 hover:bg-red-200 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-red-700 dark:text-rose-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 self-start md:self-auto cursor-pointer"
-                >
-                  <Terminal className="w-3.5 h-3.5" />
-                  Inspect Error Logs
-                </button>
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
               </div>
             )}
             <button
@@ -1626,18 +1594,9 @@ const App: React.FC = () => {
               homeworkImages={homeworkImages}
             />
             {error && (
-              <div className="bg-red-50 dark:bg-rose-950/20 text-red-600 dark:text-rose-400 p-4 rounded-lg mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in slide-in-from-top-2 border border-red-100 dark:border-rose-900/30">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <p className="text-sm font-medium">{error}</p>
-                </div>
-                <button
-                  onClick={() => setShowDiagnostics(true)}
-                  className="px-3 py-1.5 bg-red-100 hover:bg-red-200 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-red-700 dark:text-rose-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 self-start md:self-auto cursor-pointer"
-                >
-                  <Terminal className="w-3.5 h-3.5" />
-                  Inspect Error Logs
-                </button>
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
               </div>
             )}
             <button
@@ -1679,18 +1638,9 @@ const App: React.FC = () => {
               lockGradeClass={!!(userProfile.dob && userProfile.grade)}
             />
             {error && (
-              <div className="bg-red-50 dark:bg-rose-950/20 text-red-600 dark:text-rose-400 p-4 rounded-lg mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in slide-in-from-top-2 border border-red-100 dark:border-rose-900/30">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <p className="text-sm font-medium">{error}</p>
-                </div>
-                <button
-                  onClick={() => setShowDiagnostics(true)}
-                  className="px-3 py-1.5 bg-red-100 hover:bg-red-200 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-red-700 dark:text-rose-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 self-start md:self-auto cursor-pointer"
-                >
-                  <Terminal className="w-3.5 h-3.5" />
-                  Inspect Error Logs
-                </button>
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm">{error}</p>
               </div>
             )}
             <button
@@ -2060,14 +2010,6 @@ const App: React.FC = () => {
                 Upgrade Plan
               </button>
             )}
-
-            <button 
-              onClick={() => setShowDiagnostics(true)}
-              className="w-full py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Terminal className="w-3.5 h-3.5 text-primary-500" />
-              API Diagnostics
-            </button>
           </div>
         </div>
       </aside>
@@ -2386,30 +2328,6 @@ const App: React.FC = () => {
               <X className="w-4 h-4" />
             </button>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 4. API Diagnostics Overlay Side Panel */}
-      <AnimatePresence>
-        {showDiagnostics && (
-          <div className="fixed inset-0 z-[3000] flex justify-end overflow-hidden">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowDiagnostics(false)}
-              className="absolute inset-0 bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="relative w-full max-w-2xl h-screen bg-slate-50 dark:bg-slate-950 shadow-2xl flex flex-col z-10 border-l border-slate-200 dark:border-slate-800 animate-in slide-in-from-right-4 duration-300"
-            >
-              <DiagnosticsPanel onClose={() => setShowDiagnostics(false)} standalone />
-            </motion.div>
-          </div>
         )}
       </AnimatePresence>
     </div>

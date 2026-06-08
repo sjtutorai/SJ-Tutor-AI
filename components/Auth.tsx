@@ -214,46 +214,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
     }
   };
 
-  const handleInstantDemoLogin = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const randomId = Math.random().toString(36).substring(7);
-      const demoEmail = `student_${randomId}@sjtutor.ai`;
-      const demoPass = `SJTutorAI-Guest-${randomId}`;
-
-      const result = await createUserWithEmailAndPassword(auth, demoEmail, demoPass);
-      if (result.user) {
-        await updateProfile(result.user, { displayName: "AI Student Guest" });
-
-        const initialProfile: UserProfile = {
-          displayName: "AI Student Guest",
-          phoneNumber: "+91 9999999999",
-          institution: "SJ Demonstration Academy",
-          grade: "Class X",
-          bio: "Enthusiastic student exploring learning with AI.",
-          credits: 100,
-          planType: 'Free',
-          learningStyle: 'Visual',
-          learningGoal: 'Excellence in all academic goals'
-        };
-        localStorage.setItem(`profile_${result.user.uid}`, JSON.stringify(initialProfile));
-        await saveProfileToFirestore(result.user.uid, initialProfile);
-        
-        if (onSignUpSuccess) {
-          onSignUpSuccess(initialProfile);
-        } else {
-          onClose();
-        }
-      }
-    } catch (err: any) {
-      console.error("Instant Demo Login failed:", err);
-      setError(`Quick-access failed: ${err.message || 'Please try again.'}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleProviderSignIn = async (provider: any, providerName: string) => {
     setLoading(true);
     setError(null);
@@ -666,20 +626,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
                   <Fingerprint className="w-5 h-5 group-hover:scale-110 transition-transform" />
                   <span>Neural Access</span>
                   <span className="text-xs font-normal opacity-70 bg-white/20 px-2 py-0.5 rounded-full ml-1">Fast</span>
-                </>
-              )}
-            </button>
-
-            <button
-              onClick={handleInstantDemoLogin}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/25 hover:from-emerald-600 hover:to-teal-700 transition-all hover:-translate-y-0.5 group"
-            >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                <>
-                  <Sparkles className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                  <span>Instant Quick Start</span>
-                  <span className="text-xs font-normal opacity-70 bg-white/20 px-2 py-0.5 rounded-full ml-1">Demo Mode</span>
                 </>
               )}
             </button>

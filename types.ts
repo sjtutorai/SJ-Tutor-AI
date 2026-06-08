@@ -95,7 +95,6 @@ export interface UserSettings {
     answerFormat: 'Text Only' | 'Text + Examples' | 'Text + Code';
     followUp: boolean;
     memory: boolean;
-    customApiKey?: string;
   };
   chat: {
     autoSave: boolean;
@@ -175,7 +174,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
     answerFormat: 'Text + Examples',
     followUp: true,
     memory: true,
-    customApiKey: '',
   },
   chat: {
     autoSave: true,
@@ -202,14 +200,3 @@ export const DEFAULT_SETTINGS: UserSettings = {
 };
 
 export const SJTUTOR_AVATAR = "https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg";
-
-export interface ApiLogEntry {
-  id: string;
-  timestamp: number;
-  endpoint: string;
-  payload?: any;
-  status: number;
-  errorType: 'quota' | 'network' | 'server' | 'other' | 'success';
-  errorMessage?: string;
-}
-
