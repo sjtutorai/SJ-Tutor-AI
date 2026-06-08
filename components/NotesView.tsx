@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { NoteItem, ReminderItem, TimetableEntry, SJTUTOR_AVATAR, NoteStatus, NoteTemplate } from '../types';
 import { 
   Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, 
-  StickyNote, Bell, Edit3, Loader2, Edit, Share2, Folder, 
-  ChevronRight, Star, Tag, Book, Lightbulb, Languages, Download, MoreVertical,
+  StickyNote, Bell, Edit3, Loader2, Folder, 
+  ChevronRight, Star, Tag, Book, Lightbulb, Languages,
   CheckCircle2, Circle
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
@@ -34,10 +34,8 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [examDate, setExamDate] = useState('');
   const [examSubjects, setExamSubjects] = useState('');
-  const [studyHours, setStudyHours] = useState(4);
+  const [studyHours] = useState(4);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [showEditTimetable, setShowEditTimetable] = useState(false);
-  const [editInstruction, setEditInstruction] = useState('');
 
   // Load/Persist
   useEffect(() => {
@@ -76,7 +74,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
       setIsAiLoading(true);
       try {
         content = await GeminiService.generateNoteTemplate(subject, chapter, template) || '';
-      } catch (e) {
+      } catch {
         content = `# ${template} Notes\nStart writing here...`;
       } finally {
         setIsAiLoading(false);
@@ -125,7 +123,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
           content: `${editingNote.content}\n\n---\n### AI ${task.toUpperCase()}\n${result}`
         });
       }
-    } catch (e) {
+    } catch {
       alert("AI request failed. Please try again.");
     } finally {
       setIsAiLoading(false);
@@ -448,7 +446,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                       try {
                         const schedule = await GeminiService.generateStudyTimetable(examDate, examSubjects, studyHours);
                         if (schedule) setTimetable(schedule);
-                      } catch (e) { alert("Failed to generate."); } finally { setIsGenerating(false); }
+                      } catch { alert("Failed to generate."); } finally { setIsGenerating(false); }
                     }}
                     className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold shadow-lg"
                   >

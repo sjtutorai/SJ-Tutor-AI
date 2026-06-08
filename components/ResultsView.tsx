@@ -115,7 +115,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
               try {
                 await navigator.clipboard.writeText(fullContent);
                 alert('Share link copied to clipboard!');
-              } catch (err) {
+              } catch {
                 alert('Failed to copy content.');
               }
           }
@@ -137,7 +137,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
             try {
               await navigator.clipboard.writeText(shareUrl);
               alert("Share link copied to clipboard!");
-            } catch(e) {
+            } catch {
               alert("Failed to copy.");
             }
             return;

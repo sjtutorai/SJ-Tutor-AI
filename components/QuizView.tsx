@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { QuizQuestion, SJTUTOR_AVATAR } from '../types';
+import { QuizQuestion } from '../types';
 import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Send, MessageCircle, Link, Share2, X, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -79,12 +79,12 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
                 title: 'SJ Tutor AI Quiz Challenge',
                 text: text
             });
-        } catch (e) { console.log('Share canceled'); }
+        } catch { console.log('Share canceled'); }
     } else {
         try {
             await navigator.clipboard.writeText(text);
             alert('Quiz questions copied to clipboard!');
-        } catch (e) { alert('Failed to copy'); }
+        } catch { alert('Failed to copy'); }
     }
   };
 

@@ -65,7 +65,6 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isApiDisabled, setIsApiDisabled] = useState(false);
   const chatSessionRef = useRef<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -119,14 +118,14 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
     if (navigator.share) {
         try {
             await navigator.share(shareData);
-        } catch (err) {
+        } catch {
             console.log("Share canceled");
         }
     } else {
         try {
             await navigator.clipboard.writeText(shareData.text);
             alert("Chat transcript copied to clipboard!");
-        } catch (e) {
+        } catch {
             alert("Failed to copy chat.");
         }
     }
@@ -135,7 +134,6 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
   const sendMessageToAi = async (textToSend: string) => {
     if (!textToSend.trim() || !chatSessionRef.current) return;
     setError(null);
-    setIsApiDisabled(false);
 
     // Credit Deduction Logic: 1 credit per question
     const cost = 1;

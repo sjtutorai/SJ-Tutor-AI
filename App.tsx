@@ -177,10 +177,6 @@ const App: React.FC = () => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Shared Content State
-  const [sharedContent, setSharedContent] = useState<any>(null);
-  const [isViewingShared, setIsViewingShared] = useState(false);
-
   // Profile State
   const initialProfileState: UserProfile = {
     displayName: "",
@@ -275,7 +271,6 @@ const App: React.FC = () => {
         const storedReminders = localStorage.getItem(key);
         if (storedReminders) {
           const items = JSON.parse(storedReminders);
-          let hasNotified = false;
 
           items.forEach((item: any) => {
             if (!item.completed && item.dueTime) {
@@ -287,7 +282,6 @@ const App: React.FC = () => {
                     body: item.task,
                     icon: SJTUTOR_AVATAR,
                   });
-                  hasNotified = true;
                 } else if (Notification.permission !== "denied") {
                   Notification.requestPermission().then((permission) => {
                     if (permission === "granted") {
@@ -579,7 +573,7 @@ const App: React.FC = () => {
         if (Array.isArray(parsedHistory)) {
           setHistory(parsedHistory);
         }
-      } catch (e) {
+      } catch {
         setHistory([]);
       }
     } else {
@@ -1038,7 +1032,7 @@ const App: React.FC = () => {
         try {
           await navigator.clipboard.writeText(text);
           alert("Share link copied to clipboard!");
-        } catch (err) {
+        } catch {
           alert("Failed to copy content.");
         }
       }

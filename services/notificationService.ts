@@ -8,7 +8,6 @@ import {
   orderBy, 
   addDoc, 
   updateDoc, 
-  setDoc,
   serverTimestamp,
   deleteDoc
 } from 'firebase/firestore';
@@ -137,7 +136,7 @@ export class NotificationService {
             icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
           });
         }
-      } catch (e) {
+      } catch {
         new Notification(title, {
           body,
           icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
@@ -158,7 +157,7 @@ export class NotificationService {
     }
     try {
       return JSON.parse(stored);
-    } catch (e) {
+    } catch {
       return DEFAULT_NOTIFICATIONS;
     }
   }

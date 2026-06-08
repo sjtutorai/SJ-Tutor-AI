@@ -101,7 +101,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         initialLocal = SEED_NOTIFICATIONS;
         localStorage.setItem(storageKey, JSON.stringify(SEED_NOTIFICATIONS));
       }
-    } catch (e) {
+    } catch {
       initialLocal = SEED_NOTIFICATIONS;
     }
 
@@ -284,7 +284,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const docRef = doc(db, 'notifications', id);
         await updateDoc(docRef, { read: true });
       }
-    } catch (err) {
+    } catch {
       // Graceful fail
     }
   };

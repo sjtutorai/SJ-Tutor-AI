@@ -256,7 +256,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
         setResendStatus("New verification link sent!");
         setResendTimer(60);
         setTimeout(() => setResendStatus(null), 5000);
-      } catch (err: any) {
+      } catch {
         setError("Could not resend email. Please try again later.");
       }
     }
@@ -405,7 +405,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
       setResendTimer(60);
       setResendStatus("New OTP sent to your phone!");
       setTimeout(() => setResendStatus(null), 5000);
-    } catch (err) {
+    } catch {
       setError("Failed to resend OTP.");
     }
   };
