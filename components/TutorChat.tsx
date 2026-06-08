@@ -68,22 +68,11 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
   const [isApiDisabled, setIsApiDisabled] = useState(false);
   const chatSessionRef = useRef<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     if (!chatSessionRef.current) {
       chatSessionRef.current = GeminiService.createTutorChat();
     }
-    return () => {
-      // Cleanup recognition on unmount to prevent resource leak or browser mic indicator stuck
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {
-          // ignore
-        }
-      }
-    };
   }, []);
 
   useEffect(() => {
@@ -91,17 +80,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
   }, [messages]);
 
   const toggleVoiceInput = () => {
-    if (isListening) {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {
-          console.error("Speech stop failed:", e);
-        }
-      }
-      setIsListening(false);
-      return;
-    }
+    if (isListening) return;
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -110,35 +89,15 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
       recognition.interimResults = false;
       recognition.lang = 'en-US';
 
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
-      
+      recognition.onstart = () => setIsListening(true);
       recognition.onresult = (event: any) => {
-        if (event.results && event.results[0] && event.results[0][0]) {
-          const transcript = event.results[0][0].transcript;
-          setInput(prev => prev + (prev ? ' ' : '') + transcript);
-        }
+        const transcript = event.results[0][0].transcript;
+        setInput(prev => prev + (prev ? ' ' : '') + transcript);
       };
-
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error);
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-      try {
-        recognition.start();
-      } catch (err) {
-        console.error("Speech start failed:", err);
-        setIsListening(false);
-      }
+      recognition.onend = () => setIsListening(false);
+      recognition.start();
     } else {
-      alert("Voice input (Web Speech API) is not supported in this browser. Please try using Chrome or Safari.");
+      alert("Voice input is not supported in this browser.");
     }
   };
 

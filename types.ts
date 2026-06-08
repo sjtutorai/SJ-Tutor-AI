@@ -14,7 +14,7 @@ export enum AppMode {
   TIMER = 'TIMER',
   PRIVACY = 'PRIVACY',
   TERMS = 'TERMS',
-  NOTIFICATIONS = 'NOTIFICATIONS'
+  OFFERS = 'OFFERS'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
@@ -61,6 +61,7 @@ export interface UserProfile {
   phoneNumber: string;
   institution: string;
   grade?: string;
+  board?: string;
   bio: string;
   photoURL?: string;
   learningGoal?: string;
@@ -73,12 +74,6 @@ export interface UserProfile {
   state?: string;
   district?: string;
   claimedOffers?: number[];
-  streak?: number;
-  lastActivityDate?: string;
-  highestStreak?: number;
-  streakHistory?: string[];
-  streakWidgetX?: number;
-  streakWidgetY?: number;
 }
 
 export interface UserSettings {
