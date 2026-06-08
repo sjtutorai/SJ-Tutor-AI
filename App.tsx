@@ -135,7 +135,7 @@ const THEME_COLORS: Record<string, Record<string, string>> = {
 
 const App: React.FC = () => {
   // Notifications
-  const { unreadCount, requestPermission } = useNotifications();
+  const { unreadCount, requestPermission, sendNotification } = useNotifications();
 
   // Request notification permission on first visit
   useEffect(() => {
@@ -510,58 +510,73 @@ const App: React.FC = () => {
         localStorage.setItem(lastShownKey, now.toString());
       }
 
+      // SPEED OPTIMIZATION: Load locally stored profile from LocalStorage IMMEDIATELY
       const savedProfile = localStorage.getItem(`profile_${user.uid}`);
-
-      const loadProfile = async () => {
-        // Try local storage first for speed
-        let parsed = savedProfile ? JSON.parse(savedProfile) : null;
-
-        // Then try Firestore for cross-device persistence
-        const firestoreProfile = await getProfileFromFirestore(user.uid);
-        if (firestoreProfile) {
-          parsed = { ...parsed, ...firestoreProfile };
+      let cached: any = null;
+      if (savedProfile) {
+        try {
+          cached = JSON.parse(savedProfile);
+        } catch {
+          // Ignore parse errors
         }
+      }
 
-        if (parsed) {
-          const completeProfile = {
-            ...initialProfileState,
-            ...parsed,
-            displayName: parsed.displayName || user.displayName || "",
-            photoURL: parsed.photoURL || user.photoURL || "",
-          };
-          setUserProfile(completeProfile);
+      const initialProfile = {
+        ...initialProfileState,
+        credits: 100,
+        ...cached,
+        displayName: (cached && cached.displayName) || user.displayName || "",
+        photoURL: (cached && cached.photoURL) || user.photoURL || "",
+      };
 
-          // Sync back to local storage
-          localStorage.setItem(
-            `profile_${user.uid}`,
-            JSON.stringify(completeProfile),
-          );
+      // Set user profile instantly to avoid blocking or lagging perceived speed!
+      setUserProfile(initialProfile);
 
-          // Check for completion reminder
-          const completion = calculateProfileCompletion(completeProfile);
-          if (completion < 100) {
-            setTimeout(() => {
-              setShowCompletionReminder(true);
-            }, 2000);
+      // Check profile completion to trigger alerts/notifications (once per hour to avoid spamming)
+      const cachedCompletion = calculateProfileCompletion(initialProfile);
+      if (cachedCompletion < 100) {
+        setTimeout(() => {
+          setShowCompletionReminder(true);
+        }, 2000);
+
+        const profileNotifKey = `profile_notif_sent_${user.uid}`;
+        const lastSentProfileNotif = localStorage.getItem(profileNotifKey);
+        const oneHourMs = 60 * 60 * 1000;
+        if (!lastSentProfileNotif || now - parseInt(lastSentProfileNotif) > oneHourMs) {
+          sendNotification(
+            "Profile Incomplete 📋",
+            "Complete your learning profile details to unlock personalized recommendations, custom study tools, and claim 10 bonus credits!",
+            "Important Alerts",
+            user.uid
+          ).catch((e) => console.warn("Failed to send profile incomplete notification:", e));
+          localStorage.setItem(profileNotifKey, now.toString());
+        }
+      }
+
+      // Revalidate / Sync from Firestore in the background
+      const loadProfileFromDb = async () => {
+        try {
+          const firestoreProfile = await getProfileFromFirestore(user.uid);
+          if (firestoreProfile) {
+            const merged = {
+              ...initialProfileState,
+              credits: 100,
+              ...cached,
+              ...firestoreProfile,
+              displayName: firestoreProfile.displayName || (cached && cached.displayName) || user.displayName || "",
+              photoURL: firestoreProfile.photoURL || (cached && cached.photoURL) || user.photoURL || "",
+            };
+            setUserProfile(merged);
+            localStorage.setItem(`profile_${user.uid}`, JSON.stringify(merged));
           }
-        } else {
-          const initial = {
-            ...initialProfileState,
-            displayName: user.displayName || "",
-            photoURL: user.photoURL || "",
-            credits: 100,
-          };
-          setUserProfile(initial);
-          const completion = calculateProfileCompletion(initial);
-          if (completion < 100) {
-            setShowCompletionReminder(true);
-          }
+        } catch (err) {
+          console.warn("Background profile sync failed:", err);
         }
       };
 
-      loadProfile();
+      loadProfileFromDb();
     }
-  }, [user]);
+  }, [user, sendNotification]);
 
   // History Persistence
   useEffect(() => {
@@ -864,6 +879,12 @@ const App: React.FC = () => {
         }
         addToHistory(AppMode.SUMMARY, text);
         deductCredit(cost);
+        sendNotification(
+          "Summary Ready 📝",
+          `Your comprehensive AI study summary and key concepts list for "${formData.subject || 'your chosen topic'}" is ready! Double-down on your revisions now.`,
+          "Important Alerts",
+          user?.uid || "all"
+        ).catch(() => {});
       } else if (mode === AppMode.ESSAY) {
         setEssayContent("");
         const stream = await GeminiService.solveHomeworkStream(
@@ -881,6 +902,12 @@ const App: React.FC = () => {
         }
         addToHistory(AppMode.ESSAY, text);
         deductCredit(cost);
+        sendNotification(
+          "Essay Grade Ready 🖋️",
+          `Your written essay evaluation and grammar feedback on "${formData.subject || 'your chosen topic'}" is ready to review. Check it out!`,
+          "Important Alerts",
+          user?.uid || "all"
+        ).catch(() => {});
       } else if (mode === AppMode.HOMEWORK) {
         setHomeworkContent("");
         const stream = await GeminiService.solveHomeworkStream(
@@ -899,12 +926,24 @@ const App: React.FC = () => {
 
         addToHistory(AppMode.HOMEWORK, text);
         deductCredit(cost);
+        sendNotification(
+          "Homework Solved 📚",
+          `Your detailed step-by-step key insights and explanation for "${formData.subject || 'your chosen topic'}" are ready! Check out the homework section.`,
+          "Important Alerts",
+          user?.uid || "all"
+        ).catch(() => {});
       } else if (mode === AppMode.QUIZ) {
         setQuizData(null);
         const questions = await GeminiService.generateQuiz(formData);
         setQuizData(questions);
         addToHistory(AppMode.QUIZ, questions);
         deductCredit(cost);
+        sendNotification(
+          "Quiz Generated 🧠",
+          `Your custom quiz challenge for "${formData.subject || 'your topic'}" is ready! Test your knowledge and score high.`,
+          "Quiz Updates",
+          user?.uid || "all"
+        ).catch(() => {});
       }
     } catch (err: any) {
       console.error(err);
@@ -1695,7 +1734,7 @@ const App: React.FC = () => {
       case AppMode.NOTIFICATIONS:
         return (
           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <NotificationsView userProfile={userProfile} />
+            <NotificationsView />
           </div>
         );
 

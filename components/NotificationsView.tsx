@@ -1,16 +1,10 @@
 import React, { useState } from 'react';
 import { 
   Bell, Sparkles, Flame, Brain, Trophy, AlertTriangle, 
-  Check, Trash2, Send, ShieldAlert, CheckCircle2, Info, 
-  Smartphone, SlidersHorizontal
+  Check, Trash2, Info, Smartphone, SlidersHorizontal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNotifications, NotificationCategory } from './NotificationContext';
-import { UserProfile } from '../types';
-
-interface NotificationsViewProps {
-  userProfile: UserProfile;
-}
 
 const CATEGORY_STYLES: Record<NotificationCategory, {
   icon: React.ReactNode;
@@ -56,7 +50,7 @@ const CATEGORY_STYLES: Record<NotificationCategory, {
   },
 };
 
-const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfile }) => {
+const NotificationsView: React.FC = () => {
   const { 
     notifications, 
     unreadCount, 
@@ -64,49 +58,16 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfile }) =>
     requestPermission, 
     markAsRead, 
     markAllAsRead, 
-    clearNotifications,
-    sendNotification,
-    isAdminUser
+    clearNotifications
   } = useNotifications();
 
   // Filter Tabs
   const [activeFilter, setActiveFilter] = useState<'All' | NotificationCategory>('All');
-  
-  // Admin form state
-  const [adminTitle, setAdminTitle] = useState('');
-  const [adminBody, setAdminBody] = useState('');
-  const [adminCategory, setAdminCategory] = useState<NotificationCategory>('New Features');
-  const [adminTarget, setAdminTarget] = useState<'all' | 'self'>('all');
-  const [adminStatus, setAdminStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   const filteredNotifications = notifications.filter(n => {
     if (activeFilter === 'All') return true;
     return n.category === activeFilter;
   });
-
-  const handleAdminSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!adminTitle || !adminBody) return;
-
-    try {
-      const targetId = adminTarget === 'self' && userProfile ? 'self_test' : 'all'; 
-      const success = await sendNotification(adminTitle, adminBody, adminCategory, targetId);
-      
-      if (success) {
-        setAdminStatus('success');
-        setAdminTitle('');
-        setAdminBody('');
-        setTimeout(() => setAdminStatus('idle'), 4000);
-      } else {
-        setAdminStatus('error');
-        setTimeout(() => setAdminStatus('idle'), 4000);
-      }
-    } catch (error) {
-      console.error("Failed to dispatcher announcement", error);
-      setAdminStatus('error');
-      setTimeout(() => setAdminStatus('idle'), 4000);
-    }
-  };
 
   const categories: ('All' | NotificationCategory)[] = [
     'All',
@@ -325,116 +286,6 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ userProfile }) =>
               </div>
             </div>
           </div>
-
-          {/* Admin panel (ONLY shown to sjtutorai@gmail.com) */}
-          {isAdminUser && (
-            <div className="bg-gradient-to-br from-indigo-50/50 to-white dark:from-slate-900/60 dark:to-slate-800 border-2 border-indigo-200 dark:border-indigo-900/50 p-6 rounded-2xl shadow-md">
-              <div className="flex items-center gap-2.5 mb-4 border-b border-indigo-100 dark:border-indigo-900/50 pb-3">
-                <ShieldAlert className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-                <div>
-                  <h3 className="font-black text-indigo-950 dark:text-white text-base">Admin Dispatch Studio</h3>
-                  <p className="text-[10px] text-indigo-500 dark:text-indigo-400 font-semibold tracking-wider uppercase">System Broadcast Authority</p>
-                </div>
-              </div>
-
-              <form onSubmit={handleAdminSend} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Notification Title
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={adminTitle}
-                    onChange={(e) => setAdminTitle(e.target.value)}
-                    placeholder="e.g., Surprise 100 Credit Drop! 🎁"
-                    className="w-full text-sm px-3 py-2 border rounded-xl bg-white dark:bg-slate-800 dark:border-slate-700 border-slate-200 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Notification Description
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={adminBody}
-                    onChange={(e) => setAdminBody(e.target.value)}
-                    placeholder="Provide description which pops up as a push notification..."
-                    className="w-full text-sm px-3 py-2 border rounded-xl bg-white dark:bg-slate-800 dark:border-slate-700 border-slate-200 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Category
-                    </label>
-                    <select
-                      value={adminCategory}
-                      onChange={(e) => setAdminCategory(e.target.value as NotificationCategory)}
-                      className="w-full text-xs p-2 border rounded-xl bg-white dark:bg-slate-800 dark:border-slate-700 border-slate-200 outline-none focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="New Features">New Features</option>
-                      <option value="Daily Streak Reminders">Daily Streak</option>
-                      <option value="Quiz Updates">Quiz Updates</option>
-                      <option value="Competition Announcements">Competitions</option>
-                      <option value="Important Alerts">Alerts</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                      Audience
-                    </label>
-                    <select
-                      value={adminTarget}
-                      onChange={(e) => setAdminTarget(e.target.value as 'all' | 'self')}
-                      className="w-full text-xs p-2 border rounded-xl bg-white dark:bg-slate-800 dark:border-slate-700 border-slate-200 outline-none focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="all">Broadcast (All Users)</option>
-                      <option value="self">Test Push (Self Only)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full mt-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 active:scale-[0.98] flex items-center justify-center gap-2 text-sm"
-                >
-                  <Send className="w-4 h-4" />
-                  Dispatch Push Alert
-                </button>
-              </form>
-
-              {/* Status messages */}
-              <AnimatePresence>
-                {adminStatus === 'success' && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-3 p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-xl flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 font-bold"
-                  >
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                    <span>Notification broadcasted & dispatched successfully!</span>
-                  </motion.div>
-                )}
-                {adminStatus === 'error' && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-3 p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-xl flex items-center gap-2 text-xs text-rose-800 dark:text-rose-300 font-bold"
-                  >
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
-                    <span>Broadcast error, failed to post to Cloud database.</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
 
         </div>
       </div>
