@@ -14,7 +14,7 @@ export enum AppMode {
   TIMER = 'TIMER',
   PRIVACY = 'PRIVACY',
   TERMS = 'TERMS',
-  OFFERS = 'OFFERS'
+  NOTIFICATIONS = 'NOTIFICATIONS'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';

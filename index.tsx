@@ -2,6 +2,7 @@
 import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { NotificationProvider } from './components/NotificationContext';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -65,7 +66,9 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      <NotificationProvider>
+        <App />
+      </NotificationProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );
