@@ -206,8 +206,6 @@ const App: React.FC = () => {
   const [summaryContent, setSummaryContent] = useState("");
   const [homeworkContent, setHomeworkContent] = useState("");
   const [homeworkImages, setHomeworkImages] = useState<string[]>([]);
-  const [essayContent, setEssayContent] = useState("");
-  const [essayImages, setEssayImages] = useState<string[]>([]);
   const [quizData, setQuizData] = useState<QuizQuestion[] | null>(null);
   const [existingQuizScore, setExistingQuizScore] = useState<
     number | undefined
@@ -327,10 +325,7 @@ const App: React.FC = () => {
             if (item.type === AppMode.SUMMARY) {
               setSummaryContent(item.content);
               setMode(AppMode.SUMMARY);
-            } else if (item.type === AppMode.ESSAY) {
-              setEssayContent(item.content);
-              setMode(AppMode.ESSAY);
-            } else if (item.type === AppMode.HOMEWORK) {
+            } else if (item.type === AppMode.ESSAY || item.type === AppMode.HOMEWORK) {
               setHomeworkContent(item.content);
               setMode(AppMode.HOMEWORK);
             } else if (item.type === AppMode.QUIZ) {
@@ -885,29 +880,6 @@ const App: React.FC = () => {
           "Important Alerts",
           user?.uid || "all"
         ).catch(() => {});
-      } else if (mode === AppMode.ESSAY) {
-        setEssayContent("");
-        const stream = await GeminiService.solveHomeworkStream(
-          formData,
-          essayImages,
-        );
-
-        let text = "";
-        for await (const chunk of stream) {
-          const c = chunk as GenerateContentResponse;
-          if (c.text) {
-            text += c.text;
-            setEssayContent(text);
-          }
-        }
-        addToHistory(AppMode.ESSAY, text);
-        deductCredit(cost);
-        sendNotification(
-          "Essay Grade Ready 🖋️",
-          `Your written essay evaluation and grammar feedback on "${formData.subject || 'your chosen topic'}" is ready to review. Check it out!`,
-          "Important Alerts",
-          user?.uid || "all"
-        ).catch(() => {});
       } else if (mode === AppMode.HOMEWORK) {
         setHomeworkContent("");
         const stream = await GeminiService.solveHomeworkStream(
@@ -985,10 +957,7 @@ const App: React.FC = () => {
     if (item.type === AppMode.SUMMARY) {
       setSummaryContent(item.content);
       setMode(AppMode.SUMMARY);
-    } else if (item.type === AppMode.ESSAY) {
-      setEssayContent(item.content);
-      setMode(AppMode.ESSAY);
-    } else if (item.type === AppMode.HOMEWORK) {
+    } else if (item.type === AppMode.ESSAY || item.type === AppMode.HOMEWORK) {
       setHomeworkContent(item.content);
       setMode(AppMode.HOMEWORK);
     } else if (item.type === AppMode.QUIZ) {
@@ -1095,9 +1064,8 @@ const App: React.FC = () => {
     { id: AppMode.DASHBOARD, label: "Dashboard", icon: LayoutDashboard },
     { id: AppMode.ID_CARD, label: "Student ID Card", icon: CreditCard },
     { id: AppMode.SUMMARY, label: "Instant Summary", icon: FileText },
-    { id: AppMode.ESSAY, label: "Home work writer", icon: BookOpen },
     { id: AppMode.QUIZ, label: "Quiz Creator", icon: BrainCircuit },
-    { id: AppMode.HOMEWORK, label: "Photo Scan Solver", icon: CameraIcon },
+    { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TUTOR, label: "AI Tutor", icon: MessageCircle },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
@@ -1149,14 +1117,6 @@ const App: React.FC = () => {
         bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
       },
       {
-        id: AppMode.ESSAY,
-        label: "Essays",
-        count: stats.essays,
-        icon: BookOpen,
-        color: "text-emerald-700 dark:text-emerald-400",
-        bg: "bg-[#FDF5E6] dark:bg-emerald-900/30",
-      },
-      {
         id: AppMode.QUIZ,
         label: "Quizzes",
         count: stats.quizzes,
@@ -1167,8 +1127,8 @@ const App: React.FC = () => {
       {
         id: AppMode.HOMEWORK,
         label: "Homework Solutions",
-        count: stats.homeworks,
-        icon: CameraIcon,
+        count: stats.homeworks + stats.essays,
+        icon: BookOpen,
         color: "text-amber-600 dark:text-amber-500",
         bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
       },
@@ -1408,11 +1368,11 @@ const App: React.FC = () => {
               New Summary
             </button>
             <button
-              onClick={() => navigateToMode(AppMode.ESSAY)}
+              onClick={() => navigateToMode(AppMode.HOMEWORK)}
               className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900"
             >
               <BookOpen className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
-              HW Writer
+              Homework Solver
             </button>
             <button
               onClick={() => navigateToMode(AppMode.QUIZ)}
@@ -1420,13 +1380,6 @@ const App: React.FC = () => {
             >
               <BrainCircuit className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               New Quiz
-            </button>
-            <button
-              onClick={() => navigateToMode(AppMode.HOMEWORK)}
-              className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-blue-100 dark:hover:border-blue-900"
-            >
-              <CameraIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              Solve HW
             </button>
             <button
               onClick={() => navigateToMode(AppMode.TUTOR)}
@@ -1501,49 +1454,6 @@ const App: React.FC = () => {
             >
               <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
               Generate Summary
-            </button>
-          </div>
-        );
-
-      case AppMode.ESSAY:
-        if (essayContent) {
-          return (
-            <ResultsView
-              title={formData.chapterName}
-              content={essayContent}
-              type="Homework Solution"
-              isLoading={false}
-              onBack={() => {
-                setEssayContent("");
-                setEssayImages([]);
-                setCurrentHistoryId(null);
-              }}
-            />
-          );
-        }
-        return (
-          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <InputForm
-              data={formData}
-              mode={AppMode.HOMEWORK} // Use homework mode UI for the new Home Work Writer
-              onChange={handleFormChange}
-              onFillSample={handleFillSample}
-              lockGradeClass={!!(userProfile.dob && userProfile.grade)}
-              onImagesUpload={setEssayImages}
-              homeworkImages={essayImages}
-            />
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
-              </div>
-            )}
-            <button
-              onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
-            >
-              <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
-              Solve Homework
             </button>
           </div>
         );

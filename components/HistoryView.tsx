@@ -9,8 +9,7 @@ import {
   Search, 
   Trash2, 
   Filter,
-  Clock,
-  Camera
+  Clock
 } from 'lucide-react';
 
 interface HistoryViewProps {
@@ -24,7 +23,9 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onLoadItem, onDelete
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredHistory = history.filter(item => {
-    const matchesFilter = filter === 'ALL' || item.type === filter;
+    const matchesFilter = filter === 'ALL' || 
+                          item.type === filter || 
+                          (filter === AppMode.HOMEWORK && item.type === AppMode.ESSAY);
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           item.subtitle.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesFilter && matchesSearch;
@@ -34,7 +35,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onLoadItem, onDelete
     switch (type) {
       case AppMode.QUIZ: return <BrainCircuit className="w-5 h-5" />;
       case AppMode.SUMMARY: return <FileText className="w-5 h-5" />;
-      case AppMode.HOMEWORK: return <Camera className="w-5 h-5" />;
+      case AppMode.HOMEWORK: return <BookOpen className="w-5 h-5" />;
       case AppMode.ESSAY: return <BookOpen className="w-5 h-5" />;
       case AppMode.TUTOR: return <MessageCircle className="w-5 h-5" />;
       default: return <Clock className="w-5 h-5" />;
@@ -86,9 +87,8 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onLoadItem, onDelete
             >
               <option value="ALL">All Items</option>
               <option value={AppMode.SUMMARY}>Summaries</option>
-              <option value={AppMode.HOMEWORK}>Homeworks</option>
+              <option value={AppMode.HOMEWORK}>Homework Solver</option>
               <option value={AppMode.QUIZ}>Quizzes</option>
-              <option value={AppMode.ESSAY}>Essays</option>
               <option value={AppMode.TUTOR}>Chats</option>
             </select>
           </div>

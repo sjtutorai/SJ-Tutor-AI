@@ -24,17 +24,12 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
       "Drafting explanations...",
       "Calibrating difficulty..."
     ],
-    [AppMode.ESSAY]: [
-      "Brainstorming thesis...",
-      "Structuring arguments...",
-      "Drafting body paragraphs...",
-      "Polishing conclusion..."
-    ],
     [AppMode.HOMEWORK]: [
-      "Analyzing problem photos...",
-      "Extracting text from images...",
-      "Calculating solutions...",
-      "Formatting step-by-step guide..."
+      "Brainstorming thesis & structuring logic...",
+      "Analyzing problem photos, text, or query...",
+      "Extracting text and identifying concepts...",
+      "Drafting step-by-step calculations and guide...",
+      "Polishing content and finalized conclusion..."
     ],
     [AppMode.NOTES]: [
       "Analyzing exam date...",
