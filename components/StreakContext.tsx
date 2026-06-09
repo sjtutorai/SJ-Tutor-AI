@@ -121,42 +121,16 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const data = doc.data();
         entries.push({
           uid: doc.id,
-          displayName: data.displayName || 'Learner',
+          displayName: data.displayName || 'Anonymous Student',
           photoURL: data.photoURL || '',
           currentStreak: data.currentStreak || 0,
           highestStreak: data.highestStreak || 0,
         });
       });
 
-      // Fetch documents from users collection to merge any additional active accounts
-      const finalEntries = [...entries];
-      if (entries.length < 5) {
-        try {
-          const userSnap = await getDocs(collection(db, 'users'));
-          userSnap.forEach((userDoc) => {
-            const userData = userDoc.data();
-            const exists = entries.some(e => e.uid === userDoc.id);
-            if (!exists) {
-              finalEntries.push({
-                uid: userDoc.id,
-                displayName: userData.displayName || 'Active Student',
-                photoURL: userData.photoURL || '',
-                currentStreak: 0,
-                highestStreak: 1,
-              });
-            }
-          });
-        } catch (err) {
-          console.warn('Failed to fetch user profiles for leaderboard merging:', err);
-        }
-      }
-
-      // Eliminate duplicates and sort by highest streak
-      const uniqueEntries = Array.from(new Map(finalEntries.map(e => [e.uid, e])).values());
-      uniqueEntries.sort((a, b) => b.highestStreak - a.highestStreak);
-
-      if (uniqueEntries.length > 0) {
-        setLeaderboard(uniqueEntries);
+      // Filter and sort dual ranking robustness
+      if (entries.length > 0) {
+        setLeaderboard(entries);
       } else {
         // Fallback leaderboard simulation for offline/guest
         setLeaderboard([
@@ -208,16 +182,7 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             let currentStr = data.currentStreak || 0;
             const lastDate = data.lastActivityDate;
 
-            // 24 Hour check for active users to increment streak count dynamically
-            const loggedIn24hCheck = data.updatedAt && (Date.now() - data.updatedAt >= 24 * 60 * 60 * 1000);
-            if (loggedIn24hCheck) {
-              currentStr += 1;
-              if (data.streakHistory && !data.streakHistory.includes(today)) {
-                data.streakHistory.push(today);
-              }
-            }
-
-            if (lastDate && lastDate !== today && lastDate !== yesterday && !loggedIn24hCheck) {
+            if (lastDate && lastDate !== today && lastDate !== yesterday) {
               // Missed streak resetting current count but keeping historical records
               currentStr = 0;
             }
@@ -294,48 +259,6 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     fetchLeaderboard();
   }, [currentUserId, fetchLeaderboard]);
-
-  // Periodic automatic 24-hours logged in background check to increase streak by one
-  useEffect(() => {
-    if (!currentUserId || currentUserId === 'guest') return;
-
-    const interval = setInterval(() => {
-      setStreak((prev) => {
-        if (prev.uid === 'guest') return prev;
-        const diff = Date.now() - prev.updatedAt;
-        if (diff >= 24 * 60 * 60 * 1000) {
-          const today = getLocalDateString();
-          const newCount = prev.currentStreak + 1;
-          const newHighest = Math.max(prev.highestStreak, newCount);
-          const history = [...prev.streakHistory];
-          if (!history.includes(today)) {
-            history.push(today);
-          }
-
-          const updated: StreakData = {
-            ...prev,
-            currentStreak: newCount,
-            highestStreak: newHighest,
-            updatedAt: Date.now(),
-            streakHistory: history,
-          };
-
-          // Save locally
-          localStorage.setItem(`sjtutor_streak_${prev.uid}`, JSON.stringify(updated));
-          // Push to firestore
-          const userDocRef = doc(db, 'streaks', prev.uid);
-          setDoc(userDocRef, updated, { merge: true }).catch((err) => {
-            console.warn('Background 24h streak Firestore sync failed:', err);
-          });
-
-          return updated;
-        }
-        return prev;
-      });
-    }, 60000); // Check every 60 seconds
-
-    return () => clearInterval(interval);
-  }, [currentUserId]);
 
   // Record an activity completion
   const recordActivity = useCallback(async () => {
@@ -423,13 +346,11 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return false;
     }
 
-    // Add exclusive academic emblem to user profile instead of credits
-    const currentEmblems = userProfile.emblems || [];
-    const emblemToAdd = `${milestone.badge} ${milestone.label}`;
-    const updatedEmblems = currentEmblems.includes(emblemToAdd) ? currentEmblems : [...currentEmblems, emblemToAdd];
+    // Add credits to student profile
+    const updatedCredits = userProfile.credits + milestone.reward;
     const updatedProfile: UserProfile = {
       ...userProfile,
-      emblems: updatedEmblems,
+      credits: updatedCredits,
     };
 
     onProfileUpdate(updatedProfile);
@@ -438,8 +359,8 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem(`profile_${streak.uid}`, JSON.stringify(updatedProfile));
     if (streak.uid !== 'guest') {
       const userProfileRef = doc(db, 'users', streak.uid);
-      setDoc(userProfileRef, { emblems: updatedEmblems }, { merge: true }).catch((err) => {
-        console.warn('Failed to sync claimed milestone emblem to users doc:', err);
+      setDoc(userProfileRef, { credits: updatedCredits }, { merge: true }).catch((err) => {
+        console.warn('Failed to sync claimed milestone credits to users doc:', err);
       });
     }
 

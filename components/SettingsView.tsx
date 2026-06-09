@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { UserProfile, UserSettings, SJTUTOR_AVATAR } from '../types';
 import { SettingsService } from '../services/settingsService';
-import { calculateProfileCompletion } from '../utils/profileUtils';
 import { auth } from '../firebaseConfig';
 import { sendPasswordResetEmail, verifyBeforeUpdateEmail } from 'firebase/auth';
 import { 
@@ -39,10 +38,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   const handleSettingChange = (category: keyof UserSettings, field: string, value: any) => {
-    const completion = calculateProfileCompletion(userProfile);
-    if (completion < 100) {
-      return;
-    }
     setSettings(prev => ({
       ...prev,
       [category]: {
@@ -884,39 +879,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-4 md:p-8 relative bg-white dark:bg-slate-900">
-         {(() => {
-           const completion = calculateProfileCompletion(userProfile);
-           const isProfileComplete = completion >= 100;
-           const isPublicTab = activeTab === 'help' || activeTab === 'account';
-           
-           return (
-             <>
-               {!isProfileComplete && !isPublicTab && (
-                 <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-                   <div className="flex gap-3">
-                     <span className="text-2xl mt-0.5">🔒</span>
-                     <div>
-                       <h4 className="font-bold text-amber-800 dark:text-amber-300 text-sm">Settings Customization Locked</h4>
-                       <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
-                         Your profile is currently <span className="font-bold">{completion}% complete</span>. Please complete your profile (100%) in the Profile tab to unlock settings customization. Incomplete profiles prevent personalized AI updates.
-                       </p>
-                     </div>
-                   </div>
-                   <button
-                     onClick={onNavigateToProfile}
-                     className="bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all self-start whitespace-nowrap"
-                   >
-                     Complete Profile Now
-                   </button>
-                 </div>
-               )}
-               
-               <div className={!isProfileComplete && !isPublicTab ? "pointer-events-none opacity-60" : ""}>
-                 {renderContent()}
-               </div>
-             </>
-           );
-         })()}
+         {renderContent()}
 
          {/* Floating Save Bar */}
          {hasChanges && (

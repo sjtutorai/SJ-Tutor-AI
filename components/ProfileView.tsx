@@ -418,19 +418,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                  </div>
                </div>
                
-               {formData.emblems && formData.emblems.length > 0 && (
-                 <div className="w-full border-t border-slate-100 pt-3 mt-3 text-left">
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Unlocked Emblems</p>
-                   <div className="flex flex-wrap gap-1.5">
-                     {formData.emblems.map((emb, idx) => (
-                       <span key={idx} className="text-[11px] bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 px-2 py-0.5 rounded-xl border border-violet-100 dark:border-violet-900/60 font-semibold flex items-center gap-1" title={emb}>
-                         {emb}
-                       </span>
-                     ))}
-                   </div>
-                 </div>
-               )}
-               
             </div>
 
             {!isOnboarding && !isEditing ? (
@@ -601,17 +588,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                      <GraduationCap className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
                      <input
                       type="text"
-                      disabled={true}
+                      disabled={!isEditing}
                       value={formData.grade || ''}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 rounded-xl outline-none transition-all opacity-80 text-slate-900 dark:text-slate-100 cursor-not-allowed"
+                      onChange={(e) => handleInputChange('grade', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
                       placeholder="e.g. 10th Grade"
                     />
                   </div>
-                  {isEditing && (
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium px-1 mt-1">
-                      Grade cannot be altered directly. Please update your <strong>Date of Birth</strong> to calculate your Academic Grade.
-                    </p>
-                  )}
                 </div>
 
                 <div className="space-y-2">

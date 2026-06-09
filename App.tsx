@@ -16,7 +16,6 @@ import QuizView from "./components/QuizView";
 import TutorChat from "./components/TutorChat";
 import ProfileView from "./components/ProfileView";
 import Auth from "./components/Auth";
-import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
 import LoadingState from "./components/LoadingState";
 import NotesView from "./components/NotesView";
@@ -207,9 +206,6 @@ const App: React.FC = () => {
     "OVERVIEW",
   );
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
-  const [sharedContent, setSharedContent] = useState<any | null>(null);
-  const [isViewingShared, setIsViewingShared] = useState(false);
-  const [isAddedSharedContent, setIsAddedSharedContent] = useState(false);
 
   // Content States
   const [summaryContent, setSummaryContent] = useState("");
@@ -321,7 +317,6 @@ const App: React.FC = () => {
     if (shareId) {
       const fetchShared = async () => {
         setAuthLoading(true);
-        setIsAddedSharedContent(false);
         try {
           const response = await fetch(`/api/auth/share/${shareId}`);
           const data = await response.json();
@@ -539,8 +534,7 @@ const App: React.FC = () => {
 
       // Check profile completion to trigger alerts/notifications (once per hour to avoid spamming)
       const cachedCompletion = calculateProfileCompletion(initialProfile);
-      const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
-      if (cachedCompletion < 100 && !isDismissedPrompt) {
+      if (cachedCompletion < 100) {
         setTimeout(() => {
           setShowCompletionReminder(true);
         }, 2000);
@@ -620,18 +614,8 @@ const App: React.FC = () => {
     };
 
     loadAndSyncHistory();
-
-    // Setup 30-seconds sync timer to seamlessly match history across devices
-    let syncInterval: NodeJS.Timeout | null = null;
-    if (user) {
-      syncInterval = setInterval(() => {
-        loadAndSyncHistory();
-      }, 30000);
-    }
-
     return () => {
       active = false;
-      if (syncInterval) clearInterval(syncInterval);
     };
   }, [user]);
 
@@ -1469,32 +1453,6 @@ const App: React.FC = () => {
     );
   };
 
-  const handleAddSharedToMyList = async () => {
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
-    if (!sharedContent) return;
-
-    const newItem: HistoryItem = {
-      id: "shared-" + sharedContent.id + "-" + Date.now(),
-      type: sharedContent.type,
-      title: sharedContent.title,
-      subtitle: sharedContent.subtitle || `${sharedContent.type} Shared with you`,
-      timestamp: Date.now(),
-      content: sharedContent.content,
-    };
-
-    const success = await saveHistoryItemToFirestore(user.uid, newItem);
-    if (success) {
-      setHistory(prev => [newItem, ...prev]);
-      setIsAddedSharedContent(true);
-      alert("Successfully added to your Study History & Dashboard List!");
-    } else {
-      alert("Failed to save. Please make sure you are signed in and online.");
-    }
-  };
-
   const renderContent = () => {
     if (loading) return <LoadingState mode={mode} />;
 
@@ -1530,12 +1488,7 @@ const App: React.FC = () => {
               onBack={() => {
                 setSummaryContent("");
                 setCurrentHistoryId(null);
-                setIsViewingShared(false);
-                setSharedContent(null);
               }}
-              isViewingShared={isViewingShared}
-              onAddToMyList={handleAddSharedToMyList}
-              isAddedToList={isAddedSharedContent}
             />
           );
         }
@@ -1576,12 +1529,7 @@ const App: React.FC = () => {
                 setHomeworkContent("");
                 setHomeworkImages([]);
                 setCurrentHistoryId(null);
-                setIsViewingShared(false);
-                setSharedContent(null);
               }}
-              isViewingShared={isViewingShared}
-              onAddToMyList={handleAddSharedToMyList}
-              isAddedToList={isAddedSharedContent}
             />
           );
         }
@@ -1626,14 +1574,9 @@ const App: React.FC = () => {
                 setQuizData(null);
                 setExistingQuizScore(undefined);
                 setCurrentHistoryId(null);
-                setIsViewingShared(false);
-                setSharedContent(null);
               }}
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
-              isViewingShared={isViewingShared}
-              onAddToMyList={handleAddSharedToMyList}
-              isAddedToList={isAddedSharedContent}
             />
           );
         }
@@ -1817,23 +1760,7 @@ const App: React.FC = () => {
             </button>
           </header>
           <main className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
-            {isViewingShared && sharedContent ? (
-              <SharedLockScreen
-                type={sharedContent.type === AppMode.SUMMARY ? 'Summary' : sharedContent.type === AppMode.QUIZ ? 'Interactive Quiz' : 'Homework Solution'}
-                title={sharedContent.title}
-                subtitle={sharedContent.subtitle || 'AI Generated Study Guide'}
-                teaser={
-                  typeof sharedContent.content === 'string'
-                    ? sharedContent.content.substring(0, 160) + '...'
-                    : Array.isArray(sharedContent.content)
-                    ? `This interactive practice quiz contains ${sharedContent.content.length} tailored challenges on ${sharedContent.title}.`
-                    : 'Personalized interactive study prep.'
-                }
-                onAuthenticate={() => setShowAuthModal(true)}
-              />
-            ) : (
-              renderContent()
-            )}
+            {renderContent()}
           </main>
           {showAuthModal && (
             <Auth
@@ -2288,9 +2215,6 @@ const App: React.FC = () => {
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => {
-                      if (user) {
-                        localStorage.setItem(`profile_reminder_dismissed_${user.uid}`, "true");
-                      }
                       setMode(AppMode.PROFILE);
                       setShowCompletionReminder(false);
                     }}
@@ -2300,12 +2224,7 @@ const App: React.FC = () => {
                     <ChevronRight className="w-5 h-5" />
                   </button>
                   <button
-                    onClick={() => {
-                      if (user) {
-                        localStorage.setItem(`profile_reminder_dismissed_${user.uid}`, "true");
-                      }
-                      setShowCompletionReminder(false);
-                    }}
+                    onClick={() => setShowCompletionReminder(false)}
                     className="w-full py-3 text-slate-400 dark:text-slate-500 font-medium hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                   >
                     Maybe later
