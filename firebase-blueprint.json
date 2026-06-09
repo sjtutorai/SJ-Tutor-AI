@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with academic settings and details",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "institution": { "type": "string" },
+        "grade": { "type": "string" },
+        "board": { "type": "string" },
+        "bio": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "learningGoal": { "type": "string" },
+        "learningStyle": { "type": "string" },
+        "credits": { "type": "number" },
+        "planType": { "type": "string" },
+        "claimedOffers": { "type": "array" }
+      },
+      "required": ["credits"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User specific push or pull notifications",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "read": { "type": "boolean" },
+        "targetUserId": { "type": "string" }
+      },
+      "required": ["title", "body", "timestamp", "read"]
+    },
+    "GlobalNotification": {
+      "title": "GlobalNotification",
+      "description": "Broadcast notifications for all users",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["title", "body", "timestamp"]
+    },
+    "Streak": {
+      "title": "StreakData",
+      "description": "Duolingo-style daily learning streak records",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "currentStreak": { "type": "number" },
+        "highestStreak": { "type": "number" },
+        "lastActivityDate": { "type": "string" },
+        "streakHistory": { "type": "array" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["uid", "currentStreak", "highestStreak", "lastActivityDate", "streakHistory", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores individual user profile and setting details"
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User specific notification records"
+    },
+    "/global_notifications/{notificationId}": {
+      "schema": "GlobalNotification",
+      "description": "System-wide broadcast alerts"
+    },
+    "/streaks/{userId}": {
+      "schema": "Streak",
+      "description": "Stores user daily sequence progress and stats"
+    }
+  }
+}

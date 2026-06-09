@@ -30,6 +30,8 @@ import NotificationsView from "./components/NotificationsView";
 import { useNotifications } from "./components/NotificationContext";
 import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
+import { useStreak } from "./components/StreakContext";
+import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
 import {
   saveProfileToFirestore,
   getProfileFromFirestore,
@@ -136,6 +138,7 @@ const THEME_COLORS: Record<string, Record<string, string>> = {
 const App: React.FC = () => {
   // Notifications
   const { unreadCount, requestPermission, sendNotification } = useNotifications();
+  const { recordActivity } = useStreak();
 
   // Request notification permission on first visit
   useEffect(() => {
@@ -353,7 +356,7 @@ const App: React.FC = () => {
       };
       fetchShared();
     }
-  }, [setSummaryContent, setEssayContent, setQuizData, setMode, setFormData]);
+  }, [setSummaryContent, setHomeworkContent, setQuizData, setMode, setFormData]);
 
   // Sync formData language with settings whenever settings change
   useEffect(() => {
@@ -738,6 +741,17 @@ const App: React.FC = () => {
     };
     setHistory((prev) => [newItem, ...prev]);
     setCurrentHistoryId(newId);
+
+    // Record learning activity sequence progress
+    recordActivity().then((res) => {
+      if (res.success && res.incremented) {
+        if (res.milestoneReached) {
+          setTimeout(() => {
+            alert(`🎉 STREAK MILESTONE REACHED! 🎉\n\nYou have completed ${res.milestoneReached} consecutive learning days on SJ Tutor AI!\n\nOpen the Streak Widget on your screen to claim your Reward in learning credits!`);
+          }, 1500);
+        }
+      }
+    });
   };
 
   const handleQuizComplete = (score: number) => {
@@ -750,6 +764,17 @@ const App: React.FC = () => {
           item.id === currentHistoryId ? { ...item, score } : item,
         ),
       );
+
+      // Record active quiz completion sequence
+      recordActivity().then((res) => {
+        if (res.success && res.incremented) {
+          if (res.milestoneReached) {
+            setTimeout(() => {
+              alert(`🎉 STREAK MILESTONE REACHED! 🎉\n\nYou have completed ${res.milestoneReached} consecutive learning days on SJ Tutor AI!\n\nOpen the Streak Widget on your screen to claim your Reward in learning credits!`);
+            }, 1500);
+          }
+        }
+      });
 
       // Calculate rewards
       const qCount = (historyItem.content as QuizQuestion[]).length;
@@ -2053,6 +2078,11 @@ const App: React.FC = () => {
           onPaymentSuccess={handlePaymentSuccess}
         />
       )}
+
+      <FloatingStreakWidget
+        userProfile={userProfile}
+        onProfileUpdate={handleProfileSave}
+      />
 
       <AnimatePresence>
         {showTutorial && <Tutorial onClose={handleTutorialClose} />}

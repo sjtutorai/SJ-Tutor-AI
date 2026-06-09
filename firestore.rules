@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) && isValidId(userId);
+    }
+
+    // Notifications subcollection
+    match /users/{userId}/notifications/{notificationId} {
+      allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(notificationId);
+    }
+
+    // Global notifications
+    match /global_notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow write: if false; // System only
+    }
+
+    // Streaks collection (allow reading list/documents for Leaderboard, owner writes only)
+    match /streaks/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId) && isValidId(userId);
+      allow delete: if false; // Streak data shouldn't be deleted by client
+    }
+  }
+}
