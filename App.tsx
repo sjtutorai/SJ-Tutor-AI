@@ -16,6 +16,7 @@ import QuizView from "./components/QuizView";
 import TutorChat from "./components/TutorChat";
 import ProfileView from "./components/ProfileView";
 import Auth from "./components/Auth";
+import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
 import LoadingState from "./components/LoadingState";
 import NotesView from "./components/NotesView";
@@ -35,6 +36,8 @@ import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
 import {
   saveProfileToFirestore,
   getProfileFromFirestore,
+  saveHistoryItemToFirestore,
+  syncHistoryWithFirestore,
 } from "./utils/firebaseUtils";
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
@@ -204,6 +207,9 @@ const App: React.FC = () => {
     "OVERVIEW",
   );
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
+  const [sharedContent, setSharedContent] = useState<any | null>(null);
+  const [isViewingShared, setIsViewingShared] = useState(false);
+  const [isAddedSharedContent, setIsAddedSharedContent] = useState(false);
 
   // Content States
   const [summaryContent, setSummaryContent] = useState("");
@@ -315,6 +321,7 @@ const App: React.FC = () => {
     if (shareId) {
       const fetchShared = async () => {
         setAuthLoading(true);
+        setIsAddedSharedContent(false);
         try {
           const response = await fetch(`/api/auth/share/${shareId}`);
           const data = await response.json();
@@ -532,7 +539,8 @@ const App: React.FC = () => {
 
       // Check profile completion to trigger alerts/notifications (once per hour to avoid spamming)
       const cachedCompletion = calculateProfileCompletion(initialProfile);
-      if (cachedCompletion < 100) {
+      const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
+      if (cachedCompletion < 100 && !isDismissedPrompt) {
         setTimeout(() => {
           setShowCompletionReminder(true);
         }, 2000);
@@ -576,22 +584,55 @@ const App: React.FC = () => {
     }
   }, [user, sendNotification]);
 
-  // History Persistence
+  // History Persistence and Database Synchronization
   useEffect(() => {
-    const storageKey = user ? `history_${user.uid}` : "history_guest";
-    const savedHistory = localStorage.getItem(storageKey);
-    if (savedHistory) {
-      try {
-        const parsedHistory = JSON.parse(savedHistory);
-        if (Array.isArray(parsedHistory)) {
-          setHistory(parsedHistory);
+    let active = true;
+    const loadAndSyncHistory = async () => {
+      const storageKey = user ? `history_${user.uid}` : "history_guest";
+      const savedHistory = localStorage.getItem(storageKey);
+      let initialHistory: HistoryItem[] = [];
+      if (savedHistory) {
+        try {
+          const parsedHistory = JSON.parse(savedHistory);
+          if (Array.isArray(parsedHistory)) {
+            initialHistory = parsedHistory;
+          }
+        } catch {
+          initialHistory = [];
         }
-      } catch {
-        setHistory([]);
       }
-    } else {
-      setHistory([]);
+
+      if (user) {
+        try {
+          // Sync with Firestore, merging both local and remote items
+          const syncedHistory = await syncHistoryWithFirestore(user.uid, initialHistory);
+          if (active) {
+            setHistory(syncedHistory);
+            localStorage.setItem(`history_${user.uid}`, JSON.stringify(syncedHistory));
+          }
+        } catch (err) {
+          console.warn("Firestore history sync failed, fallback to local:", err);
+          if (active) setHistory(initialHistory);
+        }
+      } else {
+        if (active) setHistory(initialHistory);
+      }
+    };
+
+    loadAndSyncHistory();
+
+    // Setup 30-seconds sync timer to seamlessly match history across devices
+    let syncInterval: NodeJS.Timeout | null = null;
+    if (user) {
+      syncInterval = setInterval(() => {
+        loadAndSyncHistory();
+      }, 30000);
     }
+
+    return () => {
+      active = false;
+      if (syncInterval) clearInterval(syncInterval);
+    };
   }, [user]);
 
   useEffect(() => {
@@ -742,6 +783,10 @@ const App: React.FC = () => {
     setHistory((prev) => [newItem, ...prev]);
     setCurrentHistoryId(newId);
 
+    if (user) {
+      saveHistoryItemToFirestore(user.uid, newItem);
+    }
+
     // Record learning activity sequence progress
     recordActivity().then((res) => {
       if (res.success && res.incremented) {
@@ -759,11 +804,16 @@ const App: React.FC = () => {
       const historyItem = history.find((item) => item.id === currentHistoryId);
       if (!historyItem) return;
 
+      const updatedItem = { ...historyItem, score };
       setHistory((prev) =>
         prev.map((item) =>
-          item.id === currentHistoryId ? { ...item, score } : item,
+          item.id === currentHistoryId ? updatedItem : item,
         ),
       );
+
+      if (user) {
+        saveHistoryItemToFirestore(user.uid, updatedItem);
+      }
 
       // Record active quiz completion sequence
       recordActivity().then((res) => {
@@ -1419,6 +1469,32 @@ const App: React.FC = () => {
     );
   };
 
+  const handleAddSharedToMyList = async () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (!sharedContent) return;
+
+    const newItem: HistoryItem = {
+      id: "shared-" + sharedContent.id + "-" + Date.now(),
+      type: sharedContent.type,
+      title: sharedContent.title,
+      subtitle: sharedContent.subtitle || `${sharedContent.type} Shared with you`,
+      timestamp: Date.now(),
+      content: sharedContent.content,
+    };
+
+    const success = await saveHistoryItemToFirestore(user.uid, newItem);
+    if (success) {
+      setHistory(prev => [newItem, ...prev]);
+      setIsAddedSharedContent(true);
+      alert("Successfully added to your Study History & Dashboard List!");
+    } else {
+      alert("Failed to save. Please make sure you are signed in and online.");
+    }
+  };
+
   const renderContent = () => {
     if (loading) return <LoadingState mode={mode} />;
 
@@ -1454,7 +1530,12 @@ const App: React.FC = () => {
               onBack={() => {
                 setSummaryContent("");
                 setCurrentHistoryId(null);
+                setIsViewingShared(false);
+                setSharedContent(null);
               }}
+              isViewingShared={isViewingShared}
+              onAddToMyList={handleAddSharedToMyList}
+              isAddedToList={isAddedSharedContent}
             />
           );
         }
@@ -1495,7 +1576,12 @@ const App: React.FC = () => {
                 setHomeworkContent("");
                 setHomeworkImages([]);
                 setCurrentHistoryId(null);
+                setIsViewingShared(false);
+                setSharedContent(null);
               }}
+              isViewingShared={isViewingShared}
+              onAddToMyList={handleAddSharedToMyList}
+              isAddedToList={isAddedSharedContent}
             />
           );
         }
@@ -1540,9 +1626,14 @@ const App: React.FC = () => {
                 setQuizData(null);
                 setExistingQuizScore(undefined);
                 setCurrentHistoryId(null);
+                setIsViewingShared(false);
+                setSharedContent(null);
               }}
               onComplete={handleQuizComplete}
               existingScore={existingQuizScore}
+              isViewingShared={isViewingShared}
+              onAddToMyList={handleAddSharedToMyList}
+              isAddedToList={isAddedSharedContent}
             />
           );
         }
@@ -1588,13 +1679,17 @@ const App: React.FC = () => {
                       h.id === currentHistoryId && h.type === AppMode.TUTOR,
                   );
                   if (existing) {
+                    const updatedItem = { ...existing, content: tutorItemContent };
                     setHistory((prev) =>
                       prev.map((h) =>
                         h.id === existing.id
-                          ? { ...h, content: tutorItemContent }
+                          ? updatedItem
                           : h,
                       ),
                     );
+                    if (user) {
+                      saveHistoryItemToFirestore(user.uid, updatedItem);
+                    }
                   } else {
                     addToHistory(AppMode.TUTOR, tutorItemContent);
                   }
@@ -1722,7 +1817,23 @@ const App: React.FC = () => {
             </button>
           </header>
           <main className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
-            {renderContent()}
+            {isViewingShared && sharedContent ? (
+              <SharedLockScreen
+                type={sharedContent.type === AppMode.SUMMARY ? 'Summary' : sharedContent.type === AppMode.QUIZ ? 'Interactive Quiz' : 'Homework Solution'}
+                title={sharedContent.title}
+                subtitle={sharedContent.subtitle || 'AI Generated Study Guide'}
+                teaser={
+                  typeof sharedContent.content === 'string'
+                    ? sharedContent.content.substring(0, 160) + '...'
+                    : Array.isArray(sharedContent.content)
+                    ? `This interactive practice quiz contains ${sharedContent.content.length} tailored challenges on ${sharedContent.title}.`
+                    : 'Personalized interactive study prep.'
+                }
+                onAuthenticate={() => setShowAuthModal(true)}
+              />
+            ) : (
+              renderContent()
+            )}
           </main>
           {showAuthModal && (
             <Auth
@@ -2177,6 +2288,9 @@ const App: React.FC = () => {
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => {
+                      if (user) {
+                        localStorage.setItem(`profile_reminder_dismissed_${user.uid}`, "true");
+                      }
                       setMode(AppMode.PROFILE);
                       setShowCompletionReminder(false);
                     }}
@@ -2186,7 +2300,12 @@ const App: React.FC = () => {
                     <ChevronRight className="w-5 h-5" />
                   </button>
                   <button
-                    onClick={() => setShowCompletionReminder(false)}
+                    onClick={() => {
+                      if (user) {
+                        localStorage.setItem(`profile_reminder_dismissed_${user.uid}`, "true");
+                      }
+                      setShowCompletionReminder(false);
+                    }}
                     className="w-full py-3 text-slate-400 dark:text-slate-500 font-medium hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                   >
                     Maybe later

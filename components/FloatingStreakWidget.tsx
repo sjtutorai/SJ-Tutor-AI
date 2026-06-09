@@ -331,9 +331,9 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                                 </p>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <span className="text-xs font-black text-amber-500 bg-amber-500/10 px-2 py-1 rounded-lg">
-                                +{m.reward} Credits
+                            <div className="text-right flex flex-col items-end">
+                              <span className="text-[10px] uppercase font-bold text-violet-500 bg-violet-100 dark:bg-violet-950/50 dark:text-violet-300 px-2.5 py-1 rounded-xl">
+                                {m.badge} Emblem
                               </span>
                             </div>
                           </div>
@@ -356,10 +356,10 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                           {canClaim && (
                             <button
                               onClick={() => claimMilestone(m.days, userProfile, onProfileUpdate)}
-                              className="mt-3 w-full py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+                              className="mt-3 w-full py-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-violet-500/20 active:scale-95 transition-all"
                             >
                               <Sparkles className="w-3.5 h-3.5 animate-bounce" />
-                              Claim Reward Now!
+                              Claim Emblem!
                             </button>
                           )}
                           {!isReached && (

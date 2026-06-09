@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { collection, query, addDoc, doc, updateDoc, limit, orderBy, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { User, onAuthStateChanged } from 'firebase/auth';
@@ -75,6 +75,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     'Notification' in window ? Notification.permission : 'denied'
   );
 
+  const seenNotificationIdsRef = useRef<Set<string>>(new Set());
+
   // Determine if current user is admin (sjtutorai@gmail.com)
   const isAdminUser = currentUser?.email === 'sjtutorai@gmail.com';
 
@@ -107,85 +109,132 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     setNotifications(initialLocal);
 
-    // 2. Try Firestore Subscription for real-time notifications
-    let firestoreUnsubscribe: () => void = () => {};
-    
-    const setupFirestoreSync = async () => {
+    // Initialize seen IDs so we don't alert old notifications on startup
+    const loadedIds = new Set(initialLocal.map(n => n.id));
+    seenNotificationIdsRef.current = loadedIds;
+
+    let active = true;
+    let unsubDirect: (() => void) | null = null;
+    let unsubGlobal: (() => void) | null = null;
+
+    let currentDirect: NotificationItem[] = [];
+    let currentGlobal: NotificationItem[] = [];
+
+    const mergeAndStore = () => {
+      if (!active) return;
+
+      // Filter local storage items that are purely local (e.g. seeds / custom locally sent ones)
+      let storedLocalItems: NotificationItem[] = [];
       try {
-        const notifRef = collection(db, 'notifications');
-        const q = query(
-          notifRef,
-          orderBy('timestamp', 'desc'),
-          limit(50)
-        );
-
-        firestoreUnsubscribe = onSnapshot(q, (snapshot) => {
-          const cloudItems: any[] = [];
-          snapshot.forEach((doc) => {
-            cloudItems.push({ id: doc.id, ...doc.data() });
-          });
-
-          // Read global read lists from local storage
-          let readGlobalIds: string[] = [];
-          try {
-            const rawRead = localStorage.getItem(localReadIdsKey);
-            if (rawRead) readGlobalIds = JSON.parse(rawRead);
-          } catch (e) {
-            console.warn("Failed to parse readGlobalIds", e);
-          }
-
-          // Read items stored locally
-          let userLocalNotifs: NotificationItem[] = [];
-          try {
-            const localRaw = localStorage.getItem(storageKey);
-            if (localRaw) {
-              const parsed = JSON.parse(localRaw);
-              // keep only purely local ones (items that aren't fetched from firebase)
-              userLocalNotifs = parsed.filter((n: any) => !n.id.startsWith('cloud-') && n.id !== doc.id);
-            }
-          } catch (e) {
-            console.warn("Failed to parse userLocalNotifs", e);
-          }
-
-          // Format cloud items
-          const formattedCloud = cloudItems.map((item) => {
-            const isReadLocally = readGlobalIds.includes(item.id);
-            const isForCurrentUser = item.userId === 'all' || (currentUser && item.userId === currentUser.uid);
-            
-            if (!isForCurrentUser) return null;
-
-            return {
-              id: item.id,
-              userId: item.userId,
-              title: item.title,
-              body: item.body,
-              category: item.category as NotificationCategory,
-              timestamp: item.timestamp,
-              read: isReadLocally || item.read || false,
-            };
-          }).filter(Boolean) as NotificationItem[];
-
-          // Combine with local mock/seeded ones that are not duplicates
-          const cloudIds = new Set(formattedCloud.map(n => n.id));
-          const filteredLocal = userLocalNotifs.filter(n => !cloudIds.has(n.id) && !n.id.startsWith('seed-'));
-          
-          // Also check seeds if there are no cloud notifications
-          const finalSeeds = cloudItems.length === 0 ? SEED_NOTIFICATIONS.filter(n => !cloudIds.has(n.id)) : [];
-
-          const combined = [...formattedCloud, ...filteredLocal, ...finalSeeds].sort((a, b) => b.timestamp - a.timestamp);
-          
-          setNotifications(combined);
-          localStorage.setItem(storageKey, JSON.stringify(combined));
-        }, (err) => {
-          console.warn('Firestore notifications sync not supported/permitted:', err.message);
-          // Fall back gracefully to LocalStorage
-        });
-      } catch (err) {
-        console.warn('Could not launch Firestore listeners for notifications:', err);
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          storedLocalItems = JSON.parse(stored).filter((n: NotificationItem) => 
+            n.id.startsWith('local-') || n.id.startsWith('seed-')
+          );
+        }
+      } catch {
+        storedLocalItems = SEED_NOTIFICATIONS;
       }
+
+      // Read global read lists from local storage
+      let readGlobalIds: string[] = [];
+      try {
+        const rawRead = localStorage.getItem(localReadIdsKey);
+        if (rawRead) readGlobalIds = JSON.parse(rawRead);
+      } catch (e) {
+        console.warn("Failed to parse readGlobalIds", e);
+      }
+
+      // Process global items
+      const processedGlobal = currentGlobal.map(item => ({
+        ...item,
+        read: readGlobalIds.includes(item.id) || item.read
+      }));
+
+      // Combine direct, processed global, and stored local items
+      const combinedMap = new Map<string, NotificationItem>();
+      
+      // Default seeds / locals first
+      storedLocalItems.forEach(item => combinedMap.set(item.id, item));
+      // Then global DB notifications
+      processedGlobal.forEach(item => combinedMap.set(item.id, item));
+      // Then direct user DB notifications (most specific)
+      currentDirect.forEach(item => combinedMap.set(item.id, item));
+
+      const combined = Array.from(combinedMap.values()).sort((a, b) => b.timestamp - a.timestamp);
+
+      // Check for any NEW, UNREAD notifications to show system notification popup across all user devices!
+      combined.forEach((notif) => {
+        if (!notif.read && !seenNotificationIdsRef.current.has(notif.id)) {
+          // If it's a new unread notification that we haven't seen since the app opened/loaded
+          // and its timestamp is recent (e.g. not older than 1 hour, to prevent offline queue popups)
+          if (Date.now() - notif.timestamp < 3600 * 1000) {
+            triggerSystemNotification(`[${notif.category}] ${notif.title}`, notif.body);
+          }
+        }
+        // Add to seen notifications set
+        seenNotificationIdsRef.current.add(notif.id);
+      });
+
+      setNotifications(combined);
+      localStorage.setItem(storageKey, JSON.stringify(combined));
     };
 
-    setupFirestoreSync();
+    if (currentUser) {
+      // 1. Listen to personal notifications: /users/{userId}/notifications
+      try {
+        const personalNotifRef = collection(db, 'users', currentUser.uid, 'notifications');
+        const personalQuery = query(personalNotifRef, orderBy('timestamp', 'desc'), limit(50));
+        unsubDirect = onSnapshot(personalQuery, (snapshot) => {
+          const items: NotificationItem[] = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            items.push({
+              id: doc.id,
+              userId: currentUser.uid,
+              title: data.title || '',
+              body: data.body || '',
+              category: (data.category || 'Important Alerts') as NotificationCategory,
+              timestamp: data.timestamp || Date.now(),
+              read: data.read || false,
+            });
+          });
+          currentDirect = items;
+          mergeAndStore();
+        }, (err) => {
+          console.warn('Personal notifications listening error:', err);
+        });
+      } catch (e) {
+        console.warn('Failed to listen to personal notifications:', e);
+      }
+
+      // 2. Listen to global notifications: /global_notifications
+      try {
+        const globalNotifRef = collection(db, 'global_notifications');
+        const globalQuery = query(globalNotifRef, orderBy('timestamp', 'desc'), limit(50));
+        unsubGlobal = onSnapshot(globalQuery, (snapshot) => {
+          const items: NotificationItem[] = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            items.push({
+              id: doc.id,
+              userId: 'all',
+              title: data.title || '',
+              body: data.body || '',
+              category: (data.category || 'New Features') as NotificationCategory,
+              timestamp: data.timestamp || Date.now(),
+              read: data.read || false,
+            });
+          });
+          currentGlobal = items;
+          mergeAndStore();
+        }, (err) => {
+          console.warn('Global notifications listening error:', err);
+        });
+      } catch (e) {
+        console.warn('Failed to listen to global notifications:', e);
+      }
+    }
 
     // Register simple Service Worker
     if ('serviceWorker' in navigator) {
@@ -199,7 +248,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     return () => {
-      firestoreUnsubscribe();
+      active = false;
+      if (unsubDirect) unsubDirect();
+      if (unsubGlobal) unsubGlobal();
     };
   }, [currentUser]);
 
@@ -277,15 +328,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       console.warn('Error saving read global ID locally', e);
     }
 
-    // 3. Try to update in Firestore if it's a cloud notification and not broadcast
+    // 3. Try to update in Firestore if it's a cloud notification
     try {
       const notif = notifications.find(n => n.id === id);
-      if (notif && !notif.id.startsWith('seed-') && notif.userId !== 'all') {
-        const docRef = doc(db, 'notifications', id);
-        await updateDoc(docRef, { read: true });
+      if (notif && !notif.id.startsWith('seed-') && !notif.id.startsWith('local-')) {
+        if (notif.userId === 'all') {
+          // Global is read track local
+        } else if (currentUser) {
+          const docRef = doc(db, 'users', currentUser.uid, 'notifications', id);
+          await updateDoc(docRef, { read: true });
+        }
       }
-    } catch {
-      // Graceful fail
+    } catch (err) {
+      console.warn('Firestore update read failed:', err);
     }
   };
 
@@ -307,10 +362,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // Update non-broadcast user notifications on Firestore
     try {
-      const updates = notifications.filter(n => !n.id.startsWith('seed-') && n.userId !== 'all' && !n.read);
-      for (const notif of updates) {
-        const docRef = doc(db, 'notifications', notif.id);
-        await updateDoc(docRef, { read: true });
+      if (currentUser) {
+        const updates = notifications.filter(n => !n.id.startsWith('seed-') && !n.id.startsWith('local-') && n.userId !== 'all' && !n.read);
+        for (const notif of updates) {
+          const docRef = doc(db, 'users', currentUser.uid, 'notifications', notif.id);
+          await updateDoc(docRef, { read: true });
+        }
       }
     } catch (e) {
       console.warn("Firestore update failed in markAllAsRead", e);
@@ -356,8 +413,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // 2. Try adding to Firestore
     try {
-      const notifRef = collection(db, 'notifications');
-      await addDoc(notifRef, payload);
+      if (targetUser === 'all') {
+        const globalRef = collection(db, 'global_notifications');
+        await addDoc(globalRef, payload);
+      } else {
+        const notifRef = collection(db, 'users', targetUser, 'notifications');
+        await addDoc(notifRef, payload);
+      }
       return true;
     } catch (err) {
       console.warn('Could not add to Firestore directly. Adding locally instead.', err);
