@@ -198,6 +198,11 @@ const InputForm: React.FC<InputFormProps> = ({
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm disabled:cursor-not-allowed"
                 />
               </div>
+              {lockGradeClass && (
+                <p className="text-[9px] text-amber-600 font-medium">
+                  Grade is locked (derived from Profile DOB).
+                </p>
+              )}
             </div>
           </>
         ) : (
@@ -221,6 +226,11 @@ const InputForm: React.FC<InputFormProps> = ({
                   </div>
                 )}
               </div>
+              {lockGradeClass && (
+                <p className="text-[9px] text-amber-600 font-medium">
+                  Grade is locked (derived from Profile DOB).
+                </p>
+              )}
             </div>
             {renderInput("Board", "board", School, "e.g. CBSE")}
             {renderInput("Language", "language", Languages, "e.g. English")}

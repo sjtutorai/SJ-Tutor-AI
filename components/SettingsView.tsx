@@ -4,6 +4,7 @@ import { UserProfile, UserSettings, SJTUTOR_AVATAR } from '../types';
 import { SettingsService } from '../services/settingsService';
 import { auth } from '../firebaseConfig';
 import { sendPasswordResetEmail, verifyBeforeUpdateEmail } from 'firebase/auth';
+import { calculateProfileCompletion } from '../utils/profileUtils';
 import { 
   User, BookOpen, Bot, MessageSquare, Bell, Moon, Lock, 
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, ChevronDown, ChevronUp,
@@ -149,6 +150,41 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   ];
 
   const renderContent = () => {
+    const profileCompletion = calculateProfileCompletion(userProfile);
+    const isProfileComplete = profileCompletion === 100;
+    const isEditingTab = ['learning', 'aiTutor', 'chat', 'notifications', 'appearance', 'privacy', 'system', 'billing'].includes(activeTab);
+
+    if (isEditingTab && !isProfileComplete) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center max-w-lg mx-auto space-y-6 animate-in fade-in duration-300">
+          <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Settings Locked</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+              You must complete your profile to 100% to edit settings. Currently, your profile is <span className="font-extrabold text-amber-600 dark:text-amber-400">{profileCompletion}%</span> complete.
+            </p>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
+            <div 
+              className="bg-gradient-to-r from-amber-400 to-orange-500 h-full rounded-full transition-all duration-500"
+              style={{ width: `${profileCompletion}%` }}
+            />
+          </div>
+
+          <button
+            onClick={onNavigateToProfile}
+            className="px-6 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-primary-500/10 hover:shadow-primary-500/20"
+          >
+            Complete Profile Now (100%)
+          </button>
+        </div>
+      );
+    }
+
     switch(activeTab) {
       case 'account':
         return (
@@ -229,10 +265,13 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Grade / Class</label>
                  <input 
                    type="text" 
+                   disabled={true}
                    value={settings.learning.grade}
-                   onChange={(e) => handleSettingChange('learning', 'grade', e.target.value)}
-                   className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
+                   className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800 rounded-lg outline-none cursor-not-allowed"
                  />
+                 <p className="text-[10px] text-amber-600 font-medium leading-normal mt-1">
+                   Grade / Class is determined by the Date of Birth in your Profile details. To change it, please edit DOB in your Profile.
+                 </p>
                </div>
                <div className="space-y-2">
                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Content Difficulty</label>
