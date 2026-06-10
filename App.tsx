@@ -138,8 +138,7 @@ const THEME_COLORS: Record<string, Record<string, string>> = {
 const App: React.FC = () => {
   // Notifications
   const { unreadCount, requestPermission, sendNotification } = useNotifications();
-  const { recordActivity, streak, claimMilestone } = useStreak();
-  const [unclaimedEmblem, setUnclaimedEmblem] = useState<number | null>(null);
+  const { recordActivity } = useStreak();
 
   // Request notification permission on first visit
   useEffect(() => {
@@ -308,39 +307,20 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [user]);
 
-  // Check for shared content on load (requiring login before displaying)
+  // Check for shared content on load
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const shareId = params.get("share");
 
     if (shareId) {
-      sessionStorage.setItem("sjtutor_pending_share_id", shareId);
-      
-      // Clear the URL parameter without refreshing so the URL stays clean
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
-      
-      // If not logged in, force open Auth modal
-      if (!auth.currentUser) {
-        setShowAuthModal(true);
-      }
-    }
-  }, []);
-
-  // Fetch pending shared content when user becomes authenticated
-  useEffect(() => {
-    const pendingShareId = sessionStorage.getItem("sjtutor_pending_share_id");
-    if (user && pendingShareId) {
       const fetchShared = async () => {
         setAuthLoading(true);
         try {
-          const response = await fetch(`/api/auth/share/${pendingShareId}`);
+          const response = await fetch(`/api/auth/share/${shareId}`);
           const data = await response.json();
 
           if (response.ok && data.success) {
             const item = data.data;
-            setSharedContent(item);
-            setIsViewingShared(true);
 
             // Load the content into the view
             if (item.type === AppMode.SUMMARY) {
@@ -360,9 +340,6 @@ const App: React.FC = () => {
               subject: item.subtitle?.split(" • ")[1] || "",
               gradeClass: item.subtitle?.split(" • ")[0] || "",
             }));
-            
-            // Clear the pending ID
-            sessionStorage.removeItem("sjtutor_pending_share_id");
           } else {
             console.error("Shared content not found or expired.");
           }
@@ -370,11 +347,14 @@ const App: React.FC = () => {
           console.error("Failed to fetch shared content", err);
         } finally {
           setAuthLoading(false);
+          // Clear the URL parameter without refreshing
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, newUrl);
         }
       };
       fetchShared();
     }
-  }, [user]);
+  }, [setSummaryContent, setHomeworkContent, setQuizData, setMode, setFormData]);
 
   // Sync formData language with settings whenever settings change
   useEffect(() => {
@@ -626,20 +606,6 @@ const App: React.FC = () => {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
-
-  // Check for unclaimed emblems on visit or streak update
-  useEffect(() => {
-    if (user && streak && streak.uid !== "guest") {
-      const unclaimed = [3, 7, 15, 30, 100].find(days => {
-        const isReached = streak.currentStreak >= days;
-        const isClaimed = streak.claimedMilestones && streak.claimedMilestones.includes(days);
-        return isReached && !isClaimed;
-      });
-      if (unclaimed) {
-        setUnclaimedEmblem(unclaimed);
-      }
-    }
-  }, [user, streak]);
 
   const handleProfileSave = async (
     newProfile: UserProfile,
@@ -1497,7 +1463,7 @@ const App: React.FC = () => {
               mode={AppMode.SUMMARY}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
-              lockGradeClass={!!user}
+              lockGradeClass={!!(userProfile.dob && userProfile.grade)}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -1538,7 +1504,7 @@ const App: React.FC = () => {
               mode={AppMode.HOMEWORK}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
-              lockGradeClass={!!user}
+              lockGradeClass={!!(userProfile.dob && userProfile.grade)}
               onImagesUpload={setHomeworkImages}
               homeworkImages={homeworkImages}
             />
@@ -1585,7 +1551,7 @@ const App: React.FC = () => {
               mode={AppMode.QUIZ}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
-              lockGradeClass={!!user}
+              lockGradeClass={!!(userProfile.dob && userProfile.grade)}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -1727,12 +1693,14 @@ const App: React.FC = () => {
   }
 
   if (!user) {
+    // If we have shared content loaded or viewing public pages, show it in a public layout
+    const hasSharedContent = summaryContent || homeworkContent || quizData;
     const isPublicPage =
       mode === AppMode.ABOUT ||
       mode === AppMode.PRIVACY ||
       mode === AppMode.TERMS;
 
-    if (isPublicPage) {
+    if (hasSharedContent || isPublicPage) {
       return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100">
           <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
@@ -2225,60 +2193,6 @@ const App: React.FC = () => {
               </div>
             </motion.div>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {unclaimedEmblem && (
-          <div className="fixed inset-0 z-[11000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 30 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 30 }}
-              className="relative w-full max-w-sm bg-slate-900 border border-amber-500/30 text-white rounded-3xl p-6 text-center shadow-[0_0_50px_rgba(245,158,11,0.2)] overflow-hidden"
-            >
-              {/* Sparkles background effect */}
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(217,119,6,0.15),transparent_60%)] pointer-events-none" />
-              
-              <Sparkles className="w-12 h-12 text-amber-400 mx-auto mb-4 animate-bounce" />
-              
-              <h2 className="text-2xl font-black text-amber-400 tracking-tight mb-1">
-                New Emblem Unlocked!
-              </h2>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-4">
-                Streak Achievement Reached 🚀
-              </p>
-
-              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 mb-5 select-none">
-                <span className="text-5xl block mb-2">
-                  {unclaimedEmblem === 3 ? "🌱" : unclaimedEmblem === 7 ? "🔥" : unclaimedEmblem === 15 ? "⚡" : unclaimedEmblem === 30 ? "👑" : "🏆"}
-                </span>
-                <h3 className="text-base font-black text-white">
-                  {unclaimedEmblem === 3 ? "Learner Scout Emblem" : unclaimedEmblem === 7 ? "Spitfire Habit Emblem" : unclaimedEmblem === 15 ? "Super Scholar Emblem" : unclaimedEmblem === 30 ? "Royal Study Overlord Emblem" : "Mythic AI Legend Emblem"}
-                </h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  For keeping a consistent habit of {unclaimedEmblem} learning days!
-                </p>
-                <div className="mt-3 text-xs font-black text-amber-500">
-                  REWARD: {unclaimedEmblem === 3 ? "Scout Habit Badge" : unclaimedEmblem === 7 ? "Daily Fire Badge" : unclaimedEmblem === 15 ? "Emerald Scholar Badge" : unclaimedEmblem === 30 ? "Crown Badge of Wisdom" : "Mythic Golden Cup"}
-                </div>
-              </div>
-
-              <button
-                onClick={async () => {
-                  if (unclaimedEmblem) {
-                    const success = await claimMilestone(unclaimedEmblem, userProfile, setUserProfile);
-                    if (success) {
-                      setUnclaimedEmblem(null);
-                    }
-                  }
-                }}
-                className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-slate-950 font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 hover:shadow-orange-600/30 transition-all active:scale-95 duration-200"
-              >
-                Claim & Equip Emblem
-              </button>
-            </motion.div>
-          </div>
         )}
       </AnimatePresence>
     </div>

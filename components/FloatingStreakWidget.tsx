@@ -27,7 +27,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 }) => {
   const { streak, leaderboard, claimMilestone } = useStreak();
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab ] = useState<'STREAK' | 'EMBLEMS' | 'LEADERBOARD'>('STREAK');
+  const [activeTab, setActiveTab ] = useState<'STREAK' | 'MILESTONES' | 'LEADERBOARD'>('STREAK');
   
   // Position state saved as percentile to handle responsive window resizes seamlessly
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -235,12 +235,12 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                   </span>
                 </button>
                 <button
-                  onClick={() => setActiveTab('EMBLEMS')}
-                  className={`pb-3 border-b-2 transition-colors ${activeTab === 'EMBLEMS' ? 'border-orange-500 text-orange-600 dark:text-orange-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600'}`}
+                  onClick={() => setActiveTab('MILESTONES')}
+                  className={`pb-3 border-b-2 transition-colors ${activeTab === 'MILESTONES' ? 'border-orange-500 text-orange-600 dark:text-orange-400' : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600'}`}
                 >
                   <span className="flex items-center gap-1.5">
                     <Award className="w-4 h-4" />
-                    Emblems
+                    Milestones
                   </span>
                 </button>
                 <button
@@ -300,8 +300,8 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                   </div>
                 )}
 
-                {/* 2. EMBLEMS TAB */}
-                {activeTab === 'EMBLEMS' && (
+                {/* 2. MILESTONES TAB */}
+                {activeTab === 'MILESTONES' && (
                   <div className="space-y-3">
                     {STREAK_MILESTONES.map((m, idx) => {
                       const progress = getMilestoneProgress(m.days);
@@ -309,29 +309,19 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                       const isClaimed = streak.claimedMilestones && streak.claimedMilestones.includes(m.days);
                       const canClaim = isReached && !isClaimed;
 
-                      // Map days to specific premium Emblem titles and rewards
-                      const emblemMapping: Record<number, { name: string; rewardName: string }> = {
-                        3: { name: "Learner Scout Emblem", rewardName: "Scout Habit Badge" },
-                        7: { name: "Spitfire Habit Emblem", rewardName: "Daily Fire Badge" },
-                        15: { name: "Super Scholar Emblem", rewardName: "Emerald Scholar Badge" },
-                        30: { name: "Royal Study Overlord Emblem", rewardName: "Crown Badge of Wisdom" },
-                        100: { name: "Mythic AI Legend Emblem", rewardName: "Mythic Golden Cup" },
-                      };
-                      const emblemInfo = emblemMapping[m.days] || { name: m.label, rewardName: "Honorary Medal" };
-
                       return (
                         <div 
                           key={idx}
-                          className={`bg-white dark:bg-slate-800 p-4 rounded-2xl border transition-all ${isReached ? 'border-orange-200 dark:border-gradient shadow-sm' : 'border-slate-100 dark:border-slate-800/80'}`}
+                          className={`bg-white dark:bg-slate-800 p-4 rounded-2xl border transition-all ${isReached ? 'border-orange-200 dark:border-gradient' : 'border-slate-100 dark:border-slate-800/80'}`}
                         >
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex gap-2.5">
                               <span className="text-2xl mt-0.5">{m.badge}</span>
                               <div>
                                 <h4 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-1.5">
-                                  {emblemInfo.name}
+                                  {m.label}
                                   {isClaimed && (
-                                    <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                                    <span className="text-[9px] bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full font-bold">
                                       Claimed
                                     </span>
                                   )}
@@ -342,20 +332,14 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                               </div>
                             </div>
                             <div className="text-right">
-                              <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${isClaimed ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400' : isReached ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-500' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'}`}>
-                                {isClaimed ? 'Unlocked' : isReached ? 'Claimable' : 'Locked'}
+                              <span className="text-xs font-black text-amber-500 bg-amber-500/10 px-2 py-1 rounded-lg">
+                                +{m.reward} Credits
                               </span>
                             </div>
                           </div>
 
-                          {/* Reward Info */}
-                          <div className="mt-1 pb-2 border-b border-dashed border-slate-100 dark:border-slate-700">
-                             <span className="text-[10px] text-slate-400 font-bold">REWARD EMBLEM: </span>
-                             <span className="text-[11px] font-black text-amber-600 dark:text-amber-400">{emblemInfo.rewardName}</span>
-                          </div>
-
                           {/* Progress Line */}
-                          <div className="mt-2.5">
+                          <div className="mt-3">
                             <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-1">
                               <span>Progress</span>
                               <span>{streak.currentStreak}/{m.days} Days ({Math.floor(progress)}%)</span>
@@ -375,7 +359,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                               className="mt-3 w-full py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
                             >
                               <Sparkles className="w-3.5 h-3.5 animate-bounce" />
-                              Claim Emblem Now!
+                              Claim Reward Now!
                             </button>
                           )}
                           {!isReached && (

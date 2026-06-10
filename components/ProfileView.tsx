@@ -588,17 +588,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                      <GraduationCap className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
                      <input
                       type="text"
-                      disabled={true}
+                      disabled={!isEditing}
                       value={formData.grade || ''}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-100 border border-slate-200 rounded-xl outline-none transition-all cursor-not-allowed text-slate-500"
-                      placeholder="Calculated automatically from Date of Birth"
+                      onChange={(e) => handleInputChange('grade', e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                      placeholder="e.g. 10th Grade"
                     />
                   </div>
-                  {isEditing && (
-                    <p className="text-[10px] text-amber-600 font-medium px-1 leading-normal mt-1">
-                      Class / Grade is automatically derived from Date of Birth. To update, change date of birth.
-                    </p>
-                  )}
                 </div>
 
                 <div className="space-y-2">

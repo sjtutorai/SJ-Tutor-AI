@@ -11,7 +11,6 @@ export interface StreakData {
   currentStreak: number;
   highestStreak: number;
   lastActivityDate: string | null;
-  lastActivityTimestamp?: number;
   streakHistory: string[];
   claimedMilestones?: number[];
   updatedAt: number;
@@ -161,33 +160,20 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setLoading(true);
       if (user) {
         setCurrentUserId(user.uid);
-        
-        // 1. Instantly load from localStorage if available to be responsive and offline-resilient
-        const localSaved = localStorage.getItem(`sjtutor_streak_${user.uid}`);
-        if (localSaved) {
-          try {
-            setStreak(JSON.parse(localSaved));
-          } catch (err) {
-            console.warn('Failed to parse local stored user streak:', err);
-          }
-        }
-
         const userDocRef = doc(db, 'streaks', user.uid);
         try {
           const snap = await getDoc(userDocRef);
           if (snap.exists()) {
             const data = snap.data() as StreakData;
             // Validate sequence reset on mounting / loading profile
-            const now = Date.now();
+            const today = getLocalDateString();
+            const yesterday = getYesterdayDateString();
             let currentStr = data.currentStreak || 0;
-            const lastTs = data.lastActivityTimestamp || (data.lastActivityDate ? new Date(data.lastActivityDate).getTime() : 0);
+            const lastDate = data.lastActivityDate;
 
-            if (lastTs) {
-              const diffHours = (now - lastTs) / (1000 * 60 * 60);
-              if (diffHours >= 48) {
-                // Missed streak resetting current count but keeping historical records
-                currentStr = 0;
-              }
+            if (lastDate && lastDate !== today && lastDate !== yesterday) {
+              // Missed streak resetting current count but keeping historical records
+              currentStr = 0;
             }
 
             const updatedData: StreakData = {
@@ -196,7 +182,7 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               displayName: user.displayName || data.displayName || 'Active Student',
               photoURL: user.photoURL || data.photoURL || '',
               currentStreak: currentStr,
-              updatedAt: now,
+              updatedAt: Date.now(),
             };
 
             setStreak(updatedData);
@@ -226,13 +212,11 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             localStorage.setItem(`sjtutor_streak_${user.uid}`, JSON.stringify(initial));
           }
         } catch (e) {
-          console.warn('Network offline or error fetching user streak from DB (using local storage fallback):', e);
-          // Local fallback (if not already set in step 1)
-          if (!localSaved) {
-            const fallbackLocal = localStorage.getItem(`sjtutor_streak_${user.uid}`);
-            if (fallbackLocal) {
-              setStreak(JSON.parse(fallbackLocal));
-            }
+          console.error('Error fetching user streak from DB:', e);
+          // Local fallback
+          const localSaved = localStorage.getItem(`sjtutor_streak_${user.uid}`);
+          if (localSaved) {
+            setStreak(JSON.parse(localSaved));
           }
         }
       } else {
@@ -241,14 +225,11 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const local = localStorage.getItem('sjtutor_streak_guest');
         if (local) {
           const parsed = JSON.parse(local);
-          const now = Date.now();
-          const lastTs = parsed.lastActivityTimestamp || (parsed.lastActivityDate ? new Date(parsed.lastActivityDate).getTime() : 0);
-          if (lastTs) {
-            const diffHours = (now - lastTs) / (1000 * 60 * 60);
-            if (diffHours >= 48) {
-              parsed.currentStreak = 0;
-              localStorage.setItem('sjtutor_streak_guest', JSON.stringify(parsed));
-            }
+          const today = getLocalDateString();
+          const yesterday = getYesterdayDateString();
+          if (parsed.lastActivityDate && parsed.lastActivityDate !== today && parsed.lastActivityDate !== yesterday) {
+            parsed.currentStreak = 0;
+            localStorage.setItem('sjtutor_streak_guest', JSON.stringify(parsed));
           }
           setStreak(parsed);
         } else {
@@ -269,36 +250,25 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Record an activity completion
   const recordActivity = useCallback(async () => {
     const today = getLocalDateString();
-    const now = Date.now();
+    const yesterday = getYesterdayDateString();
     
     let isIncremented = false;
     let reachedMilestone: number | undefined = undefined;
 
     setStreak((prev) => {
+      const isAlreadyCompletedToday = prev.lastActivityDate === today;
       let newCount = prev.currentStreak;
       const history = [...prev.streakHistory];
-      const lastTs = prev.lastActivityTimestamp || (prev.lastActivityDate ? new Date(prev.lastActivityDate).getTime() : 0);
 
-      if (!lastTs) {
-        // First activity ever
-        newCount = 1;
-        isIncremented = true;
-      } else {
-        const diffHours = (now - lastTs) / (1000 * 60 * 60);
-
-        if (diffHours >= 24) {
-          if (diffHours < 48) {
-            // Consecutive window, increment streak
-            newCount += 1;
-          } else {
-            // Out of window, reset sequence to 1
-            newCount = 1;
-          }
-          isIncremented = true;
+      if (!isAlreadyCompletedToday) {
+        if (prev.lastActivityDate === yesterday || !prev.lastActivityDate) {
+          // Normal continuation or first activity ever
+          newCount += 1;
         } else {
-          // Less than 24 hours since last valid increment
-          isIncremented = false;
+          // Broke sequence, reset count to 1
+          newCount = 1;
         }
+        isIncremented = true;
       }
 
       // Record today in historical history list if absent
@@ -319,9 +289,8 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         currentStreak: newCount,
         highestStreak: newHighest,
         lastActivityDate: today,
-        lastActivityTimestamp: isIncremented ? now : lastTs,
         streakHistory: history,
-        updatedAt: now,
+        updatedAt: Date.now(),
       };
 
       // Save locally
@@ -350,23 +319,39 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, [triggerConfetti]);
 
-  // Claim specific milestone rewards (Claim Emblems - no credits awarded)
+  // Claim specific milestone rewards
   const claimMilestone = useCallback(async (
     milestoneDays: number, 
-    _userProfile?: UserProfile, 
-    _onProfileUpdate?: (profile: UserProfile) => void
+    userProfile: UserProfile, 
+    onProfileUpdate: (profile: UserProfile) => void
   ) => {
-    // Reference variables to satisfy ESLint
-    if (_userProfile || _onProfileUpdate) { /* no-op */ }
     const milestone = STREAK_MILESTONES.find(m => m.days === milestoneDays);
     if (!milestone) return false;
 
     if (streak.claimedMilestones && streak.claimedMilestones.includes(milestoneDays)) {
-      alert('You have already claimed this Emblem! Keep going for the next one. 🚀');
+      alert('You have already claimed this streak milestone! Keep going for the next one. 🚀');
       return false;
     }
 
-    // Update streak claimed milestones array (No Profile credits are added)
+    // Add credits to student profile
+    const updatedCredits = userProfile.credits + milestone.reward;
+    const updatedProfile: UserProfile = {
+      ...userProfile,
+      credits: updatedCredits,
+    };
+
+    onProfileUpdate(updatedProfile);
+
+    // Save profile to localStorage and Firestore
+    localStorage.setItem(`profile_${streak.uid}`, JSON.stringify(updatedProfile));
+    if (streak.uid !== 'guest') {
+      const userProfileRef = doc(db, 'users', streak.uid);
+      setDoc(userProfileRef, { credits: updatedCredits }, { merge: true }).catch((err) => {
+        console.warn('Failed to sync claimed milestone credits to users doc:', err);
+      });
+    }
+
+    // Update streak claimed milestones array
     setStreak((prev) => {
       const updatedClaims = [...(prev.claimedMilestones || []), milestoneDays];
       const updated: StreakData = {
