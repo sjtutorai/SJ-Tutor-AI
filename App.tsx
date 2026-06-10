@@ -35,8 +35,6 @@ import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
 import {
   saveProfileToFirestore,
   getProfileFromFirestore,
-  saveHistoryItemToFirestore,
-  syncHistoryWithFirestore,
 } from "./utils/firebaseUtils";
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
@@ -578,45 +576,22 @@ const App: React.FC = () => {
     }
   }, [user, sendNotification]);
 
-  // History Persistence and Database Synchronization
+  // History Persistence
   useEffect(() => {
-    let active = true;
-    const loadAndSyncHistory = async () => {
-      const storageKey = user ? `history_${user.uid}` : "history_guest";
-      const savedHistory = localStorage.getItem(storageKey);
-      let initialHistory: HistoryItem[] = [];
-      if (savedHistory) {
-        try {
-          const parsedHistory = JSON.parse(savedHistory);
-          if (Array.isArray(parsedHistory)) {
-            initialHistory = parsedHistory;
-          }
-        } catch {
-          initialHistory = [];
+    const storageKey = user ? `history_${user.uid}` : "history_guest";
+    const savedHistory = localStorage.getItem(storageKey);
+    if (savedHistory) {
+      try {
+        const parsedHistory = JSON.parse(savedHistory);
+        if (Array.isArray(parsedHistory)) {
+          setHistory(parsedHistory);
         }
+      } catch {
+        setHistory([]);
       }
-
-      if (user) {
-        try {
-          // Sync with Firestore, merging both local and remote items
-          const syncedHistory = await syncHistoryWithFirestore(user.uid, initialHistory);
-          if (active) {
-            setHistory(syncedHistory);
-            localStorage.setItem(`history_${user.uid}`, JSON.stringify(syncedHistory));
-          }
-        } catch (err) {
-          console.warn("Firestore history sync failed, fallback to local:", err);
-          if (active) setHistory(initialHistory);
-        }
-      } else {
-        if (active) setHistory(initialHistory);
-      }
-    };
-
-    loadAndSyncHistory();
-    return () => {
-      active = false;
-    };
+    } else {
+      setHistory([]);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -767,10 +742,6 @@ const App: React.FC = () => {
     setHistory((prev) => [newItem, ...prev]);
     setCurrentHistoryId(newId);
 
-    if (user) {
-      saveHistoryItemToFirestore(user.uid, newItem);
-    }
-
     // Record learning activity sequence progress
     recordActivity().then((res) => {
       if (res.success && res.incremented) {
@@ -788,16 +759,11 @@ const App: React.FC = () => {
       const historyItem = history.find((item) => item.id === currentHistoryId);
       if (!historyItem) return;
 
-      const updatedItem = { ...historyItem, score };
       setHistory((prev) =>
         prev.map((item) =>
-          item.id === currentHistoryId ? updatedItem : item,
+          item.id === currentHistoryId ? { ...item, score } : item,
         ),
       );
-
-      if (user) {
-        saveHistoryItemToFirestore(user.uid, updatedItem);
-      }
 
       // Record active quiz completion sequence
       recordActivity().then((res) => {
@@ -1622,17 +1588,13 @@ const App: React.FC = () => {
                       h.id === currentHistoryId && h.type === AppMode.TUTOR,
                   );
                   if (existing) {
-                    const updatedItem = { ...existing, content: tutorItemContent };
                     setHistory((prev) =>
                       prev.map((h) =>
                         h.id === existing.id
-                          ? updatedItem
+                          ? { ...h, content: tutorItemContent }
                           : h,
                       ),
                     );
-                    if (user) {
-                      saveHistoryItemToFirestore(user.uid, updatedItem);
-                    }
                   } else {
                     addToHistory(AppMode.TUTOR, tutorItemContent);
                   }
