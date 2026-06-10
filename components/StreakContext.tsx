@@ -160,6 +160,17 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setLoading(true);
       if (user) {
         setCurrentUserId(user.uid);
+        
+        // 1. Instantly load from localStorage if available to be responsive and offline-resilient
+        const localSaved = localStorage.getItem(`sjtutor_streak_${user.uid}`);
+        if (localSaved) {
+          try {
+            setStreak(JSON.parse(localSaved));
+          } catch (err) {
+            console.warn('Failed to parse local stored user streak:', err);
+          }
+        }
+
         const userDocRef = doc(db, 'streaks', user.uid);
         try {
           const snap = await getDoc(userDocRef);
@@ -212,11 +223,13 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             localStorage.setItem(`sjtutor_streak_${user.uid}`, JSON.stringify(initial));
           }
         } catch (e) {
-          console.error('Error fetching user streak from DB:', e);
-          // Local fallback
-          const localSaved = localStorage.getItem(`sjtutor_streak_${user.uid}`);
-          if (localSaved) {
-            setStreak(JSON.parse(localSaved));
+          console.warn('Network offline or error fetching user streak from DB (using local storage fallback):', e);
+          // Local fallback (if not already set in step 1)
+          if (!localSaved) {
+            const fallbackLocal = localStorage.getItem(`sjtutor_streak_${user.uid}`);
+            if (fallbackLocal) {
+              setStreak(JSON.parse(fallbackLocal));
+            }
           }
         }
       } else {

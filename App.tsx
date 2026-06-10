@@ -321,6 +321,8 @@ const App: React.FC = () => {
 
           if (response.ok && data.success) {
             const item = data.data;
+            setSharedContent(item);
+            setIsViewingShared(true);
 
             // Load the content into the view
             if (item.type === AppMode.SUMMARY) {
