@@ -100,7 +100,8 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
             type: 'QUIZ',
             title: 'Quiz Challenge',
             subtitle: `I scored ${score}/${questions.length} on this quiz!`,
-            content: questions
+            content: questions,
+            score: score
           })
         });
 

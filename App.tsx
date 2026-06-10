@@ -240,6 +240,20 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detectedCountry, setDetectedCountry] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     // Basic detection for India
@@ -334,9 +348,13 @@ const App: React.FC = () => {
     if (authLoading) return; // Wait until auth state is confirmed
     if (!pendingShareId) return;
 
-    if (user) {
-      // User is logged in! Display the shared things.
-      const fetchShared = async () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    // User is logged in! Display the shared things.
+    const fetchShared = async () => {
         setAuthLoading(true);
         try {
           const response = await fetch(`/api/auth/share/${pendingShareId}`);
@@ -380,10 +398,6 @@ const App: React.FC = () => {
         }
       };
       fetchShared();
-    } else {
-      // User is not logged in! Prompt them to login or signup first.
-      setShowAuthModal(true);
-    }
   }, [user, authLoading, pendingShareId, setSummaryContent, setHomeworkContent, setQuizData, setMode, setFormData]);
 
   // Sync formData language with settings whenever settings change
@@ -563,7 +577,7 @@ const App: React.FC = () => {
       if (cachedCompletion < 100) {
         setTimeout(() => {
           setShowCompletionReminder(true);
-        }, 2000);
+        }, 300);
 
         const profileNotifKey = `profile_notif_sent_${user.uid}`;
         const lastSentProfileNotif = localStorage.getItem(profileNotifKey);
@@ -885,6 +899,11 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async () => {
+    if (isOffline) {
+      setError("AI Generation is unavailable while offline. Please connect to the internet to generate new content, or view your previously generated summaries/notes from your local history/dashboard.");
+      return;
+    }
+
     if (!user) {
       setShowAuthModal(true);
       return;
@@ -1122,7 +1141,6 @@ const App: React.FC = () => {
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TUTOR, label: "AI Tutor", icon: MessageCircle },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
-    { id: AppMode.NOTIFICATIONS, label: "Notifications", icon: Bell },
     { id: AppMode.ABOUT, label: "About Us", icon: Info },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
   ];
@@ -1605,6 +1623,7 @@ const App: React.FC = () => {
             <TutorChat
               onDeductCredit={deductCredit}
               currentCredits={userProfile.credits}
+              isOffline={isOffline}
               onSaveSession={(msgs) => {
                 if (msgs.length > 1) {
                   const tutorItemContent = {
@@ -2004,6 +2023,8 @@ const App: React.FC = () => {
             <h2 className="text-base font-bold text-slate-800 dark:text-white">
               {mode === AppMode.DASHBOARD
                 ? "SJ Tutor AI"
+                : mode === AppMode.NOTIFICATIONS
+                ? "Notifications"
                 : navItems.find((n) => n.id === mode)?.label || "SJ Tutor AI"}
             </h2>
           </div>
@@ -2170,7 +2191,7 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showCompletionReminder && mode !== AppMode.PROFILE && (
+        {showCompletionReminder && mode !== AppMode.PROFILE && calculateProfileCompletion(userProfile) < 100 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

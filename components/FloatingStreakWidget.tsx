@@ -31,7 +31,11 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   // Position state saved as percentile to handle responsive window resizes seamlessly
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isReady, setIsReady] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<HTMLDivElement>(null);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const positionStartRef = useRef({ x: 0, y: 0 });
+  const hasMovedRef = useRef(false);
 
   // Initialize and restore saved percentage coordinates
   useEffect(() => {
@@ -66,17 +70,45 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 
   if (!isReady) return null;
 
-  // Track drag end and save coordinates
-  const handleDragEnd = (_event: any, info: any) => {
-    const newX = position.x + info.offset.x;
-    const newY = position.y + info.offset.y;
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current) {
+      dragRef.current.setPointerCapture(e.pointerId);
+    }
+    setIsDragging(true);
+    hasMovedRef.current = false;
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    positionStartRef.current = { ...position };
+  };
 
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const deltaX = e.clientX - dragStartRef.current.x;
+    const deltaY = e.clientY - dragStartRef.current.y;
+
+    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+      hasMovedRef.current = true;
+    }
+
+    const newX = positionStartRef.current.x + deltaX;
+    const newY = positionStartRef.current.y + deltaY;
+
+    // Clamp coordinates to stay within window bounds
     const clampedX = Math.max(10, Math.min(newX, window.innerWidth - 80));
     const clampedY = Math.max(10, Math.min(newY, window.innerHeight - 80));
 
     setPosition({ x: clampedX, y: clampedY });
-    localStorage.setItem('sjtutor_streak_widget_x_pct', ((clampedX / window.innerWidth) * 100).toFixed(2));
-    localStorage.setItem('sjtutor_streak_widget_y_pct', ((clampedY / window.innerHeight) * 100).toFixed(2));
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    if (dragRef.current) {
+      dragRef.current.releasePointerCapture(e.pointerId);
+    }
+    setIsDragging(false);
+
+    // Save final position in percentage
+    localStorage.setItem('sjtutor_streak_widget_x_pct', ((position.x / window.innerWidth) * 100).toFixed(2));
+    localStorage.setItem('sjtutor_streak_widget_y_pct', ((position.y / window.innerHeight) * 100).toFixed(2));
   };
 
   // Generate 30 Day calendar grid for Streak History
@@ -136,24 +168,28 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
       {/* Floating Draggable Streak Pill */}
       <motion.div
         ref={dragRef}
-        drag
-        dragMomentum={false}
-        dragElastic={0.08}
-        onDragEnd={handleDragEnd}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         style={{
-          x: 0,
-          y: 0,
           left: position.x,
           top: position.y,
           position: 'fixed',
           zIndex: 9999,
+          touchAction: 'none'
         }}
-        whileHover={{ scale: 1.1, cursor: 'grab' }}
-        whileTap={{ scale: 0.95, cursor: 'grabbing' }}
-        className="touch-none select-none"
+        animate={{ scale: isDragging ? 0.95 : 1 }}
+        whileHover={{ scale: 1.1 }}
+        className="select-none cursor-grab active:cursor-grabbing"
       >
         <button
-          onClick={() => setIsOpen(true)}
+          onClick={(e) => {
+            if (hasMovedRef.current) {
+              e.preventDefault();
+              return;
+            }
+            setIsOpen(true);
+          }}
           title="Keep learning daily to maintain your streak!"
           className="group relative flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 text-white p-0.5 shadow-[0_4px_20px_rgba(249,115,22,0.4)] md:shadow-[0_8px_30px_rgba(249,115,22,0.4)] dark:shadow-[0_8px_30px_rgba(220,38,38,0.3)] hover:shadow-orange-500/60 transition-all focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
         >

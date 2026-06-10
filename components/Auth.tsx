@@ -605,6 +605,11 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
           </button>
 
           <div className="mb-6 text-center">
+            {window.location.search.includes('share=') && (
+              <div className="mb-4 p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs font-extrabold leading-relaxed text-center animate-pulse">
+                🔔 Please log in or sign up first to access your shared quiz score, questions, and summaries!
+              </div>
+            )}
             <div className="flex justify-center mb-4">
                <Logo className="w-20 h-20" iconOnly />
             </div>

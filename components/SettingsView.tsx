@@ -68,6 +68,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handlePasswordChange = async () => {
+    if (!isProfileComplete) {
+      alert("Please complete your profile to 100% to modify settings.");
+      return;
+    }
     const user = auth.currentUser;
     if (user && user.email) {
        const confirmReset = window.confirm(`Send password reset email to ${user.email}?`);
@@ -85,6 +89,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleEmailChange = async () => {
+    if (!isProfileComplete) {
+      alert("Please complete your profile to 100% to modify settings.");
+      return;
+    }
     const user = auth.currentUser;
     if (user) {
       const newEmail = window.prompt("Enter your new email address:");
