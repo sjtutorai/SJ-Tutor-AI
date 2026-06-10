@@ -22,8 +22,7 @@ interface FloatingStreakWidgetProps {
 }
 
 export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({ 
-  userProfile, 
-  onProfileUpdate 
+  userProfile
 }) => {
   const { streak, leaderboard, claimMilestone } = useStreak();
   const [isOpen, setIsOpen] = useState(false);
@@ -240,7 +239,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                 >
                   <span className="flex items-center gap-1.5">
                     <Award className="w-4 h-4" />
-                    Milestones
+                    Emblems
                   </span>
                 </button>
                 <button
@@ -300,9 +299,13 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                   </div>
                 )}
 
-                {/* 2. MILESTONES TAB */}
+                {/* 2. EMBLEMS TAB */}
                 {activeTab === 'MILESTONES' && (
                   <div className="space-y-3">
+                    <p className="text-[11px] text-slate-400 font-medium px-1 flex items-center gap-1 mb-2">
+                      <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+                      Collect prestigious Emblems as you maintain your consecutive daily learning.
+                    </p>
                     {STREAK_MILESTONES.map((m, idx) => {
                       const progress = getMilestoneProgress(m.days);
                       const isReached = streak.currentStreak >= m.days;
@@ -312,28 +315,33 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                       return (
                         <div 
                           key={idx}
-                          className={`bg-white dark:bg-slate-800 p-4 rounded-2xl border transition-all ${isReached ? 'border-orange-200 dark:border-gradient' : 'border-slate-100 dark:border-slate-800/80'}`}
+                          className={`bg-white dark:bg-slate-800 p-4 rounded-2xl border transition-all ${isReached ? (isClaimed ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50/10 dark:bg-amber-950/5' : 'border-emerald-300 dark:border-emerald-500/30 ring-2 ring-emerald-500/10') : 'border-slate-100 dark:border-slate-800/80'}`}
                         >
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex gap-2.5">
-                              <span className="text-2xl mt-0.5">{m.badge}</span>
+                              <span className={`text-3xl p-2 rounded-xl flex items-center justify-center ${isReached ? (isClaimed ? 'bg-amber-500/10' : 'bg-emerald-500/10') : 'bg-slate-100 dark:bg-slate-700/50 opacity-40'}`}>{m.badge}</span>
                               <div>
-                                <h4 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-1.5">
+                                <h4 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-1.5 flex-wrap">
                                   {m.label}
                                   {isClaimed && (
-                                    <span className="text-[9px] bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full font-bold">
-                                      Claimed
+                                    <span className="text-[9px] bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5 border border-amber-200 dark:border-amber-900/50">
+                                      ✨ Collected
+                                    </span>
+                                  )}
+                                  {canClaim && (
+                                    <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                                      Ready to Claim
                                     </span>
                                   )}
                                 </h4>
-                                <p className="text-xs text-slate-400 font-bold flex items-center gap-1 mt-0.5">
+                                <p className="text-xs text-slate-400 font-bold flex items-center gap-1 mt-0.5 dark:text-slate-400 font-bold">
                                   Goal: <span className="text-orange-500 font-extrabold">{m.days} consecutive learning days</span>
                                 </p>
                               </div>
                             </div>
                             <div className="text-right">
-                              <span className="text-xs font-black text-amber-500 bg-amber-500/10 px-2 py-1 rounded-lg">
-                                +{m.reward} Credits
+                              <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${isClaimed ? 'text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400' : isReached ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40' : 'text-slate-400 bg-slate-100 dark:bg-slate-800'}`}>
+                                {isClaimed ? 'Emblem Active' : isReached ? 'Earned' : 'Locked'}
                               </span>
                             </div>
                           </div>
@@ -346,7 +354,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                             </div>
                             <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
                               <div 
-                                className="bg-gradient-to-r from-amber-400 to-orange-500 h-full rounded-full transition-all duration-500"
+                                className={`h-full rounded-full transition-all duration-500 ${isClaimed ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-emerald-400 to-emerald-500'}`}
                                 style={{ width: `${progress}%` }}
                               />
                             </div>
@@ -355,11 +363,11 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                           {/* Action button */}
                           {canClaim && (
                             <button
-                              onClick={() => claimMilestone(m.days, userProfile, onProfileUpdate)}
-                              className="mt-3 w-full py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+                              onClick={() => claimMilestone(m.days)}
+                              className="mt-3 w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10 hover:shadow-lg active:scale-95 transition-all"
                             >
                               <Sparkles className="w-3.5 h-3.5 animate-bounce" />
-                              Claim Reward Now!
+                              Add Emblem to Collection!
                             </button>
                           )}
                           {!isReached && (

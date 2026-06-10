@@ -30,7 +30,7 @@ import NotificationsView from "./components/NotificationsView";
 import { useNotifications } from "./components/NotificationContext";
 import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
-import { useStreak } from "./components/StreakContext";
+import { useStreak, STREAK_MILESTONES } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
 import {
   saveProfileToFirestore,
@@ -138,7 +138,25 @@ const THEME_COLORS: Record<string, Record<string, string>> = {
 const App: React.FC = () => {
   // Notifications
   const { unreadCount, requestPermission, sendNotification } = useNotifications();
-  const { recordActivity } = useStreak();
+  const { recordActivity, streak, claimMilestone } = useStreak();
+  const [unclaimedVisitMilestone, setUnclaimedVisitMilestone] = useState<any>(null);
+
+  // Display newly reached emblem rewards at once when they visit/load
+  useEffect(() => {
+    if (!streak || streak.currentStreak === undefined) return;
+    
+    // Find the first milestone that is completed/reached but not claimed yet
+    const milestoneToNotify = STREAK_MILESTONES.find(m => 
+      streak.currentStreak >= m.days && 
+      (!streak.claimedMilestones || !streak.claimedMilestones.includes(m.days))
+    );
+
+    if (milestoneToNotify) {
+      setUnclaimedVisitMilestone(milestoneToNotify);
+    } else {
+      setUnclaimedVisitMilestone(null);
+    }
+  }, [streak]);
 
   // Request notification permission on first visit
   useEffect(() => {
@@ -213,6 +231,10 @@ const App: React.FC = () => {
   const [existingQuizScore, setExistingQuizScore] = useState<
     number | undefined
   >(undefined);
+  const [pendingShareId, setPendingShareId] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("share");
+  });
 
   // Loading States
   const [loading, setLoading] = useState(false);
@@ -307,22 +329,21 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [user]);
 
-  // Check for shared content on load
+  // Check for shared content on load (Only allow if user is logged on)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const shareId = params.get("share");
+    if (authLoading) return; // Wait until auth state is confirmed
+    if (!pendingShareId) return;
 
-    if (shareId) {
+    if (user) {
+      // User is logged in! Display the shared things.
       const fetchShared = async () => {
         setAuthLoading(true);
         try {
-          const response = await fetch(`/api/auth/share/${shareId}`);
+          const response = await fetch(`/api/auth/share/${pendingShareId}`);
           const data = await response.json();
 
           if (response.ok && data.success) {
             const item = data.data;
-            setSharedContent(item);
-            setIsViewingShared(true);
 
             // Load the content into the view
             if (item.type === AppMode.SUMMARY) {
@@ -334,6 +355,9 @@ const App: React.FC = () => {
             } else if (item.type === AppMode.QUIZ) {
               setQuizData(item.content);
               setMode(AppMode.QUIZ);
+              if (item.score !== undefined) {
+                setExistingQuizScore(item.score);
+              }
             }
             // Update form data for context
             setFormData((prev) => ({
@@ -343,20 +367,24 @@ const App: React.FC = () => {
               gradeClass: item.subtitle?.split(" • ")[0] || "",
             }));
           } else {
-            console.error("Shared content not found or expired.");
+            alert("Shared content not found or expired.");
           }
         } catch (err) {
           console.error("Failed to fetch shared content", err);
         } finally {
           setAuthLoading(false);
+          setPendingShareId(null);
           // Clear the URL parameter without refreshing
           const newUrl = window.location.pathname;
           window.history.replaceState({}, document.title, newUrl);
         }
       };
       fetchShared();
+    } else {
+      // User is not logged in! Prompt them to login or signup first.
+      setShowAuthModal(true);
     }
-  }, [setSummaryContent, setHomeworkContent, setQuizData, setMode, setFormData]);
+  }, [user, authLoading, pendingShareId, setSummaryContent, setHomeworkContent, setQuizData, setMode, setFormData]);
 
   // Sync formData language with settings whenever settings change
   useEffect(() => {
@@ -2083,6 +2111,55 @@ const App: React.FC = () => {
         userProfile={userProfile}
         onProfileUpdate={handleProfileSave}
       />
+
+      {unclaimedVisitMilestone && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-amber-200 dark:border-amber-500/20 max-w-sm w-full shadow-2xl relative text-center overflow-hidden">
+            <div className="absolute -top-24 -left-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl" />
+            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
+            
+            <div className="relative">
+              <span className="text-6xl inline-block bg-amber-500/10 p-5 rounded-2xl mb-4 animate-bounce">
+                {unclaimedVisitMilestone.badge}
+              </span>
+              <h3 className="text-2xl font-black text-slate-800 dark:text-white leading-tight">
+                New Emblem Unlocked! 🎉
+              </h3>
+              <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">
+                {unclaimedVisitMilestone.days}-Day Learning Milestone
+              </p>
+              
+              <div className="my-5 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-150 dark:border-slate-800 text-center">
+                <p className="text-md font-black text-amber-500 dark:text-amber-400">
+                  {unclaimedVisitMilestone.label}
+                </p>
+                <p className="text-[11px] text-slate-500 font-bold mt-1 leading-relaxed max-w-[280px] mx-auto">
+                  Earned for consecutive daily study. Collect this emblem to add it to your showcase!
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  onClick={async () => {
+                    await claimMilestone(unclaimedVisitMilestone.days);
+                    setUnclaimedVisitMilestone(null);
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-amber-500/20 hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Collect & Equip Emblem
+                </button>
+                <button
+                  onClick={() => setUnclaimedVisitMilestone(null)}
+                  className="w-full py-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 font-bold text-[11px] rounded-xl transition-all"
+                >
+                  Decide Later
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {showTutorial && <Tutorial onClose={handleTutorialClose} />}
