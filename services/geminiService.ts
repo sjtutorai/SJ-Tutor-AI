@@ -4,7 +4,7 @@ import { SettingsService } from "./settingsService";
 
 // Helper to initialize AI client.
 // The API key is retrieved exclusively from the environment variable process.env.API_KEY.
-// This variable is mapped in vite.config.ts from your .env file or Vercel settings.
+// This variable is mapped in vite.config.ts from your .env file or SJ Tutor AI configuration.
 const getAI = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
