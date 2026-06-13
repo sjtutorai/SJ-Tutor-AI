@@ -29,7 +29,7 @@ interface StreakContextType {
   leaderboard: LeaderboardEntry[];
   loading: boolean;
   recordActivity: (userProfile?: UserProfile, onProfileUpdate?: (profile: UserProfile) => void) => Promise<{ success: boolean; incremented: boolean; milestoneReached?: number }>;
-  claimMilestone: (milestone: number, userProfile: UserProfile, onProfileUpdate: (profile: UserProfile) => void) => Promise<boolean>;
+  claimMilestone: (milestone: number) => Promise<boolean>;
   fetchLeaderboard: () => Promise<void>;
   triggerConfetti: () => void;
 }
