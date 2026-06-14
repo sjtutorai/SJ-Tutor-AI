@@ -151,19 +151,15 @@ export const GeminiService = {
     return response;
   },
 
-  generateQuiz: async (data: StudyRequestData, profile?: UserProfile): Promise<QuizQuestion[]> => {
+  generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
     const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
     const count = data.questionCount || 5;
     const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
 
-    const grade = profile?.grade || data.gradeClass || settings.learning.grade || '10th';
-    const learningStyle = profile?.learningStyle || 'Visual';
-    const learningGoal = profile?.learningGoal || 'General academic support';
-
     const prompt = `
-      Create a ${count}-question multiple-choice quiz based on the following context.
+      Create a ${count}-question multiple-choice quiz based on the following chapter details.
       EVERYTHING INCLUDING QUESTIONS, OPTIONS, AND EXPLANATIONS MUST BE IN ${language.toUpperCase()}.
       
       The difficulty level of the questions should be: ${difficulty}.
@@ -173,18 +169,9 @@ export const GeminiService = {
       
       Subject: ${data.subject}
       Chapter: ${data.chapterName}
-      Class: ${grade} (Student Class Level based on Date of Birth)
+      Class: ${data.gradeClass || settings.learning.grade}
       Board: ${data.board}
       Language: ${language}
-      Student Learning Style: ${learningStyle}
-      Student Stated Goal: ${learningGoal}
-
-      Quiz Customization Directive:
-      - Customize the phrasing and design of the questions to align with the student's learning style (${learningStyle}) and specified class level (${grade}).
-      - If Visual: Include descriptive imagery, patterns, spatial/structural setups in the questions.
-      - If Auditory/Conversational: Use dialogues or rhythmic phrasing.
-      - If Reading/Writing: Focus on definition precision and text comprehension.
-      - If Kinesthetic: Frame questions as situational experiments, roleplay tasks, or physical real-world activities.
     `;
 
     const response = await ai.models.generateContent({
@@ -295,11 +282,11 @@ export const GeminiService = {
     throw new Error("Failed to update timetable");
   },
 
-  createTutorChat: (profile?: UserProfile) => {
+  createTutorChat: () => {
     const ai = getAI();
-    const systemInstruction = SettingsService.getTutorSystemInstruction(profile);
+    const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       config: { systemInstruction: systemInstruction }
     });
   },

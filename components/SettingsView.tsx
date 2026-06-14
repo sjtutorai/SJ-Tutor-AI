@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { UserProfile, UserSettings, SJTUTOR_AVATAR } from '../types';
 import { SettingsService } from '../services/settingsService';
-import { calculateProfileCompletion, calculateGradeFromAge } from '../utils/profileUtils';
+import { calculateProfileCompletion } from '../utils/profileUtils';
 import { auth } from '../firebaseConfig';
 import { sendPasswordResetEmail, verifyBeforeUpdateEmail } from 'firebase/auth';
 import { 
@@ -30,37 +30,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   onNavigateToLegal
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
-  const [settings, setSettings] = useState<UserSettings>(() => {
-    const s = SettingsService.getSettings();
-    const dobGrade = userProfile.dob ? calculateGradeFromAge(userProfile.dob) : '';
-    const initialGrade = dobGrade || userProfile.grade || s.learning.grade;
-    return {
-      ...s,
-      learning: {
-        ...s.learning,
-        grade: initialGrade
-      }
-    };
-  });
-
-  // Keep settings grade synced with date of birth
-  useEffect(() => {
-    const dobGrade = userProfile.dob ? calculateGradeFromAge(userProfile.dob) : '';
-    const activeGrade = dobGrade || userProfile.grade;
-    if (activeGrade && settings.learning.grade !== activeGrade) {
-      setSettings(prev => {
-        const updated = {
-          ...prev,
-          learning: {
-            ...prev.learning,
-            grade: activeGrade
-          }
-        };
-        SettingsService.saveSettings(updated);
-        return updated;
-      });
-    }
-  }, [userProfile.dob, userProfile.grade]);
+  const [settings, setSettings] = useState<UserSettings>(SettingsService.getSettings());
   const [hasChanges, setHasChanges] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   

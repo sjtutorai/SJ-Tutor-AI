@@ -1,87 +1,25 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage, SJTUTOR_AVATAR, UserProfile } from '../types';
-import { SettingsService } from '../services/settingsService';
+import { ChatMessage, SJTUTOR_AVATAR } from '../types';
 import { GeminiService } from '../services/geminiService';
 import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle, ExternalLink, Share2, Save, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Chat, GenerateContentResponse } from "@google/genai";
 
-const getPersonalizedSampleQuestions = (subject = 'Science', grade = '10th', style = 'Visual'): string[] => {
-  const isPrimary = grade.match(/Preschool|Nursery|LKG|UKG|1st|2nd|3rd|4th|5th/i);
-
-  const sub = subject.trim().toLowerCase();
-
-  // Primary school templates
-  if (isPrimary) {
-    if (sub.includes('math') || sub.includes('arithmetic')) {
-      return [
-        "If I have 5 apples and eat 2, how many are left? 🍎",
-        "How do you count by 5s up to 50?",
-        "What shape has 3 sides and 3 corners? 🔺",
-        "Could you explain simple addition with a story?",
-        "What is half of 10 and how can we share it?"
-      ];
-    }
-    if (sub.includes('science') || sub.includes('nature') || sub.includes('evs')) {
-      return [
-        "Why is the sky blue? 🌈",
-        "How do plants drink water from soil?",
-        "What do bees do with flowers? 🐝",
-        "What is the difference between ice and water?",
-        "Why do we need sunlight to grow?"
-      ];
-    }
-    return [
-      `What are some simple words about ${subject}?`,
-      `Can you tell me a short story about ${subject}?`,
-      `How does ${subject} work in everyday life?`,
-      `Explain a fun concept in ${subject} with emojis! ✨`,
-      `What is the most interesting thing to learn about ${subject}?`
-    ];
-  }
-
-  // Middle/High/Higher templates
-  if (sub.includes('math') || sub.includes('algebra') || sub.includes('calculus') || sub.includes('geometry')) {
-    return [
-      `Explain the Pythagoras Theorem ${style === 'Visual' ? 'using a visual square map' : 'with simple examples'}.`,
-      "What is the difference between rational and irrational numbers?",
-      "How do we find the slope of a line with a simple formula?",
-      "Can you explain quadratic equations using a clear step-by-step method?",
-      "What are the practical real-world applications of Trigonometry?"
-    ];
-  }
-  if (sub.includes('science') || sub.includes('physics') || sub.includes('chemistry') || sub.includes('biology')) {
-    return [
-      `Explain Photosynthesis ${style === 'Visual' ? 'using a visual step-by-step diagram description' : 'as a simple story'}.`,
-      "What are Newton's Three Laws of Motion with real-life examples?",
-      "Explain the structure of an atom (protons, neutrons, and electrons).",
-      "What is the difference between acids and bases?",
-      "Explain the difference between plant cells and animal cells."
-    ];
-  }
-  if (sub.includes('history') || sub.includes('social') || sub.includes('civics')) {
-    return [
-      "What were the primary causes of the French Revolution?",
-      "Explain the fundamental rights of a citizen in the Indian Constitution.",
-      "Who was Mahatma Gandhi and what was his role in Indian Independence?",
-      "What is soil erosion and what are three ways to prevent it?",
-      "Explain the difference between renewable and non-renewable energy resources."
-    ];
-  }
-
-  // General Subject Templates
-  return [
-    `What are the most fundamental concepts to master in ${subject} for ${grade}?`,
-    `Can you explain a complex concept of ${subject} ${style === 'Visual' ? 'using mind-maps or ASCII diagrams' : 'with step-by-step analogies'}?`,
-    `Provide 3 key study rules or tips for learning ${subject} effectively.`,
-    `How does ${subject} relate to real-world careers or modern technology?`,
-    `Let's do a quick quiz on ${subject} to test my understanding!`
-  ];
-};
+const SAMPLE_QUESTIONS = [
+  "What is the difference between weather and climate?",
+  "Explain the process of photosynthesis in plants.",
+  "What are natural resources? Name any four.",
+  "Define force. What are its different effects?",
+  "What is the Indian Constitution and why is it important?",
+  "Explain the water cycle with the help of a diagram (description).",
+  "What are rational numbers? Give two examples.",
+  "Who was Mahatma Gandhi? Write any four of his contributions to India.",
+  "What is soil erosion? Mention two methods to prevent it.",
+  "Explain the difference between renewable and non-renewable resources."
+];
 
 interface TutorChatProps {
-  userProfile?: UserProfile;
   onDeductCredit: (amount: number) => boolean;
   currentCredits: number;
   onSaveSession: (messages: ChatMessage[]) => void;
@@ -89,7 +27,7 @@ interface TutorChatProps {
   isOffline?: boolean;
 }
 
-const TutorChat: React.FC<TutorChatProps> = ({ userProfile, onDeductCredit, currentCredits, onSaveSession, initialMessages, isOffline = false }) => {
+const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, onSaveSession, initialMessages, isOffline = false }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages || [
     {
       role: 'model',
@@ -131,18 +69,11 @@ const TutorChat: React.FC<TutorChatProps> = ({ userProfile, onDeductCredit, curr
   const chatSessionRef = useRef<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load active sample questions based on learning preferences
-  const settings = SettingsService.getSettings();
-  const preferredSubject = settings.learning.preferredSubject || 'Science';
-  const calculatedGrade = userProfile?.grade || settings.learning.grade || '10th';
-  const preferredStyle = userProfile?.learningStyle || 'Visual';
-  const personalizedSampleQuestions = getPersonalizedSampleQuestions(preferredSubject, calculatedGrade, preferredStyle);
-
   useEffect(() => {
     if (!chatSessionRef.current) {
-      chatSessionRef.current = GeminiService.createTutorChat(userProfile);
+      chatSessionRef.current = GeminiService.createTutorChat();
     }
-  }, [userProfile]);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -378,9 +309,9 @@ const TutorChat: React.FC<TutorChatProps> = ({ userProfile, onDeductCredit, curr
         
         {messages.length === 1 && !isTyping && (
           <div className="space-y-3 mt-4 ml-11">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Try a question ({preferredSubject}):</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Try a question:</p>
             <div className="flex flex-wrap gap-2">
-              {personalizedSampleQuestions.map((q, idx) => (
+              {SAMPLE_QUESTIONS.map((q, idx) => (
                 <button
                   key={idx}
                   onClick={() => sendMessageToAi(q)}

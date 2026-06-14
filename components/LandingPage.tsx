@@ -88,7 +88,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, countryCode }) 
               { icon: CameraIcon, title: "Homework Writer", desc: "Solve difficult homework problems instantly by scanning photos or typing your questions.", color: "bg-purple-50 text-purple-600" },
               { icon: MessageCircle, title: "24/7 AI Tutor", desc: "Ask any question about your studies and get an instant, simple explanation.", color: "bg-amber-50 text-amber-600" },
               { icon: Calendar, title: "Personal Study Planner", desc: "Create a study timetable that helps you stay organized and finish your syllabus on time.", color: "bg-rose-50 text-rose-600" },
-              { icon: Users, title: "Collaborative Study Groups", desc: "Form study circles with friends or discover active circles to exchange notes, ask homework questions, and learn together.", color: "bg-teal-50 text-teal-600" },
               { icon: Languages, title: "Multi-Language Support", desc: "Get study help and explanations in the language you understand best.", color: "bg-indigo-50 text-indigo-600" }
             ].map((f, i) => (
               <div key={i} className="p-8 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group">

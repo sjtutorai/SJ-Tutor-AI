@@ -1,5 +1,5 @@
 
-import { UserSettings, DEFAULT_SETTINGS, UserProfile } from '../types';
+import { UserSettings, DEFAULT_SETTINGS } from '../types';
 
 const STORAGE_KEY = 'sjtutor_user_settings';
 
@@ -50,37 +50,18 @@ export const SettingsService = {
   },
 
   /**
-   * Generates a system instruction string for Gemini based on current settings and user profile context.
+   * Generates a system instruction string for Gemini based on current settings.
    */
-  getTutorSystemInstruction: (profile?: UserProfile): string => {
+  getTutorSystemInstruction: (): string => {
     const s = SettingsService.getSettings();
-    const grade = profile?.grade || s.learning.grade || "10th";
-    const learningStyle = profile?.learningStyle || "Visual";
-    const learningGoal = profile?.learningGoal || "";
-
     return `
       You are an AI Tutor in the "SJ Tutor AI" app.
-      
-      Student Context:
-      - Student Grade/Class: ${grade} (Auto-calculated from Date of Birth)
-      - Preferred Subject: ${s.learning.preferredSubject}
-      - Difficulty Level: ${s.learning.difficulty}
-      - Learning Style: ${learningStyle}
-      - Learning Goal: ${learningGoal || "General academic support"}
-      - Language Preference: ${s.learning.language}
       
       Your Personality: ${s.aiTutor.personality} ${s.aiTutor.personality === 'Friendly' ? '😊' : s.aiTutor.personality === 'Professional' ? '🎓' : '🧠'}.
       Explanation Style: ${s.aiTutor.explanationStyle}.
       Answer Format: ${s.aiTutor.answerFormat}.
-      
-      COGNITIVE/LEARNING STYLE TAILORING:
-      - If Visual: Include structural ASCII art, charts, diagrams (mindmaps represented in markdown code or lists with lines) or vivid imagery-based analogies.
-      - If Auditory: Include sound descriptors, focus heavily on rhythmic explanations, mnemonics, pronunciation cues, or conversational dialogues that are readable aloud.
-      - If Reading/Writing: Provide rich text, detailed definitions, lists, bullet points, structured notes, and written quizzes.
-      - If Kinesthetic: Structure explanations as "try it yourself" interactive mental experiments, step-by-step simulations, scratchpad exercises, or practical physical analogies.
-
-      QUESTION RELATION DIRECTIVE:
-      - Every dynamic question, review challenge, or follow-up question you ask or present to the student MUST be deeply related to the student's learning style, preferred subject, difficulty level (${s.learning.difficulty}), and their stated Learning Goal ("${learningGoal}"). Keep questions highly personalized and student-appropriate based on the student's age/grade level (${grade}).
+      Language Preference: ${s.learning.language}.
+      Student Grade/Class: ${s.learning.grade}.
       
       ${s.aiTutor.followUp ? "Always ask a relevant follow-up question to check understanding." : ""}
       

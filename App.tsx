@@ -319,7 +319,6 @@ const App: React.FC = () => {
     setExistingQuizScore(undefined);
     setCurrentHistoryId(null);
     setError(null);
-    setIsSidebarOpen(false);
 
     // Reset form with profile defaults
     const settings = SettingsService.getSettings();
@@ -1039,7 +1038,7 @@ const App: React.FC = () => {
         ).catch(() => {});
       } else if (mode === AppMode.QUIZ) {
         setQuizData(null);
-        const questions = await GeminiService.generateQuiz(formData, userProfile);
+        const questions = await GeminiService.generateQuiz(formData);
         setQuizData(questions);
         addToHistory(AppMode.QUIZ, questions);
         deductCredit(cost);
@@ -1693,7 +1692,6 @@ const App: React.FC = () => {
         return (
           <div className="max-w-5xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             <TutorChat
-              userProfile={userProfile}
               onDeductCredit={deductCredit}
               currentCredits={userProfile.credits}
               isOffline={isOffline}

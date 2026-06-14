@@ -167,21 +167,5 @@ service cloud.firestore {
                               isGroupAdmin(groupId)
                             );
     }
-
-    // 5. Group Invitations sent to students
-    match /invitations/{invitationId} {
-      allow read: if isSignedIn() && (
-                    resource.data.targetEmail == request.auth.token.email || 
-                    resource.data.invitedByEmail == request.auth.token.email
-                  );
-      allow create: if isSignedIn() && 
-                    isValidId(invitationId) &&
-                    incoming().invitedByEmail == request.auth.token.email;
-      allow update, delete: if isSignedIn() && 
-                            isValidId(invitationId) && (
-                              request.auth.token.email == resource.data.targetEmail || 
-                              request.auth.token.email == resource.data.invitedByEmail
-                            );
-    }
   }
 }
