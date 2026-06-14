@@ -1630,21 +1630,85 @@ const App: React.FC = () => {
                   const tutorItemContent = {
                     messages: msgs,
                   };
+                  // Find first user query if exists to create a dynamic title according to user's talking
+                  const userMsgs = msgs.filter((m) => m.role === 'user');
+                  const firstQuery = userMsgs.length > 0 ? userMsgs[0].text : '';
+
                   // Check if already in history to update or add
                   const existing = history.find(
                     (h) =>
                       h.id === currentHistoryId && h.type === AppMode.TUTOR,
                   );
+
+                  let activeId = currentHistoryId;
+
                   if (existing) {
                     setHistory((prev) =>
-                      prev.map((h) =>
-                        h.id === existing.id
-                          ? { ...h, content: tutorItemContent }
-                          : h,
-                      ),
+                      prev.map((h) => {
+                        if (h.id === existing.id) {
+                          let newTitle = h.title;
+                          if ((newTitle === "Untitled Chapter" || newTitle === "Tutor Session") && firstQuery) {
+                            newTitle = firstQuery.length > 35 ? firstQuery.substring(0, 32) + "..." : firstQuery;
+                          }
+                          return { ...h, title: newTitle, content: { ...tutorItemContent, titleGenerated: h.content?.titleGenerated } };
+                        }
+                        return h;
+                      }),
                     );
                   } else {
-                    addToHistory(AppMode.TUTOR, tutorItemContent);
+                    const newId = Date.now().toString();
+                    activeId = newId;
+                    let initialTitle = "Untitled Chapter";
+                    if (firstQuery) {
+                      initialTitle = firstQuery.length > 35 ? firstQuery.substring(0, 32) + "..." : firstQuery;
+                    }
+                    const newItem: HistoryItem = {
+                      id: newId,
+                      type: AppMode.TUTOR,
+                      title: initialTitle,
+                      subtitle: `${formData.gradeClass || "Student"} • ${formData.subject || "General"}`,
+                      timestamp: Date.now(),
+                      content: tutorItemContent,
+                      formData: { ...formData },
+                    };
+                    setHistory((prev) => [newItem, ...prev]);
+                    setCurrentHistoryId(newId);
+
+                    // Record learning activity sequence progress
+                    recordActivity();
+                  }
+
+                  // If user has started talking and we are online, generate a beautifully summarized title in the user's matching language
+                  if (firstQuery && !isOffline) {
+                    const targetId = existing ? existing.id : activeId;
+                    if (targetId) {
+                      const item = history.find(h => h.id === targetId);
+                      const alreadyGenerated = item?.content?.titleGenerated;
+
+                      if (!alreadyGenerated) {
+                        // Mark as generated first to lock concurrent requests
+                        setHistory((prev) =>
+                          prev.map((h) =>
+                            h.id === targetId
+                              ? { ...h, content: { ...h.content, titleGenerated: true } }
+                              : h,
+                          ),
+                        );
+
+                        // Generate title using Gemini in the same language user typed
+                        GeminiService.generateChatTitle(firstQuery).then((polishedTitle) => {
+                          if (polishedTitle) {
+                            setHistory((prev) =>
+                              prev.map((h) =>
+                                h.id === targetId ? { ...h, title: polishedTitle } : h,
+                              ),
+                            );
+                          }
+                        }).catch((err) => {
+                          console.warn("Dynamic title generation failed:", err);
+                        });
+                      }
+                    }
                   }
                 }
               }}
