@@ -32,7 +32,12 @@ import {
   ShieldCheck, 
   UserPlus, 
   Trash2,
-  Bookmark
+  Bookmark,
+  Settings,
+  Mail,
+  Gift,
+  Hourglass,
+  HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -115,12 +120,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const currentUid = auth.currentUser?.uid || 'guest';
   const currentDisplayName = auth.currentUser?.displayName || userProfile.displayName || 'Anonymous Scholar';
   const currentPhotoURL = auth.currentUser?.photoURL || userProfile.photoURL || '';
+  const currentUserEmail = auth.currentUser?.email || '';
 
   // App Layout State
   const [activeTab, setActiveTab] = useState<'my-groups' | 'discover'>('my-groups');
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Subjects');
+  const [sortOption, setSortOption] = useState<'newest' | 'oldest' | 'active'>('newest');
 
   // Groups and Real-time data lists
   const [groups, setGroups] = useState<GroupItem[]>([]);
@@ -133,6 +140,22 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Sub-features inside selected Group
   const [groupPaneTab, setGroupPaneTab] = useState<'chat' | 'announcements' | 'materials' | 'members' | 'requests'>('chat');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
+
+  // New States for Invitations, Pending Requests, Edit Settings
+  const [receivedInvitations, setReceivedInvitations] = useState<any[]>([]);
+  const [myPendingRequestsList, setMyPendingRequestsList] = useState<{groupId: string, groupName: string, requestedAt: number, photoURL?: string}[]>([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [invitedFriendsEmail, setInvitedFriendsEmail] = useState('');
+  const [invitedFriendsMsg, setInvitedFriendsMsg] = useState('');
+
+  const [showEditGroupModal, setShowEditGroupModal] = useState(false);
+  const [editGroupName, setEditGroupName] = useState('');
+  const [editGroupDesc, setEditGroupDesc] = useState('');
+  const [editGroupCategory, setEditGroupCategory] = useState('');
+  const [editGroupPhotoURL, setEditGroupPhotoURL] = useState('');
+
+  const [customGroupAvatarUrl, setCustomGroupAvatarUrl] = useState('');
+  const [useCustomGroupAvatar, setUseCustomGroupAvatar] = useState(false);
 
   // Effect to check if user has sent a pending join request for selected discovered group
   useEffect(() => {
@@ -153,6 +176,56 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
     checkPendingRequest();
   }, [selectedGroupId, currentUid, myGroupIds]);
+
+  // Realtime Sync for Received Invitations
+  useEffect(() => {
+    if (!currentUserEmail) return;
+    const q = query(
+      collection(db, 'invitations'),
+      where('targetEmail', '==', currentUserEmail.toLowerCase()),
+      where('status', '==', 'pending')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      setReceivedInvitations(list);
+    }, (err) => {
+      console.warn("Firestore invitations sync failed:", err);
+    });
+    return () => unsubscribe();
+  }, [currentUserEmail]);
+
+  // Bulk check client-side pending requests
+  useEffect(() => {
+    if (!currentUid || currentUid === 'guest' || groups.length === 0) {
+      setMyPendingRequestsList([]);
+      return;
+    }
+    const checkAllRequests = async () => {
+      const pending: any[] = [];
+      const nonMembersGroups = groups.filter(g => !myGroupIds.includes(g.id));
+      for (const gp of nonMembersGroups) {
+        try {
+          const reqRef = doc(db, 'groups', gp.id, 'join_requests', currentUid);
+          const snap = await getDoc(reqRef);
+          if (snap.exists() && snap.data()?.status === 'pending') {
+            pending.push({
+              groupId: gp.id,
+              groupName: gp.name,
+              photoURL: gp.photoURL,
+              requestedAt: snap.data()?.requestedAt || Date.now()
+            });
+          }
+        } catch {
+          // Normal skip
+        }
+      }
+      setMyPendingRequestsList(pending);
+    };
+    checkAllRequests();
+  }, [groups, myGroupIds, currentUid]);
 
   // Creation modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -331,7 +404,15 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     if (isOffline) return;
 
     try {
-      if (type === 'NEW_REQUEST') {
+      if (type === 'GROUP_CREATED') {
+        const { groupName, creatorId } = payload;
+        await sendTargetNotification(
+          creatorId,
+          `✅ Group Generated Successfully!`,
+          `Your advanced study group "${groupName}" was generated successfully. 10 credits deducted.`,
+          'groups'
+        );
+      } else if (type === 'NEW_REQUEST') {
         const { groupName, senderName, ownerId, admins } = payload;
         // Notify owner and admins about the request
         const targets = Array.from(new Set([ownerId, ...(admins || [])]));
@@ -361,6 +442,54 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           `Your request to join "${groupName}" was declined.`,
           'groups'
         );
+      } else if (type === 'MEMBER_ADDED') {
+        const { groupName, userId, userDisplayName } = payload;
+        await sendTargetNotification(
+          userId,
+          `Joined study group! 📚`,
+          `Welcome to "${groupName}"! Write a message to greet your colleagues.`,
+          'groups'
+        );
+        for (const member of groupMembers) {
+          if (member.userId !== userId && member.userId !== currentUid) {
+            await sendTargetNotification(
+              member.userId,
+              `New Member Added 👋`,
+              `Scholar "${userDisplayName}" has joined "${groupName}".`,
+              'groups'
+            );
+          }
+        }
+      } else if (type === 'MEMBER_REMOVED') {
+        const { targetUserId, groupName, originName } = payload;
+        await sendTargetNotification(
+          targetUserId,
+          `Removed from "${groupName}"`,
+          `You were removed from the study group "${groupName}" by ${originName}.`,
+          'groups'
+        );
+        for (const member of groupMembers) {
+          if (member.userId !== targetUserId && member.userId !== currentUid) {
+            await sendTargetNotification(
+              member.userId,
+              `Member Left Group`,
+              `A member is no longer in "${groupName}".`,
+              'groups'
+            );
+          }
+        }
+      } else if (type === 'GROUP_DELETED') {
+        const { groupName, formerMembers, originName } = payload;
+        for (const fUid of formerMembers) {
+          if (fUid !== currentUid) {
+            await sendTargetNotification(
+              fUid,
+              `Group Disbanded ⚠️`,
+              `The study group "${groupName}" has been disbanded and deleted by ${originName}.`,
+              'groups'
+            );
+          }
+        }
       } else if (type === 'ANNOUNCEMENT_POSTED') {
         const { groupName, senderName, text } = payload;
         // Notify every member of the group
@@ -420,6 +549,13 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       return;
     }
 
+    // Prevent Duplicate Names
+    const isDuplicate = groups.some(g => g.name.toLowerCase() === newGroupName.trim().toLowerCase());
+    if (isDuplicate) {
+      setCreateError('❌ A group with this name already exists. Please choose a unique name.');
+      return;
+    }
+
     // Creating a group costs exactly 10 credits. Check first!
     if (userProfile.credits < 10) {
       setCreateError(`Insufficient learning credits. Creating an advanced study group requires 10 Credits, but you currently have ${userProfile.credits} Credits. Upgrade or complete tasks!`);
@@ -435,12 +571,16 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
         credits: userProfile.credits - 10
       };
 
+      const finalPhotoURL = useCustomGroupAvatar && customGroupAvatarUrl.trim() 
+        ? customGroupAvatarUrl.trim() 
+        : newGroupAvatar;
+
       // Create Group Doc
       const groupData: GroupItem = {
         id: newGroupId,
         name: newGroupName.trim(),
         description: newGroupDesc.trim() || 'A collaborative study workspace for academic scholars on SJ Tutor AI.',
-        photoURL: newGroupAvatar,
+        photoURL: finalPhotoURL,
         category: newGroupCategory,
         ownerId: currentUid,
         ownerName: currentDisplayName,
@@ -476,16 +616,25 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       };
       await setDoc(doc(db, 'groups', newGroupId, 'messages', welcomeMsg.id), welcomeMsg);
 
+      // Trigger standard and global notification
+      await triggerNotificationEvents('GROUP_CREATED', {
+        groupName: newGroupName.trim(),
+        creatorId: currentUid
+      });
+
       // Sync and deduct user profiles
       await onProfileUpdate(updatedProfile);
 
-      // Clean modals
+      // Clean modals & show success notice
       setNewGroupName('');
       setNewGroupDesc('');
       setNewGroupCategory('General Study');
+      setCustomGroupAvatarUrl('');
+      setUseCustomGroupAvatar(false);
       setShowCreateModal(false);
       setSelectedGroupId(newGroupId);
       setGroupPaneTab('chat');
+      alert("✅ Group Generated Successfully!");
     } catch (err: any) {
       console.error("Failed to create study group:", err);
       setCreateError(`Create group operation failed: ${err.message || err}`);
@@ -539,7 +688,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       const reqRef = doc(db, 'groups', selectedGroupId, 'join_requests', userId);
       
       if (status === 'accepted') {
-        // Fetch target profile details if needed or use previous request fields
         const reqSnap = await getDoc(reqRef);
         if (!reqSnap.exists()) return;
         const reqData = reqSnap.data() as GroupJoinRequest;
@@ -570,6 +718,13 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           groupName: selectedGroupData.name
         });
 
+        // Send Member Added notification
+        await triggerNotificationEvents('MEMBER_ADDED', {
+          userId,
+          userDisplayName: reqData.displayName,
+          groupName: selectedGroupData.name
+        });
+
         // Post notice in main discussion
         const joinMsg: GroupMessage = {
           id: `msg_join_${Date.now()}`,
@@ -596,7 +751,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   };
 
   // --- Leave Group / Eject Member ---
-  const handleLeaveOrRemoveMember = async (targetUserId: string) => {
+  const handleLeaveOrRemoveMember = async (targetUserId: string, targetMemberName: string) => {
     if (!selectedGroupId || !selectedGroupData) return;
 
     // Check permissions
@@ -632,14 +787,23 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
       // Post notice in discussions
       const isEjected = !isSelf;
+
+      if (isEjected) {
+        await triggerNotificationEvents('MEMBER_REMOVED', {
+          targetUserId,
+          groupName: selectedGroupData.name,
+          originName: currentDisplayName
+        });
+      }
+
       const noticeMsg: GroupMessage = {
         id: `msg_leave_${Date.now()}`,
         senderId: 'system',
         senderName: 'SJ Tutor Bot',
         senderAvatar: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
         text: isEjected 
-          ? `Member was removed from the study group by an administrator.`
-          : `Scholar left the group.`,
+          ? `Member "${targetMemberName}" was removed from the study group by an administrator.`
+          : `Scholar "${targetMemberName}" left the group.`,
         type: 'text',
         timestamp: Date.now()
       };
@@ -766,12 +930,174 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     if (!confirm) return;
 
     try {
+      const formerMembers = groupMembers.map(m => m.userId);
+      await triggerNotificationEvents('GROUP_DELETED', {
+        groupName: selectedGroupData.name,
+        formerMembers,
+        originName: currentDisplayName
+      });
+
       await deleteDoc(doc(db, 'groups', selectedGroupId));
       setSelectedGroupId(null);
       setActiveTab('my-groups');
       alert("Group disbanded successfully.");
     } catch (err) {
       console.error("Erase operation failed:", err);
+    }
+  };
+
+  // --- Send Custom email invitation to candidate email address ---
+  const handleSendInvitation = async (email: string, customMsg: string) => {
+    if (isOffline) return;
+    if (!selectedGroupId || !selectedGroupData) return;
+
+    const trimmedEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      alert("❌ Please enter a valid email address.");
+      return;
+    }
+
+    try {
+      const inviteId = `invite_${Date.now()}`;
+      const groupLink = `${window.location.origin}/?mode=groups&groupId=${selectedGroupId}`;
+      const inviteMsg = customMsg.trim() || `Hi! Join my study group "${selectedGroupData.name}" on SJ Tutor AI!`;
+
+      // Save invitation to Firestore
+      await setDoc(doc(db, 'invitations', inviteId), {
+        id: inviteId,
+        groupId: selectedGroupId,
+        groupName: selectedGroupData.name,
+        groupDescription: selectedGroupData.description,
+        invitationMessage: inviteMsg,
+        invitedByEmail: auth.currentUser?.email || '',
+        invitedByName: currentDisplayName,
+        targetEmail: trimmedEmail,
+        status: 'pending',
+        createdAt: Date.now(),
+        joinLink: groupLink
+      });
+
+      // Show beautiful automatic mock email alert
+      alert(`📧 Automated Invitation Email Dispatched Successfully!\n\nTo: ${trimmedEmail}\nSubject: You've been invited to join "${selectedGroupData.name}"!\n\nGroup Description:\n${selectedGroupData.description}\n\nInvitation Message:\n"${inviteMsg}"\n\nJoin Link:\n${groupLink}`);
+
+      setInvitedFriendsEmail('');
+      setInvitedFriendsMsg('');
+      setShowInviteModal(false);
+    } catch (err: any) {
+      console.error("Failed to send invitation:", err);
+      alert(`Failed to send invitation: ${err.message || err}`);
+    }
+  };
+
+  // --- Invitation processing (Acceptance or refusal) ---
+  const handleAcceptInvitation = async (invite: any) => {
+    if (isOffline) return;
+    try {
+      // 1. Add current user as a Member of that group
+      const newMember: GroupMember = {
+        userId: currentUid,
+        displayName: currentDisplayName,
+        photoURL: currentPhotoURL,
+        role: 'member',
+        joinedAt: Date.now()
+      };
+      await setDoc(doc(db, 'groups', invite.groupId, 'members', currentUid), newMember);
+
+      // 2. Fetch direct group snapshot to update membersCount
+      const groupRef = doc(db, 'groups', invite.groupId);
+      const groupSnap = await getDoc(groupRef);
+      if (groupSnap.exists()) {
+        const groupData = groupSnap.data();
+        const newCount = (groupData.membersCount || 0) + 1;
+        await updateDoc(groupRef, {
+          membersCount: newCount,
+          updatedAt: Date.now()
+        });
+      }
+
+      // 3. Delete the invitation doc
+      await deleteDoc(doc(db, 'invitations', invite.id));
+
+      // 4. Send notification: Member Added to other members, Group Owner, and the User
+      await triggerNotificationEvents('MEMBER_ADDED', {
+        groupId: invite.groupId,
+        groupName: invite.groupName,
+        userId: currentUid,
+        userDisplayName: currentDisplayName
+      });
+
+      // 5. Select this group in Workspace automatically
+      setSelectedGroupId(invite.groupId);
+      setGroupPaneTab('chat');
+      alert(`🎉 Successfully joined "${invite.groupName}"!`);
+    } catch (err: any) {
+      console.error("Failed to accept invitation:", err);
+      alert(`Failed to accept invitation: ${err.message || err}`);
+    }
+  };
+
+  const handleDeclineInvitation = async (inviteId: string) => {
+    try {
+      await deleteDoc(doc(db, 'invitations', inviteId));
+      alert("Invitation declined.");
+    } catch (err: any) {
+      console.error("Failed to decline invitation:", err);
+    }
+  };
+
+  // --- Edit settings (For Owners only) ---
+  const openEditGroupModal = () => {
+    if (!selectedGroupData) return;
+    setEditGroupName(selectedGroupData.name);
+    setEditGroupDesc(selectedGroupData.description);
+    setEditGroupCategory(selectedGroupData.category);
+    setEditGroupPhotoURL(selectedGroupData.photoURL);
+    setShowEditGroupModal(true);
+  };
+
+  const handleUpdateGroupSettings = async () => {
+    if (!selectedGroupId || !selectedGroupData) return;
+    if (selectedGroupData.ownerId !== currentUid) {
+      alert("Only the Group Owner can edit settings.");
+      return;
+    }
+
+    if (!editGroupName.trim()) {
+      alert("Please enter a valid Group Name.");
+      return;
+    }
+
+    // Check duplicate name among OTHER groups
+    const isDuplicate = groups.some(g => g.id !== selectedGroupId && g.name.toLowerCase() === editGroupName.trim().toLowerCase());
+    if (isDuplicate) {
+      alert("❌ A group with this name already exists. Please choose a unique name.");
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'groups', selectedGroupId), {
+        name: editGroupName.trim(),
+        description: editGroupDesc.trim(),
+        category: editGroupCategory,
+        photoURL: editGroupPhotoURL.trim(),
+        updatedAt: Date.now()
+      });
+      setShowEditGroupModal(false);
+      alert("✅ Group settings updated successfully!");
+    } catch (err: any) {
+      console.error("Failed to update group settings:", err);
+      alert(`Error updating settings: ${err.message || err}`);
+    }
+  };
+
+  // --- Deletion of messages (Mods or authors) ---
+  const handleDeleteMessage = async (msgId: string) => {
+    if (isOffline || !selectedGroupId) return;
+    try {
+      await deleteDoc(doc(db, 'groups', selectedGroupId, 'messages', msgId));
+    } catch (err) {
+      console.error("Failed to delete message:", err);
     }
   };
 
@@ -886,6 +1212,15 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     } else {
       return matchesCategory && matchesQuery && !isMemberOf;
     }
+  }).sort((a, b) => {
+    if (sortOption === 'newest') {
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    } else if (sortOption === 'oldest') {
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    } else if (sortOption === 'active') {
+      return (b.membersCount || 1) - (a.membersCount || 1);
+    }
+    return 0;
   });
 
   // Check current user credentials
@@ -923,16 +1258,27 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             </button>
           </div>
 
-          {/* Search bar input */}
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-            <input 
-              type="text"
-              placeholder="Search study groups..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 shadow-inner"
-            />
+          {/* Search bar input & Sort selector row */}
+          <div className="flex gap-2 mb-3">
+            <div className="relative flex-grow">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              <input 
+                type="text"
+                placeholder="Search study groups..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 shadow-inner"
+              />
+            </div>
+            <select
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value as any)}
+              className="px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-extrabold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+            >
+              <option value="newest">🕒 Newest</option>
+              <option value="oldest">⏳ Oldest</option>
+              <option value="active">🔥 Active</option>
+            </select>
           </div>
 
           {/* Simple Tab Control */}
@@ -981,9 +1327,24 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
         <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-slate-50/30">
           {filteredGroups.length === 0 ? (
             <div className="text-center py-12 px-4">
-              <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <p className="text-slate-500 text-xs font-bold">No groups found</p>
-              <p className="text-slate-400 text-[10px] mt-1">Try checking another subject category or query.</p>
+              <Users className="w-10 h-10 text-slate-300 mx-auto mb-2 animate-bounce" id="empty-groups-icon" />
+              {activeTab === 'discover' ? (
+                <>
+                  <p className="text-slate-700 text-xs font-extrabold text-center leading-relaxed">
+                    🔍 No Groups Available Yet. Be the first to create a group!
+                  </p>
+                  <p className="text-slate-400 text-[10px] mt-1.5 font-bold">
+                    Click the &quot;Create&quot; button in the upper corner to spend 10 Credits and launch your study circle.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-slate-700 text-xs font-extrabold text-center">No active study groups here</p>
+                  <p className="text-slate-400 text-[10px] mt-1 font-bold">
+                    Explore matches on the &quot;Discover&quot; tab or clear your active search query filter.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             filteredGroups.map((group) => {
@@ -1120,6 +1481,26 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                 {userRole === 'owner' && (
                   <button 
+                    onClick={openEditGroupModal}
+                    title="Edit study group settings"
+                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg border border-indigo-100 transition-colors"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                )}
+
+                {myGroupIds.includes(selectedGroupId) && (
+                  <button 
+                    onClick={() => setShowInviteModal(true)}
+                    title="Invite classmates to join"
+                    className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg border border-emerald-100 transition-colors"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                  </button>
+                )}
+
+                {userRole === 'owner' && (
+                  <button 
                     onClick={handleDeleteGroup}
                     title="Disband this study group"
                     className="p-2 text-red-500 hover:bg-red-50 rounded-lg border border-red-100 transition-colors"
@@ -1230,24 +1611,36 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                                   </span>
                                 </div>
 
-                                <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
-                                  isMe 
-                                    ? 'bg-slate-900 text-white rounded-tr-none shadow-sm' 
-                                    : 'bg-white border border-slate-100 text-slate-800 rounded-tl-none shadow-sm'
-                                }`}>
-                                  
-                                  {/* Render file attachments if materials */}
-                                  {msg.type === 'material' && msg.fileType === 'note' && (
-                                    <div className="mb-2 p-2 bg-indigo-50 text-indigo-900 rounded-xl border border-indigo-100 flex items-start gap-2 max-w-xs">
-                                      <FileText className="w-4 h-4 shrink-0 text-indigo-600 mt-0.5" />
-                                      <div className="flex-1 min-w-0">
-                                        <p className="font-extrabold text-[11px] truncate">{msg.fileName}</p>
-                                        <p className="text-[9px] text-indigo-600/70 font-black tracking-wider uppercase">SJ Academic Note</p>
+                                <div className="flex items-center gap-1.5 group/msg">
+                                  <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
+                                    isMe 
+                                      ? 'bg-slate-900 text-white rounded-tr-none shadow-sm' 
+                                      : 'bg-white border border-slate-100 text-slate-800 rounded-tl-none shadow-sm'
+                                  }`}>
+                                    
+                                    {/* Render file attachments if materials */}
+                                    {msg.type === 'material' && msg.fileType === 'note' && (
+                                      <div className="mb-2 p-2 bg-indigo-50 text-indigo-900 rounded-xl border border-indigo-100 flex items-start gap-2 max-w-xs">
+                                        <FileText className="w-4 h-4 shrink-0 text-indigo-600 mt-0.5" />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-extrabold text-[11px] truncate">{msg.fileName}</p>
+                                          <p className="text-[9px] text-indigo-600/70 font-black tracking-wider uppercase">SJ Academic Note</p>
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
+                                    )}
 
-                                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                                  </div>
+
+                                  {(isMe || userRole === 'owner' || userRole === 'admin') && (
+                                    <button 
+                                      onClick={() => handleDeleteMessage(msg.id)}
+                                      title="Delete message"
+                                      className="p-1 hover:text-rose-500 rounded text-slate-400 self-center opacity-0 group-hover/msg:opacity-100 transition-opacity"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -1438,7 +1831,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                                           <span>Transfer Ownership</span>
                                         </button>
                                         <button
-                                          onClick={() => handleLeaveOrRemoveMember(member.userId)}
+                                          onClick={() => handleLeaveOrRemoveMember(member.userId, member.displayName)}
                                           className="w-full text-left px-2.5 py-1.5 text-[10px] hover:bg-slate-50 text-red-500 font-bold flex items-center gap-1.5 rounded-xl"
                                         >
                                           <X className="w-3.5 h-3.5" />
@@ -1452,7 +1845,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                                 {/* Admin removing normal members options */}
                                 {userRole === 'admin' && member.role === 'member' && !isCurrent && (
                                   <button 
-                                    onClick={() => handleLeaveOrRemoveMember(member.userId)}
+                                    onClick={() => handleLeaveOrRemoveMember(member.userId, member.displayName)}
                                     className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded"
                                     title="Eject Member"
                                   >
@@ -1463,7 +1856,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                                 {/* Member leaving option */}
                                 {isCurrent && member.role !== 'owner' && (
                                   <button 
-                                    onClick={() => handleLeaveOrRemoveMember(member.userId)}
+                                    onClick={() => handleLeaveOrRemoveMember(member.userId, member.displayName)}
                                     className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-500 text-[10px] font-black rounded-lg flex items-center gap-0.5"
                                   >
                                     <LogOut className="w-3.5 h-3.5" />
@@ -1587,12 +1980,217 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             )}
           </>
         ) : (
-          <div className="p-8 text-center bg-slate-50/10 min-h-0 flex-grow flex flex-col justify-center items-center">
-            <Users className="w-16 h-16 text-indigo-500/20 mb-4 animate-bounce" />
-            <h3 className="font-extrabold text-slate-900 text-lg">No Group Selected</h3>
-            <p className="text-slate-500 text-xs mt-2 max-w-sm">
-              Select one of your existing study groups from the left workspace sidebar, or explore the Discover tab to find new collaborative subjects.
-            </p>
+          <div className="p-6 overflow-y-auto flex-grow flex flex-col bg-slate-50/50">
+            {/* My Hub Core Dashboard */}
+            <div className="space-y-6 max-w-4xl mx-auto w-full">
+              
+              {/* Header Greeting Banner */}
+              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl relative overflow-hidden">
+                <div className="relative z-10">
+                  <h3 className="font-extrabold text-xl sm:text-2xl tracking-tight">Welcome to My Groups Hub! 👋</h3>
+                  <p className="text-xs text-indigo-200 mt-2 max-w-xl">
+                    Connect, collaborate, and conquer learning objectives together! Joined groups allow you to exchange shared notes, discuss theories in real time, and broadcast instant announcements.
+                  </p>
+                  
+                  {/* Mini actions / info */}
+                  <div className="flex flex-wrap gap-4 mt-4 text-[10px] sm:text-xs">
+                    <div className="px-3 py-1.5 bg-white/10 rounded-xl font-bold flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>{myGroupIds.length} Joined Groups</span>
+                    </div>
+                    <div className="px-3 py-1.5 bg-white/10 rounded-xl font-bold flex items-center gap-1.5">
+                      <Gift className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{userProfile.credits} Credits Available</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Background layout decor */}
+                <div className="absolute right-0 bottom-0 top-0 opacity-15 pointer-events-none w-1/3">
+                  <Users className="w-full h-full text-white transform translate-x-12 translate-y-6" />
+                </div>
+              </div>
+
+              {/* 1. Received Invitations Queue */}
+              {receivedInvitations.length > 0 && (
+                <div className="bg-white border-2 border-indigo-100 p-5 rounded-3xl shadow-sm space-y-3.5 animate-bounce">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider">Group Invitations Received ({receivedInvitations.length})</h4>
+                      <p className="text-[10px] text-slate-500 font-bold">Colleagues have invited you to join their exclusive collaborative circles!</p>
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3.5">
+                    {receivedInvitations.map((invite) => (
+                      <div key={invite.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center gap-2.5 mb-2">
+                            <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-black">
+                              ✉️ Invite
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-bold">
+                              From: {invite.invitedByName || 'SJTutor Scholar'}
+                            </span>
+                          </div>
+                          <h5 className="font-extrabold text-slate-800 text-xs">{invite.groupName}</h5>
+                          <p className="text-[10px] text-slate-500 italic mt-1 line-clamp-2">
+                            &quot;{invite.invitationMessage}&quot;
+                          </p>
+                        </div>
+
+                        <div className="flex gap-2 mt-4">
+                          <button
+                            onClick={() => handleAcceptInvitation(invite)}
+                            className="flex-grow py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[10px] font-black transition-colors"
+                          >
+                            Accept & Join
+                          </button>
+                          <button
+                            onClick={() => handleDeclineInvitation(invite.id)}
+                            className="py-1.5 px-3 bg-slate-200 hover:bg-slate-300 text-slate-705 rounded-xl text-[10px] font-black transition-colors"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 2. My Pending Join Requests Status */}
+              {myPendingRequestsList.length > 0 && (
+                <div className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+                      <Hourglass className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider">Requested Memberships Status ({myPendingRequestsList.length})</h4>
+                      <p className="text-[10px] text-slate-500 font-bold">Waiting for Group Owners or Admins to review your application.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {myPendingRequestsList.map((req) => (
+                      <div key={req.groupId} className="p-3.5 bg-slate-50/50 border border-slate-100 rounded-2xl flex items-center justify-between">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <img 
+                            src={req.photoURL || PRESET_AVATARS[0]}
+                            className="w-8 h-8 rounded-lg object-cover bg-slate-100" 
+                          />
+                          <div className="min-w-0">
+                            <h5 className="font-bold text-slate-800 text-xs truncate">{req.groupName}</h5>
+                            <p className="text-[9px] text-amber-600 font-extrabold flex items-center gap-1 mt-0.5 animate-pulse">
+                              <span>●</span>
+                              <span>Pending Review</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={async () => {
+                            await handleCancelJoinRequest(req.groupId);
+                            setMyPendingRequestsList(prev => prev.filter(p => p.groupId !== req.groupId));
+                          }}
+                          className="p-1 px-2.5 bg-white border border-slate-200 hover:text-red-500 hover:bg-red-50 rounded-lg text-[10px] font-bold text-slate-500 transition-colors"
+                          title="Rescind Application"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 3. My Joined Classes / Discover Lists Grid */}
+              <div className="grid md:grid-cols-2 gap-6">
+                
+                {/* My Joined Groups Circle */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">My Joined Study Circles ({myGroupIds.length})</h4>
+                    <span className="text-[10px] text-slate-400 font-extrabold">Primary Hub</span>
+                  </div>
+
+                  {myGroupIds.length === 0 ? (
+                    <div className="p-8 text-center bg-white border border-slate-100 rounded-3xl">
+                      <HelpCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <h5 className="font-bold text-slate-600 text-xs">No groups joined yet</h5>
+                      <p className="text-[10px] text-slate-400 mt-1">Explore available circles in the Discover tab or click &quot;Create&quot; to start your own!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                      {groups.filter(g => myGroupIds.includes(g.id)).map((g) => (
+                        <div 
+                          key={g.id}
+                          onClick={() => setSelectedGroupId(g.id)}
+                          className="p-3 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-100 hover:border-indigo-200 rounded-2xl cursor-pointer flex items-center justify-between shadow-sm transition-all group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img src={g.photoURL} className="w-9 h-9 rounded-xl object-cover bg-slate-100" />
+                            <div className="min-w-0">
+                              <h5 className="font-bold text-slate-800 text-xs truncate group-hover:text-indigo-600 transition-colors">{g.name}</h5>
+                              <p className="text-[10px] text-slate-405 font-bold truncate mt-0.5">{g.category} • {g.membersCount || 1} Members</p>
+                            </div>
+                          </div>
+                          <span className="p-1 text-slate-400 group-hover:text-indigo-600 shrink-0">
+                            →
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Popular recommendations on Discover */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">Recommended Circles</h4>
+                    <span className="text-[10px] text-slate-400 font-extrabold">Public Discover</span>
+                  </div>
+
+                  {groups.filter(g => !myGroupIds.includes(g.id)).length === 0 ? (
+                    <div className="p-8 text-center bg-white border border-slate-100 rounded-3xl">
+                      <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <h4 className="font-bold text-slate-600 text-xs">No groups available yet</h4>
+                      <p className="text-[10px] text-slate-400 mt-1">🔍 No Groups Available Yet. Be the first to create a group!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                      {groups.filter(g => !myGroupIds.includes(g.id)).slice(0, 4).map((g) => (
+                        <div 
+                          key={g.id}
+                          onClick={() => {
+                            setActiveTab('discover');
+                            setSelectedGroupId(g.id);
+                          }}
+                          className="p-3 bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl cursor-pointer flex items-center justify-between shadow-sm transition-all group animate-none"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img src={g.photoURL} className="w-9 h-9 rounded-xl object-cover bg-slate-100" />
+                            <div className="min-w-0">
+                              <h5 className="font-bold text-slate-800 text-xs truncate group-hover:text-indigo-600 transition-colors">{g.name}</h5>
+                              <p className="text-[10px] text-slate-405 font-bold truncate mt-0.5">{g.category} • {g.membersCount || 1} Members</p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
+                            Request Entry
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+            </div>
           </div>
         )}
       </div>
@@ -1677,21 +2275,44 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   </div>
                 </div>
 
-                {/* Preset Avatars picker */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Select Group Cover Photo</label>
-                  <div className="flex gap-2 items-center overflow-x-auto pb-1">
-                    {PRESET_AVATARS.map((url) => (
-                      <img
-                        key={url}
-                        src={url}
-                        onClick={() => setNewGroupAvatar(url)}
-                        className={`w-10 h-10 rounded-lg object-cover cursor-pointer hover:opacity-100 transition-all ${
-                          newGroupAvatar === url ? 'ring-2 ring-indigo-600 scale-105 opacity-100' : 'opacity-65'
-                        }`}
+                {/* Preset and Custom Avatars picker */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Group Cover Photo</label>
+                    <div className="flex items-center gap-1">
+                      <input 
+                        type="checkbox"
+                        id="use-custom-url-checkbox"
+                        checked={useCustomGroupAvatar}
+                        onChange={(e) => setUseCustomGroupAvatar(e.target.checked)}
+                        className="w-3.5 h-3.5 accent-indigo-600 rounded cursor-pointer"
                       />
-                    ))}
+                      <label htmlFor="use-custom-url-checkbox" className="text-[10px] text-indigo-600 font-extrabold cursor-pointer">Use Custom Cover URL</label>
+                    </div>
                   </div>
+
+                  {useCustomGroupAvatar ? (
+                    <input
+                      type="text"
+                      value={customGroupAvatarUrl}
+                      onChange={(e) => setCustomGroupAvatarUrl(e.target.value)}
+                      placeholder="Paste cover photo URL (https://...)"
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary-500 text-slate-950"
+                    />
+                  ) : (
+                    <div className="flex gap-2 items-center overflow-x-auto pb-1">
+                      {PRESET_AVATARS.map((url) => (
+                        <img
+                          key={url}
+                          src={url}
+                          onClick={() => setNewGroupAvatar(url)}
+                          className={`w-10 h-10 rounded-lg object-cover cursor-pointer hover:opacity-100 transition-all ${
+                            newGroupAvatar === url ? 'ring-2 ring-indigo-600 scale-105 opacity-100' : 'opacity-65'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {createError && (
@@ -1783,6 +2404,183 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               >
                 Close
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 3: Edit Group Settings Dialog */}
+      <AnimatePresence>
+        {showEditGroupModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEditGroupModal(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs"
+            />
+
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white p-6 rounded-3xl shadow-2xl border border-slate-100 w-full max-w-md relative z-10"
+            >
+              <button 
+                onClick={() => setShowEditGroupModal(false)}
+                className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="mb-4">
+                <h3 className="font-extrabold text-slate-900 text-base">Edit Group Settings</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Customize your study group settings as owner</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400">Group Name</label>
+                  <input
+                    type="text"
+                    value={editGroupName}
+                    onChange={(e) => setEditGroupName(e.target.value)}
+                    placeholder="e.g. Advanced Calculus Circle"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 text-slate-950"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400">Group Description</label>
+                  <textarea
+                    value={editGroupDesc}
+                    onChange={(e) => setEditGroupDesc(e.target.value)}
+                    placeholder="Group objective overview..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 h-20 text-slate-950 resize-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400">Category</label>
+                  <select
+                    value={editGroupCategory}
+                    onChange={(e) => setEditGroupCategory(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 text-slate-850 font-bold"
+                  >
+                    {CATEGORIES.slice(1).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400">Cover Photo / URL</label>
+                  <input
+                    type="text"
+                    value={editGroupPhotoURL}
+                    onChange={(e) => setEditGroupPhotoURL(e.target.value)}
+                    placeholder="Paste an image web URL..."
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 text-slate-950"
+                  />
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    onClick={() => setShowEditGroupModal(false)}
+                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await handleUpdateGroupSettings();
+                      setShowEditGroupModal(false);
+                    }}
+                    className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-extrabold transition-colors shadow-sm"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 4: Invite Friend Modal */}
+      <AnimatePresence>
+        {showInviteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowInviteModal(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs"
+            />
+
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white p-6 rounded-3xl shadow-2xl border border-slate-100 w-full max-w-md relative z-10"
+            >
+              <button 
+                onClick={() => setShowInviteModal(false)}
+                className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="mb-4">
+                <h3 className="font-extrabold text-slate-900 text-base">Invite Friends to Study Group</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Send a workspace notification request direct to their email inbox</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400">Classmate Email Address</label>
+                  <input
+                    type="email"
+                    value={invitedFriendsEmail}
+                    onChange={(e) => setInvitedFriendsEmail(e.target.value)}
+                    placeholder="classmate@gmail.com"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 text-slate-950"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400">Private Message</label>
+                  <textarea
+                    value={invitedFriendsMsg}
+                    onChange={(e) => setInvitedFriendsMsg(e.target.value)}
+                    placeholder="e.g. Come join our group to revise for the calculus finals next Friday!"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 h-24 text-slate-950 resize-none"
+                  />
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    onClick={() => setShowInviteModal(false)}
+                    className="flex-1 py-1.5 bg-slate-105 hover:bg-slate-200 text-slate-600 rounded-xl text-[11px] font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await handleSendInvitation();
+                      setShowInviteModal(false);
+                      setInvitedFriendsEmail('');
+                      setInvitedFriendsMsg('');
+                    }}
+                    disabled={!invitedFriendsEmail.trim()}
+                    className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[11px] font-extrabold transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    Send Invitation
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}

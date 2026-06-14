@@ -125,6 +125,25 @@
         "timestamp": { "type": "number" }
       },
       "required": ["id", "senderId", "senderName", "text", "type", "timestamp"]
+    },
+    "Invitation": {
+      "title": "Invitation",
+      "description": "An invite link sent to a user email address for a study group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "groupName": { "type": "string" },
+        "groupDescription": { "type": "string" },
+        "invitationMessage": { "type": "string" },
+        "invitedByEmail": { "type": "string" },
+        "invitedByName": { "type": "string" },
+        "targetEmail": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "joinLink": { "type": "string" }
+      },
+      "required": ["id", "groupId", "groupName", "invitedByEmail", "invitedByName", "targetEmail", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -159,6 +178,10 @@
     "/groups/{groupId}/messages/{messageId}": {
       "schema": "GroupMessage",
       "description": "Discussion, announcement, and learning resource messages in a group"
+    },
+    "/invitations/{invitationId}": {
+      "schema": "Invitation",
+      "description": "Active group invitations sent to students"
     }
   }
 }
