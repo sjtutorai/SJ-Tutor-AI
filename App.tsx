@@ -319,6 +319,7 @@ const App: React.FC = () => {
     setExistingQuizScore(undefined);
     setCurrentHistoryId(null);
     setError(null);
+    setIsSidebarOpen(false);
 
     // Reset form with profile defaults
     const settings = SettingsService.getSettings();
