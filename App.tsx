@@ -1997,7 +1997,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto py-5 px-3 space-y-1 custom-scrollbar">
-            {navItems.map((item) => {
+            {navItems.filter((item) => item.id !== AppMode.GROUPS).map((item) => {
               const isActive = mode === item.id;
               const Icon = item.icon;
               return (
@@ -2176,6 +2176,25 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => {
+                if (!user) {
+                  setShowAuthModal(true);
+                } else {
+                  navigateToMode(AppMode.GROUPS);
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                mode === AppMode.GROUPS
+                  ? "bg-primary-50 dark:bg-primary-950/20 text-primary-600 dark:text-primary-400 border-primary-200 dark:border-primary-800"
+                  : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+              }`}
+              title="Study Groups"
+            >
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Study Groups</span>
+            </button>
+
             <button
               onClick={async () => {
                 const shareUrl = window.location.origin;
