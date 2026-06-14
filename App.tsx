@@ -173,8 +173,28 @@ const App: React.FC = () => {
   }, [requestPermission]);
 
   // Auth State
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const cached = localStorage.getItem("sjtutor_cached_user");
+      if (cached) {
+        return JSON.parse(cached) as any;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+  const [authLoading, setAuthLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem("sjtutor_cached_user");
+      if (cached) {
+        return false;
+      }
+    } catch {
+      // ignore
+    }
+    return true;
+  });
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -187,7 +207,26 @@ const App: React.FC = () => {
   });
 
   // App State
-  const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
+  const [mode, setMode] = useState<AppMode>(() => {
+    try {
+      const savedMode = localStorage.getItem("sjtutor_last_mode");
+      if (savedMode && Object.values(AppMode).includes(savedMode as AppMode)) {
+        return savedMode as AppMode;
+      }
+    } catch {
+      // ignore
+    }
+    return AppMode.DASHBOARD;
+  });
+
+  // Sync page mode to localStorage for persistence across reloads
+  useEffect(() => {
+    try {
+      localStorage.setItem("sjtutor_last_mode", mode);
+    } catch {
+      // ignore
+    }
+  }, [mode]);
 
   // Initialize form data with language from settings
   const [formData, setFormData] = useState<StudyRequestData>(() => {
@@ -511,10 +550,28 @@ const App: React.FC = () => {
         setAuthLoading(false);
         clearTimeout(timeoutId);
 
-        if (!currentUser) {
+        if (currentUser) {
+          try {
+            const userToCache = {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              photoURL: currentUser.photoURL,
+              emailVerified: currentUser.emailVerified,
+            };
+            localStorage.setItem("sjtutor_cached_user", JSON.stringify(userToCache));
+          } catch (e) {
+            console.error("Failed to cache user session", e);
+          }
+        } else {
           setIsNewUser(false);
           setUserProfile(initialProfileState);
           setMode(AppMode.DASHBOARD);
+          try {
+            localStorage.removeItem("sjtutor_cached_user");
+          } catch {
+            // ignore
+          }
         }
       },
       (err) => {
