@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronRight, ChevronLeft, X, Sparkles, BookOpen, BrainCircuit, MessageCircle, LayoutDashboard } from 'lucide-react';
+import { ChevronRight, ChevronLeft, X, Sparkles, BookOpen, BrainCircuit, MessageCircle, LayoutDashboard, Users } from 'lucide-react';
 
 interface TutorialProps {
   onClose: () => void;
@@ -30,6 +30,11 @@ const Tutorial: React.FC<TutorialProps> = ({ onClose }) => {
       title: "Intelligent AI Tutor",
       description: "Need help? Our 24/7 AI Tutor is here to explain complex topics, solve doubts, and guide you through your curriculum.",
       icon: <MessageCircle className="w-12 h-12 text-primary-500" />
+    },
+    {
+      title: "Collaborative Study Groups",
+      description: "Join or create customized study circles to share exam study content, discuss homework, and progress alongside other peers.",
+      icon: <Users className="w-12 h-12 text-primary-500" />
     },
     {
       title: "Dashboard & History",
