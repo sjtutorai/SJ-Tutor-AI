@@ -1038,7 +1038,7 @@ const App: React.FC = () => {
         ).catch(() => {});
       } else if (mode === AppMode.QUIZ) {
         setQuizData(null);
-        const questions = await GeminiService.generateQuiz(formData);
+        const questions = await GeminiService.generateQuiz(formData, userProfile);
         setQuizData(questions);
         addToHistory(AppMode.QUIZ, questions);
         deductCredit(cost);

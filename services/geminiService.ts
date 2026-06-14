@@ -151,15 +151,19 @@ export const GeminiService = {
     return response;
   },
 
-  generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
+  generateQuiz: async (data: StudyRequestData, profile?: UserProfile): Promise<QuizQuestion[]> => {
     const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
     const count = data.questionCount || 5;
     const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
 
+    const grade = profile?.grade || data.gradeClass || settings.learning.grade || '10th';
+    const learningStyle = profile?.learningStyle || 'Visual';
+    const learningGoal = profile?.learningGoal || 'General academic support';
+
     const prompt = `
-      Create a ${count}-question multiple-choice quiz based on the following chapter details.
+      Create a ${count}-question multiple-choice quiz based on the following context.
       EVERYTHING INCLUDING QUESTIONS, OPTIONS, AND EXPLANATIONS MUST BE IN ${language.toUpperCase()}.
       
       The difficulty level of the questions should be: ${difficulty}.
@@ -169,9 +173,18 @@ export const GeminiService = {
       
       Subject: ${data.subject}
       Chapter: ${data.chapterName}
-      Class: ${data.gradeClass || settings.learning.grade}
+      Class: ${grade} (Student Class Level based on Date of Birth)
       Board: ${data.board}
       Language: ${language}
+      Student Learning Style: ${learningStyle}
+      Student Stated Goal: ${learningGoal}
+
+      Quiz Customization Directive:
+      - Customize the phrasing and design of the questions to align with the student's learning style (${learningStyle}) and specified class level (${grade}).
+      - If Visual: Include descriptive imagery, patterns, spatial/structural setups in the questions.
+      - If Auditory/Conversational: Use dialogues or rhythmic phrasing.
+      - If Reading/Writing: Focus on definition precision and text comprehension.
+      - If Kinesthetic: Frame questions as situational experiments, roleplay tasks, or physical real-world activities.
     `;
 
     const response = await ai.models.generateContent({
