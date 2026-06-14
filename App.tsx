@@ -27,6 +27,7 @@ import StudyTimerView from "./components/StudyTimerView";
 import PrivacyPolicyView from "./components/PrivacyPolicyView";
 import TermsOfServiceView from "./components/TermsOfServiceView";
 import NotificationsView from "./components/NotificationsView";
+import { GroupsView } from "./components/GroupsView";
 import { useNotifications } from "./components/NotificationContext";
 import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
@@ -68,6 +69,7 @@ import {
   BookOpen,
   User as UserIcon,
   Bell,
+  Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -1141,6 +1143,7 @@ const App: React.FC = () => {
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TUTOR, label: "AI Tutor", icon: MessageCircle },
+    { id: AppMode.GROUPS, label: "Study Groups", icon: Users },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.ABOUT, label: "About Us", icon: Info },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
@@ -1227,6 +1230,14 @@ const App: React.FC = () => {
         icon: Calendar,
         color: "text-emerald-700 dark:text-emerald-400",
         bg: "bg-[#FDF5E6] dark:bg-emerald-900/30",
+      },
+      {
+        id: AppMode.GROUPS,
+        label: "Study Groups",
+        count: null,
+        icon: Users,
+        color: "text-indigo-700 dark:text-indigo-400",
+        bg: "bg-[#FDF5E6] dark:bg-indigo-900/30",
       },
     ];
 
@@ -1394,6 +1405,8 @@ const App: React.FC = () => {
                   setMode(AppMode.ID_CARD);
                 } else if (card.id === AppMode.NOTIFICATIONS) {
                   setMode(AppMode.NOTIFICATIONS);
+                } else if (card.id === AppMode.GROUPS) {
+                  setMode(AppMode.GROUPS);
                 } else {
                   setDashboardView(card.id as any);
                 }
@@ -1782,6 +1795,17 @@ const App: React.FC = () => {
         return (
           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <NotificationsView />
+          </div>
+        );
+
+      case AppMode.GROUPS:
+        return (
+          <div className="w-full h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <GroupsView
+              userProfile={userProfile}
+              onProfileUpdate={handleProfileSave}
+              isOffline={isOffline}
+            />
           </div>
         );
 
