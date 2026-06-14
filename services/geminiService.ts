@@ -282,11 +282,11 @@ export const GeminiService = {
     throw new Error("Failed to update timetable");
   },
 
-  createTutorChat: () => {
+  createTutorChat: (profile?: UserProfile) => {
     const ai = getAI();
-    const systemInstruction = SettingsService.getTutorSystemInstruction();
+    const systemInstruction = SettingsService.getTutorSystemInstruction(profile);
     return ai.chats.create({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       config: { systemInstruction: systemInstruction }
     });
   },

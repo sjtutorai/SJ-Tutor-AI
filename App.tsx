@@ -1692,6 +1692,7 @@ const App: React.FC = () => {
         return (
           <div className="max-w-5xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             <TutorChat
+              userProfile={userProfile}
               onDeductCredit={deductCredit}
               currentCredits={userProfile.credits}
               isOffline={isOffline}
