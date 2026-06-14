@@ -167,5 +167,25 @@ service cloud.firestore {
                               isGroupAdmin(groupId)
                             );
     }
+
+    // 5. Notifications Collection
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        request.resource.data.read == true
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+      );
+    }
+
+    // 6. Invitations Collection
+    match /invitations/{invitationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn();
+    }
   }
 }

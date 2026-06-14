@@ -32,7 +32,11 @@ import {
   ShieldCheck, 
   UserPlus, 
   Trash2,
-  Bookmark
+  Bookmark,
+  Filter,
+  Sparkles,
+  Mail,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -134,6 +138,16 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [groupPaneTab, setGroupPaneTab] = useState<'chat' | 'announcements' | 'materials' | 'members' | 'requests'>('chat');
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
 
+  // Sorting & Hub states
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'most-active'>('newest');
+  const [invitations, setInvitations] = useState<any[]>([]);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteMessage, setInviteMessage] = useState('');
+  const [mySentRequests, setMySentRequests] = useState<Record<string, boolean>>({});
+  const [receivedPendingRequests, setReceivedPendingRequests] = useState<any[]>([]);
+
   // Effect to check if user has sent a pending join request for selected discovered group
   useEffect(() => {
     if (!selectedGroupId || !currentUid || currentUid === 'guest' || myGroupIds.includes(selectedGroupId)) {
@@ -223,6 +237,83 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     checkGroupMemberships();
   }, [groups, currentUid]);
 
+  // Sync incoming group invitations matched to logged-in user's email
+  useEffect(() => {
+    if (!currentUid || currentUid === 'guest') return;
+    const userEmail = auth.currentUser?.email || '';
+    if (!userEmail) return;
+
+    const q = query(collection(db, 'invitations'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.receiverEmail && data.receiverEmail.toLowerCase() === userEmail.toLowerCase()) {
+          list.push({ id: doc.id, ...data });
+        }
+      });
+      setInvitations(list);
+    }, (err) => {
+      console.warn("Invitations sync failed:", err);
+    });
+
+    return () => unsubscribe();
+  }, [currentUid]);
+
+  // Sync pending join requests sent by current user across all groups
+  useEffect(() => {
+    if (groups.length === 0 || !currentUid || currentUid === 'guest') return;
+
+    const fetchSentRequests = async () => {
+      const statuses: Record<string, boolean> = {};
+      for (const group of groups) {
+        if (myGroupIds.includes(group.id)) continue;
+        try {
+          const docRef = doc(db, 'groups', group.id, 'join_requests', currentUid);
+          const snap = await getDoc(docRef);
+          if (snap.exists() && snap.data()?.status === 'pending') {
+            statuses[group.id] = true;
+          }
+        } catch {
+          // ignore
+         }
+      }
+      setMySentRequests(statuses);
+    };
+
+    fetchSentRequests();
+  }, [groups, myGroupIds, currentUid]);
+
+  // Sync pending join requests waitlist received across managed groups in real-time
+  useEffect(() => {
+    if (groups.length === 0 || !currentUid || currentUid === 'guest') return;
+
+    const myManagedGroups = groups.filter(g => g.ownerId === currentUid || g.admins.includes(currentUid));
+    if (myManagedGroups.length === 0) {
+      setReceivedPendingRequests([]);
+      return;
+    }
+
+    const unsubscribes = myManagedGroups.map(group => {
+      const q = collection(db, 'groups', group.id, 'join_requests');
+      return onSnapshot(q, (snapshot) => {
+        const list: any[] = [];
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.status === 'pending') {
+            list.push({ groupId: group.id, groupName: group.name, ...data });
+          }
+        });
+        setReceivedPendingRequests(prev => {
+          const filtered = prev.filter(item => item.groupId !== group.id);
+          return [...filtered, ...list];
+        });
+      });
+    });
+
+    return () => unsubscribes.forEach(unsub => unsub());
+  }, [groups, currentUid]);
+
   // 3. Listen to Active Group Metadata, Members, Join Requests & Messages
   useEffect(() => {
     if (!selectedGroupId) {
@@ -309,17 +400,18 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     setMyNotes(list);
   }, [showAttachNoteModal]);
 
-  // Deliver secure in-app targeted alert/notification to members subcollection
-  const sendTargetNotification = async (targetUserId: string, title: string, body: string, category: string) => {
+  // Deliver secure in-app targeted alert/notification to global notifications collection
+  const sendTargetNotification = async (targetUserId: string, title: string, body: string, category: string = 'Important Alerts') => {
     try {
-      const notificationId = `group_${Date.now()}`;
-      await setDoc(doc(db, 'users', targetUserId, 'notifications', notificationId), {
+      const notificationId = `group_notif_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      await setDoc(doc(db, 'notifications', notificationId), {
+        id: notificationId,
+        userId: targetUserId,
         title,
         body,
         category,
         timestamp: Date.now(),
-        read: false,
-        targetUserId
+        read: false
       });
     } catch (e) {
       console.warn("Target notification suppressed/failed:", e);
@@ -331,7 +423,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     if (isOffline) return;
 
     try {
-      if (type === 'NEW_REQUEST') {
+      if (type === 'GROUP_CREATED') {
+        const { groupName, creatorId } = payload;
+        await sendTargetNotification(
+          creatorId,
+          `Group Created! 👥`,
+          `✅ Group Generated Successfully! Your advanced study group "${groupName}" is now active.`
+        );
+      } else if (type === 'NEW_REQUEST') {
         const { groupName, senderName, ownerId, admins } = payload;
         // Notify owner and admins about the request
         const targets = Array.from(new Set([ownerId, ...(admins || [])]));
@@ -340,8 +439,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             await sendTargetNotification(
               t,
               `New Join Request 👥`,
-              `${senderName} is requesting to join "${groupName}".`,
-              'groups'
+              `${senderName} is requesting to join "${groupName}".`
             );
           }
         }
@@ -350,16 +448,42 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
         await sendTargetNotification(
           targetUserId,
           `Request Approved! 🎉`,
-          `Your join request for the study group "${groupName}" was accepted.`,
-          'groups'
+          `Your join request for the study group "${groupName}" was accepted.`
         );
       } else if (type === 'REQUEST_REJECTED') {
         const { targetUserId, groupName } = payload;
         await sendTargetNotification(
           targetUserId,
           `Request Status Update`,
-          `Your request to join "${groupName}" was declined.`,
-          'groups'
+          `Your request to join "${groupName}" was declined.`
+        );
+      } else if (type === 'MEMBER_ADDED') {
+        const { targetUserId, groupName } = payload;
+        await sendTargetNotification(
+          targetUserId,
+          `Member Added 👥`,
+          `You have successfully joined the group "${groupName}".`
+        );
+      } else if (type === 'MEMBER_REMOVED') {
+        const { targetUserId, groupName } = payload;
+        await sendTargetNotification(
+          targetUserId,
+          `Member Removed 👥`,
+          `You have been removed from the study group "${groupName}".`
+        );
+      } else if (type === 'ADMIN_ASSIGNED' || type === 'PROMOTED_ADMIN') {
+        const { targetUserId, groupName } = payload;
+        await sendTargetNotification(
+          targetUserId,
+          `Promoted to Admin! 👑`,
+          `You have been appointed as an Admin in "${groupName}".`
+        );
+      } else if (type === 'ADMIN_REMOVED' || type === 'DEMOTED_MEMBER') {
+        const { targetUserId, groupName } = payload;
+        await sendTargetNotification(
+          targetUserId,
+          `Role Update in "${groupName}"`,
+          `Your role has been updated to regular Member in "${groupName}".`
         );
       } else if (type === 'ANNOUNCEMENT_POSTED') {
         const { groupName, senderName, text } = payload;
@@ -369,34 +493,27 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             await sendTargetNotification(
               member.userId,
               `📢 Announcement in "${groupName}"`,
-              `${senderName}: ${text.substring(0, 80)}${text.length > 80 ? '...' : ''}`,
-              'announcements'
+              `${senderName}: ${text.substring(0, 80)}${text.length > 80 ? '...' : ''}`
             );
           }
         }
-      } else if (type === 'PROMOTED_ADMIN') {
-        const { targetUserId, groupName } = payload;
-        await sendTargetNotification(
-          targetUserId,
-          `Promoted to Admin! 👑`,
-          `You have been appointed as an Admin in "${groupName}".`,
-          'groups'
-        );
-      } else if (type === 'DEMOTED_MEMBER') {
-        const { targetUserId, groupName } = payload;
-        await sendTargetNotification(
-          targetUserId,
-          `Role Update in "${groupName}"`,
-          `An owner has adjusted your credentials to Member.`,
-          'groups'
-        );
+      } else if (type === 'GROUP_DELETED') {
+        const { groupName, members } = payload;
+        for (const mId of members) {
+          if (mId !== currentUid) {
+            await sendTargetNotification(
+              mId,
+              `Group Deleted ⚠️`,
+              `The study group "${groupName}" was deleted and disbanded by the owner.`
+            );
+          }
+        }
       } else if (type === 'MENTION') {
         const { targetUserId, senderName, groupName } = payload;
         await sendTargetNotification(
           targetUserId,
           `Mentioned in "${groupName}" 💬`,
-          `${senderName} tagged you in the active discussion.`,
-          'messages'
+          `${senderName} tagged you in the active discussion.`
         );
       }
     } catch (e) {
@@ -479,10 +596,21 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       // Sync and deduct user profiles
       await onProfileUpdate(updatedProfile);
 
+      // Trigger notification event for Group Created
+      await triggerNotificationEvents('GROUP_CREATED', {
+        groupName: newGroupName.trim(),
+        creatorId: currentUid
+      });
+
+      // Show success alert
+      setSuccessToast("✅ Group Generated Successfully!");
+      setTimeout(() => setSuccessToast(null), 6000);
+
       // Clean modals
       setNewGroupName('');
       setNewGroupDesc('');
       setNewGroupCategory('General Study');
+      setNewGroupAvatar(PRESET_AVATARS[0]);
       setShowCreateModal(false);
       setSelectedGroupId(newGroupId);
       setGroupPaneTab('chat');
@@ -528,6 +656,111 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       await deleteDoc(doc(db, 'groups', groupId, 'join_requests', currentUid));
     } catch (err) {
       console.error("Failed to cancel join request:", err);
+    }
+  };
+
+  // --- Accept and Decline invitations received ---
+  const handleAcceptInvitation = async (invite: any) => {
+    if (isOffline) return;
+    try {
+      // Add to members subcollection for that group
+      const newMember: GroupMember = {
+        userId: currentUid,
+        displayName: currentDisplayName,
+        photoURL: currentPhotoURL,
+        role: 'member',
+        joinedAt: Date.now()
+      };
+      await setDoc(doc(db, 'groups', invite.groupId, 'members', currentUid), newMember);
+
+      // Update membersCount on group doc
+      const groupRef = doc(db, 'groups', invite.groupId);
+      const groupSnap = await getDoc(groupRef);
+      if (groupSnap.exists()) {
+        const gData = groupSnap.data();
+        await updateDoc(groupRef, {
+          membersCount: (gData.membersCount || 0) + 1,
+          updatedAt: Date.now()
+        });
+
+        // Trigger notification events for joining
+        await triggerNotificationEvents('MEMBER_ADDED', {
+          targetUserId: currentUid,
+          groupName: invite.groupName
+        });
+
+        // Post notice in discussion thread
+        const joinMsg: GroupMessage = {
+          id: `msg_join_invite_${Date.now()}`,
+          senderId: 'system',
+          senderName: 'SJ Tutor Bot',
+          senderAvatar: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+          text: `Scholar "${currentDisplayName}" joined the group via direct invitation!`,
+          type: 'text',
+          timestamp: Date.now()
+        };
+        await setDoc(doc(db, 'groups', invite.groupId, 'messages', joinMsg.id), joinMsg);
+      }
+
+      // Delete the invitation document after success
+      await deleteDoc(doc(db, 'invitations', invite.id));
+
+      // Show success toast
+      setSuccessToast(`🎉 Successfully joined "${invite.groupName}" study group!`);
+      setTimeout(() => setSuccessToast(null), 5000);
+
+      // Enter group workspace
+      setSelectedGroupId(invite.groupId);
+    } catch (err) {
+      console.error("Failed to accept invitation:", err);
+    }
+  };
+
+  const handleDeclineInvitation = async (inviteId: string) => {
+    try {
+      await deleteDoc(doc(db, 'invitations', inviteId));
+    } catch (err) {
+      console.error("Failed to decline invitation:", err);
+    }
+  };
+
+  const handleInviteFriend = async (email: string, message: string) => {
+    if (!selectedGroupId || !selectedGroupData) return;
+    const emailLower = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailLower)) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+
+    try {
+      const inviteId = `invite_${Date.now()}`;
+      await setDoc(doc(db, 'invitations', inviteId), {
+        id: inviteId,
+        groupId: selectedGroupId,
+        groupName: selectedGroupData.name,
+        groupDescription: selectedGroupData.description,
+        senderId: currentUid,
+        senderName: currentDisplayName,
+        receiverEmail: emailLower,
+        message: message.trim() || `Hey! Join my advanced study group "${selectedGroupData.name}" on SJ Tutor AI!`,
+        status: 'pending',
+        timestamp: Date.now()
+      });
+
+      console.log(`\n=================== SIMULATED INVITATION EMAIL ===================\n` +
+                  `TO: ${emailLower}\n` +
+                  `SUBJECT: Study Group Invitation on SJ Tutor AI\n` +
+                  `MESSAGE: ${message.trim() || 'Join my study group!'}\n` +
+                  `LINK: ${window.location.origin}/groups?inviteId=${inviteId}\n` +
+                  `===================================================================\n`);
+
+      alert(`📧 Group invitation simulated & sent successfully to ${emailLower}!`);
+      setShowInviteModal(false);
+      setInviteEmail('');
+      setInviteMessage('');
+    } catch (err) {
+      console.error("Failed to compile invitation draft:", err);
     }
   };
 
@@ -615,6 +848,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     }
 
     try {
+      // Trigger notification event for Member Removed
+      await triggerNotificationEvents('MEMBER_REMOVED', {
+        targetUserId,
+        groupName: selectedGroupData.name
+      });
+
       // Delete document
       await deleteDoc(doc(db, 'groups', selectedGroupId, 'members', targetUserId));
 
@@ -766,6 +1005,15 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     if (!confirm) return;
 
     try {
+      // Gather active member IDs to notify
+      const membersToNotify = groupMembers.map(m => m.userId);
+
+      // Trigger disbanded notification events
+      await triggerNotificationEvents('GROUP_DELETED', {
+        groupName: selectedGroupData.name,
+        members: membersToNotify
+      });
+
       await deleteDoc(doc(db, 'groups', selectedGroupId));
       setSelectedGroupId(null);
       setActiveTab('my-groups');
@@ -874,7 +1122,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     }
   };
 
-  // Filter groups list according to Category and Query
+  // Filter and sort groups list according to Category, Query, and sorting preference
   const filteredGroups = groups.filter((g) => {
     const matchesCategory = selectedCategory === 'All Subjects' || g.category === selectedCategory;
     const matchesQuery = g.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -886,6 +1134,15 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     } else {
       return matchesCategory && matchesQuery && !isMemberOf;
     }
+  }).sort((a, b) => {
+    if (sortBy === 'newest') {
+      return b.createdAt - a.createdAt;
+    } else if (sortBy === 'oldest') {
+      return a.createdAt - b.createdAt;
+    } else if (sortBy === 'most-active') {
+      return (b.membersCount * 1000 + b.updatedAt) - (a.membersCount * 1000 + a.updatedAt);
+    }
+    return 0;
   });
 
   // Check current user credentials
@@ -977,14 +1234,39 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           ))}
         </div>
 
+        {/* Dynamic Sort Option Control */}
+        <div className="px-3 py-1.5 bg-slate-100/70 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-500 font-bold select-none">
+          <span className="flex items-center gap-1">
+            <Filter className="w-3 h-3 text-slate-400" />
+            Sort By
+          </span>
+          <select 
+            value={sortBy} 
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="bg-transparent outline-none border-none text-slate-800 font-extrabold cursor-pointer text-[10px]"
+          >
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="most-active">Most Active</option>
+          </select>
+        </div>
+
         {/* Dynamic Groups list feed */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2.5 bg-slate-50/30">
           {filteredGroups.length === 0 ? (
-            <div className="text-center py-12 px-4">
-              <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <p className="text-slate-500 text-xs font-bold">No groups found</p>
-              <p className="text-slate-400 text-[10px] mt-1">Try checking another subject category or query.</p>
-            </div>
+            activeTab === 'discover' ? (
+              <div className="text-center py-12 px-4 select-none">
+                <span className="text-3xl block mb-2">🔍</span>
+                <p className="text-slate-700 text-xs font-black">No Groups Available Yet. Be the first to create a group!</p>
+                <p className="text-slate-450 text-[10px] mt-1.5">Tap the &quot;Create&quot; button above and establish a new study subject instantly.</p>
+              </div>
+            ) : (
+              <div className="text-center py-12 px-4 select-none">
+                <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-slate-500 text-xs font-bold">No groups found</p>
+                <p className="text-slate-400 text-[10px] mt-1">Try checking another subject category or query.</p>
+              </div>
+            )
           ) : (
             filteredGroups.map((group) => {
               const isSelected = selectedGroupId === group.id;
@@ -1117,6 +1399,15 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     </button>
                   )}
                 </div>
+                
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  title="Invite friends to join"
+                  className="p-2 text-indigo-600 hover:bg-slate-100 rounded-lg border border-indigo-100 transition-colors flex items-center gap-1.5 text-[10px] font-bold"
+                >
+                  <Mail className="w-4 h-4" />
+                  <span className="hidden sm:inline">Invite</span>
+                </button>
 
                 {userRole === 'owner' && (
                   <button 
@@ -1587,12 +1878,344 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             )}
           </>
         ) : (
-          <div className="p-8 text-center bg-slate-50/10 min-h-0 flex-grow flex flex-col justify-center items-center">
-            <Users className="w-16 h-16 text-indigo-500/20 mb-4 animate-bounce" />
-            <h3 className="font-extrabold text-slate-900 text-lg">No Group Selected</h3>
-            <p className="text-slate-500 text-xs mt-2 max-w-sm">
-              Select one of your existing study groups from the left workspace sidebar, or explore the Discover tab to find new collaborative subjects.
-            </p>
+          <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6 flex flex-col gap-6" id="dashboard-tab-panel">
+            {/* Real-time Success Toast Banner */}
+            {successToast && (
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl flex items-center justify-between shadow-sm animate-pulse"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">🎉</span>
+                  <span>{successToast}</span>
+                </div>
+                <button onClick={() => setSuccessToast(null)} className="text-emerald-500 hover:text-emerald-700">
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+
+            {activeTab === 'my-groups' ? (
+              <div className="space-y-6">
+                {/* Dashboard Welcome Header Card */}
+                <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden select-none">
+                  <div className="absolute top-0 right-0 p-8 transform translate-x-4 -translate-y-4 opacity-10">
+                    <Users className="w-48 h-48" />
+                  </div>
+                  <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-lg font-black flex items-center gap-2">
+                        Welcome to My Hub, {currentDisplayName}! 👋
+                      </h2>
+                      <p className="text-[11px] text-slate-300 mt-1 max-w-xl">
+                        Monitor active study registrations, invite colleagues, review admissions request queues, or launch collaboration sessions.
+                      </p>
+                    </div>
+                    <div className="px-4 py-2 bg-white/10 rounded-2xl border border-white/10 self-start md:self-auto">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-300 block">Learning Credits</span>
+                      <span className="text-xl font-extrabold block text-amber-300">{userProfile.credits} Credits</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 1. Invitations Received Section */}
+                {invitations.length > 0 && (
+                  <div className="space-y-2.5">
+                    <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5 text-indigo-600">
+                      <Mail className="w-4 h-4" />
+                      Received Study Invitations ({invitations.length})
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {invitations.map((invite) => (
+                        <div key={invite.id} className="p-4 bg-amber-50/70 border border-amber-100 rounded-3xl flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-extrabold rounded-full">Invitation</span>
+                              <span className="text-[9px] font-semibold text-slate-400">{new Date(invite.timestamp).toLocaleDateString()}</span>
+                            </div>
+                            <h4 className="font-black text-slate-900 text-xs">{invite.groupName}</h4>
+                            <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{invite.groupDescription}</p>
+                            <div className="mt-2.5 p-2 bg-white rounded-xl border border-amber-50">
+                              <p className="text-[10px] text-slate-600 italic">
+                                <strong className="font-bold text-slate-800">{invite.senderName}</strong>: &quot;{invite.message}&quot;
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 mt-4">
+                            <button
+                              onClick={() => handleAcceptInvitation(invite)}
+                              className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleDeclineInvitation(invite.id)}
+                              className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-500 rounded-xl text-xs font-bold transition-all"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Received Pending Admissions (Owner/Admin View) */}
+                {receivedPendingRequests.length > 0 && (
+                  <div className="space-y-2.5">
+                    <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5 text-rose-500">
+                      <UserPlus className="w-4 h-4" />
+                      Pending Admissions Management ({receivedPendingRequests.length})
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {receivedPendingRequests.map((req) => (
+                        <div key={`${req.groupId}_${req.userId}`} className="p-4 bg-rose-50/40 border border-rose-100 rounded-3xl flex flex-col justify-between shadow-sm">
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="px-2 py-0.5 bg-rose-100 text-rose-800 text-[9px] font-black rounded-full block self-start">Request to Join</span>
+                              <span className="text-[9px] font-extrabold text-indigo-600">{req.groupName}</span>
+                            </div>
+                            <div className="flex items-center gap-2.5 mt-2">
+                              <img src={req.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256'} alt={req.displayName} className="w-6.5 h-6.5 rounded-full object-cover border border-indigo-100" />
+                              <div>
+                                <h4 className="font-bold text-slate-900 text-xs">{req.displayName}</h4>
+                                <span className="text-[9px] text-slate-400">Applied {new Date(req.requestedAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 mt-4 select-none">
+                            <button
+                              onClick={async () => {
+                                // Approving a request from My Hub
+                                try {
+                                  await setDoc(doc(db, 'groups', req.groupId, 'members', req.userId), {
+                                    userId: req.userId,
+                                    displayName: req.displayName,
+                                    photoURL: req.photoURL || '',
+                                    role: 'member',
+                                    joinedAt: Date.now()
+                                  });
+                                  const gRef = doc(db, 'groups', req.groupId);
+                                  const snap = await getDoc(gRef);
+                                  if (snap.exists()) {
+                                    await updateDoc(gRef, {
+                                      membersCount: (snap.data().membersCount || 0) + 1,
+                                      updatedAt: Date.now()
+                                    });
+                                  }
+                                  await deleteDoc(doc(db, 'groups', req.groupId, 'join_requests', req.userId));
+                                  await sendTargetNotification(req.userId, `Join Request Approved! 🎉`, `Your join request for "${req.groupName}" has been accepted.`);
+                                  setReceivedPendingRequests(prev => prev.filter(p => !(p.groupId === req.groupId && p.userId === req.userId)));
+                                  alert(`Scholar Approved successfully!`);
+                                } catch (e) {
+                                  console.error("Admissions review failed:", e);
+                                }
+                              }}
+                              className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await deleteDoc(doc(db, 'groups', req.groupId, 'join_requests', req.userId));
+                                  await sendTargetNotification(req.userId, `Request Status Update`, `Your request to join "${req.groupName}" was declined.`);
+                                  setReceivedPendingRequests(prev => prev.filter(p => !(p.groupId === req.groupId && p.userId === req.userId)));
+                                  alert(`Application declined.`);
+                                } catch (e) {
+                                  console.error("Admissions review failed:", e);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-500 rounded-xl text-xs font-bold transition-all"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Groups Created by User */}
+                <div className="space-y-3">
+                  <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5 text-slate-500">
+                    <Crown className="w-4 h-4 text-amber-500" />
+                    My Created Study Groups ({groups.filter(g => g.ownerId === currentUid).length})
+                  </h3>
+                  {groups.filter(g => g.ownerId === currentUid).length === 0 ? (
+                    <div className="p-6 bg-white border border-slate-100 rounded-3xl text-center select-none">
+                      <p className="text-[11px] text-slate-500 font-bold">You haven&apos;t generated any study groups yet.</p>
+                      <button onClick={() => setShowCreateModal(true)} className="mt-3 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-150 text-indigo-600 rounded-xl text-[10px] font-black transition-all">
+                        Create Group
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {groups.filter(g => g.ownerId === currentUid).map((group) => (
+                        <div
+                          key={group.id}
+                          onClick={() => setSelectedGroupId(group.id)}
+                          className="p-4 bg-white border border-slate-100 hover:border-indigo-200 rounded-3xl flex gap-3 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden"
+                        >
+                          <img src={group.photoURL || PRESET_AVATARS[0]} alt={group.name} className="w-12 h-12 rounded-2xl object-cover shadow-inner bg-slate-100" />
+                          <div className="flex-1 min-w-0">
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[8.5px] font-extrabold uppercase tracking-wide">{group.category}</span>
+                            <h4 className="font-extrabold text-slate-900 text-xs mt-1.5 truncate group-hover:text-indigo-600 transition-colors">{group.name}</h4>
+                            <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{group.description}</p>
+                            <span className="text-[9px] font-bold text-slate-400 mt-2 block flex items-center gap-1">
+                              <Users className="w-3 h-3 text-slate-400" />
+                              {group.membersCount} active scholars
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Groups Joined by User */}
+                <div className="space-y-3">
+                  <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5 text-slate-500">
+                    <ShieldCheck className="w-4 h-4 text-indigo-500" />
+                    Joined Study Groups ({groups.filter(g => myGroupIds.includes(g.id) && g.ownerId !== currentUid).length})
+                  </h3>
+                  {groups.filter(g => myGroupIds.includes(g.id) && g.ownerId !== currentUid).length === 0 ? (
+                    <div className="p-6 bg-white border border-slate-100 rounded-3xl text-center select-none">
+                      <p className="text-[11px] text-slate-500 font-bold">You aren&apos;t a member of any other study groups yet.</p>
+                      <button onClick={() => setActiveTab('discover')} className="mt-3 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-155 text-indigo-600 rounded-xl text-[10px] font-black transition-all">
+                        Discover Subjects
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {groups.filter(g => myGroupIds.includes(g.id) && g.ownerId !== currentUid).map((group) => (
+                        <div
+                          key={group.id}
+                          onClick={() => setSelectedGroupId(group.id)}
+                          className="p-4 bg-white border border-slate-100 hover:border-indigo-200 rounded-3xl flex gap-3 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden"
+                        >
+                          <img src={group.photoURL || PRESET_AVATARS[0]} alt={group.name} className="w-12 h-12 rounded-2xl object-cover shadow-inner bg-slate-100" />
+                          <div className="flex-1 min-w-0">
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[8.5px] font-extrabold uppercase tracking-wide">{group.category}</span>
+                            <h4 className="font-extrabold text-slate-900 text-xs mt-1.5 truncate group-hover:text-indigo-600 transition-colors">{group.name}</h4>
+                            <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{group.description}</p>
+                            <span className="text-[9px] font-bold text-slate-400 mt-2 block flex items-center gap-1">
+                              <Users className="w-3 h-3 text-slate-400" />
+                              {group.membersCount} active scholars
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. Pending Applications Sent */}
+                {Object.keys(mySentRequests).length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5 text-slate-400">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+                      Applications Sent Waiting Approval
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {groups.filter(g => mySentRequests[g.id]).map((group) => (
+                        <div key={group.id} className="p-3 bg-indigo-50/20 border border-indigo-100 rounded-2xl flex items-center justify-between gap-2.5">
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-slate-900 text-xs truncate">{group.name}</h4>
+                            <span className="text-[9px] font-medium text-indigo-600 block mt-0.5">Application Pending</span>
+                          </div>
+                          <button
+                            onClick={() => handleCancelJoinRequest(group.id)}
+                            className="p-1 px-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-[10px] font-extrabold text-slate-500 hover:text-slate-800 rounded-xl transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Discover Header Card */}
+                <div className="p-6 bg-slate-900 rounded-3xl text-white select-none relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-8 transform translate-x-4 -translate-y-4 opacity-10">
+                    <Sparkles className="w-48 h-48" />
+                  </div>
+                  <h2 className="text-base font-black flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-indigo-400 animate-spin" />
+                    Discover Subject Groups
+                  </h2>
+                  <p className="text-[11px] text-slate-300 mt-1 max-w-lg">
+                    Browse dynamic collaborative groups created by educators and students. Exchange lessons notes, chat together, and post structured materials.
+                  </p>
+                </div>
+
+                {/* Discover Items Grid display */}
+                {groups.filter(g => !myGroupIds.includes(g.id)).length === 0 ? (
+                  <div className="text-center py-20 bg-white border border-slate-100 rounded-3xl select-none p-6">
+                    <span className="text-4xl block mb-2">🔍</span>
+                    <h3 className="font-extrabold text-slate-800 text-sm">No Groups Available Yet. Be the first to create a group!</h3>
+                    <p className="text-slate-400 text-xs mt-1.5 max-w-sm mx-auto">
+                      There are currently no public learning communities active on the board. Dedicate 10 credits to configure one instantly.
+                    </p>
+                    <button onClick={() => setShowCreateModal(true)} className="mt-4 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95">
+                      Create Group
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {groups.filter(g => !myGroupIds.includes(g.id)).map((group) => {
+                      const hasApplied = mySentRequests[group.id];
+
+                      return (
+                        <div key={group.id} className="p-4 bg-white border border-slate-100 hover:border-indigo-150 rounded-3xl flex flex-col justify-between shadow-xs hover:shadow-md transition-shadow group relative overflow-hidden">
+                          <div>
+                            <div className="relative h-28 rounded-2xl overflow-hidden mb-3.5 shadow-inner">
+                              <img src={group.photoURL || PRESET_AVATARS[0]} alt={group.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                              <div className="absolute top-2 left-2 px-2.5 py-0.5 bg-slate-900/75 backdrop-blur-md rounded-full text-white text-[8.5px] font-black tracking-wide uppercase">
+                                {group.category}
+                              </div>
+                            </div>
+                            <h4 className="font-black text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">{group.name}</h4>
+                            <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{group.description}</p>
+                            <span className="text-[9.5px] font-bold text-slate-400 mt-3 flex items-center gap-1">
+                              <Users className="w-3.5 h-3.5 text-slate-400" />
+                              {group.membersCount} educators / students
+                            </span>
+                          </div>
+                          <div className="mt-4 pt-3.5 border-t border-slate-50 flex items-center justify-between select-none">
+                            <span className="text-[8.5px] font-extrabold uppercase text-slate-400 tracking-wider">
+                              Owner: {group.ownerName}
+                            </span>
+                            {hasApplied ? (
+                              <button
+                                onClick={() => handleCancelJoinRequest(group.id)}
+                                className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl transition-colors hover:bg-indigo-100"
+                              >
+                                Request Pending
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleSendJoinRequest(group.id)}
+                                className="px-3 py-1.5 bg-slate-900 text-white hover:bg-indigo-600 text-xs font-bold rounded-xl transition-all shadow-sm active:scale-95"
+                              >
+                                Request to Join
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1677,8 +2300,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   </div>
                 </div>
 
-                {/* Preset Avatars picker */}
-                <div className="space-y-1.5">
+                {/* Preset Avatars picker & File upload */}
+                <div className="space-y-3">
                   <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Select Group Cover Photo</label>
                   <div className="flex gap-2 items-center overflow-x-auto pb-1">
                     {PRESET_AVATARS.map((url) => (
@@ -1691,6 +2314,44 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                         }`}
                       />
                     ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-400 block mb-1">Local Image File Upload</span>
+                      <label className="px-3.5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer text-center block shadow-sm border border-slate-700">
+                        Upload Picture
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 1024 * 1024 * 2) {
+                                setCreateError("Cover photo size must be under 2MB.");
+                                return;
+                              }
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setNewGroupAvatar(reader.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-slate-400 block mb-1">Or Paste Custom Image URL</span>
+                      <input
+                        type="text"
+                        placeholder="https://example.com/image.png"
+                        value={newGroupAvatar.startsWith('data:') ? '' : newGroupAvatar}
+                        onChange={(e) => setNewGroupAvatar(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1783,6 +2444,83 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               >
                 Close
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL 3: Invite Friends Dialog */}
+      <AnimatePresence>
+        {showInviteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowInviteModal(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs"
+            />
+
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white p-6 rounded-3xl shadow-2xl border border-slate-100 w-full max-w-md relative z-10"
+            >
+              <button 
+                onClick={() => setShowInviteModal(false)}
+                className="absolute top-4 right-4 p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="mb-4">
+                <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                  <Mail className="text-indigo-600 w-5 h-5" />
+                  Invite Friend to Study Group
+                </h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Sends an invitation instantly via email notification</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Friend&apos;s Email Address</label>
+                  <input
+                    type="email"
+                    placeholder="student@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary-500 text-slate-900"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400 block">Personal Message (Optional)</label>
+                  <textarea
+                    rows={4}
+                    placeholder={`Hey! Join our advanced study group "${selectedGroupData?.name || 'Study Group'}" on SJ Tutor AI!`}
+                    value={inviteMessage}
+                    onChange={(e) => setInviteMessage(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 resize-none"
+                  />
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    onClick={() => setShowInviteModal(false)}
+                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleInviteFriend(inviteEmail, inviteMessage)}
+                    disabled={!inviteEmail.trim()}
+                    className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-md transition-colors disabled:opacity-50"
+                  >
+                    Send Invitation
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}
