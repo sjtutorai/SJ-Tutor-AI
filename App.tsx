@@ -27,7 +27,6 @@ import StudyTimerView from "./components/StudyTimerView";
 import PrivacyPolicyView from "./components/PrivacyPolicyView";
 import TermsOfServiceView from "./components/TermsOfServiceView";
 import NotificationsView from "./components/NotificationsView";
-import { GroupsView } from "./components/GroupsView";
 import { useNotifications } from "./components/NotificationContext";
 import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
@@ -69,7 +68,6 @@ import {
   BookOpen,
   User as UserIcon,
   Bell,
-  Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -173,28 +171,8 @@ const App: React.FC = () => {
   }, [requestPermission]);
 
   // Auth State
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-      const cached = localStorage.getItem("sjtutor_cached_user");
-      if (cached) {
-        return JSON.parse(cached) as any;
-      }
-    } catch {
-      // ignore
-    }
-    return null;
-  });
-  const [authLoading, setAuthLoading] = useState(() => {
-    try {
-      const cached = localStorage.getItem("sjtutor_cached_user");
-      if (cached) {
-        return false;
-      }
-    } catch {
-      // ignore
-    }
-    return true;
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -207,26 +185,7 @@ const App: React.FC = () => {
   });
 
   // App State
-  const [mode, setMode] = useState<AppMode>(() => {
-    try {
-      const savedMode = localStorage.getItem("sjtutor_last_mode");
-      if (savedMode && Object.values(AppMode).includes(savedMode as AppMode)) {
-        return savedMode as AppMode;
-      }
-    } catch {
-      // ignore
-    }
-    return AppMode.DASHBOARD;
-  });
-
-  // Sync page mode to localStorage for persistence across reloads
-  useEffect(() => {
-    try {
-      localStorage.setItem("sjtutor_last_mode", mode);
-    } catch {
-      // ignore
-    }
-  }, [mode]);
+  const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
 
   // Initialize form data with language from settings
   const [formData, setFormData] = useState<StudyRequestData>(() => {
@@ -550,28 +509,10 @@ const App: React.FC = () => {
         setAuthLoading(false);
         clearTimeout(timeoutId);
 
-        if (currentUser) {
-          try {
-            const userToCache = {
-              uid: currentUser.uid,
-              email: currentUser.email,
-              displayName: currentUser.displayName,
-              photoURL: currentUser.photoURL,
-              emailVerified: currentUser.emailVerified,
-            };
-            localStorage.setItem("sjtutor_cached_user", JSON.stringify(userToCache));
-          } catch (e) {
-            console.error("Failed to cache user session", e);
-          }
-        } else {
+        if (!currentUser) {
           setIsNewUser(false);
           setUserProfile(initialProfileState);
           setMode(AppMode.DASHBOARD);
-          try {
-            localStorage.removeItem("sjtutor_cached_user");
-          } catch {
-            // ignore
-          }
         }
       },
       (err) => {
@@ -1200,7 +1141,6 @@ const App: React.FC = () => {
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TUTOR, label: "AI Tutor", icon: MessageCircle },
-    { id: AppMode.GROUPS, label: "Study Groups", icon: Users },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.ABOUT, label: "About Us", icon: Info },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
@@ -1287,14 +1227,6 @@ const App: React.FC = () => {
         icon: Calendar,
         color: "text-emerald-700 dark:text-emerald-400",
         bg: "bg-[#FDF5E6] dark:bg-emerald-900/30",
-      },
-      {
-        id: AppMode.GROUPS,
-        label: "Study Groups",
-        count: null,
-        icon: Users,
-        color: "text-indigo-700 dark:text-indigo-400",
-        bg: "bg-[#FDF5E6] dark:bg-indigo-900/30",
       },
     ];
 
@@ -1462,8 +1394,6 @@ const App: React.FC = () => {
                   setMode(AppMode.ID_CARD);
                 } else if (card.id === AppMode.NOTIFICATIONS) {
                   setMode(AppMode.NOTIFICATIONS);
-                } else if (card.id === AppMode.GROUPS) {
-                  setMode(AppMode.GROUPS);
                 } else {
                   setDashboardView(card.id as any);
                 }
@@ -1855,17 +1785,6 @@ const App: React.FC = () => {
           </div>
         );
 
-      case AppMode.GROUPS:
-        return (
-          <div className="w-full h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <GroupsView
-              userProfile={userProfile}
-              onProfileUpdate={handleProfileSave}
-              isOffline={isOffline}
-            />
-          </div>
-        );
-
       default:
         return renderDashboard();
     }
@@ -1997,7 +1916,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto py-5 px-3 space-y-1 custom-scrollbar">
-            {navItems.filter((item) => item.id !== AppMode.GROUPS).map((item) => {
+            {navItems.map((item) => {
               const isActive = mode === item.id;
               const Icon = item.icon;
               return (
@@ -2176,25 +2095,6 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => {
-                if (!user) {
-                  setShowAuthModal(true);
-                } else {
-                  navigateToMode(AppMode.GROUPS);
-                }
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
-                mode === AppMode.GROUPS
-                  ? "bg-primary-50 dark:bg-primary-950/20 text-primary-600 dark:text-primary-400 border-primary-200 dark:border-primary-800"
-                  : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700"
-              }`}
-              title="Study Groups"
-            >
-              <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">Study Groups</span>
-            </button>
-
             <button
               onClick={async () => {
                 const shareUrl = window.location.origin;
