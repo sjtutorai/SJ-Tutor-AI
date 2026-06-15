@@ -61,6 +61,72 @@
         "updatedAt": { "type": "number" }
       },
       "required": ["uid", "currentStreak", "highestStreak", "lastActivityDate", "streakHistory", "updatedAt"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "A study cluster created or joined by users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "isPublic": { "type": "boolean" },
+        "memberCount": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "name", "ownerId", "isPublic", "createdAt"]
+    },
+    "GroupInvitation": {
+      "title": "GroupInvitation",
+      "description": "Invitations sent to other students to join a group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "groupName": { "type": "string" },
+        "inviteeId": { "type": "string" },
+        "inviteeEmail": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "groupId", "groupName", "inviteeEmail", "senderId", "status", "createdAt"]
+    },
+    "GroupRequest": {
+      "title": "GroupRequest",
+      "description": "Join request submitted by students for private groups",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "groupName": { "type": "string" },
+        "groupOwnerId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "groupId", "groupName", "groupOwnerId", "userId", "status", "createdAt"]
+    },
+    "GroupAnnouncement": {
+      "title": "GroupAnnouncement",
+      "description": "Official broadcast pin posted inside a details card",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "groupId", "title", "content", "authorId", "createdAt"]
     }
   },
   "firestore": {
@@ -79,6 +145,22 @@
     "/streaks/{userId}": {
       "schema": "Streak",
       "description": "Stores user daily sequence progress and stats"
+    },
+    "/groups/{groupId}": {
+      "schema": "Group",
+      "description": "Stores individual study group files"
+    },
+    "/groups/{groupId}/announcements/{announcementId}": {
+      "schema": "GroupAnnouncement",
+      "description": "Course-specific update details inside a specific group"
+    },
+    "/group_invitations/{invitationId}": {
+      "schema": "GroupInvitation",
+      "description": "Records representing user group invite objects"
+    },
+    "/group_requests/{requestId}": {
+      "schema": "GroupRequest",
+      "description": "Records representing pending membership join cases"
     }
   }
 }

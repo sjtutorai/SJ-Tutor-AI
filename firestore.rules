@@ -43,5 +43,34 @@ service cloud.firestore {
       allow create, update: if isOwner(userId) && isValidId(userId);
       allow delete: if false; // Streak data shouldn't be deleted by client
     }
+
+    // Groups collection & subcollections
+    match /groups/{groupId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(groupId);
+      allow delete: if isSignedIn() && isValidId(groupId);
+    }
+
+    match /groups/{groupId}/members/{memberId} {
+      allow read, write: if isSignedIn() && isValidId(groupId) && isValidId(memberId);
+    }
+
+    match /groups/{groupId}/announcements/{announcementId} {
+      allow read, write: if isSignedIn() && isValidId(groupId) && isValidId(announcementId);
+    }
+
+    match /groups/{groupId}/messages/{messageId} {
+      allow read, write: if isSignedIn() && isValidId(groupId) && isValidId(messageId);
+    }
+
+    // Group invitations
+    match /group_invitations/{invitationId} {
+      allow read, write: if isSignedIn() && isValidId(invitationId);
+    }
+
+    // Group requests (join requests)
+    match /group_requests/{requestId} {
+      allow read, write: if isSignedIn() && isValidId(requestId);
+    }
   }
 }
