@@ -352,5 +352,51 @@ Title:`;
       console.error("Failed to generate chat title:", e);
       return "";
     }
+  },
+
+  /**
+   * Analyzes user feedback with AI.
+   */
+  analyzeFeedback: async (feedbackText: string, rating: number) => {
+    try {
+      const ai = getAI();
+      const prompt = `Analyze this student feedback for our tutoring application SJ Tutor AI.
+Rating given: ${rating} out of 5 stars.
+Feedback text: "${feedbackText || 'No text provided, only stars.'}"
+
+Please provide a structured response containing:
+1. "sentiment": A string ("Positive", "Neutral", "Constructive", or "Negative").
+2. "keyIssues": An array of strings representing topics or issues raised in the feedback.
+3. "coachReply": A warm, encouraging, polite 2-sentence response directly addressing the feedback as SJ, the AI Lead Tutor. Welcome constructive criticism and celebrate positive comments.
+
+Return the result as JSON matching the requested fields.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              sentiment: { type: Type.STRING },
+              keyIssues: { type: Type.ARRAY, items: { type: Type.STRING } },
+              coachReply: { type: Type.STRING }
+            },
+            required: ["sentiment", "keyIssues", "coachReply"]
+          }
+        }
+      });
+
+      if (response.text) return JSON.parse(response.text.trim());
+      throw new Error("No response from AI analysis");
+    } catch (e) {
+      console.error("Feedback analysis failed", e);
+      return {
+        sentiment: rating >= 4 ? "Positive" : "Constructive",
+        keyIssues: ["General App Usage"],
+        coachReply: "Thank you for your valuable feedback! I will continue working hard to support your academic journey."
+      };
+    }
   }
 };

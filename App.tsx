@@ -11,6 +11,7 @@ import {
 import { calculateProfileCompletion } from "./utils/profileUtils";
 import InputForm from "./components/InputForm";
 import QRScanner from "./components/QRScanner";
+import FeedbackModal from "./components/FeedbackModal";
 import ResultsView from "./components/ResultsView";
 import QuizView from "./components/QuizView";
 import TutorChat from "./components/TutorChat";
@@ -46,6 +47,7 @@ import {
   FileText,
   BrainCircuit,
   MessageCircle,
+  MessageSquare,
   Sparkles,
   AlertCircle,
   Menu,
@@ -198,6 +200,7 @@ const App: React.FC = () => {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showCompletionReminder, setShowCompletionReminder] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
@@ -828,6 +831,21 @@ const App: React.FC = () => {
     return true;
   };
 
+  const trackFeedbackTrigger = () => {
+    try {
+      const countStr = localStorage.getItem("sjtutor_actions_count") || "0";
+      const newCount = parseInt(countStr) + 1;
+      localStorage.setItem("sjtutor_actions_count", newCount.toString());
+      if (newCount >= 1) {
+        setTimeout(() => {
+          setShowFeedbackModal(true);
+        }, 3000);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const addToHistory = (type: AppMode, content: any) => {
     const newId = Date.now().toString();
     const newItem: HistoryItem = {
@@ -852,6 +870,7 @@ const App: React.FC = () => {
         }
       }
     });
+    trackFeedbackTrigger();
   };
 
   const handleQuizComplete = (score: number) => {
@@ -922,6 +941,7 @@ const App: React.FC = () => {
           );
         }, 1000);
       }
+      trackFeedbackTrigger();
     }
   };
 
@@ -2013,7 +2033,18 @@ const App: React.FC = () => {
             })}
           </div>
 
-          <div className="p-3 border-t border-slate-100 dark:border-slate-800">
+          <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-1">
+            <button
+              onClick={() => {
+                setShowFeedbackModal(true);
+                setIsSidebarOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-primary-50 dark:hover:bg-slate-800 hover:text-primary-700 dark:hover:text-primary-400 transition-all font-medium text-sm group"
+            >
+              <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform text-slate-400 group-hover:text-primary-600 dark:group-hover:text-primary-400" />
+              Give Feedback
+            </button>
+
             <button
               onClick={async () => {
                 const shareUrl = window.location.origin;
@@ -2310,6 +2341,10 @@ const App: React.FC = () => {
 
       <AnimatePresence>
         {showQRScanner && <QRScanner onClose={() => setShowQRScanner(false)} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showFeedbackModal && <FeedbackModal onClose={() => setShowFeedbackModal(false)} />}
       </AnimatePresence>
 
       <AnimatePresence>
