@@ -65,8 +65,6 @@ export const SettingsService = {
       
       ${s.aiTutor.followUp ? "Always ask a relevant follow-up question to check understanding." : ""}
       
-      CRITICAL LANGUAGE DIRECTIVE: Always detect and respond in the EXACT SAME language that the user writes their message in. For example, if the user starts chatting in Hindi, you must reply in Hindi. If the user writes in Spanish, response must be in Spanish. If they type in Kannada, reply in Kannada. Match their conversational tongue precisely for a natural learning experience.
-      
       Goal: Help the student learn effectively.
     `;
   }

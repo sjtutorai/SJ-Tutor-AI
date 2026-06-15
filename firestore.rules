@@ -2,12 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Global default-deny catch-all safety net
+    // Default deny rule
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // --- Global Helpers ---
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
@@ -20,152 +20,28 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
-    // Role derived checks from Group resource
-    function getGroup(groupId) {
-      return get(/databases/$(database)/documents/groups/$(groupId)).data;
-    }
-
-    function isGroupOwner(groupId) {
-      return isSignedIn() && getGroup(groupId).ownerId == request.auth.uid;
-    }
-
-    function isGroupAdmin(groupId) {
-      return isSignedIn() && (
-        getGroup(groupId).ownerId == request.auth.uid ||
-        (getGroup(groupId).admins is list && getGroup(groupId).admins.hasAny([request.auth.uid]))
-      );
-    }
-
-    function isGroupMember(groupId, userId) {
-      return exists(/databases/$(database)/documents/groups/$(groupId)/members/$(userId));
-    }
-
-    // --- Users Collection ---
+    // Users collection
     match /users/{userId} {
       allow read: if isSignedIn();
       allow write: if isOwner(userId) && isValidId(userId);
     }
 
-    // --- Notifications Subcollection ---
+    // Notifications subcollection
     match /users/{userId}/notifications/{notificationId} {
       allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(notificationId);
     }
 
-    // --- Global Notifications (Broadcasts) ---
+    // Global notifications
     match /global_notifications/{notificationId} {
       allow read: if isSignedIn();
       allow write: if false; // System only
     }
 
-    // --- Streaks Collection ---
+    // Streaks collection (allow reading list/documents for Leaderboard, owner writes only)
     match /streaks/{userId} {
       allow read: if isSignedIn();
       allow create, update: if isOwner(userId) && isValidId(userId);
-      allow delete: if false;
-    }
-
-    // --- Advanced Groups Feature Collections ---
-
-    // 1. Group Meta Information
-    match /groups/{groupId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && 
-                    isValidId(groupId) &&
-                    incoming().ownerId == request.auth.uid &&
-                    incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 100;
-      
-      allow update: if isSignedIn() && (
-                      // Only owner can change metadata/admins sequence
-                      (isGroupOwner(groupId) && incoming().ownerId == existing().ownerId) ||
-                      // Other authorized users can increment/decrement membersCount
-                      (incoming().diff(existing()).affectedKeys().hasOnly(['membersCount']))
-                    );
-                    
-      allow delete: if isSignedIn() && isGroupOwner(groupId);
-    }
-
-    // 2. Group Membership Roster
-    match /groups/{groupId}/members/{userId} {
-      allow read: if isSignedIn() && (
-                    isGroupOwner(groupId) ||
-                    isGroupAdmin(groupId) ||
-                    isGroupMember(groupId, request.auth.uid)
-                  );
-                  
-      allow create: if isSignedIn() && isValidId(userId) && (
-                      // Owner joining during group initialization
-                      isOwner(userId) ||
-                      // Admins/Owner approving a member
-                      isGroupAdmin(groupId)
-                    );
-                    
-      allow update: if isSignedIn() && isValidId(userId) && (
-                      // Owner can promote, demote, or transfer roles
-                      isGroupOwner(groupId)
-                    );
-                    
-      allow delete: if isSignedIn() && isValidId(userId) && (
-                      // A member can leave freely, Owner/Admin can eject, Owner cannot be ejected
-                      (isOwner(userId) && roleIsNotOwner(groupId, userId)) ||
-                      (isGroupAdmin(groupId) && roleIsNotOwner(groupId, userId))
-                    );
-    }
-
-    function roleIsNotOwner(groupId, userId) {
-      // Helper checking if existing member being removed isn't the owner
-      return get(/databases/$(database)/documents/groups/$(groupId)/members/$(userId)).data.role != 'owner';
-    }
-
-    // 3. User Join Requests Queue
-    match /groups/{groupId}/join_requests/{userId} {
-      allow read: if isSignedIn() && (
-                    isOwner(userId) ||
-                    isGroupAdmin(groupId)
-                  );
-                  
-      allow create: if isSignedIn() && isOwner(userId) && isValidId(userId);
-      
-      allow update: if isSignedIn() && isValidId(userId) && (
-                      // User canceling their request
-                      isOwner(userId) ||
-                      // Admin/Owner accepting or rejecting
-                      isGroupAdmin(groupId)
-                    );
-                    
-      allow delete: if isSignedIn() && isValidId(userId) && (
-                      isOwner(userId) ||
-                      isGroupAdmin(groupId)
-                    );
-    }
-
-    // 4. Secure Dialog messages & Study resources sharing
-    match /groups/{groupId}/messages/{messageId} {
-      allow read: if isSignedIn() && (
-                    isGroupOwner(groupId) ||
-                    isGroupMember(groupId, request.auth.uid)
-                  );
-                  
-      allow create: if isSignedIn() && 
-                    isValidId(messageId) &&
-                    isGroupMember(groupId, request.auth.uid) &&
-                    incoming().senderId == request.auth.uid &&
-                    // Enforce announcement permission constraint
-                    (incoming().type != 'announcement' || isGroupAdmin(groupId));
-                    
-      allow update, delete: if isSignedIn() && isValidId(messageId) && (
-                              // Author can modify/delete their own message
-                              existing().senderId == request.auth.uid ||
-                              // Admins/Owner moderating content
-                              isGroupAdmin(groupId)
-                            );
+      allow delete: if false; // Streak data shouldn't be deleted by client
     }
   }
 }
