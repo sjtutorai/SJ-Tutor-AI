@@ -833,10 +833,14 @@ const App: React.FC = () => {
 
   const trackFeedbackTrigger = () => {
     try {
+      const alreadyTriggered = localStorage.getItem("sjtutor_feedback_triggered_once");
+      if (alreadyTriggered === "true") return;
+
       const countStr = localStorage.getItem("sjtutor_actions_count") || "0";
       const newCount = parseInt(countStr) + 1;
       localStorage.setItem("sjtutor_actions_count", newCount.toString());
       if (newCount >= 1) {
+        localStorage.setItem("sjtutor_feedback_triggered_once", "true");
         setTimeout(() => {
           setShowFeedbackModal(true);
         }, 3000);
