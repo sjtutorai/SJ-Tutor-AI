@@ -317,5 +317,86 @@ export const GeminiService = {
     });
     if (response.text) return JSON.parse(response.text.trim());
     throw new Error("Failed to analyze image");
+  },
+
+  /**
+   * Generates a ultra-short study chapter/topic title (2-4 words) in the user's typed language based on their message.
+   */
+  generateChatTitle: async (firstMessage: string): Promise<string> => {
+    try {
+      const ai = getAI();
+      const prompt = `You are a helpful academic study assistant.
+Read the user's question/message and generate a extremely concise study topic/chapter title for this conversation.
+Requirements:
+1. Deliver ONLY the pure title as a string. Maximum 2 to 4 words. Do not include any explanation or quote marks.
+2. IMPORTANT: Generate the title in the EXACT SAME language and script that the user wrote their message in. For example:
+   - If user wrote: "What is photosynthesis?" -> "Photosynthesis"
+   - If user wrote: "न्यूटन के नियम समझाओ" -> "न्यूटन के नियम"
+   - If user wrote: "Qu'est ce que la photosynthèse?" -> "Photosynthèse"
+   - If user wrote: "కణం అంటే ఏమిటి?" -> "కణ నిర్మాణం"
+
+User Message: "${firstMessage}"
+
+Title:`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+      });
+
+      if (response.text) {
+        return response.text.trim().replace(/^["']|["']$/g, '');
+      }
+      return "";
+    } catch (e) {
+      console.error("Failed to generate chat title:", e);
+      return "";
+    }
+  },
+
+  /**
+   * Analyzes user feedback with AI.
+   */
+  analyzeFeedback: async (feedbackText: string, rating: number) => {
+    try {
+      const ai = getAI();
+      const prompt = `Analyze this student feedback for our tutoring application SJ Tutor AI.
+Rating given: ${rating} out of 5 stars.
+Feedback text: "${feedbackText || 'No text provided, only stars.'}"
+
+Please provide a structured response containing:
+1. "sentiment": A string ("Positive", "Neutral", "Constructive", or "Negative").
+2. "keyIssues": An array of strings representing topics or issues raised in the feedback.
+3. "coachReply": A warm, encouraging, polite 2-sentence response directly addressing the feedback as SJ, the AI Lead Tutor. Welcome constructive criticism and celebrate positive comments.
+
+Return the result as JSON matching the requested fields.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              sentiment: { type: Type.STRING },
+              keyIssues: { type: Type.ARRAY, items: { type: Type.STRING } },
+              coachReply: { type: Type.STRING }
+            },
+            required: ["sentiment", "keyIssues", "coachReply"]
+          }
+        }
+      });
+
+      if (response.text) return JSON.parse(response.text.trim());
+      throw new Error("No response from AI analysis");
+    } catch (e) {
+      console.error("Feedback analysis failed", e);
+      return {
+        sentiment: rating >= 4 ? "Positive" : "Constructive",
+        keyIssues: ["General App Usage"],
+        coachReply: "Thank you for your valuable feedback! I will continue working hard to support your academic journey."
+      };
+    }
   }
 };

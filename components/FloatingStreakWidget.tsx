@@ -85,7 +85,8 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     const deltaX = e.clientX - dragStartRef.current.x;
     const deltaY = e.clientY - dragStartRef.current.y;
 
-    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+    // Use a higher threshold (12px) to prevent finger jitter on touch devices from being classified as dragging
+    if (Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12) {
       hasMovedRef.current = true;
     }
 
@@ -109,6 +110,11 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     // Save final position in percentage
     localStorage.setItem('sjtutor_streak_widget_x_pct', ((position.x / window.innerWidth) * 100).toFixed(2));
     localStorage.setItem('sjtutor_streak_widget_y_pct', ((position.y / window.innerHeight) * 100).toFixed(2));
+
+    // If it was a natural tap or mouse click without dragging, open the Streak Hub!
+    if (!hasMovedRef.current) {
+      setIsOpen(true);
+    }
   };
 
   // Generate 30 Day calendar grid for Streak History

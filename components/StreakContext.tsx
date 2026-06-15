@@ -29,7 +29,7 @@ interface StreakContextType {
   leaderboard: LeaderboardEntry[];
   loading: boolean;
   recordActivity: (userProfile?: UserProfile, onProfileUpdate?: (profile: UserProfile) => void) => Promise<{ success: boolean; incremented: boolean; milestoneReached?: number }>;
-  claimMilestone: (milestone: number, userProfile: UserProfile, onProfileUpdate: (profile: UserProfile) => void) => Promise<boolean>;
+  claimMilestone: (milestone: number) => Promise<boolean>;
   fetchLeaderboard: () => Promise<void>;
   triggerConfetti: () => void;
 }
@@ -67,7 +67,6 @@ export const getUpdatedStreak = (
   lastActivityDate: string | null
 ): StreakCheckResult => {
   const today = getLocalDateString();
-  const yesterday = getYesterdayDateString();
   
   let newCurrent = currentStreak;
   let newHighest = highestStreak;
@@ -83,16 +82,23 @@ export const getUpdatedStreak = (
   } else if (lastActivityDate === today) {
     changed = false;
     incremented = false;
-  } else if (lastActivityDate === yesterday) {
-    newCurrent += 1;
-    newLastActivityDate = today;
-    changed = true;
-    incremented = true;
   } else {
-    newCurrent = 1;
-    newLastActivityDate = today;
-    changed = true;
-    incremented = true;
+    // Calculate calendar days difference instead of resetting to 1.
+    // "The Streak Day After 24 hours increase by one even if they dont log in also"
+    const d1 = new Date(lastActivityDate + 'T12:00:00'); // set mid-day to avoid TZ shifts
+    const d2 = new Date(today + 'T12:00:00');
+    const diffTime = d2.getTime() - d1.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 0) {
+      newCurrent = currentStreak + diffDays;
+      newLastActivityDate = today;
+      changed = true;
+      incremented = true;
+    } else {
+      changed = false;
+      incremented = false;
+    }
   }
 
   newHighest = Math.max(newHighest, newCurrent);
@@ -240,8 +246,20 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             );
 
             const history = [...(data.streakHistory || [])];
-            if (result.incremented && !history.includes(today)) {
-              history.push(today);
+            if (result.incremented) {
+              if (data.lastActivityDate) {
+                const startD = new Date(data.lastActivityDate + 'T12:00:00');
+                const endD = new Date(today + 'T12:00:00');
+                while (startD <= endD) {
+                  const ds = getLocalDateString(startD);
+                  if (!history.includes(ds)) {
+                    history.push(ds);
+                  }
+                  startD.setDate(startD.getDate() + 1);
+                }
+              } else if (!history.includes(today)) {
+                history.push(today);
+              }
             }
 
             const updatedData: StreakData = {
@@ -307,8 +325,20 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             );
 
             const history = [...(parsed.streakHistory || [])];
-            if (result.incremented && !history.includes(today)) {
-              history.push(today);
+            if (result.incremented) {
+              if (parsed.lastActivityDate) {
+                const startD = new Date(parsed.lastActivityDate + 'T12:00:00');
+                const endD = new Date(today + 'T12:00:00');
+                while (startD <= endD) {
+                  const ds = getLocalDateString(startD);
+                  if (!history.includes(ds)) {
+                    history.push(ds);
+                  }
+                  startD.setDate(startD.getDate() + 1);
+                }
+              } else if (!history.includes(today)) {
+                history.push(today);
+              }
             }
 
             parsed.currentStreak = result.currentStreak;
@@ -340,6 +370,52 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     return () => unsub();
+  }, []);
+
+  // Check for day change every 20 minutes to auto-increment streak if user leaves tab open
+  useEffect(() => {
+    const checkDayShift = () => {
+      setStreak((prev) => {
+        const today = getLocalDateString();
+        if (prev.lastActivityDate && prev.lastActivityDate !== today) {
+          const result = getUpdatedStreak(prev.currentStreak, prev.highestStreak, prev.lastActivityDate);
+          if (result.changed) {
+            const history = [...(prev.streakHistory || [])];
+            const startD = new Date(prev.lastActivityDate + 'T12:00:00');
+            const endD = new Date(today + 'T12:00:00');
+            while (startD <= endD) {
+              const ds = getLocalDateString(startD);
+              if (!history.includes(ds)) {
+                history.push(ds);
+              }
+              startD.setDate(startD.getDate() + 1);
+            }
+
+            const updated: StreakData = {
+              ...prev,
+              currentStreak: result.currentStreak,
+              highestStreak: result.highestStreak,
+              lastActivityDate: result.lastActivityDate,
+              streakHistory: history,
+              updatedAt: result.updatedAt,
+            };
+
+            const storageKey = prev.uid === 'guest' ? 'sjtutor_streak_guest' : `sjtutor_streak_${prev.uid}`;
+            localStorage.setItem(storageKey, JSON.stringify(updated));
+
+            if (prev.uid !== 'guest') {
+              const userDocRef = doc(db, 'streaks', prev.uid);
+              setDoc(userDocRef, updated, { merge: true }).catch(() => {});
+            }
+            return updated;
+          }
+        }
+        return prev;
+      });
+    };
+
+    const interval = setInterval(checkDayShift, 1000 * 60 * 20); // every 20 mins
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch leaderboard initially

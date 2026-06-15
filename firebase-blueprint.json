@@ -61,6 +61,70 @@
         "updatedAt": { "type": "number" }
       },
       "required": ["uid", "currentStreak", "highestStreak", "lastActivityDate", "streakHistory", "updatedAt"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "Cooperative student learning and discussion group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "category": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "ownerAvatar": { "type": "string" },
+        "admins": { "type": "array" },
+        "membersCount": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "name", "category", "ownerId", "ownerName", "createdAt", "updatedAt"]
+    },
+    "GroupMember": {
+      "title": "GroupMember",
+      "description": "A member belonging to a group",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string" },
+        "joinedAt": { "type": "number" }
+      },
+      "required": ["userId", "displayName", "role", "joinedAt"]
+    },
+    "GroupJoinRequest": {
+      "title": "GroupJoinRequest",
+      "description": "A user's application to join a group",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "status": { "type": "string" },
+        "requestedAt": { "type": "number" }
+      },
+      "required": ["userId", "displayName", "status", "requestedAt"]
+    },
+    "GroupMessage": {
+      "title": "GroupMessage",
+      "description": "A chat message, announcement, or material shared in a group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderAvatar": { "type": "string" },
+        "text": { "type": "string" },
+        "type": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileType": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "senderId", "senderName", "text", "type", "timestamp"]
     }
   },
   "firestore": {
@@ -79,6 +143,22 @@
     "/streaks/{userId}": {
       "schema": "Streak",
       "description": "Stores user daily sequence progress and stats"
+    },
+    "/groups/{groupId}": {
+      "schema": "Group",
+      "description": "Main group detail and configuration records"
+    },
+    "/groups/{groupId}/members/{userId}": {
+      "schema": "GroupMember",
+      "description": "Tracks active group membership"
+    },
+    "/groups/{groupId}/join_requests/{userId}": {
+      "schema": "GroupJoinRequest",
+      "description": "Pending, accepted, or rejected user request records"
+    },
+    "/groups/{groupId}/messages/{messageId}": {
+      "schema": "GroupMessage",
+      "description": "Discussion, announcement, and learning resource messages in a group"
     }
   }
 }

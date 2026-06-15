@@ -11,6 +11,7 @@ import {
 import { calculateProfileCompletion } from "./utils/profileUtils";
 import InputForm from "./components/InputForm";
 import QRScanner from "./components/QRScanner";
+import FeedbackModal from "./components/FeedbackModal";
 import ResultsView from "./components/ResultsView";
 import QuizView from "./components/QuizView";
 import TutorChat from "./components/TutorChat";
@@ -46,6 +47,7 @@ import {
   FileText,
   BrainCircuit,
   MessageCircle,
+  MessageSquare,
   Sparkles,
   AlertCircle,
   Menu,
@@ -171,13 +173,34 @@ const App: React.FC = () => {
   }, [requestPermission]);
 
   // Auth State
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const cached = localStorage.getItem("sjtutor_cached_user");
+      if (cached) {
+        return JSON.parse(cached) as any;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+  const [authLoading, setAuthLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem("sjtutor_cached_user");
+      if (cached) {
+        return false;
+      }
+    } catch {
+      // ignore
+    }
+    return true;
+  });
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showCompletionReminder, setShowCompletionReminder] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
@@ -185,7 +208,26 @@ const App: React.FC = () => {
   });
 
   // App State
-  const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
+  const [mode, setMode] = useState<AppMode>(() => {
+    try {
+      const savedMode = localStorage.getItem("sjtutor_last_mode");
+      if (savedMode && Object.values(AppMode).includes(savedMode as AppMode)) {
+        return savedMode as AppMode;
+      }
+    } catch {
+      // ignore
+    }
+    return AppMode.DASHBOARD;
+  });
+
+  // Sync page mode to localStorage for persistence across reloads
+  useEffect(() => {
+    try {
+      localStorage.setItem("sjtutor_last_mode", mode);
+    } catch {
+      // ignore
+    }
+  }, [mode]);
 
   // Initialize form data with language from settings
   const [formData, setFormData] = useState<StudyRequestData>(() => {
@@ -509,10 +551,28 @@ const App: React.FC = () => {
         setAuthLoading(false);
         clearTimeout(timeoutId);
 
-        if (!currentUser) {
+        if (currentUser) {
+          try {
+            const userToCache = {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              photoURL: currentUser.photoURL,
+              emailVerified: currentUser.emailVerified,
+            };
+            localStorage.setItem("sjtutor_cached_user", JSON.stringify(userToCache));
+          } catch (e) {
+            console.error("Failed to cache user session", e);
+          }
+        } else {
           setIsNewUser(false);
           setUserProfile(initialProfileState);
           setMode(AppMode.DASHBOARD);
+          try {
+            localStorage.removeItem("sjtutor_cached_user");
+          } catch {
+            // ignore
+          }
         }
       },
       (err) => {
@@ -771,6 +831,21 @@ const App: React.FC = () => {
     return true;
   };
 
+  const trackFeedbackTrigger = () => {
+    try {
+      const countStr = localStorage.getItem("sjtutor_actions_count") || "0";
+      const newCount = parseInt(countStr) + 1;
+      localStorage.setItem("sjtutor_actions_count", newCount.toString());
+      if (newCount >= 1) {
+        setTimeout(() => {
+          setShowFeedbackModal(true);
+        }, 3000);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const addToHistory = (type: AppMode, content: any) => {
     const newId = Date.now().toString();
     const newItem: HistoryItem = {
@@ -795,6 +870,7 @@ const App: React.FC = () => {
         }
       }
     });
+    trackFeedbackTrigger();
   };
 
   const handleQuizComplete = (score: number) => {
@@ -865,6 +941,7 @@ const App: React.FC = () => {
           );
         }, 1000);
       }
+      trackFeedbackTrigger();
     }
   };
 
@@ -1630,21 +1707,85 @@ const App: React.FC = () => {
                   const tutorItemContent = {
                     messages: msgs,
                   };
+                  // Find first user query if exists to create a dynamic title according to user's talking
+                  const userMsgs = msgs.filter((m) => m.role === 'user');
+                  const firstQuery = userMsgs.length > 0 ? userMsgs[0].text : '';
+
                   // Check if already in history to update or add
                   const existing = history.find(
                     (h) =>
                       h.id === currentHistoryId && h.type === AppMode.TUTOR,
                   );
+
+                  let activeId = currentHistoryId;
+
                   if (existing) {
                     setHistory((prev) =>
-                      prev.map((h) =>
-                        h.id === existing.id
-                          ? { ...h, content: tutorItemContent }
-                          : h,
-                      ),
+                      prev.map((h) => {
+                        if (h.id === existing.id) {
+                          let newTitle = h.title;
+                          if ((newTitle === "Untitled Chapter" || newTitle === "Tutor Session") && firstQuery) {
+                            newTitle = firstQuery.length > 35 ? firstQuery.substring(0, 32) + "..." : firstQuery;
+                          }
+                          return { ...h, title: newTitle, content: { ...tutorItemContent, titleGenerated: h.content?.titleGenerated } };
+                        }
+                        return h;
+                      }),
                     );
                   } else {
-                    addToHistory(AppMode.TUTOR, tutorItemContent);
+                    const newId = Date.now().toString();
+                    activeId = newId;
+                    let initialTitle = "Untitled Chapter";
+                    if (firstQuery) {
+                      initialTitle = firstQuery.length > 35 ? firstQuery.substring(0, 32) + "..." : firstQuery;
+                    }
+                    const newItem: HistoryItem = {
+                      id: newId,
+                      type: AppMode.TUTOR,
+                      title: initialTitle,
+                      subtitle: `${formData.gradeClass || "Student"} • ${formData.subject || "General"}`,
+                      timestamp: Date.now(),
+                      content: tutorItemContent,
+                      formData: { ...formData },
+                    };
+                    setHistory((prev) => [newItem, ...prev]);
+                    setCurrentHistoryId(newId);
+
+                    // Record learning activity sequence progress
+                    recordActivity();
+                  }
+
+                  // If user has started talking and we are online, generate a beautifully summarized title in the user's matching language
+                  if (firstQuery && !isOffline) {
+                    const targetId = existing ? existing.id : activeId;
+                    if (targetId) {
+                      const item = history.find(h => h.id === targetId);
+                      const alreadyGenerated = item?.content?.titleGenerated;
+
+                      if (!alreadyGenerated) {
+                        // Mark as generated first to lock concurrent requests
+                        setHistory((prev) =>
+                          prev.map((h) =>
+                            h.id === targetId
+                              ? { ...h, content: { ...h.content, titleGenerated: true } }
+                              : h,
+                          ),
+                        );
+
+                        // Generate title using Gemini in the same language user typed
+                        GeminiService.generateChatTitle(firstQuery).then((polishedTitle) => {
+                          if (polishedTitle) {
+                            setHistory((prev) =>
+                              prev.map((h) =>
+                                h.id === targetId ? { ...h, title: polishedTitle } : h,
+                              ),
+                            );
+                          }
+                        }).catch((err) => {
+                          console.warn("Dynamic title generation failed:", err);
+                        });
+                      }
+                    }
                   }
                 }
               }}
@@ -1892,7 +2033,18 @@ const App: React.FC = () => {
             })}
           </div>
 
-          <div className="p-3 border-t border-slate-100 dark:border-slate-800">
+          <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-1">
+            <button
+              onClick={() => {
+                setShowFeedbackModal(true);
+                setIsSidebarOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-primary-50 dark:hover:bg-slate-800 hover:text-primary-700 dark:hover:text-primary-400 transition-all font-medium text-sm group"
+            >
+              <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform text-slate-400 group-hover:text-primary-600 dark:group-hover:text-primary-400" />
+              Give Feedback
+            </button>
+
             <button
               onClick={async () => {
                 const shareUrl = window.location.origin;
@@ -2189,6 +2341,10 @@ const App: React.FC = () => {
 
       <AnimatePresence>
         {showQRScanner && <QRScanner onClose={() => setShowQRScanner(false)} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showFeedbackModal && <FeedbackModal onClose={() => setShowFeedbackModal(false)} />}
       </AnimatePresence>
 
       <AnimatePresence>
