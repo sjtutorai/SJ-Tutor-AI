@@ -1530,6 +1530,7 @@ const App: React.FC = () => {
         return (
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <GroupsDashboard
+              user={user}
               userProfile={userProfile}
               setUserProfile={setUserProfile}
               currentTabOverride={groupsTabOverride}

@@ -11,7 +11,8 @@ import {
   onSnapshot, 
   orderBy 
 } from "firebase/firestore";
-import { db, auth } from "../firebaseConfig";
+import { db } from "../firebaseConfig";
+import { User } from "firebase/auth";
 import { UserProfile } from "../types";
 import { saveProfileToFirestore } from "../utils/firebaseUtils";
 import { 
@@ -51,6 +52,7 @@ import { motion, AnimatePresence } from "motion/react";
 import confetti from "canvas-confetti";
 
 interface GroupsDashboardProps {
+  user: User | null;
   userProfile: UserProfile;
   setUserProfile: React.Dispatch<React.SetStateAction<UserProfile>>;
   currentTabOverride?: string;
@@ -124,11 +126,11 @@ export interface GroupMessage {
 }
 
 export const GroupsDashboard: React.FC<GroupsDashboardProps> = ({ 
+  user,
   userProfile, 
   setUserProfile,
   currentTabOverride
 }) => {
-  const user = auth.currentUser;
   
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<string>("my_hub");
@@ -227,8 +229,12 @@ export const GroupsDashboard: React.FC<GroupsDashboardProps> = ({
   useEffect(() => {
     if (!user) return;
 
+    let active = true;
+    let latestSnapshotId = 0;
+
     // A. Listen to all groups
     const unsubscribeGroups = onSnapshot(collection(db, "groups"), (snapshot) => {
+      if (!active) return;
       const groupsList: Group[] = [];
       snapshot.forEach((docSnap) => {
         groupsList.push(docSnap.data() as Group);
@@ -238,19 +244,32 @@ export const GroupsDashboard: React.FC<GroupsDashboardProps> = ({
 
     // B. Manage user memberships
     const unsubscribeMemberships = onSnapshot(collection(db, "groups"), async (snapshot) => {
-      const joined: string[] = [];
-      for (const groupDoc of snapshot.docs) {
+      latestSnapshotId++;
+      const currentSnapshotId = latestSnapshotId;
+      const uid = user.uid;
+
+      const promises = snapshot.docs.map(async (groupDoc) => {
         const group = groupDoc.data() as Group;
+        if (group.ownerId === uid) {
+          return group.id;
+        }
         try {
-          const memberSnap = await getDoc(doc(db, "groups", group.id, "members", user.uid));
-          if (memberSnap.exists() || group.ownerId === user.uid) {
-            joined.push(group.id);
+          const memberSnap = await getDoc(doc(db, "groups", group.id, "members", uid));
+          if (memberSnap.exists()) {
+            return group.id;
           }
         } catch {
-          // safe boundary
+          // safe pass
         }
+        return null;
+      });
+
+      const results = await Promise.all(promises);
+
+      if (active && currentSnapshotId === latestSnapshotId) {
+        const joined = results.filter((id): id is string => id !== null);
+        setMemberships(new Set(joined));
       }
-      setMemberships(new Set(joined));
     });
 
     // C. Listen to invitations sent to user's email
@@ -260,6 +279,7 @@ export const GroupsDashboard: React.FC<GroupsDashboardProps> = ({
       where("inviteeEmail", "==", emailToQuery.toLowerCase())
     );
     const unsubscribeInvitations = onSnapshot(invitationQuery, (snapshot) => {
+      if (!active) return;
       const inviteList: GroupInvitation[] = [];
       snapshot.forEach((docSnap) => {
         inviteList.push(docSnap.data() as GroupInvitation);
@@ -273,6 +293,7 @@ export const GroupsDashboard: React.FC<GroupsDashboardProps> = ({
       where("groupOwnerId", "==", user.uid)
     );
     const unsubscribeRequests = onSnapshot(requestQuery, (snapshot) => {
+      if (!active) return;
       const requestsList: GroupRequest[] = [];
       snapshot.forEach((docSnap) => {
         requestsList.push(docSnap.data() as GroupRequest);
@@ -281,6 +302,7 @@ export const GroupsDashboard: React.FC<GroupsDashboardProps> = ({
     });
 
     return () => {
+      active = false;
       unsubscribeGroups();
       unsubscribeMemberships();
       unsubscribeInvitations();
