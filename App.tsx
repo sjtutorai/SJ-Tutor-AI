@@ -27,14 +27,12 @@ import StudyTimerView from "./components/StudyTimerView";
 import PrivacyPolicyView from "./components/PrivacyPolicyView";
 import TermsOfServiceView from "./components/TermsOfServiceView";
 import NotificationsView from "./components/NotificationsView";
+import { GroupsView } from "./components/GroupsView";
 import { useNotifications } from "./components/NotificationContext";
 import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
 import { useStreak, STREAK_MILESTONES } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
-import { GroupsDashboard } from "./components/GroupsDashboard";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "./firebaseConfig";
 import {
   saveProfileToFirestore,
   getProfileFromFirestore,
@@ -175,8 +173,28 @@ const App: React.FC = () => {
   }, [requestPermission]);
 
   // Auth State
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const cached = localStorage.getItem("sjtutor_cached_user");
+      if (cached) {
+        return JSON.parse(cached) as any;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+  const [authLoading, setAuthLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem("sjtutor_cached_user");
+      if (cached) {
+        return false;
+      }
+    } catch {
+      // ignore
+    }
+    return true;
+  });
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -189,7 +207,26 @@ const App: React.FC = () => {
   });
 
   // App State
-  const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
+  const [mode, setMode] = useState<AppMode>(() => {
+    try {
+      const savedMode = localStorage.getItem("sjtutor_last_mode");
+      if (savedMode && Object.values(AppMode).includes(savedMode as AppMode)) {
+        return savedMode as AppMode;
+      }
+    } catch {
+      // ignore
+    }
+    return AppMode.DASHBOARD;
+  });
+
+  // Sync page mode to localStorage for persistence across reloads
+  useEffect(() => {
+    try {
+      localStorage.setItem("sjtutor_last_mode", mode);
+    } catch {
+      // ignore
+    }
+  }, [mode]);
 
   // Initialize form data with language from settings
   const [formData, setFormData] = useState<StudyRequestData>(() => {
@@ -258,54 +295,6 @@ const App: React.FC = () => {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
-
-  // Groups State
-  const [showGroupsDropdown, setShowGroupsDropdown] = useState(false);
-  const [groupsTabOverride, setGroupsTabOverride] = useState<string | undefined>(undefined);
-  const [groupBadgeCount, setGroupBadgeCount] = useState(0);
-
-  // Groups Real-time Badge Listener
-  useEffect(() => {
-    if (!user) {
-      setGroupBadgeCount(0);
-      return;
-    }
-
-    let pendingInvites = 0;
-    let pendingRequests = 0;
-
-    // A. Query invitations
-    const emailToQuery = user.email || "";
-    const invitationQuery = query(
-      collection(db, "group_invitations"),
-      where("inviteeEmail", "==", emailToQuery.toLowerCase()),
-      where("status", "==", "pending")
-    );
-    const unsubInvites = onSnapshot(invitationQuery, (snapshot) => {
-      pendingInvites = snapshot.size;
-      setGroupBadgeCount(pendingInvites + pendingRequests);
-    }, (err) => {
-      console.warn("Error loading group counts:", err);
-    });
-
-    // B. Query requests
-    const requestQuery = query(
-      collection(db, "group_requests"),
-      where("groupOwnerId", "==", user.uid),
-      where("status", "==", "pending")
-    );
-    const unsubRequests = onSnapshot(requestQuery, (snapshot) => {
-      pendingRequests = snapshot.size;
-      setGroupBadgeCount(pendingInvites + pendingRequests);
-    }, (err) => {
-      console.warn("Error loading request counts:", err);
-    });
-
-    return () => {
-      unsubInvites();
-      unsubRequests();
-    };
-  }, [user]);
 
   useEffect(() => {
     // Basic detection for India
@@ -561,10 +550,28 @@ const App: React.FC = () => {
         setAuthLoading(false);
         clearTimeout(timeoutId);
 
-        if (!currentUser) {
+        if (currentUser) {
+          try {
+            const userToCache = {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName,
+              photoURL: currentUser.photoURL,
+              emailVerified: currentUser.emailVerified,
+            };
+            localStorage.setItem("sjtutor_cached_user", JSON.stringify(userToCache));
+          } catch (e) {
+            console.error("Failed to cache user session", e);
+          }
+        } else {
           setIsNewUser(false);
           setUserProfile(initialProfileState);
           setMode(AppMode.DASHBOARD);
+          try {
+            localStorage.removeItem("sjtutor_cached_user");
+          } catch {
+            // ignore
+          }
         }
       },
       (err) => {
@@ -1193,8 +1200,8 @@ const App: React.FC = () => {
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TUTOR, label: "AI Tutor", icon: MessageCircle },
-    { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.GROUPS, label: "Study Groups", icon: Users },
+    { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.ABOUT, label: "About Us", icon: Info },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
   ];
@@ -1280,6 +1287,14 @@ const App: React.FC = () => {
         icon: Calendar,
         color: "text-emerald-700 dark:text-emerald-400",
         bg: "bg-[#FDF5E6] dark:bg-emerald-900/30",
+      },
+      {
+        id: AppMode.GROUPS,
+        label: "Study Groups",
+        count: null,
+        icon: Users,
+        color: "text-indigo-700 dark:text-indigo-400",
+        bg: "bg-[#FDF5E6] dark:bg-indigo-900/30",
       },
     ];
 
@@ -1447,6 +1462,8 @@ const App: React.FC = () => {
                   setMode(AppMode.ID_CARD);
                 } else if (card.id === AppMode.NOTIFICATIONS) {
                   setMode(AppMode.NOTIFICATIONS);
+                } else if (card.id === AppMode.GROUPS) {
+                  setMode(AppMode.GROUPS);
                 } else {
                   setDashboardView(card.id as any);
                 }
@@ -1525,18 +1542,6 @@ const App: React.FC = () => {
     switch (mode) {
       case AppMode.DASHBOARD:
         return renderDashboard();
-
-      case AppMode.GROUPS:
-        return (
-          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <GroupsDashboard
-              user={user}
-              userProfile={userProfile}
-              setUserProfile={setUserProfile}
-              currentTabOverride={groupsTabOverride}
-            />
-          </div>
-        );
 
       case AppMode.ID_CARD:
         return (
@@ -1847,6 +1852,17 @@ const App: React.FC = () => {
         return (
           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <NotificationsView />
+          </div>
+        );
+
+      case AppMode.GROUPS:
+        return (
+          <div className="w-full h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <GroupsView
+              userProfile={userProfile}
+              onProfileUpdate={handleProfileSave}
+              isOffline={isOffline}
+            />
           </div>
         );
 
@@ -2218,64 +2234,6 @@ const App: React.FC = () => {
                 />
               )}
             </div>
-
-            {/* Groups Icon/Tab and Dropdown (Desktop & Mobile) */}
-            {user && (
-              <div className="relative" id="groups-nav-item">
-                <button
-                  onClick={() => {
-                    if (window.innerWidth >= 768) {
-                      setMode(AppMode.GROUPS);
-                      setGroupsTabOverride("my_hub");
-                      setShowGroupsDropdown(false);
-                    } else {
-                      setShowGroupsDropdown(!showGroupsDropdown);
-                    }
-                  }}
-                  className={`p-2 rounded-full transition-all relative border flex items-center gap-1.5 ${
-                    mode === AppMode.GROUPS
-                      ? "bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 border-primary-200 dark:border-primary-800 font-bold"
-                      : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700"
-                  }`}
-                  title="Study Groups"
-                >
-                  <Users className="w-5 h-5" />
-                  <span className="hidden md:inline text-xs font-bold px-0.5">Groups</span>
-                  {groupBadgeCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 px-1.5 py-0.5 text-[8px] font-black bg-primary-600 text-white border border-white dark:border-slate-900 rounded-full min-w-[16px] text-center animate-pulse">
-                      {groupBadgeCount}
-                    </span>
-                  )}
-                </button>
-
-                {showGroupsDropdown && (
-                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl py-2 z-40 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800">
-                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Groups Dashboard</p>
-                    </div>
-                    {[
-                      { tab: "my_hub", label: "👥 My Hub" },
-                      { tab: "discover", label: "🔍 Discover" },
-                      { tab: "invitations", label: "✉️ Invitations" },
-                      { tab: "requests", label: "🕒 Requests" },
-                      { tab: "create", label: "➕ Create (10 Credits)" },
-                    ].map((opt) => (
-                      <button
-                        key={opt.tab}
-                        onClick={() => {
-                          setMode(AppMode.GROUPS);
-                          setGroupsTabOverride(opt.tab);
-                          setShowGroupsDropdown(false);
-                        }}
-                        className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
 
             <button
               onClick={() => setShowQRScanner(true)}

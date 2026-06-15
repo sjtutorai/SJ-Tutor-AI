@@ -64,69 +64,67 @@
     },
     "Group": {
       "title": "Group",
-      "description": "A study cluster created or joined by users",
+      "description": "Cooperative student learning and discussion group",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
         "description": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "category": { "type": "string" },
         "ownerId": { "type": "string" },
         "ownerName": { "type": "string" },
-        "isPublic": { "type": "boolean" },
-        "memberCount": { "type": "number" },
+        "ownerAvatar": { "type": "string" },
+        "admins": { "type": "array" },
+        "membersCount": { "type": "number" },
         "createdAt": { "type": "number" },
         "updatedAt": { "type": "number" }
       },
-      "required": ["id", "name", "ownerId", "isPublic", "createdAt"]
+      "required": ["id", "name", "category", "ownerId", "ownerName", "createdAt", "updatedAt"]
     },
-    "GroupInvitation": {
-      "title": "GroupInvitation",
-      "description": "Invitations sent to other students to join a group",
+    "GroupMember": {
+      "title": "GroupMember",
+      "description": "A member belonging to a group",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string" },
+        "joinedAt": { "type": "number" }
+      },
+      "required": ["userId", "displayName", "role", "joinedAt"]
+    },
+    "GroupJoinRequest": {
+      "title": "GroupJoinRequest",
+      "description": "A user's application to join a group",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "status": { "type": "string" },
+        "requestedAt": { "type": "number" }
+      },
+      "required": ["userId", "displayName", "status", "requestedAt"]
+    },
+    "GroupMessage": {
+      "title": "GroupMessage",
+      "description": "A chat message, announcement, or material shared in a group",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "groupId": { "type": "string" },
-        "groupName": { "type": "string" },
-        "inviteeId": { "type": "string" },
-        "inviteeEmail": { "type": "string" },
         "senderId": { "type": "string" },
         "senderName": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
-        "createdAt": { "type": "number" }
+        "senderAvatar": { "type": "string" },
+        "text": { "type": "string" },
+        "type": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileType": { "type": "string" },
+        "timestamp": { "type": "number" }
       },
-      "required": ["id", "groupId", "groupName", "inviteeEmail", "senderId", "status", "createdAt"]
-    },
-    "GroupRequest": {
-      "title": "GroupRequest",
-      "description": "Join request submitted by students for private groups",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "groupId": { "type": "string" },
-        "groupName": { "type": "string" },
-        "groupOwnerId": { "type": "string" },
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
-        "userEmail": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
-        "createdAt": { "type": "number" }
-      },
-      "required": ["id", "groupId", "groupName", "groupOwnerId", "userId", "status", "createdAt"]
-    },
-    "GroupAnnouncement": {
-      "title": "GroupAnnouncement",
-      "description": "Official broadcast pin posted inside a details card",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "groupId": { "type": "string" },
-        "title": { "type": "string" },
-        "content": { "type": "string" },
-        "authorId": { "type": "string" },
-        "authorName": { "type": "string" },
-        "createdAt": { "type": "number" }
-      },
-      "required": ["id", "groupId", "title", "content", "authorId", "createdAt"]
+      "required": ["id", "senderId", "senderName", "text", "type", "timestamp"]
     }
   },
   "firestore": {
@@ -148,19 +146,19 @@
     },
     "/groups/{groupId}": {
       "schema": "Group",
-      "description": "Stores individual study group files"
+      "description": "Main group detail and configuration records"
     },
-    "/groups/{groupId}/announcements/{announcementId}": {
-      "schema": "GroupAnnouncement",
-      "description": "Course-specific update details inside a specific group"
+    "/groups/{groupId}/members/{userId}": {
+      "schema": "GroupMember",
+      "description": "Tracks active group membership"
     },
-    "/group_invitations/{invitationId}": {
-      "schema": "GroupInvitation",
-      "description": "Records representing user group invite objects"
+    "/groups/{groupId}/join_requests/{userId}": {
+      "schema": "GroupJoinRequest",
+      "description": "Pending, accepted, or rejected user request records"
     },
-    "/group_requests/{requestId}": {
-      "schema": "GroupRequest",
-      "description": "Records representing pending membership join cases"
+    "/groups/{groupId}/messages/{messageId}": {
+      "schema": "GroupMessage",
+      "description": "Discussion, announcement, and learning resource messages in a group"
     }
   }
 }
