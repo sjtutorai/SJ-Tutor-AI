@@ -25,6 +25,26 @@ interface NotificationContextProps {
   clearNotifications: () => Promise<void>;
   sendNotification: (title: string, body: string, category: NotificationCategory, targetUser: string) => Promise<boolean>;
   isAdminUser: boolean;
+  isSubscribedToBackground: boolean;
+  registerPushNotifications: () => Promise<boolean>;
+  unregisterPushNotifications: () => Promise<boolean>;
+  triggerDeviceTestNotification: (title: string, body: string, category: string, delaySeconds?: number) => Promise<boolean>;
+}
+
+// Utility string encoding converter for VAPID public key
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
 }
 
 const NotificationContext = createContext<NotificationContextProps | undefined>(undefined);
@@ -74,9 +94,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
     'Notification' in window ? Notification.permission : 'denied'
   );
+  const [isSubscribedToBackground, setIsSubscribedToBackground] = useState<boolean>(false);
 
   // Determine if current user is admin (sjtutorai@gmail.com)
   const isAdminUser = currentUser?.email === 'sjtutorai@gmail.com';
+
+  // Check current background subscription state on load
+  useEffect(() => {
+    const checkState = async () => {
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        try {
+          const reg = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+          if (reg) {
+            const sub = await reg.pushManager.getSubscription();
+            setIsSubscribedToBackground(!!sub);
+          }
+        } catch (err) {
+          console.warn('Error checking background push subscription:', err);
+        }
+      }
+    };
+    checkState();
+  }, [currentUser]);
 
   // Track auth state
   useEffect(() => {
@@ -378,6 +417,100 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  const registerPushNotifications = async (): Promise<boolean> => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn('Push messaging is not supported in this browser.');
+      return false;
+    }
+
+    try {
+      // 1. Ask for permission first if not already granted
+      const permission = await Notification.requestPermission();
+      setPermissionStatus(permission);
+      if (permission !== 'granted') {
+        return false;
+      }
+
+      // 2. Register/ready service worker
+      const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      await navigator.serviceWorker.ready;
+
+      // 3. Fetch public VAPID key
+      const keyRes = await fetch('/api/notifications/vapid-key');
+      if (!keyRes.ok) throw new Error('Failed to fetch VAPID public key');
+      const { publicKey } = await keyRes.json();
+      
+      const applicationServerKey = urlBase64ToUint8Array(publicKey);
+
+      // 4. Subscribe
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey
+      });
+
+      // 5. Send subscription to server
+      const res = await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscription,
+          userId: currentUser?.uid || 'guest'
+        })
+      });
+
+      if (res.ok) {
+        setIsSubscribedToBackground(true);
+        localStorage.setItem(`push_subscribed_${currentUser?.uid || 'guest'}`, 'true');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('Failed to register device for background push:', e);
+      return false;
+    }
+  };
+
+  const unregisterPushNotifications = async (): Promise<boolean> => {
+    if (!('serviceWorker' in navigator)) return false;
+
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+      if (reg) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          const endpoint = sub.endpoint;
+          await sub.unsubscribe();
+          // Notify server
+          await fetch('/api/notifications/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint })
+          });
+        }
+      }
+      setIsSubscribedToBackground(false);
+      localStorage.removeItem(`push_subscribed_${currentUser?.uid || 'guest'}`);
+      return true;
+    } catch (e) {
+      console.error('Failed to unregister background push:', e);
+      return false;
+    }
+  };
+
+  const triggerDeviceTestNotification = async (title: string, body: string, category: string, delaySeconds = 0): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/notifications/trigger-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body, category, delaySeconds })
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Test notification trigger failed:', e);
+      return false;
+    }
+  };
+
   return (
     <NotificationContext.Provider
       value={{
@@ -390,6 +523,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         clearNotifications,
         sendNotification,
         isAdminUser,
+        isSubscribedToBackground,
+        registerPushNotifications,
+        unregisterPushNotifications,
+        triggerDeviceTestNotification
       }}
     >
       {children}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Bell, Sparkles, Flame, Brain, Trophy, AlertTriangle, 
-  Check, Trash2, Info, Smartphone, SlidersHorizontal
+  Check, Trash2, Info, Smartphone, SlidersHorizontal, Send, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNotifications, NotificationCategory } from './NotificationContext';
@@ -50,6 +50,70 @@ const CATEGORY_STYLES: Record<NotificationCategory, {
   },
 };
 
+const TEST_NOTIFICATION_ITEMS = [
+  { category: "Daily Study", title: "📚 Daily Study", body: "Ready for today's learning session?" },
+  { category: "Daily Study", title: "📚 Daily Study", body: "Study for 10 minutes and boost your knowledge!" },
+  { category: "Daily Study", title: "📚 Daily Study", body: "A little learning every day makes a big difference." },
+  { category: "Daily Study", title: "📚 Daily Study", body: "Your books are waiting for you." },
+  { category: "Daily Study", title: "📚 Daily Study", body: "Today's study goal is ready." },
+
+  { category: "Streak", title: "🔥 Streak", body: "Keep your streak alive today!" },
+  { category: "Streak", title: "🔥 Streak", body: "You're doing great—don't break your streak." },
+  { category: "Streak", title: "🔥 Streak", body: "Another day, another achievement." },
+  { category: "Streak", title: "🔥 Streak", body: "Your learning streak needs one more study session." },
+  { category: "Streak", title: "🔥 Streak", body: "Maintain your consistency and grow." },
+
+  { category: "Homework", title: "📝 Homework", body: "Have you completed today's homework?" },
+  { category: "Homework", title: "📝 Homework", body: "Need help with assignments? Ask SJ Tutor AI." },
+  { category: "Homework", title: "📝 Homework", body: "Homework becomes easier with AI assistance." },
+  { category: "Homework", title: "📝 Homework", body: "Finish your tasks before the deadline." },
+  { category: "Homework", title: "📝 Homework", body: "Let's solve today's doubts together." },
+
+  { category: "Exams", title: "🎯 Exams", body: "Exam coming soon? Start revising now." },
+  { category: "Exams", title: "🎯 Exams", body: "Revision time! Your exam is approaching." },
+  { category: "Exams", title: "🎯 Exams", body: "Practice today, score better tomorrow." },
+  { category: "Exams", title: "🎯 Exams", body: "One chapter revised is one step closer to success." },
+  { category: "Exams", title: "🎯 Exams", body: "Smart preparation starts now." },
+
+  { category: "AI features", title: "🤖 AI Features", body: "Ask any question and get an instant answer." },
+  { category: "AI features", title: "🤖 AI Features", body: "Stuck on a problem? SJ Tutor AI can help." },
+  { category: "AI features", title: "🤖 AI Features", body: "Generate study notes in seconds." },
+  { category: "AI features", title: "🤖 AI Features", body: "Explore AI-powered learning tools." },
+  { category: "AI features", title: "🤖 AI Features", body: "Learn smarter with personalized guidance." },
+
+  { category: "Quizzes", title: "🧠 Quizzes", body: "Take a quick quiz and test yourself." },
+  { category: "Quizzes", title: "🧠 Quizzes", body: "Challenge yourself with today's quiz." },
+  { category: "Quizzes", title: "🧠 Quizzes", body: "Ready to score 100%?" },
+  { category: "Quizzes", title: "🧠 Quizzes", body: "Practice makes perfect—start a quiz now." },
+  { category: "Quizzes", title: "🧠 Quizzes", body: "Strengthen your concepts with a quiz." },
+
+  { category: "Motivation", title: "🌟 Motivation", body: "Success starts with a single study session." },
+  { category: "Motivation", title: "🌟 Motivation", body: "Every expert was once a beginner." },
+  { category: "Motivation", title: "🌟 Motivation", body: "Small efforts create big achievements." },
+  { category: "Motivation", title: "🌟 Motivation", body: "Believe in yourself and keep learning." },
+  { category: "Motivation", title: "🌟 Motivation", body: "Your future self will thank you." },
+
+  { category: "Updates", title: "📢 Updates", body: "New features have arrived in SJ Tutor AI." },
+  { category: "Updates", title: "📢 Updates", body: "Check out the latest improvements." },
+  { category: "Updates", title: "📢 Updates", body: "Exciting updates are waiting for you." },
+  { category: "Updates", title: "📢 Updates", body: "Discover what's new today." },
+  { category: "Updates", title: "📢 Updates", body: "Your learning experience just got better." },
+
+  { category: "Re-engagement", title: "👋 Re-engagement", body: "It's been a while. Ready to learn again?" },
+  { category: "Re-engagement", title: "👋 Re-engagement", body: "We miss seeing you in SJ Tutor AI." },
+  { category: "Re-engagement", title: "👋 Re-engagement", body: "Come back and continue your progress." },
+  { category: "Re-engagement", title: "👋 Re-engagement", body: "Your study journey is waiting." },
+  { category: "Re-engagement", title: "👋 Re-engagement", body: "Pick up where you left off." },
+
+  { category: "Achievements", title: "🏆 Achievements", body: "Congratulations on reaching a new milestone!" },
+  { category: "Achievements", title: "🏆 Achievements", body: "You're making excellent progress." },
+  { category: "Achievements", title: "🏆 Achievements", body: "Another achievement unlocked!" },
+  { category: "Achievements", title: "🏆 Achievements", body: "Keep up the amazing work." },
+  { category: "Achievements", title: "🏆 Achievements", body: "You're becoming a smarter learner every day." },
+
+  { category: "Special Notification", title: "🚀 Special Notification", body: "Good Morning! ☀️ What would you like to learn today with SJ Tutor AI?" }
+];
+
 const NotificationsView: React.FC = () => {
   const { 
     notifications, 
@@ -58,11 +122,22 @@ const NotificationsView: React.FC = () => {
     requestPermission, 
     markAsRead, 
     markAllAsRead, 
-    clearNotifications
+    clearNotifications,
+    isSubscribedToBackground,
+    registerPushNotifications,
+    unregisterPushNotifications,
+    triggerDeviceTestNotification
   } = useNotifications();
 
   // Filter Tabs
   const [activeFilter, setActiveFilter] = useState<'All' | NotificationCategory>('All');
+  
+  // Test Widget states
+  const [selectedTestIndex, setSelectedTestIndex] = useState<number>(0);
+  const [delayVal, setDelayVal] = useState<number>(5);
+  const [sendingTest, setSendingTest] = useState<boolean>(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [subscribing, setSubscribing] = useState<boolean>(false);
 
   const filteredNotifications = notifications.filter(n => {
     if (activeFilter === 'All') return true;
@@ -77,6 +152,55 @@ const NotificationsView: React.FC = () => {
     'Competition Announcements',
     'Important Alerts'
   ];
+
+  const handleRegisterBackground = async () => {
+    setSubscribing(true);
+    try {
+      if (isSubscribedToBackground) {
+        await unregisterPushNotifications();
+      } else {
+        await registerPushNotifications();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    setSendingTest(true);
+    setTestResult(null);
+    try {
+      const selectedItem = TEST_NOTIFICATION_ITEMS[selectedTestIndex];
+      const success = await triggerDeviceTestNotification(
+        selectedItem.title,
+        selectedItem.body,
+        selectedItem.category,
+        delayVal
+      );
+      if (success) {
+        setTestResult({
+          success: true,
+          message: delayVal > 0 
+            ? `Successfully scheduled! You can close your browser tab or app now. It will deliver in ${delayVal} seconds.`
+            : 'Push notification triggered instantly!'
+        });
+      } else {
+        setTestResult({
+          success: false,
+          message: 'Failed to trigger. Make sure you set background notifications to Active.'
+        });
+      }
+    } catch {
+      setTestResult({
+        success: false,
+        message: 'Network error or connection lost.'
+      });
+    } finally {
+      setSendingTest(false);
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 pb-20">
@@ -115,8 +239,62 @@ const NotificationsView: React.FC = () => {
         </div>
       </div>
 
+      {/* Connection Mode Alert */}
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`mb-6 p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs ${
+          isSubscribedToBackground
+            ? 'bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800/50'
+            : 'bg-blue-50/40 dark:bg-blue-950/10 border-blue-200 dark:border-blue-800/50'
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-xl flex items-center justify-center shrink-0 ${
+            isSubscribedToBackground ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
+          }`}>
+            <Smartphone className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="font-bold text-slate-800 dark:text-white text-sm">Device Background Notifications</h4>
+              <span className={`text-[10px] uppercase font-bold py-0.5 px-2 rounded-full ${
+                isSubscribedToBackground 
+                  ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200' 
+                  : 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 animate-pulse'
+              }`}>
+                {isSubscribedToBackground ? 'Active' : 'Standby'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {isSubscribedToBackground 
+                ? 'Device registered successfully. You will receive study reminders even when you are not visiting.' 
+                : 'Subscribe to receive native push notifications on your phone or desktop even when the tab is closed.'
+              }
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={handleRegisterBackground}
+          disabled={subscribing}
+          className={`px-4 py-2 font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 active:scale-[0.98] cursor-pointer disabled:opacity-50 ${
+            isSubscribedToBackground
+              ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200'
+              : 'bg-primary-600 hover:bg-primary-700 text-white'
+          }`}
+        >
+          {subscribing ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : isSubscribedToBackground ? (
+            <>Unsubscribe</>
+          ) : (
+            <>Subscribe Background</>
+          )}
+        </button>
+      </motion.div>
+
       {/* Permission alert card */}
-      {permissionStatus !== 'granted' && (
+      {permissionStatus !== 'granted' && !isSubscribedToBackground && (
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -201,7 +379,7 @@ const NotificationsView: React.FC = () => {
                     >
                       {/* Left Dot for unread */}
                       {!notif.read && (
-                        <div className="absolute top-5 left-5 w-2 h-2 rounded-full bg-primary-500 animate-ping" />
+                        <div className="absolute top-5 left-5 w-2 h-2 rounded-full bg-primary-500" />
                       )}
 
                       {/* Icon */}
@@ -253,9 +431,115 @@ const NotificationsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Sidebar Column (Admin Broadcaster + Stats) */}
+        {/* Right Sidebar Column (Device Push Testing + Summary) */}
         <div className="space-y-6">
           
+          {/* Live Device Notification Playground */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-primary-500/5 rounded-full blur-xl pointer-events-none" />
+            
+            <h3 className="font-extrabold text-slate-950 dark:text-white text-base mb-2 flex items-center gap-2">
+              <Smartphone className="w-5 h-5 text-primary-500" />
+              Device Push Playground
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+              Force trigger any of the official client notifications dynamically to your current operating system system tray.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                  Select Notification Template
+                </label>
+                <select
+                  value={selectedTestIndex}
+                  onChange={(e) => setSelectedTestIndex(parseInt(e.target.value))}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+                >
+                  {TEST_NOTIFICATION_ITEMS.map((item, id) => (
+                    <option key={id} value={id}>
+                      [{item.category}] {item.title.substring(0, 30)}...
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Preview Box */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 block uppercase mb-1">Live Preview</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-white block">
+                  {TEST_NOTIFICATION_ITEMS[selectedTestIndex]?.title}
+                </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 block mt-0.5 leading-normal">
+                  {TEST_NOTIFICATION_ITEMS[selectedTestIndex]?.body}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 flex justify-between">
+                  <span>Deliver Delay Timer</span>
+                  <span className="font-mono text-primary-600 dark:text-primary-400">{delayVal}s</span>
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[0, 5, 10, 30].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setDelayVal(val)}
+                      className={`py-1.5 rounded-lg border text-[10px] font-bold transition-all ${
+                        delayVal === val
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'bg-slate-50 dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      {val === 0 ? 'Instant' : `${val}s`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action trigger button */}
+              <button
+                type="button"
+                onClick={handleSendTestPush}
+                disabled={sendingTest || !isSubscribedToBackground}
+                className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-extrabold text-sm rounded-xl transition-all shadow-md shadow-primary-500/10 hover:shadow-primary-500/20 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {sendingTest ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Sending Alert...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Trigger via Web-Push
+                  </>
+                )}
+              </button>
+
+              {!isSubscribedToBackground && (
+                <p className="text-[10px] text-center text-amber-500 font-bold block mt-1">
+                  * Enable &quot;Device Background Notifications&quot; (active status) first.
+                </p>
+              )}
+
+              {testResult && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={`p-3 rounded-xl border text-[11px] font-medium leading-normal ${
+                    testResult.success
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-rose-50 text-rose-800 border-rose-200'
+                  }`}
+                >
+                  {testResult.message}
+                </motion.div>
+              )}
+            </div>
+          </div>
+
           {/* Info Card / Stats */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <h3 className="font-extrabold text-slate-950 dark:text-white text-base mb-4 flex items-center gap-2">
@@ -282,7 +566,7 @@ const NotificationsView: React.FC = () => {
             <div className="mt-5 pt-5 border-t border-slate-100 dark:border-slate-700/50">
               <div className="flex items-start gap-2.5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 <Info className="w-4 h-4 text-primary-500 shrink-0 mt-0.5" />
-                <span>We use Firestore & standard Service Worker Push to sync notifications seamlessly. Data is preserved across sessions and is accessible across all your devices.</span>
+                <span>We use Firestore & standard Web Push service workers to provide premium device scheduling. Real updates trigger automatically when the server wakes up.</span>
               </div>
             </div>
           </div>
