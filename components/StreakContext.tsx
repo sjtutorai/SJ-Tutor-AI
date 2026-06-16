@@ -342,61 +342,6 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => unsub();
   }, []);
 
-  // Effect to handle: "If the user did not login or he is offline then increase the streak by one after 24 hours"
-  useEffect(() => {
-    const checkOfflineOrGuestStreak = () => {
-      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-      const isNotLoggedIn = !auth.currentUser;
-
-      if (isNotLoggedIn || isOffline) {
-        const uid = auth.currentUser?.uid || 'guest';
-        const storageKey = isNotLoggedIn ? 'sjtutor_streak_guest' : `sjtutor_streak_${uid}`;
-        const local = localStorage.getItem(storageKey);
-        if (local) {
-          try {
-            const parsed = JSON.parse(local) as StreakData;
-            const lastUpdated = parsed.updatedAt || Date.now();
-            const timePassedMs = Date.now() - lastUpdated;
-            const twentyFourHoursMs = 24 * 60 * 60 * 1000;
-
-            if (timePassedMs >= twentyFourHoursMs) {
-              const increments = Math.floor(timePassedMs / twentyFourHoursMs);
-              if (increments > 0) {
-                parsed.currentStreak = (parsed.currentStreak || 0) + increments;
-                parsed.highestStreak = Math.max(parsed.highestStreak || 0, parsed.currentStreak);
-                parsed.updatedAt = lastUpdated + (increments * twentyFourHoursMs);
-                parsed.lastActivityDate = getLocalDateString(new Date(parsed.updatedAt));
-                
-                parsed.streakHistory = parsed.streakHistory || [];
-                for (let i = 1; i <= increments; i++) {
-                  const dayTime = lastUpdated + (i * twentyFourHoursMs);
-                  const dateStr = getLocalDateString(new Date(dayTime));
-                  if (!parsed.streakHistory.includes(dateStr)) {
-                    parsed.streakHistory.push(dateStr);
-                  }
-                }
-
-                localStorage.setItem(storageKey, JSON.stringify(parsed));
-                setStreak(parsed);
-                console.log(`[Streak auto-increment] Increase streak by ${increments} day(s) because user is ${isNotLoggedIn ? 'not logged in' : 'offline'}.`);
-              }
-            }
-          } catch (err) {
-            console.warn('Error applying auto-streak: ', err);
-          }
-        }
-      }
-    };
-
-    checkOfflineOrGuestStreak();
-    window.addEventListener('online', checkOfflineOrGuestStreak);
-    window.addEventListener('offline', checkOfflineOrGuestStreak);
-    return () => {
-      window.removeEventListener('online', checkOfflineOrGuestStreak);
-      window.removeEventListener('offline', checkOfflineOrGuestStreak);
-    };
-  }, [streak.uid]);
-
   // Fetch leaderboard initially
   useEffect(() => {
     fetchLeaderboard();
