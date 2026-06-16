@@ -698,26 +698,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
 
              <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <GraduationCap className="w-4 h-4 text-primary-500" />
-                    Class / Grade (Tied to Date of Birth)
-                  </label>
-                  <div className="relative">
-                     <GraduationCap className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
-                     <input
-                      type="text"
-                      disabled={true}
-                      value={formData.grade || 'Not set'}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 rounded-xl outline-none transition-all opacity-85 text-slate-900 cursor-not-allowed font-medium"
-                      placeholder="Calculated automatically from DOB"
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400 px-1 italic">
-                    Automatically calculated based on your date of birth ({formData.dob || 'Not set'}). Modify DOB under Personal Details to update.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Main Learning Goal</label>
                   <textarea
                     disabled={!isEditing}

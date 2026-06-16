@@ -574,8 +574,7 @@ const App: React.FC = () => {
 
       // Check profile completion to trigger alerts/notifications (once per hour to avoid spamming)
       const cachedCompletion = calculateProfileCompletion(initialProfile);
-      const isDismissed = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
-      if (cachedCompletion < 100 && !isDismissed) {
+      if (cachedCompletion < 100) {
         setTimeout(() => {
           setShowCompletionReminder(true);
         }, 300);
@@ -2285,12 +2284,7 @@ const App: React.FC = () => {
                     <ChevronRight className="w-5 h-5" />
                   </button>
                   <button
-                    onClick={() => {
-                      setShowCompletionReminder(false);
-                      if (user) {
-                        localStorage.setItem(`profile_reminder_dismissed_${user.uid}`, "true");
-                      }
-                    }}
+                    onClick={() => setShowCompletionReminder(false)}
                     className="w-full py-3 text-slate-400 dark:text-slate-500 font-medium hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                   >
                     Maybe later

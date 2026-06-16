@@ -51,87 +51,6 @@ export const getYesterdayDateString = (): string => {
   return getLocalDateString(yesterday);
 };
 
-// Helper to get all date strings between two dates inclusive
-export const getBetweenDates = (startDateStr: string, endDateStr: string): string[] => {
-  const dates: string[] = [];
-  try {
-    const start = new Date(startDateStr + "T00:00:00");
-    const end = new Date(endDateStr + "T00:00:00");
-    const current = new Date(start);
-    while (current <= end) {
-      dates.push(getLocalDateString(current));
-      current.setDate(current.getDate() + 1);
-    }
-  } catch (e) {
-    console.error("Failed to calculate days between in getBetweenDates", e);
-  }
-  return dates;
-};
-
-// Helper to calculate or update streak based on previous activity date
-interface StreakCheckResult {
-  currentStreak: number;
-  highestStreak: number;
-  lastActivityDate: string;
-  updatedAt: number;
-  changed: boolean;
-  incremented: boolean;
-}
-
-export const getUpdatedStreak = (
-  currentStreak: number,
-  highestStreak: number,
-  lastActivityDate: string | null
-): StreakCheckResult => {
-  const today = getLocalDateString();
-  
-  let newCurrent = currentStreak;
-  let newHighest = highestStreak;
-  let newLastActivityDate = lastActivityDate || today;
-  let changed = false;
-  let incremented = false;
-
-  if (!lastActivityDate) {
-    newCurrent = 1;
-    newLastActivityDate = today;
-    changed = true;
-    incremented = true;
-  } else if (lastActivityDate === today) {
-    changed = false;
-    incremented = false;
-  } else {
-    // Calculate calendar days difference (24-hour periods)
-    const getDaysDiff = (dateStr1: string, dateStr2: string): number => {
-      const d1 = new Date(dateStr1 + "T00:00:00");
-      const d2 = new Date(dateStr2 + "T00:00:00");
-      const diffTime = d2.getTime() - d1.getTime();
-      return Math.round(diffTime / (1000 * 60 * 60 * 24));
-    };
-
-    const diff = getDaysDiff(lastActivityDate, today);
-    if (diff > 0) {
-      newCurrent = currentStreak + diff;
-      newLastActivityDate = today;
-      changed = true;
-      incremented = true;
-    } else {
-      changed = false;
-      incremented = false;
-    }
-  }
-
-  newHighest = Math.max(newHighest, newCurrent);
-
-  return {
-    currentStreak: newCurrent,
-    highestStreak: newHighest,
-    lastActivityDate: newLastActivityDate,
-    updatedAt: Date.now(),
-    changed,
-    incremented
-  };
-};
-
 export const STREAK_MILESTONES = [
   { days: 3, label: 'Beginner Learner', reward: 15, badge: '🌱' },
   { days: 7, label: 'Consistent Learner', reward: 40, badge: '🔥' },
@@ -257,42 +176,67 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const snap = await getDoc(userDocRef);
           if (snap.exists()) {
             const data = snap.data() as StreakData;
+            // Validate sequence reset / 24-hours logged in increment
             const today = getLocalDateString();
-            const result = getUpdatedStreak(
-              data.currentStreak || 0,
-              data.highestStreak || 0,
-              data.lastActivityDate
-            );
-
+            let currentStr = data.currentStreak || 0;
+            let highestStr = data.highestStreak || 0;
+            let updatedTime = data.updatedAt || Date.now();
+            let lastDate = data.lastActivityDate;
             const history = [...(data.streakHistory || [])];
-            if (result.incremented) {
-              const startSearch = data.lastActivityDate || today;
-              const skippedDates = getBetweenDates(startSearch, today);
-              skippedDates.forEach(d => {
-                if (!history.includes(d)) {
-                  history.push(d);
-                }
-              });
-            } else if (!history.includes(today)) {
-              history.push(today);
+
+            const lastUpdateTime = data.updatedAt || Date.now();
+            const msElapsed = Date.now() - lastUpdateTime;
+            const hrsElapsed = msElapsed / (1000 * 60 * 60);
+
+            let changed = false;
+
+            if (hrsElapsed >= 48) {
+              // Reset current streak to 1 since they missed a day but logged in now
+              currentStr = 1;
+              updatedTime = Date.now();
+              lastDate = today;
+              if (!history.includes(today)) {
+                history.push(today);
+              }
+              changed = true;
+            } else if (hrsElapsed >= 24) {
+              // Generous 24-hour log in increment!
+              currentStr += 1;
+              updatedTime = Date.now();
+              lastDate = today;
+              if (!history.includes(today)) {
+                history.push(today);
+              }
+              changed = true;
+            } else if (!lastDate) {
+              // Brand new streak init
+              currentStr = 1;
+              updatedTime = Date.now();
+              lastDate = today;
+              if (!history.includes(today)) {
+                history.push(today);
+              }
+              changed = true;
             }
+
+            highestStr = Math.max(highestStr, currentStr);
 
             const updatedData: StreakData = {
               ...data,
               uid: user.uid,
               displayName: user.displayName || data.displayName || 'Active Student',
               photoURL: user.photoURL || data.photoURL || '',
-              currentStreak: result.currentStreak,
-              highestStreak: result.highestStreak,
-              lastActivityDate: result.lastActivityDate,
+              currentStreak: currentStr,
+              highestStreak: highestStr,
+              lastActivityDate: lastDate,
               streakHistory: history,
-              updatedAt: result.updatedAt,
+              updatedAt: updatedTime,
             };
 
             setStreak(updatedData);
             localStorage.setItem(`sjtutor_streak_${user.uid}`, JSON.stringify(updatedData));
             
-            if (result.changed) {
+            if (changed) {
               await setDoc(userDocRef, updatedData, { merge: true });
             }
           } else {
@@ -333,32 +277,40 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (local) {
           try {
             const parsed = JSON.parse(local) as StreakData;
-            const result = getUpdatedStreak(
-              parsed.currentStreak || 0,
-              parsed.highestStreak || 0,
-              parsed.lastActivityDate
-            );
+            const lastUpdateTime = parsed.updatedAt || Date.now();
+            const msElapsed = Date.now() - lastUpdateTime;
+            const hrsElapsed = msElapsed / (1000 * 60 * 60);
+            let changed = false;
 
-            const history = [...(parsed.streakHistory || [])];
-            if (result.incremented) {
-              const startSearch = parsed.lastActivityDate || today;
-              const skippedDates = getBetweenDates(startSearch, today);
-              skippedDates.forEach(d => {
-                if (!history.includes(d)) {
-                  history.push(d);
-                }
-              });
-            } else if (!history.includes(today)) {
-              history.push(today);
+            if (hrsElapsed >= 48) {
+              parsed.currentStreak = 1;
+              parsed.updatedAt = Date.now();
+              parsed.lastActivityDate = today;
+              if (!parsed.streakHistory.includes(today)) {
+                parsed.streakHistory.push(today);
+              }
+              changed = true;
+            } else if (hrsElapsed >= 24) {
+              parsed.currentStreak += 1;
+              parsed.updatedAt = Date.now();
+              parsed.lastActivityDate = today;
+              if (!parsed.streakHistory.includes(today)) {
+                parsed.streakHistory.push(today);
+              }
+              changed = true;
+            } else if (!parsed.lastActivityDate) {
+              parsed.currentStreak = 1;
+              parsed.updatedAt = Date.now();
+              parsed.lastActivityDate = today;
+              if (!parsed.streakHistory.includes(today)) {
+                parsed.streakHistory.push(today);
+              }
+              changed = true;
             }
 
-            parsed.currentStreak = result.currentStreak;
-            parsed.highestStreak = result.highestStreak;
-            parsed.lastActivityDate = result.lastActivityDate;
-            parsed.streakHistory = history;
-            parsed.updatedAt = result.updatedAt;
+            parsed.highestStreak = Math.max(parsed.highestStreak, parsed.currentStreak);
 
-            if (result.changed) {
+            if (changed) {
               localStorage.setItem('sjtutor_streak_guest', JSON.stringify(parsed));
             }
             setStreak(parsed);
@@ -395,40 +347,44 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let reachedMilestone: number | undefined = undefined;
 
     setStreak((prev) => {
-      const result = getUpdatedStreak(
-        prev.currentStreak,
-        prev.highestStreak,
-        prev.lastActivityDate
-      );
+      const lastUpdateTime = prev.updatedAt || Date.now();
+      const msElapsed = Date.now() - lastUpdateTime;
+      const hrsElapsed = msElapsed / (1000 * 60 * 60);
 
-      isIncremented = result.incremented;
+      let newCount = prev.currentStreak;
+      let newHighest = prev.highestStreak;
       const history = [...(prev.streakHistory || [])];
-      
-      if (isIncremented) {
-        const startSearch = prev.lastActivityDate || today;
-        const skippedDates = getBetweenDates(startSearch, today);
-        skippedDates.forEach(d => {
-          if (!history.includes(d)) {
-            history.push(d);
-          }
-        });
-      } else if (!history.includes(today)) {
+      let updatedTime = prev.updatedAt;
+
+      if (hrsElapsed >= 48) {
+        newCount = 1;
+        updatedTime = Date.now();
+        isIncremented = true;
+      } else if (hrsElapsed >= 24 || !prev.lastActivityDate) {
+        newCount += 1;
+        updatedTime = Date.now();
+        isIncremented = true;
+      }
+
+      if (!history.includes(today)) {
         history.push(today);
       }
 
+      newHighest = Math.max(prev.highestStreak, newCount);
+
       // Check for milestone reaching events
-      const milestone = STREAK_MILESTONES.find(m => m.days === result.currentStreak);
-      if (milestone && isIncremented && (!prev.claimedMilestones || !prev.claimedMilestones.includes(result.currentStreak))) {
-        reachedMilestone = result.currentStreak;
+      const milestone = STREAK_MILESTONES.find(m => m.days === newCount);
+      if (milestone && isIncremented && (!prev.claimedMilestones || !prev.claimedMilestones.includes(newCount))) {
+        reachedMilestone = newCount;
       }
 
       const updated: StreakData = {
         ...prev,
-        currentStreak: result.currentStreak,
-        highestStreak: result.highestStreak,
-        lastActivityDate: result.lastActivityDate,
+        currentStreak: newCount,
+        highestStreak: newHighest,
+        lastActivityDate: today,
         streakHistory: history,
-        updatedAt: result.updatedAt,
+        updatedAt: updatedTime || Date.now(),
       };
 
       // Save locally
