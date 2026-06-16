@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
 import { SettingsService } from "./settingsService";
+import { auth } from "../firebaseConfig";
 
 // Helper to initialize AI client.
 // The API key is retrieved exclusively from the environment variable process.env.API_KEY.
@@ -158,6 +159,28 @@ export const GeminiService = {
     const count = data.questionCount || 5;
     const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
 
+    // Retrieve active student learning goal and preferred learning style for quiz personalization
+    let learningGoal = "";
+    let learningStyle = "Visual";
+    try {
+      const uid = auth.currentUser?.uid;
+      let profileStr = uid ? localStorage.getItem(`profile_${uid}`) : null;
+      if (!profileStr) {
+        const keys = Object.keys(localStorage);
+        const profileKey = keys.find(k => k.startsWith('profile_'));
+        if (profileKey) {
+          profileStr = localStorage.getItem(profileKey);
+        }
+      }
+      if (profileStr) {
+        const profile = JSON.parse(profileStr);
+        if (profile.learningGoal) learningGoal = profile.learningGoal;
+        if (profile.learningStyle) learningStyle = profile.learningStyle;
+      }
+    } catch (e) {
+      console.error("Failed to load user profile in generateQuiz", e);
+    }
+
     const prompt = `
       Create a ${count}-question multiple-choice quiz based on the following chapter details.
       EVERYTHING INCLUDING QUESTIONS, OPTIONS, AND EXPLANATIONS MUST BE IN ${language.toUpperCase()}.
@@ -172,6 +195,10 @@ export const GeminiService = {
       Class: ${data.gradeClass || settings.learning.grade}
       Board: ${data.board}
       Language: ${language}
+
+      STUDENT LEARNING PROFILE & PREFERENCES:
+      - Preferred Learning Style: ${learningStyle} (Tailor the explanations, query references, and question framing to fit this learning style).
+      - Main Learning Goal: ${learningGoal || "General concept mastery"} (Formulate real-world application examples or focus points aligned towards helping the student achieve this goal).
     `;
 
     const response = await ai.models.generateContent({

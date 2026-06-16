@@ -51,6 +51,23 @@ export const getYesterdayDateString = (): string => {
   return getLocalDateString(yesterday);
 };
 
+// Helper to get all date strings between two dates inclusive
+export const getBetweenDates = (startDateStr: string, endDateStr: string): string[] => {
+  const dates: string[] = [];
+  try {
+    const start = new Date(startDateStr + "T00:00:00");
+    const end = new Date(endDateStr + "T00:00:00");
+    const current = new Date(start);
+    while (current <= end) {
+      dates.push(getLocalDateString(current));
+      current.setDate(current.getDate() + 1);
+    }
+  } catch (e) {
+    console.error("Failed to calculate days between in getBetweenDates", e);
+  }
+  return dates;
+};
+
 // Helper to calculate or update streak based on previous activity date
 interface StreakCheckResult {
   currentStreak: number;
@@ -248,7 +265,15 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             );
 
             const history = [...(data.streakHistory || [])];
-            if (result.incremented && !history.includes(today)) {
+            if (result.incremented) {
+              const startSearch = data.lastActivityDate || today;
+              const skippedDates = getBetweenDates(startSearch, today);
+              skippedDates.forEach(d => {
+                if (!history.includes(d)) {
+                  history.push(d);
+                }
+              });
+            } else if (!history.includes(today)) {
               history.push(today);
             }
 
@@ -315,7 +340,15 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             );
 
             const history = [...(parsed.streakHistory || [])];
-            if (result.incremented && !history.includes(today)) {
+            if (result.incremented) {
+              const startSearch = parsed.lastActivityDate || today;
+              const skippedDates = getBetweenDates(startSearch, today);
+              skippedDates.forEach(d => {
+                if (!history.includes(d)) {
+                  history.push(d);
+                }
+              });
+            } else if (!history.includes(today)) {
               history.push(today);
             }
 
@@ -371,7 +404,15 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isIncremented = result.incremented;
       const history = [...(prev.streakHistory || [])];
       
-      if (isIncremented && !history.includes(today)) {
+      if (isIncremented) {
+        const startSearch = prev.lastActivityDate || today;
+        const skippedDates = getBetweenDates(startSearch, today);
+        skippedDates.forEach(d => {
+          if (!history.includes(d)) {
+            history.push(d);
+          }
+        });
+      } else if (!history.includes(today)) {
         history.push(today);
       }
 
