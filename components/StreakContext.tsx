@@ -67,7 +67,6 @@ export const getUpdatedStreak = (
   lastActivityDate: string | null
 ): StreakCheckResult => {
   const today = getLocalDateString();
-  const yesterday = getYesterdayDateString();
   
   let newCurrent = currentStreak;
   let newHighest = highestStreak;
@@ -83,16 +82,25 @@ export const getUpdatedStreak = (
   } else if (lastActivityDate === today) {
     changed = false;
     incremented = false;
-  } else if (lastActivityDate === yesterday) {
-    newCurrent += 1;
-    newLastActivityDate = today;
-    changed = true;
-    incremented = true;
   } else {
-    newCurrent = 1;
-    newLastActivityDate = today;
-    changed = true;
-    incremented = true;
+    // Calculate calendar days difference (24-hour periods)
+    const getDaysDiff = (dateStr1: string, dateStr2: string): number => {
+      const d1 = new Date(dateStr1 + "T00:00:00");
+      const d2 = new Date(dateStr2 + "T00:00:00");
+      const diffTime = d2.getTime() - d1.getTime();
+      return Math.round(diffTime / (1000 * 60 * 60 * 24));
+    };
+
+    const diff = getDaysDiff(lastActivityDate, today);
+    if (diff > 0) {
+      newCurrent = currentStreak + diff;
+      newLastActivityDate = today;
+      changed = true;
+      incremented = true;
+    } else {
+      changed = false;
+      incremented = false;
+    }
   }
 
   newHighest = Math.max(newHighest, newCurrent);

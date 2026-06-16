@@ -50,6 +50,76 @@ const CATEGORY_STYLES: Record<NotificationCategory, {
   },
 };
 
+interface NotificationIdea {
+  title: string;
+  body: string;
+  category: NotificationCategory;
+  group: string;
+  icon: string;
+}
+
+const NOTIFICATION_IDEAS: NotificationIdea[] = [
+  // Learning
+  { title: "Time for today's lesson! 📖", body: "Spend just 10 minutes on SJ Tutor AI to expand your knowledge today.", category: "Daily Streak Reminders", group: "Learning", icon: "📖" },
+  { title: "Complete your daily learning goal. 🎯", body: "You are only a few steps away from completing today's study target. Let's do it!", category: "Daily Streak Reminders", group: "Learning", icon: "🎯" },
+  { title: "Keep your learning streak alive! 🔥", body: "Don't let your hard work go to waste! Jump back in and save your streak.", category: "Daily Streak Reminders", group: "Learning", icon: "🔥" },
+  { title: "Try today's practice quiz. ✍️", body: "Quickly test your retention with today's custom-generated practice questionnaire.", category: "Quiz Updates", group: "Learning", icon: "✍️" },
+  { title: "Learn something new in 5 minutes. 🧠", body: "Get a quick bite-sized AI lesson customized just for your grade level.", category: "Quiz Updates", group: "Learning", icon: "🧠" },
+  { title: "New study material is available. 📚", body: "Fresh textbook summaries and notes have been generated for your subjects.", category: "New Features", group: "Learning", icon: "📚" },
+  { title: "Ready for a quick revision? 🎓", body: "Review your recent mistakes to lock in maximum exam preparation.", category: "Quiz Updates", group: "Learning", icon: "🎓" },
+  { title: "Complete a chapter and earn rewards. ⭐", body: "Solve the chapter quiz now and unlock bonus SJ study credits.", category: "Competition Announcements", group: "Learning", icon: "⭐" },
+  { title: "Your homework is waiting. 📝", body: "Your AI tutor prepared some quick exercises to finalize your latest topic.", category: "Daily Streak Reminders", group: "Learning", icon: "📝" },
+  { title: "Start learning now. 🚀", body: "Fuel your academic success with a quick session right now.", category: "New Features", group: "Learning", icon: "🚀" },
+
+  // AI Assistant
+  { title: "Ask SJ Tutor AI anything. 🤖", body: "Confused about homework? Ask me any algebra, history, or science question.", category: "New Features", group: "AI Assistant", icon: "🤖" },
+  { title: "Need help with a difficult question? 💡", body: "SJ Tutor AI is standing by. Get complex equations solved with voice and text.", category: "New Features", group: "AI Assistant", icon: "💡" },
+  { title: "Scan your textbook and get answers. 📸", body: "Use your device camera to upload any question sheet and get full explanations.", category: "New Features", group: "AI Assistant", icon: "📸" },
+  { title: "Solve math problems instantly. 🧮", body: "Step-by-step calculus, trigonometry, and equation solvers are ready to assist you.", category: "New Features", group: "AI Assistant", icon: "🧮" },
+  { title: "Translate text with AI. 🌍", body: "Overcome language barriers instantly with high-fidelity multilingual translation.", category: "New Features", group: "AI Assistant", icon: "🌍" },
+  { title: "Get chapter summaries instantly. 📚", body: "Summarize huge chapters into easy bullet points to save hours of prep time.", category: "New Features", group: "AI Assistant", icon: "📚" },
+  { title: "AI Study Assistant is ready. ✨", body: "Experience the ultimate personalized digital tutoring companion on your phone.", category: "New Features", group: "AI Assistant", icon: "✨" },
+  { title: "Personalized learning recommendations available. 🎯", body: "Your AI customized study syllabus has been revised based on your mock results.", category: "New Features", group: "AI Assistant", icon: "🎯" },
+  { title: "Continue your last AI conversation. 📖", body: "Resume your interactive study conversation right where you paused.", category: "New Features", group: "AI Assistant", icon: "📖" },
+  { title: "Discover new AI features. 🔍", body: "Explore our newly released mock exam simulators & smart summaries widget.", category: "New Features", group: "AI Assistant", icon: "🔍" },
+
+  // Rewards & Credits
+  { title: "Daily reward available! 🎁", body: "Claim your free daily streak credits to ask more premium AI questions.", category: "Important Alerts", group: "Rewards", icon: "🎁" },
+  { title: "You earned 10 credits. 💰", body: "Credits have been credited to your SJ Tutor account balance. Great job!", category: "Important Alerts", group: "Rewards", icon: "💰" },
+  { title: "Congratulations on your achievement! ⭐", body: "You have unlocked the Bronze Study star emblem for your virtual ID card.", category: "Competition Announcements", group: "Rewards", icon: "⭐" },
+  { title: "New badge unlocked. 🏅", body: "Verify your new 'Consistent Scholar' badge on your public profile tab.", category: "Competition Announcements", group: "Rewards", icon: "🏅" },
+  { title: "Learning milestone reached. 🎉", body: "Fantastic! You completed your 5th full-length AI MCQ module this month.", category: "Competition Announcements", group: "Rewards", icon: "🎉" },
+  { title: "Your streak is now 7 days. 🔥", body: "Incredible commitment! Keep the fire burning to unlock gold rewards.", category: "Daily Streak Reminders", group: "Rewards", icon: "🔥" },
+  { title: "Complete tasks to earn credits. 🎯", body: "Earn extra bonus credits by setting up your school and class settings.", category: "Competition Announcements", group: "Rewards", icon: "🎯" },
+  { title: "Surprise reward waiting for you. 🎁", body: "Crack open today's lockbox to find surprise points, badges, and tokens.", category: "Important Alerts", group: "Rewards", icon: "🎁" },
+  { title: "Premium feature unlocked. 💎", body: "Congratulations! You have received a premium expansion. Enjoy advanced AI modes.", category: "New Features", group: "Rewards", icon: "💎" },
+  { title: "You're among the top learners today! 🏆", body: "You made it onto the global daily leaderboard. Keep studying to stay on top!", category: "Competition Announcements", group: "Rewards", icon: "🏆" },
+
+  // Groups & Community
+  { title: "New group invite received. 👥", body: "Your classmate invited you to join the Grade 10 Science quiz chamber.", category: "Competition Announcements", group: "Community", icon: "👥" },
+  { title: "Someone joined your group. 🎉", body: "A new student joined your study lobby. Start collaborating and studying!", category: "Competition Announcements", group: "Community", icon: "🎉" },
+  { title: "New message in your group. 📢", body: "Your study team is discussing tough assignment equations. Don't miss out.", category: "Competition Announcements", group: "Community", icon: "📢" },
+  { title: "You have been promoted to Admin. ⭐", body: "You are now Admin! Create mock quizzes and invite classmates.", category: "Competition Announcements", group: "Community", icon: "⭐" },
+  { title: "Group activity is increasing. 🔔", body: "Members are actively scanning textbooks and discussing answers right now.", category: "Competition Announcements", group: "Community", icon: "🔔" },
+  { title: "Study session starting soon. 📚", body: "Your group's Scheduled Math revision is locked for today. Get ready!", category: "Competition Announcements", group: "Community", icon: "📚" },
+  { title: "A friend sent you a request. 👋", body: "Accept their friend request. Compare streaks and quiz achievements.", category: "Competition Announcements", group: "Community", icon: "👋" },
+  { title: "Join a trending study group. 🎯", body: "Study with top performing pupils in Chemistry and physics lobbies.", category: "Competition Announcements", group: "Community", icon: "🎯" },
+  { title: "New announcement from your group. 📢", body: "The admin pinned a new challenge. Achieve 100% on the quiz to complete.", category: "Competition Announcements", group: "Community", icon: "📢" },
+  { title: "Create a study group today. 🚀", body: "Form a revision squad with your peers to share scores, summaries, and files.", category: "Competition Announcements", group: "Community", icon: "🚀" },
+
+  // General Engagement
+  { title: "Good morning! Ready to learn today? ☀️", body: "Kickstart your brain with a healthy morning revision module on SJ Tutor.", category: "Daily Streak Reminders", group: "Engagement", icon: "☀️" },
+  { title: "We missed you! Come back and learn. 🌟", body: "Every small lesson gets you closer to your exam targets. See you soon!", category: "Daily Streak Reminders", group: "Engagement", icon: "🌟" },
+  { title: "Continue where you left off. 🎯", body: "Finish the remaining MCQ quiz questions on your active tab.", category: "Quiz Updates", group: "Engagement", icon: "🎯" },
+  { title: "New content added today. 📚", body: "Relevant question sheets have been updated according to latest curricula.", category: "New Features", group: "Engagement", icon: "📚" },
+  { title: "Your next lesson is ready. ⚡", body: "Based on yesterday's topic, we have unlocked your next customized step.", category: "Quiz Updates", group: "Engagement", icon: "⚡" },
+  { title: "Exciting updates available. 🎉", body: "Faster chat bots, a lighter UI, and full-screen exam mode have arrived.", category: "New Features", group: "Engagement", icon: "🎉" },
+  { title: "Students are learning right now. 🔥", body: "Over 5,000 active students are testing their skills. Don't fall behind!", category: "Daily Streak Reminders", group: "Engagement", icon: "🔥" },
+  { title: "Discover a new learning tip. 💡", body: "Studying in 25-minute Pomodoro bursts with AI can double your retention.", category: "New Features", group: "Engagement", icon: "💡" },
+  { title: "Update SJ Tutor AI for new features. 🚀", body: "Ensure your application and offline cache is up-to-date for smooth access.", category: "New Features", group: "Engagement", icon: "🚀" },
+  { title: "Thank you for learning with SJ Tutor AI. ❤️", body: "We are thrilled to be part of your academic growth. Explore more with us today!", category: "New Features", group: "Engagement", icon: "❤️" }
+];
+
 const NotificationsView: React.FC = () => {
   const { 
     notifications, 
@@ -58,15 +128,27 @@ const NotificationsView: React.FC = () => {
     requestPermission, 
     markAsRead, 
     markAllAsRead, 
-    clearNotifications
+    clearNotifications,
+    sendNotification
   } = useNotifications();
 
   // Filter Tabs
   const [activeFilter, setActiveFilter] = useState<'All' | NotificationCategory>('All');
 
+  // Push Simulator Tabs / state
+  const [selectedGrp, setSelectedGrp] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
   const filteredNotifications = notifications.filter(n => {
     if (activeFilter === 'All') return true;
     return n.category === activeFilter;
+  });
+
+  const filteredIdeas = NOTIFICATION_IDEAS.filter(idea => {
+    const matchesGrp = selectedGrp === 'All' || idea.group === selectedGrp;
+    const matchesSearch = idea.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          idea.body.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesGrp && matchesSearch;
   });
 
   const categories: ('All' | NotificationCategory)[] = [
@@ -77,6 +159,10 @@ const NotificationsView: React.FC = () => {
     'Competition Announcements',
     'Important Alerts'
   ];
+
+  const handleSendIdea = async (idea: NotificationIdea) => {
+    await sendNotification(idea.title, idea.body, idea.category, 'all');
+  };
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 pb-20">
@@ -93,7 +179,7 @@ const NotificationsView: React.FC = () => {
         </div>
 
         {/* Quick controls */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 text-left">
           {unreadCount > 0 && (
             <button 
               onClick={markAllAsRead}
@@ -122,7 +208,7 @@ const NotificationsView: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8 p-5 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/30 dark:bg-amber-950/10 backdrop-blur-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm"
         >
-          <div className="flex items-start gap-3.5">
+          <div className="flex items-start gap-3.5 text-left">
             <div className="p-2 w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
               <Smartphone className="w-5 h-5 animate-pulse" />
             </div>
@@ -195,7 +281,7 @@ const NotificationsView: React.FC = () => {
                       exit={{ opacity: 0, scale: 0.95, y: -10 }}
                       transition={{ duration: 0.25 }}
                       onClick={() => !notif.read && markAsRead(notif.id)}
-                      className={`group relative overflow-hidden rounded-2xl border ${styles.border} ${styles.bg} p-5 transition-all duration-300 hover:shadow-md cursor-pointer flex gap-4 ${
+                      className={`group relative overflow-hidden rounded-2xl border text-left ${styles.border} ${styles.bg} p-5 transition-all duration-300 hover:shadow-md cursor-pointer flex gap-4 ${
                         notif.read ? 'opacity-85 filter contrast-90' : 'shadow-sm shadow-primary-500/5'
                       }`}
                     >
@@ -254,8 +340,83 @@ const NotificationsView: React.FC = () => {
         </div>
 
         {/* Right Sidebar Column (Admin Broadcaster + Stats) */}
-        <div className="space-y-6">
+        <div className="space-y-6 text-left">
           
+          {/* Push Broadcast Simulator (50 Ideas) */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col h-[525px]">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-extrabold text-slate-950 dark:text-white text-base flex items-center gap-2">
+                <Smartphone className="w-5 h-5 text-indigo-500 animate-bounce" />
+                Notification Sender
+              </h3>
+              <span className="text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                50 Ideas
+              </span>
+            </div>
+            
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+              Dispatch any of the 50 push notifications directly to this device as an instant OS-level system alert.
+            </p>
+
+            {/* Filter segments */}
+            <div className="flex gap-1 overflow-x-auto pb-2 shrink-0 scrollbar-none border-b border-slate-100 dark:border-slate-700">
+              {['All', 'Learning', 'AI Assistant', 'Rewards', 'Community', 'Engagement'].map((grp) => (
+                <button
+                  key={grp}
+                  onClick={() => setSelectedGrp(grp)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold whitespace-nowrap transition-all ${
+                    selectedGrp === grp 
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm' 
+                      : 'bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                  }`}
+                >
+                  {grp}
+                </button>
+              ))}
+            </div>
+
+            {/* Search filter */}
+            <div className="relative my-3 shrink-0">
+              <input
+                type="text"
+                placeholder="Search ideas..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-150 dark:border-slate-705 rounded-xl outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 dark:text-white"
+              />
+            </div>
+
+            {/* Scrollable container of ideas */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2.5 custom-scrollbar">
+              {filteredIdeas.map((idea, idx) => (
+                <div 
+                  key={idx}
+                  className="p-3 rounded-xl border border-slate-100 dark:border-slate-750 bg-slate-50/55 dark:bg-slate-900/30 hover:bg-slate-100/50 dark:hover:bg-slate-900/50 transition-colors flex items-start gap-2.5 group relative"
+                >
+                  <span className="text-base shrink-0 select-none mt-0.5">{idea.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 line-clamp-1">{idea.title}</h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed mt-0.5">{idea.body}</p>
+                    <span className="text-[8px] font-extrabold text-indigo-500 dark:text-indigo-400 block mt-1 uppercase tracking-wider">{idea.category}</span>
+                  </div>
+                  
+                  <button
+                    onClick={() => handleSendIdea(idea)}
+                    className="p-1 px-1.5 self-center rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold shadow-md shadow-indigo-500/10 active:scale-95 transition-all text-center flex items-center gap-1 shrink-0 whitespace-nowrap opacity-90 group-hover:opacity-100"
+                  >
+                    Send 🚀
+                  </button>
+                </div>
+              ))}
+
+              {filteredIdeas.length === 0 && (
+                <div className="text-center py-10">
+                  <p className="text-xs text-slate-400 font-bold">No notifications found.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Info Card / Stats */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <h3 className="font-extrabold text-slate-950 dark:text-white text-base mb-4 flex items-center gap-2">
