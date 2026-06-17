@@ -74,6 +74,7 @@ export interface UserProfile {
   state?: string;
   district?: string;
   claimedOffers?: number[];
+  emblems?: string[];
 }
 
 export interface UserSettings {

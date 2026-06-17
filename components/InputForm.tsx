@@ -9,6 +9,7 @@ interface InputFormProps {
   onChange: (field: keyof StudyRequestData, value: string | number | boolean) => void;
   onFillSample?: () => void;
   disabled?: boolean;
+  lockGradeClass?: boolean;
   onImagesUpload?: (base64s: string[]) => void;
   homeworkImages?: string[];
 }
@@ -19,6 +20,7 @@ const InputForm: React.FC<InputFormProps> = ({
   onChange, 
   onFillSample, 
   disabled, 
+  lockGradeClass,
   onImagesUpload,
   homeworkImages = []
 }) => {
@@ -184,20 +186,16 @@ const InputForm: React.FC<InputFormProps> = ({
             {renderInput("Subject", "subject", BookType, "e.g. Mathematics")}
             {renderInput("Topic/Chapter", "chapterName", BookOpen, "e.g. Calculus / Integration")}
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
-                <span>Class / Grade</span>
-                <span className="text-[9px] text-amber-500 font-extrabold normal-case">Fixed via Birthday DOB</span>
-              </label>
-              <div className="relative group animate-pulse">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
+              <div className="relative group">
                 <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   value={data.gradeClass}
                   onChange={(e) => onChange("gradeClass", e.target.value)}
-                  disabled={true}
-                  placeholder="Set Birthday in Profile"
-                  title="Class/Grade cannot be changed here. It is calculated automatically from your Date of Birth in your Profile."
-                  className="w-full pl-9 pr-3 py-2 bg-slate-100 border border-slate-250 rounded-lg outline-none transition-all text-slate-500 text-sm cursor-not-allowed"
+                  disabled={disabled || lockGradeClass}
+                  placeholder="e.g. 10th Grade"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -206,21 +204,22 @@ const InputForm: React.FC<InputFormProps> = ({
           <>
             {renderInput("Subject", "subject", BookType, "e.g. History")}
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
-                <span>Class / Grade</span>
-                <span className="text-[9px] text-amber-500 font-extrabold normal-case">Fixed via Birthday DOB</span>
-              </label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
               <div className="relative group">
                 <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   value={data.gradeClass}
                   onChange={(e) => onChange("gradeClass", e.target.value)}
-                  disabled={true}
-                  placeholder="Set Birthday in Profile"
-                  title="Class/Grade cannot be changed here. It is calculated automatically from your Date of Birth in your Profile."
-                  className="w-full pl-9 pr-3 py-2 bg-slate-100 border border-slate-250 rounded-lg outline-none transition-all text-slate-500 text-sm cursor-not-allowed"
+                  disabled={disabled || lockGradeClass}
+                  placeholder="e.g. 10th Grade"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm disabled:cursor-not-allowed"
                 />
+                {lockGradeClass && (
+                  <div className="absolute right-3 top-2.5">
+                    <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                  </div>
+                )}
               </div>
             </div>
             {renderInput("Board", "board", School, "e.g. CBSE")}

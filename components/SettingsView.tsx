@@ -38,12 +38,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   const [helpTab, setHelpTab] = useState<'FAQ' | 'TERMS'>('FAQ');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
-  const completionPercentage = calculateProfileCompletion(userProfile);
-  const isProfileComplete = completionPercentage === 100;
-
   const handleSettingChange = (category: keyof UserSettings, field: string, value: any) => {
-    if (!isProfileComplete) {
-      alert("Please complete your profile to 100% to modify settings.");
+    const completion = calculateProfileCompletion(userProfile);
+    if (completion < 100) {
       return;
     }
     setSettings(prev => ({
@@ -68,10 +65,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handlePasswordChange = async () => {
-    if (!isProfileComplete) {
-      alert("Please complete your profile to 100% to modify settings.");
-      return;
-    }
     const user = auth.currentUser;
     if (user && user.email) {
        const confirmReset = window.confirm(`Send password reset email to ${user.email}?`);
@@ -89,10 +82,6 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleEmailChange = async () => {
-    if (!isProfileComplete) {
-      alert("Please complete your profile to 100% to modify settings.");
-      return;
-    }
     const user = auth.currentUser;
     if (user) {
       const newEmail = window.prompt("Enter your new email address:");
@@ -246,12 +235,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                  <input 
                    type="text" 
                    value={settings.learning.grade}
-                   disabled={true}
-                   className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none opacity-60 cursor-not-allowed text-slate-500 dark:text-slate-400"
+                   onChange={(e) => handleSettingChange('learning', 'grade', e.target.value)}
+                   className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
                  />
-                 <p className="text-[10px] text-slate-400 italic mt-1">
-                   Grade cannot be changed in Settings. You can update it by changing your Date of Birth in your Profile.
-                 </p>
                </div>
                <div className="space-y-2">
                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Content Difficulty</label>
@@ -898,28 +884,39 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-4 md:p-8 relative bg-white dark:bg-slate-900">
-         {!isProfileComplete && (
-            <div className="mb-6 bg-amber-50 dark:bg-amber-950/10 border border-amber-200 dark:border-amber-900/50 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
-               <div className="flex items-start gap-4">
-                  <div className="p-3 bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl">
-                     <Lock className="w-5 h-5" />
-                  </div>
-                  <div>
-                     <h4 className="font-bold text-amber-800 dark:text-amber-300 text-sm">Settings are Read-Only</h4>
-                     <p className="text-xs text-amber-700/80 dark:text-amber-400/80 leading-relaxed max-w-xl mt-0.5">
-                        Your profile completion is currently at <span className="font-extrabold text-amber-600 dark:text-amber-400">{completionPercentage}%</span>. To unlock settings and edit your preferences, please complete your profile 100% first.
-                     </p>
-                  </div>
+         {(() => {
+           const completion = calculateProfileCompletion(userProfile);
+           const isProfileComplete = completion >= 100;
+           const isPublicTab = activeTab === 'help' || activeTab === 'account';
+           
+           return (
+             <>
+               {!isProfileComplete && !isPublicTab && (
+                 <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                   <div className="flex gap-3">
+                     <span className="text-2xl mt-0.5">🔒</span>
+                     <div>
+                       <h4 className="font-bold text-amber-800 dark:text-amber-300 text-sm">Settings Customization Locked</h4>
+                       <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                         Your profile is currently <span className="font-bold">{completion}% complete</span>. Please complete your profile (100%) in the Profile tab to unlock settings customization. Incomplete profiles prevent personalized AI updates.
+                       </p>
+                     </div>
+                   </div>
+                   <button
+                     onClick={onNavigateToProfile}
+                     className="bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all self-start whitespace-nowrap"
+                   >
+                     Complete Profile Now
+                   </button>
+                 </div>
+               )}
+               
+               <div className={!isProfileComplete && !isPublicTab ? "pointer-events-none opacity-60" : ""}>
+                 {renderContent()}
                </div>
-               <button 
-                 onClick={onNavigateToProfile}
-                 className="w-full sm:w-auto px-5 py-2.5 bg-amber-600 hover:bg-amber-750 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/10 hover:shadow-lg whitespace-nowrap"
-               >
-                 Complete Profile
-               </button>
-            </div>
-         )}
-         {renderContent()}
+             </>
+           );
+         })()}
 
          {/* Floating Save Bar */}
          {hasChanges && (
