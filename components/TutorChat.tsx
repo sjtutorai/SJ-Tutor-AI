@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, SJTUTOR_AVATAR } from '../types';
 import { GeminiService } from '../services/geminiService';
-import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle, ExternalLink, Share2, Save, Check, Volume2, VolumeX } from 'lucide-react';
+import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle, ExternalLink, Share2, Save, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { Chat, GenerateContentResponse } from "@google/genai";
 
 const SAMPLE_QUESTIONS = [
   "What is the difference between weather and climate?",
@@ -64,74 +65,8 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [usedMicForCurrentMessage, setUsedMicForCurrentMessage] = useState(false);
-  const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
-  const chatSessionRef = useRef<any | null>(null);
+  const chatSessionRef = useRef<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Cancel speech on unmount
-  useEffect(() => {
-    return () => {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
-
-  const speakText = (text: string, messageIndex: number) => {
-    if (!('speechSynthesis' in window)) {
-      console.warn("Speech synthesis is not supported in this browser.");
-      return;
-    }
-
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel();
-
-    // Clean up Markdown, triple-backtick code blocks, etc. to make it pleasant to listen to
-    const cleanText = text
-      .replace(/```[\s\S]*?```/g, '') // Remove code blocks
-      .replace(/`([^`]+)`/g, '$1') // Convert inline backticks
-      .replace(/[*#`_-]/g, ' ')  // Remove md lists/headers
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Normalize links
-      .replace(/:::/g, ' ')
-      .trim();
-
-    if (!cleanText) return;
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = 'en-US';
-
-    // Select a premium sounding English voice if available
-    const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(v => 
-      v.lang.startsWith('en') && 
-      (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Microsoft'))
-    );
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
-    }
-
-    utterance.onstart = () => {
-      setSpeakingMessageIndex(messageIndex);
-    };
-
-    utterance.onend = () => {
-      setSpeakingMessageIndex(prev => prev === messageIndex ? null : prev);
-    };
-
-    utterance.onerror = () => {
-      setSpeakingMessageIndex(prev => prev === messageIndex ? null : prev);
-    };
-
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const stopSpeaking = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setSpeakingMessageIndex(null);
-    }
-  };
 
   useEffect(() => {
     if (!chatSessionRef.current) {
@@ -146,9 +81,6 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
   const toggleVoiceInput = () => {
     if (isListening) return;
 
-    // Stop speaking if AI is reading out loud so they can talk in peace
-    stopSpeaking();
-
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
@@ -160,7 +92,6 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setInput(prev => prev + (prev ? ' ' : '') + transcript);
-        setUsedMicForCurrentMessage(true);
       };
       recognition.onend = () => setIsListening(false);
       recognition.start();
@@ -204,13 +135,6 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
     if (!textToSend.trim() || !chatSessionRef.current) return;
     setError(null);
 
-    // Stop speaking any previous messages
-    stopSpeaking();
-
-    // Check if user used mic before resetting it
-    const hadUsedMic = usedMicForCurrentMessage;
-    setUsedMicForCurrentMessage(false);
-
     // Credit Deduction Logic: 1 credit per question
     const cost = 1;
     if (!onDeductCredit(cost)) {
@@ -234,7 +158,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
       setMessages(prev => [...prev, { role: 'model', text: '', timestamp: Date.now() }]);
 
       for await (const chunk of resultStream) {
-        const responseChunk = chunk as any;
+        const responseChunk = chunk as GenerateContentResponse;
         const text = responseChunk.text;
         if (text) {
           fullResponseText += text;
@@ -244,11 +168,6 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
              return newArr;
           });
         }
-      }
-
-      // If mic was used to write the message, read the response out loud
-      if (hadUsedMic && fullResponseText) {
-        speakText(fullResponseText, messagesRef.current.length - 1);
       }
     } catch (error: any) {
       console.error("Chat error:", error);
@@ -357,33 +276,8 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
                   </a>
                 </div>
               ) : msg.role === 'model' ? (
-                <div className="space-y-2">
-                  <div className="markdown-body">
-                     <ReactMarkdown>{msg.text}</ReactMarkdown>
-                  </div>
-                  {msg.text && (
-                    <div className="flex items-center justify-end gap-2 border-t border-slate-200/50 pt-1.5 mt-0.5 text-[10px] text-slate-400">
-                      {speakingMessageIndex === idx ? (
-                        <button 
-                          onClick={stopSpeaking}
-                          className="flex items-center gap-1 text-red-500 font-bold hover:text-red-700 transition-all bg-red-50 dark:bg-red-950/20 px-1.5 py-0.5 rounded cursor-pointer"
-                          title="Stop voice"
-                        >
-                          <VolumeX className="w-3.5 h-3.5 animate-pulse" />
-                          <span>Speaking... Stop Voice</span>
-                        </button>
-                      ) : (
-                        <button 
-                          onClick={() => speakText(msg.text, idx)}
-                          className="flex items-center gap-1 hover:text-primary-600 transition-all hover:bg-slate-200/50 px-1.5 py-0.5 rounded cursor-pointer"
-                          title="Read this response aloud"
-                        >
-                          <Volume2 className="w-3.5 h-3.5" />
-                          <span>Read Aloud</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
+                <div className="markdown-body">
+                   <ReactMarkdown>{msg.text}</ReactMarkdown>
                 </div>
               ) : (
                 <p className="whitespace-pre-wrap">{msg.text}</p>

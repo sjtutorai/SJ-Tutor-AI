@@ -20,7 +20,7 @@ interface LandingPageProps {
   countryCode?: string | null;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, countryCode }) => {
   return (
     <div className="bg-white dark:bg-slate-900 overflow-hidden">
       {/* 1. Hero Section */}
@@ -35,13 +35,20 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             SJ Tutor AI
           </div>
           
+          {countryCode === 'IN' && (
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 rounded-full text-emerald-700 dark:text-emerald-400 text-xs font-bold mb-4 animate-in fade-in zoom-in duration-500">
+               <span className="text-sm">🇮🇳</span> 
+               Optimized for India (+91)
+            </div>
+          )}
+          
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-slate-900 dark:text-white mb-6 leading-tight animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
             Learn Smarter and <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-amber-500">Finish Homework Faster</span>
           </h1>
           
             <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
-            Your friendly AI study buddy that helps you solve homework, understand subjects easily, and prepares you for exams.
+            Your friendly AI study buddy {countryCode === 'IN' ? '🇮🇳 for Students in India (+91) ' : ''}that helps you solve homework, understand subjects easily, and prepares you for exams.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
@@ -72,10 +79,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-4">
-              Smart Features for Smart Students
+              Smart Features for {countryCode === 'IN' ? 'Indian Students' : 'Smart Students'}
             </h2>
             <p className="text-slate-500 max-w-2xl mx-auto">
-              Everything you need to excel in your academics, all in one place.
+              {countryCode === 'IN' 
+                ? 'Everything you need to excel in NCERT, CBSE, and State Board exams, all in one place.' 
+                : 'Everything you need to excel in your academics, all in one place.'}
             </p>
           </div>
           
