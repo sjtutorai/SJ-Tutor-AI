@@ -73,7 +73,6 @@ import {
   Bell,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { GenerateContentResponse } from "@google/genai";
 
 const THEME_COLORS: Record<string, Record<string, string>> = {
   Gold: {
@@ -941,7 +940,7 @@ const App: React.FC = () => {
 
         let text = "";
         for await (const chunk of stream) {
-          const c = chunk as GenerateContentResponse;
+          const c = chunk as any;
           if (c.text) {
             text += c.text;
             setSummaryContent(text);
@@ -964,7 +963,7 @@ const App: React.FC = () => {
 
         let text = "";
         for await (const chunk of stream) {
-          const c = chunk as GenerateContentResponse;
+          const c = chunk as any;
           if (c.text) {
             text += c.text;
             setHomeworkContent(text);
