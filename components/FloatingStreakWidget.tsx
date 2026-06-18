@@ -116,15 +116,16 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     const yPct = (position.y / window.innerHeight) * 100;
     localStorage.setItem('sjtutor_streak_widget_x_pct', xPct.toFixed(2));
     localStorage.setItem('sjtutor_streak_widget_y_pct', yPct.toFixed(2));
+
+    // Bypasses browser click disruptions due to pointer capture
+    if (!hasDragged.current) {
+      setIsOpen(true);
+    }
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    if (hasDragged.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
-    setIsOpen(true);
+    e.preventDefault();
+    e.stopPropagation();
   };
 
   // Generate 30 Day calendar grid for Streak History
