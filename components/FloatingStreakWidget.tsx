@@ -34,6 +34,11 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   const [isReady, setIsReady] = useState(false);
   const dragRef = useRef<HTMLDivElement>(null);
 
+  // Performance Pointer dragging state variables
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0, widgetX: 0, widgetY: 0 });
+  const hasDragged = useRef(false);
+
   // Initialize and restore saved percentage coordinates
   useEffect(() => {
     const xPct = localStorage.getItem('sjtutor_streak_widget_x_pct');
@@ -67,17 +72,59 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 
   if (!isReady) return null;
 
-  // Track drag end and save coordinates
-  const handleDragEnd = (_event: any, info: any) => {
-    const newX = position.x + info.offset.x;
-    const newY = position.y + info.offset.y;
+  // Pointer drag event handlers to allow keeping the toy anywhere
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Only drag with primary mouse button or touch
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    setIsDragging(true);
+    hasDragged.current = false;
+    dragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      widgetX: position.x,
+      widgetY: position.y
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
 
-    const clampedX = Math.max(10, Math.min(newX, window.innerWidth - 80));
-    const clampedY = Math.max(10, Math.min(newY, window.innerHeight - 80));
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const deltaX = e.clientX - dragStart.current.x;
+    const deltaY = e.clientY - dragStart.current.y;
 
-    setPosition({ x: clampedX, y: clampedY });
-    localStorage.setItem('sjtutor_streak_widget_x_pct', ((clampedX / window.innerWidth) * 100).toFixed(2));
-    localStorage.setItem('sjtutor_streak_widget_y_pct', ((clampedY / window.innerHeight) * 100).toFixed(2));
+    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+      hasDragged.current = true;
+    }
+
+    let newX = dragStart.current.widgetX + deltaX;
+    let newY = dragStart.current.widgetY + deltaY;
+
+    // Fluid viewport clamping
+    newX = Math.max(5, Math.min(newX, window.innerWidth - 75));
+    newY = Math.max(5, Math.min(newY, window.innerHeight - 75));
+
+    setPosition({ x: newX, y: newY });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+
+    // Save placement coordinates as percentages immediately
+    const xPct = (position.x / window.innerWidth) * 100;
+    const yPct = (position.y / window.innerHeight) * 100;
+    localStorage.setItem('sjtutor_streak_widget_x_pct', xPct.toFixed(2));
+    localStorage.setItem('sjtutor_streak_widget_y_pct', yPct.toFixed(2));
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (hasDragged.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    setIsOpen(true);
   };
 
   // Generate 30 Day calendar grid for Streak History
@@ -137,13 +184,10 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
       {/* Floating Draggable Streak Pill */}
       <motion.div
         ref={dragRef}
-        drag
-        dragMomentum={false}
-        dragElastic={0.08}
-        onDragEnd={handleDragEnd}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         style={{
-          x: 0,
-          y: 0,
           left: position.x,
           top: position.y,
           position: 'fixed',
@@ -154,8 +198,8 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
         className="touch-none select-none"
       >
         <button
-          onClick={() => setIsOpen(true)}
-          title="Keep learning daily to maintain your streak!"
+          onClick={handleClick}
+          title="Drag me to reposition! Click to view Streak Details"
           className="group relative flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 text-white p-0.5 shadow-[0_4px_20px_rgba(249,115,22,0.4)] md:shadow-[0_8px_30px_rgba(249,115,22,0.4)] dark:shadow-[0_8px_30px_rgba(220,38,38,0.3)] hover:shadow-orange-500/60 transition-all focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
         >
           {/* Inner ring & flame details */}
