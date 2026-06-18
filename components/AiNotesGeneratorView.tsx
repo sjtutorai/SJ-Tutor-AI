@@ -4,10 +4,11 @@ import {
   Copy, Sparkles, BookOpen, Download, Volume2,
   FileText, List, Layers, HelpCircle, CheckCircle2, Bookmark,
   Award, Zap, RotateCcw, AlertCircle, RefreshCw, PenTool,
-  FileSpreadsheet, Play, Pause, Square, Loader2
+  FileSpreadsheet, Play, Pause, Square, Loader2, Lock
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { NoteItem, UserProfile } from '../types';
+import { SettingsService } from '../services/settingsService';
 import { GoogleGenAI, Type } from "@google/genai";
 
 interface AiNotesGeneratorViewProps {
@@ -40,11 +41,36 @@ export const AiNotesGeneratorView: React.FC<AiNotesGeneratorViewProps> = ({
   onSaveToLibrary
 }) => {
   // Config state
-  const [topic, setTopic] = useState('');
   const [subject, setSubject] = useState('Science');
-  const [gradeClass, setGradeClass] = useState(userProfile.grade || '10th');
-  const [language, setLanguage] = useState('English');
+  const [board, setBoard] = useState(userProfile.board || 'CBSE');
+  const [chapterName, setChapterName] = useState('');
+  const [topic, setTopic] = useState(''); // Optional secondary detail paragraph reference
+  const [author, setAuthor] = useState(userProfile.displayName || '');
   const [notesStyle, setNotesStyle] = useState<NotesStyle>('Detailed');
+  
+  // Fixed state synchronized with Profile & Settings
+  const [gradeClass, setGradeClass] = useState(userProfile.grade || SettingsService.getSettings().learning.grade || '10th');
+  const [language, setLanguage] = useState(SettingsService.getSettings().learning.language || 'English');
+
+  useEffect(() => {
+    setGradeClass(userProfile.grade || SettingsService.getSettings().learning.grade || '10th');
+    setBoard(userProfile.board || 'CBSE');
+    if (userProfile.displayName && !author) {
+      setAuthor(userProfile.displayName);
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
+    const syncSettings = () => {
+      const settings = SettingsService.getSettings();
+      setLanguage(settings.learning.language || 'English');
+      if (!userProfile.grade) {
+        setGradeClass(settings.learning.grade || '10th');
+      }
+    };
+    window.addEventListener('settings-changed', syncSettings);
+    return () => window.removeEventListener('settings-changed', syncSettings);
+  }, [userProfile]);
   
   // Generation & display state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -110,8 +136,8 @@ export const AiNotesGeneratorView: React.FC<AiNotesGeneratorViewProps> = ({
 
   // 1. Generate core study notes
   const handleGenerateNotes = async () => {
-    if (!topic.trim()) {
-      setError('Please provide a lesson topic, chapter title, or paste some text content.');
+    if (!chapterName.trim()) {
+      setError('Please provide a Chapter Name.');
       return;
     }
 
@@ -158,12 +184,15 @@ export const AiNotesGeneratorView: React.FC<AiNotesGeneratorViewProps> = ({
       };
 
       const prompt = `
-        You are an elite academic tutor of standard CBSE/ICSE curriculums. Generate a high-quality, comprehensive, and perfectly formatted student study notes set based on:
+        You are an elite academic tutor of standard ${board || 'CBSE/ICSE'} curriculums. Generate a high-quality, comprehensive, and perfectly formatted student study notes set based on:
         
-        TOPIC/CONTENT: "${topic}"
+        CHAPTER NAME: "${chapterName}"
         SUBJECT: ${subject}
+        BOARD: ${board}
         STUDENT CLASSIFICATION: Grade/Class ${gradeClass}
-        PREFFERED LANGUAGE: ${language}
+        PREFERRED LANGUAGE: ${language}
+        ${author ? `AUTHOR/PREPARED BY: ${author}` : ''}
+        ${topic.trim() ? `ADDITIONAL CONTEXT / PASTE CONTENT: "${topic}"` : ''}
         NOTES FORMAT SPECIFICATION: ${notesStyle} (${stylePrompts[notesStyle]})
 
         CRITICAL OUTPUT REQUIREMENTS:
@@ -257,17 +286,21 @@ export const AiNotesGeneratorView: React.FC<AiNotesGeneratorViewProps> = ({
   const handleSaveToPersonalLibrary = () => {
     if (!generatedContent || isSaved) return;
 
+    const baseTags = ['AI Generated', subject, notesStyle];
+    if (board) baseTags.push(board);
+    if (author) baseTags.push(`By ${author}`);
+
     const newNote: NoteItem = {
       id: Date.now().toString(),
-      title: `${topic} (${notesStyle}) Notes`,
+      title: `${chapterName} (${notesStyle}) Notes`,
       content: generatedContent,
       subject: subject,
-      chapter: topic,
+      chapter: chapterName,
       template: notesStyle === 'FormulaSheet' ? 'Formula' : 'Theory',
       status: 'New',
       isFavorite: false,
       date: Date.now(),
-      tags: ['AI Generated', subject, notesStyle]
+      tags: baseTags
     };
 
     // Save notes standard layout to local storage
@@ -561,14 +594,15 @@ export const AiNotesGeneratorView: React.FC<AiNotesGeneratorViewProps> = ({
               <PenTool className="w-5 h-5 text-amber-500" /> Notes Settings
             </h2>
             
-            {/* TOPIC INPUT */}
+            {/* CHAPTER NAME */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Topic or Textbook Paragraph</label>
-              <textarea
-                placeholder="e.g. Newton’s Three Laws of Motion with Examples"
-                value={topic}
-                onChange={e => setTopic(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 text-sm font-medium resize-none h-28 dark:text-white transition-all"
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Chapter Name <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                placeholder="e.g. Life Processes, Light Reflection..."
+                value={chapterName}
+                onChange={e => setChapterName(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 text-sm font-medium dark:text-white transition-all"
               />
             </div>
 
@@ -586,35 +620,61 @@ export const AiNotesGeneratorView: React.FC<AiNotesGeneratorViewProps> = ({
               </select>
             </div>
 
-            {/* GRADE & LANGUAGE */}
+            {/* BOARD */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Education Board</label>
+              <select
+                value={board}
+                onChange={e => setBoard(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 text-sm font-medium dark:text-white cursor-pointer"
+              >
+                <option value="CBSE">CBSE (Central Board)</option>
+                <option value="ICSE">ICSE / ISC</option>
+                <option value="State Board">State Board</option>
+                <option value="IGCSE">Cambridge / IGCSE</option>
+                <option value="IB">IB (International Baccalaureate)</option>
+              </select>
+            </div>
+
+            {/* AUTHOR (OPTIONAL) */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Author (Optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. Self, SJ Tutor AI..."
+                value={author}
+                onChange={e => setAuthor(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 text-sm font-medium dark:text-white transition-all"
+              />
+            </div>
+
+            {/* ADDITIONAL TOPIC DETAILS / TEXT CONTEXT */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Focus Topics or Paste Content (Optional)</label>
+              <textarea
+                placeholder="e.g. Focus specifically on aerobic vs anaerobic respiration. You can also paste textbook paragraphs here."
+                value={topic}
+                onChange={e => setTopic(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 text-xs font-medium resize-none h-20 dark:text-white transition-all"
+              />
+            </div>
+
+            {/* FIXED GRADE AND LANGUAGES FROM PROFILE/SETTINGS */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Grade Level</label>
-                <select
-                  value={gradeClass}
-                  onChange={e => setGradeClass(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold dark:text-white cursor-pointer"
-                >
-                  <option value="1st - 5th">Primary (Class 1-5)</option>
-                  <option value="6th - 8th">Middle (Class 6-8)</option>
-                  <option value="9th - 10th">Secondary (Class 9-10)</option>
-                  <option value="11th - 12th">Jr College (Class 11-12)</option>
-                  <option value="College">College / Higher Ed</option>
-                </select>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider dark:text-slate-500">Fixed Class (Profile)</label>
+                <div className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 rounded-2xl text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-2 select-none">
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{gradeClass}</span>
+                </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Language</label>
-                <select
-                  value={language}
-                  onChange={e => setLanguage(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold dark:text-white cursor-pointer"
-                >
-                  <option value="English">English</option>
-                  <option value="Hindi">Hindi (हिंदी)</option>
-                  <option value="Kannada">Kannada (ಕನ್ನಡ)</option>
-                  <option value="Tamil">Tamil (தமிழ்)</option>
-                </select>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider dark:text-slate-500">Fixed Lang (Settings)</label>
+                <div className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 rounded-2xl text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-2 select-none">
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{language}</span>
+                </div>
               </div>
             </div>
 
