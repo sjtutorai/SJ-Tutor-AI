@@ -20,8 +20,6 @@ import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
 import LoadingState from "./components/LoadingState";
 import NotesView from "./components/NotesView";
-import { AiNotesGeneratorView } from "./components/AiNotesGeneratorView";
-import { AiQaView } from "./components/AiQaView";
 import SettingsView from "./components/SettingsView";
 import AboutView from "./components/AboutView";
 import IdCardView from "./components/IdCardView";
@@ -1139,12 +1137,11 @@ const App: React.FC = () => {
   const navItems = [
     { id: AppMode.DASHBOARD, label: "Dashboard", icon: LayoutDashboard },
     { id: AppMode.ID_CARD, label: "Student ID Card", icon: CreditCard },
-    { id: AppMode.AI_NOTES, label: "AI Notes Generator", icon: Sparkles },
-    { id: AppMode.AI_QA, label: "AI Q&A Assistant", icon: MessageCircle },
     { id: AppMode.SUMMARY, label: "Instant Summary", icon: FileText },
     { id: AppMode.QUIZ, label: "Quiz Creator", icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
+    { id: AppMode.TUTOR, label: "AI Tutor", icon: MessageCircle },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
   ];
@@ -1184,22 +1181,6 @@ const App: React.FC = () => {
         bg: "bg-[#FDF5E6] dark:bg-indigo-900/30",
       },
       {
-        id: AppMode.AI_NOTES,
-        label: "AI Notes Generator",
-        count: null,
-        icon: Sparkles,
-        color: "text-amber-500 dark:text-amber-400",
-        bg: "bg-[#FDF5E6] dark:bg-amber-950/20",
-      },
-      {
-        id: AppMode.AI_QA,
-        label: "AI Q&A Assistant",
-        count: null,
-        icon: MessageCircle,
-        color: "text-emerald-500 dark:text-emerald-400",
-        bg: "bg-[#FDF5E6] dark:bg-emerald-950/20",
-      },
-      {
         id: AppMode.SUMMARY,
         label: "Summaries",
         count: stats.summaries,
@@ -1221,6 +1202,14 @@ const App: React.FC = () => {
         count: stats.homeworks + stats.essays,
         icon: BookOpen,
         color: "text-amber-600 dark:text-amber-500",
+        bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
+      },
+      {
+        id: AppMode.TUTOR,
+        label: "Tutor Sessions",
+        count: stats.chats,
+        icon: MessageCircle,
+        color: "text-amber-900 dark:text-amber-200",
         bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
       },
       {
@@ -1710,33 +1699,6 @@ const App: React.FC = () => {
               }
             />
           </div>
-        );
-
-      case AppMode.AI_NOTES:
-        return (
-          <AiNotesGeneratorView
-            userId={user ? user.uid : null}
-            userProfile={userProfile}
-            onDeductCredit={deductCredit}
-            onSaveToLibrary={(newNote) => {
-              console.log("Note generated into standard library", newNote);
-              sendNotification(
-                "Study Notes Saved 📚",
-                `Saved "${newNote.title}" to your personal Notes Library!`,
-                "New Features" as any,
-                user?.uid || "guest"
-              );
-            }}
-          />
-        );
-
-      case AppMode.AI_QA:
-        return (
-          <AiQaView
-            userId={user ? user.uid : null}
-            userProfile={userProfile}
-            onDeductCredit={deductCredit}
-          />
         );
 
       case AppMode.NOTES:
