@@ -61,23 +61,6 @@
         "updatedAt": { "type": "number" }
       },
       "required": ["uid", "currentStreak", "highestStreak", "lastActivityDate", "streakHistory", "updatedAt"]
-    },
-    "SharedContent": {
-      "title": "SharedContent",
-      "description": "User generated shared content (Quizzes, Summaries, Homework, etc.) available for public viewing",
-      "type": "object",
-      "properties": {
-        "shareId": { "type": "string" },
-        "type": { "type": "string" },
-        "title": { "type": "string" },
-        "content": { "type": "object" },
-        "ownerUid": { "type": "string" },
-        "createdAt": { "type": "number" },
-        "views": { "type": "number" },
-        "likes": { "type": "number" },
-        "isPublic": { "type": "boolean" }
-      },
-      "required": ["shareId", "type", "title", "content", "ownerUid", "createdAt", "views", "likes", "isPublic"]
     }
   },
   "firestore": {
@@ -96,10 +79,6 @@
     "/streaks/{userId}": {
       "schema": "Streak",
       "description": "Stores user daily sequence progress and stats"
-    },
-    "/sharedContent/{shareId}": {
-      "schema": "SharedContent",
-      "description": "Provides public viewing access to shared items like Quizzes, summaries, homework etc."
     }
   }
 }

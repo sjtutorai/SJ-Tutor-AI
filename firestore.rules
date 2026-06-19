@@ -43,14 +43,5 @@ service cloud.firestore {
       allow create, update: if isOwner(userId) && isValidId(userId);
       allow delete: if false; // Streak data shouldn't be deleted by client
     }
-
-    // Public Shared Content rules (Zero-Trust access with Views/Likes analytics updates)
-    match /sharedContent/{shareId} {
-      allow read: if true; // Publicly viewable
-      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid && isValidId(shareId);
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid && isValidId(shareId);
-      allow update: if (isSignedIn() && resource.data.ownerUid == request.auth.uid && isValidId(shareId)) 
-                    || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'likes']));
-    }
   }
 }

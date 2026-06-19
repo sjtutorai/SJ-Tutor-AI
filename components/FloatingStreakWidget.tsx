@@ -64,20 +64,8 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
       });
     };
 
-    // Register a global helper to open the streak widget
-    const handleGlobalOpen = () => {
-      setIsOpen(true);
-    };
-
-    (window as any).openStreakWidget = handleGlobalOpen;
-    window.addEventListener('open-streak-hub', handleGlobalOpen);
-
     window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('open-streak-hub', handleGlobalOpen);
-      delete (window as any).openStreakWidget;
-    };
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   if (!isReady) return null;
@@ -97,7 +85,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     const deltaX = e.clientX - dragStartRef.current.x;
     const deltaY = e.clientY - dragStartRef.current.y;
 
-    if (Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12) {
+    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
       hasMovedRef.current = true;
     }
 
@@ -121,14 +109,6 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     // Save final position in percentage
     localStorage.setItem('sjtutor_streak_widget_x_pct', ((position.x / window.innerWidth) * 100).toFixed(2));
     localStorage.setItem('sjtutor_streak_widget_y_pct', ((position.y / window.innerHeight) * 100).toFixed(2));
-
-    const deltaX = Math.abs(e.clientX - dragStartRef.current.x);
-    const deltaY = Math.abs(e.clientY - dragStartRef.current.y);
-
-    // If movement is negligible, treat as standard click gesture to bypass pointer-capture issue
-    if (deltaX < 12 && deltaY < 12 && !hasMovedRef.current) {
-      setIsOpen(true);
-    }
   };
 
   // Generate 30 Day calendar grid for Streak History
@@ -204,7 +184,10 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
       >
         <button
           onClick={(e) => {
-            e.stopPropagation();
+            if (hasMovedRef.current) {
+              e.preventDefault();
+              return;
+            }
             setIsOpen(true);
           }}
           title="Keep learning daily to maintain your streak!"

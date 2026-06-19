@@ -32,7 +32,6 @@ import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
 import { useStreak, STREAK_MILESTONES } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
-import SharedContentView from "./components/SharedContentView";
 import {
   saveProfileToFirestore,
   getProfileFromFirestore,
@@ -186,14 +185,7 @@ const App: React.FC = () => {
   });
 
   // App State
-  const [mode, setMode] = useState<AppMode>(() => {
-    const params = new URLSearchParams(window.location.search);
-    const m = params.get("mode")?.toUpperCase();
-    if (m && Object.values(AppMode).includes(m as AppMode)) {
-      return m as AppMode;
-    }
-    return AppMode.DASHBOARD;
-  });
+  const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
 
   // Initialize form data with language from settings
   const [formData, setFormData] = useState<StudyRequestData>(() => {
@@ -1149,7 +1141,6 @@ const App: React.FC = () => {
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TUTOR, label: "AI Tutor", icon: MessageCircle },
-    { id: AppMode.SHARED, label: "Shared Links", icon: Share2 },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.ABOUT, label: "About Us", icon: Info },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
@@ -1471,94 +1462,6 @@ const App: React.FC = () => {
             </button>
           </div>
         </div>
-
-        {/* Public Sharing Links Center */}
-        <div className="mt-8 bg-gradient-to-r from-amber-500/5 to-orange-500/5 border border-amber-500/20 rounded-xl p-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-            <div>
-              <h3 className="font-extrabold text-slate-800 dark:text-white flex items-center gap-2 text-sm uppercase tracking-wider">
-                <Share2 className="w-5 h-5 text-orange-400" />
-                Public Deep Links & Shortcuts
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Share these links directly with classmates or bookmark them to jump straight to specific study tools!
-              </p>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              {
-                modeId: AppMode.QUIZ,
-                title: "Quiz Creator Link",
-                desc: "Navigate straight to creating custom AI quizzes",
-                icon: BrainCircuit,
-                color: "from-amber-400 to-orange-500",
-              },
-              {
-                modeId: AppMode.SUMMARY,
-                title: "Instant Summary Link",
-                desc: "Deep link to summarizing chapters & books",
-                icon: FileText,
-                color: "from-amber-500 to-orange-600",
-              },
-              {
-                modeId: AppMode.HOMEWORK,
-                title: "Homework Solver Link",
-                desc: "Shortcut to resolving school homework questions",
-                icon: BookOpen,
-                color: "from-orange-500 to-red-500",
-              },
-              {
-                modeId: AppMode.TUTOR,
-                title: "AI Tutor Session Link",
-                desc: "Direct path to chatting with the SJ Personal Tutor",
-                icon: MessageCircle,
-                color: "from-orange-600 to-red-600",
-              }
-            ].map((link) => {
-              const fullUrl = `${window.location.origin}/?mode=${link.modeId}`;
-              return (
-                <div key={link.modeId} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-4 rounded-xl flex items-center justify-between shadow-sm hover:shadow-md transition-shadow group">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 bg-gradient-to-tr ${link.color} text-white rounded-lg shadow-sm group-hover:scale-105 transition-transform`}>
-                      <link.icon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-800 dark:text-white">{link.title}</h4>
-                      <p className="text-[10px] text-slate-400 font-medium">{link.desc}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => {
-                        window.open(fullUrl, '_blank');
-                      }}
-                      className="p-1.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 rounded-lg text-[10px] font-bold border border-slate-100 dark:border-slate-700 transition-colors cursor-pointer"
-                      title="Open Link"
-                    >
-                      Open
-                    </button>
-                    <button
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(fullUrl);
-                          alert(`Copied Link for ${link.title} to clipboard!`);
-                        } catch (err) {
-                          console.error("Clipboard failed", err);
-                        }
-                      }}
-                      className="p-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-[10px] font-bold shadow-sm transition-colors cursor-pointer"
-                      title="Copy Link"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </div>
     );
   };
@@ -1599,8 +1502,6 @@ const App: React.FC = () => {
                 setSummaryContent("");
                 setCurrentHistoryId(null);
               }}
-              ownerUid={user?.uid}
-              ownerEmail={user?.email || ""}
             />
           );
         }
@@ -1642,8 +1543,6 @@ const App: React.FC = () => {
                 setHomeworkImages([]);
                 setCurrentHistoryId(null);
               }}
-              ownerUid={user?.uid}
-              ownerEmail={user?.email || ""}
             />
           );
         }
@@ -1822,13 +1721,6 @@ const App: React.FC = () => {
           </div>
         );
 
-      case AppMode.SHARED:
-        return (
-          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <SharedContentView userId={user?.uid || ""} />
-          </div>
-        );
-
       default:
         return renderDashboard();
     }
@@ -1856,11 +1748,7 @@ const App: React.FC = () => {
     const isPublicPage =
       mode === AppMode.ABOUT ||
       mode === AppMode.PRIVACY ||
-      mode === AppMode.TERMS ||
-      mode === AppMode.QUIZ ||
-      mode === AppMode.SUMMARY ||
-      mode === AppMode.HOMEWORK ||
-      mode === AppMode.TUTOR;
+      mode === AppMode.TERMS;
 
     if (hasSharedContent || isPublicPage) {
       return (
@@ -2211,29 +2099,11 @@ const App: React.FC = () => {
             </button>
 
             {user && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    if ((window as any).openStreakWidget) {
-                      (window as any).openStreakWidget();
-                    } else {
-                      window.dispatchEvent(new CustomEvent('open-streak-hub'));
-                    }
-                  }}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-orange-500/20 rounded-full transition-all cursor-pointer shadow-sm group animate-in fade-in zoom-in-95 duration-300"
-                  title="Open Learning Streak Hub"
-                >
-                  <span className="text-xs font-black text-orange-600 dark:text-amber-400 flex items-center gap-1 group-hover:scale-105 transition-transform">
-                    🔥 {streak?.currentStreak || 0}
-                  </span>
-                </button>
-
-                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
-                  <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    {userProfile.credits}
-                  </span>
-                </div>
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full">
+                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  {userProfile.credits}
+                </span>
               </div>
             )}
           </div>
