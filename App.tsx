@@ -59,7 +59,6 @@ import {
   Plus,
   Clock,
   Settings,
-  Info,
   Share2,
   CreditCard,
   QrCode,
@@ -350,17 +349,12 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [user]);
 
-  // Check for shared content on load (Only allow if user is logged on)
+  // Check for shared content on load (No login required for public shared links)
   useEffect(() => {
     if (authLoading) return; // Wait until auth state is confirmed
     if (!pendingShareId) return;
 
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
-
-    // User is logged in! Display the shared things.
+    // Display the shared things directly without requiring authentication.
     const fetchShared = async () => {
         setAuthLoading(true);
         try {
@@ -1149,7 +1143,6 @@ const App: React.FC = () => {
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TUTOR, label: "AI Tutor", icon: MessageCircle },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
-    { id: AppMode.ABOUT, label: "About Us", icon: Info },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
   ];
 
@@ -1574,6 +1567,7 @@ const App: React.FC = () => {
             <IdCardView
               userProfile={userProfile}
               email={user?.email || "Guest User"}
+              onProfileUpdate={handleProfileSave}
             />
           </div>
         );
