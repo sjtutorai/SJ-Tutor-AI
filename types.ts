@@ -14,9 +14,7 @@ export enum AppMode {
   TIMER = 'TIMER',
   PRIVACY = 'PRIVACY',
   TERMS = 'TERMS',
-  NOTIFICATIONS = 'NOTIFICATIONS',
-  AI_NOTES = 'AI_NOTES',
-  AI_QA = 'AI_QA'
+  NOTIFICATIONS = 'NOTIFICATIONS'
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
@@ -76,7 +74,6 @@ export interface UserProfile {
   state?: string;
   district?: string;
   claimedOffers?: number[];
-  emblems?: string[];
 }
 
 export interface UserSettings {

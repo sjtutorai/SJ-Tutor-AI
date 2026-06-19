@@ -24,9 +24,10 @@ interface TutorChatProps {
   currentCredits: number;
   onSaveSession: (messages: ChatMessage[]) => void;
   initialMessages?: ChatMessage[];
+  isOffline?: boolean;
 }
 
-const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, onSaveSession, initialMessages }) => {
+const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, onSaveSession, initialMessages, isOffline = false }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages || [
     {
       role: 'model',
@@ -195,6 +196,10 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
   };
 
   const handleSend = () => {
+    if (isOffline) {
+      alert("You are offline. Sending chat messages is disabled until you connect.");
+      return;
+    }
     if (!input.trim() || isTyping) return;
     sendMessageToAi(input);
     setInput('');
@@ -329,10 +334,17 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
             {error}
           </div>
         )}
+        {isOffline && (
+          <div className="mb-2 p-2 bg-rose-50 border border-rose-100 rounded-lg flex items-center gap-2 text-xs text-rose-600 animate-in fade-in slide-in-from-bottom-2">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 animate-pulse" />
+            <span>Tutor Chat is read-only because you are offline. Connect to the internet to ask questions.</span>
+          </div>
+        )}
         <div className="relative flex items-center gap-2">
            <button
             onClick={toggleVoiceInput}
-            className={`p-2.5 rounded-lg transition-colors ${isListening ? 'bg-red-50 text-red-500 animate-pulse' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+            disabled={isOffline}
+            className={`p-2.5 rounded-lg transition-colors ${isListening ? 'bg-red-50 text-red-500 animate-pulse' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'} disabled:opacity-50 disabled:cursor-not-allowed`}
             title="Voice Input"
           >
             {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -341,13 +353,14 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isListening ? "Listening..." : "Ask SJ Tutor AI anything..."}
-            className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-sm max-h-32 text-slate-900"
+            disabled={isOffline}
+            placeholder={isOffline ? "You are offline..." : isListening ? "Listening..." : "Ask SJ Tutor AI anything..."}
+            className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-sm max-h-32 text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
             rows={1}
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim() || isTyping}
+            disabled={!input.trim() || isTyping || isOffline}
             className="absolute right-1.5 p-1.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Send className="w-3.5 h-3.5" />

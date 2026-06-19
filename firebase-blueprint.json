@@ -61,22 +61,6 @@
         "updatedAt": { "type": "number" }
       },
       "required": ["uid", "currentStreak", "highestStreak", "lastActivityDate", "streakHistory", "updatedAt"]
-    },
-    "History": {
-      "title": "HistoryItem",
-      "description": "User specific course learning activities, quizzes, summary history",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "type": { "type": "string" },
-        "title": { "type": "string" },
-        "subtitle": { "type": "string" },
-        "timestamp": { "type": "number" },
-        "content": { "type": "object" },
-        "formData": { "type": "object" },
-        "score": { "type": "number" }
-      },
-      "required": ["id", "type", "title", "timestamp"]
     }
   },
   "firestore": {
@@ -87,10 +71,6 @@
     "/users/{userId}/notifications/{notificationId}": {
       "schema": "Notification",
       "description": "User specific notification records"
-    },
-    "/users/{userId}/history/{historyId}": {
-      "schema": "History",
-      "description": "User specific generated course history, quizzes, and homework items"
     },
     "/global_notifications/{notificationId}": {
       "schema": "GlobalNotification",

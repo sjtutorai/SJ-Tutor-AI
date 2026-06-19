@@ -31,11 +31,6 @@ service cloud.firestore {
       allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(notificationId);
     }
 
-    // History subcollection
-    match /users/{userId}/history/{historyId} {
-      allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(historyId);
-    }
-
     // Global notifications
     match /global_notifications/{notificationId} {
       allow read: if isSignedIn();

@@ -94,7 +94,7 @@ router.post("/verify-otp", async (req, res) => {
 router.post("/share", async (req, res) => {
   console.log(`[SHARE] Request received. Type: ${req.body.type}, Title: ${req.body.title}`);
   try {
-    const { type, title, subtitle, content } = req.body;
+    const { type, title, subtitle, content, score } = req.body;
     const id = uuidv4().slice(0, 8); // Short ID
 
     sharedContentStore.set(id, {
@@ -103,6 +103,7 @@ router.post("/share", async (req, res) => {
       title,
       subtitle,
       content,
+      score,
       createdAt: new Date()
     });
     
