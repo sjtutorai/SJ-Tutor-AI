@@ -149,10 +149,37 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
           position: 'fixed',
           zIndex: 9999,
         }}
-        whileHover={{ scale: 1.1, cursor: 'grab' }}
-        whileTap={{ scale: 0.95, cursor: 'grabbing' }}
+        initial={{ scale: 0, opacity: 0, rotate: -45 }}
+        animate={{ scale: 1, opacity: 1, rotate: 0 }}
+        transition={{
+          type: 'spring',
+          stiffness: 260,
+          damping: 18,
+          delay: 0.3
+        }}
+        whileHover={{
+          scale: 1.15,
+          cursor: 'grab',
+          rotate: [0, -8, 8, -6, 6, -3, 3, 0],
+          transition: { duration: 0.5, ease: "easeInOut" }
+        }}
+        whileTap={{ scale: 0.95, cursor: 'grabbing', rotate: 0 }}
         className="touch-none select-none"
       >
+        {/* Breathing Aura Ring */}
+        <motion.div
+          className="absolute -inset-1.5 rounded-full bg-gradient-to-br from-amber-500 via-orange-500 to-red-600 blur-md z-[-1]"
+          animate={{
+            scale: [1, 1.25, 1],
+            opacity: [0.25, 0.5, 0.25],
+          }}
+          transition={{
+            duration: 2.8,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+
         <button
           onClick={() => setIsOpen(true)}
           title="Keep learning daily to maintain your streak!"
