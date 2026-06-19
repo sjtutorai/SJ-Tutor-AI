@@ -32,6 +32,7 @@ import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
 import { useStreak, STREAK_MILESTONES } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
+import SharedContentView from "./components/SharedContentView";
 import {
   saveProfileToFirestore,
   getProfileFromFirestore,
@@ -1148,6 +1149,7 @@ const App: React.FC = () => {
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TUTOR, label: "AI Tutor", icon: MessageCircle },
+    { id: AppMode.SHARED, label: "Shared Links", icon: Share2 },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.ABOUT, label: "About Us", icon: Info },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
@@ -1597,6 +1599,8 @@ const App: React.FC = () => {
                 setSummaryContent("");
                 setCurrentHistoryId(null);
               }}
+              ownerUid={user?.uid}
+              ownerEmail={user?.email || ""}
             />
           );
         }
@@ -1638,6 +1642,8 @@ const App: React.FC = () => {
                 setHomeworkImages([]);
                 setCurrentHistoryId(null);
               }}
+              ownerUid={user?.uid}
+              ownerEmail={user?.email || ""}
             />
           );
         }
@@ -1813,6 +1819,13 @@ const App: React.FC = () => {
         return (
           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <NotificationsView />
+          </div>
+        );
+
+      case AppMode.SHARED:
+        return (
+          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <SharedContentView userId={user?.uid || ""} />
           </div>
         );
 
@@ -2203,6 +2216,8 @@ const App: React.FC = () => {
                   onClick={() => {
                     if ((window as any).openStreakWidget) {
                       (window as any).openStreakWidget();
+                    } else {
+                      window.dispatchEvent(new CustomEvent('open-streak-hub'));
                     }
                   }}
                   className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-orange-500/20 rounded-full transition-all cursor-pointer shadow-sm group animate-in fade-in zoom-in-95 duration-300"

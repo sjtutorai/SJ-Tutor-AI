@@ -14,8 +14,7 @@ interface OTPData {
 }
 const memoryStore = new Map<string, OTPData>();
 
-// Simple memory store for shared content
-const sharedContentStore = new Map<string, any>();
+// Send OTP helper
 
 /* Generate OTP */
 function generateOTP() {
@@ -90,41 +89,69 @@ router.post("/verify-otp", async (req, res) => {
   }
 });
 
+// Initialize a separate server Firebase instance to avoid client auth imports in Node server environment
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyApvrjOz196Z3feFfkW6y3W7r4OQiM6oIY",
+  authDomain: "sj-tutorai.firebaseapp.com",
+  projectId: "sj-tutorai",
+};
+
+const serverApp = initializeApp(firebaseConfig, "serverApp");
+const serverDb = getFirestore(serverApp);
+
 /* SHARE CONTENT */
 router.post("/share", async (req, res) => {
-  console.log(`[SHARE] Request received. Type: ${req.body.type}, Title: ${req.body.title}`);
+  console.log(`[SHARE] API Request received. Type: ${req.body.type}, Title: ${req.body.title}`);
   try {
-    const { type, title, subtitle, content, score } = req.body;
-    const id = uuidv4().slice(0, 8); // Short ID
+    const { type, title, subtitle, content, score, ownerUid, ownerEmail } = req.body;
+    const shareId = uuidv4().slice(0, 9); // Create a 9-char alphanumeric short ID
 
-    sharedContentStore.set(id, {
-      id,
-      type,
-      title,
-      subtitle,
+    const sharedData = {
+      shareId,
+      id: shareId, // alias for old schema
+      type: (type || "summary").toLowerCase(),
+      title: title || `Untitled ${type}`,
+      subtitle: subtitle || "",
       content,
       score,
-      createdAt: new Date()
-    });
+      ownerUid: ownerUid || "system_anonymous",
+      ownerEmail: ownerEmail || "",
+      createdAt: Date.now(),
+      views: 0,
+      likes: 0,
+      isPublic: true
+    };
+
+    const docRef = doc(serverDb, "sharedContent", shareId);
+    await setDoc(docRef, sharedData);
     
-    console.log(`[SHARE] Saved to memory store. ID: ${id}`);
-    res.json({ success: true, id });
+    console.log(`[SHARE] Saved to Firestore successfully. ID: ${shareId}`);
+    res.json({ success: true, id: shareId });
   } catch (error: any) {
-    console.error("[SHARE] Error:", error);
+    console.error("[SHARE] Error writing to Firestore:", error);
     res.status(500).json({ message: "Failed to share content", error: error.message });
   }
 });
 
 /* GET SHARED CONTENT */
 router.get("/share/:id", async (req, res) => {
+  console.log(`[SHARE GET] Retrieving ID: ${req.params.id}`);
   try {
     const { id } = req.params;
-    const record = sharedContentStore.get(id);
+    const docRef = doc(serverDb, "sharedContent", id);
+    const docSnap = await getDoc(docRef);
     
-    if (!record) return res.status(404).json({ message: "Content not found" });
-    res.json({ success: true, data: record });
+    if (!docSnap.exists()) {
+      console.log(`[SHARE GET] Content not found for ID: ${id}`);
+      return res.status(404).json({ message: "Content not found" });
+    }
+    
+    res.json({ success: true, data: docSnap.data() });
   } catch (error) {
-    console.error(error);
+    console.error("[SHARE GET] Error fetching from Firestore:", error);
     res.status(500).json({ message: "Failed to retrieve content" });
   }
 });

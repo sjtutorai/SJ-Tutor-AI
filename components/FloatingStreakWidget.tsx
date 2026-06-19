@@ -65,13 +65,17 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     };
 
     // Register a global helper to open the streak widget
-    (window as any).openStreakWidget = () => {
+    const handleGlobalOpen = () => {
       setIsOpen(true);
     };
+
+    (window as any).openStreakWidget = handleGlobalOpen;
+    window.addEventListener('open-streak-hub', handleGlobalOpen);
 
     window.addEventListener('resize', handleResize);
     return () => {
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('open-streak-hub', handleGlobalOpen);
       delete (window as any).openStreakWidget;
     };
   }, []);
@@ -200,10 +204,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
       >
         <button
           onClick={(e) => {
-            if (hasMovedRef.current) {
-              e.preventDefault();
-              return;
-            }
+            e.stopPropagation();
             setIsOpen(true);
           }}
           title="Keep learning daily to maintain your streak!"
