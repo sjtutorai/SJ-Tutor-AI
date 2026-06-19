@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
+  Calendar, 
   Flame, 
   Trophy, 
   X, 
@@ -32,6 +33,11 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isReady, setIsReady] = useState(false);
   const dragRef = useRef<HTMLDivElement>(null);
+
+  // Performance Pointer dragging state variables
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0, widgetX: 0, widgetY: 0 });
+  const hasDragged = useRef(false);
 
   // Initialize and restore saved percentage coordinates
   useEffect(() => {
@@ -66,17 +72,59 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 
   if (!isReady) return null;
 
-  // Track drag end and save coordinates
-  const handleDragEnd = (_event: any, info: any) => {
-    const newX = position.x + info.offset.x;
-    const newY = position.y + info.offset.y;
+  // Pointer drag event handlers to allow keeping the toy anywhere
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Only drag with primary mouse button or touch
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    setIsDragging(true);
+    hasDragged.current = false;
+    dragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      widgetX: position.x,
+      widgetY: position.y
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
 
-    const clampedX = Math.max(10, Math.min(newX, window.innerWidth - 80));
-    const clampedY = Math.max(10, Math.min(newY, window.innerHeight - 80));
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const deltaX = e.clientX - dragStart.current.x;
+    const deltaY = e.clientY - dragStart.current.y;
 
-    setPosition({ x: clampedX, y: clampedY });
-    localStorage.setItem('sjtutor_streak_widget_x_pct', ((clampedX / window.innerWidth) * 100).toFixed(2));
-    localStorage.setItem('sjtutor_streak_widget_y_pct', ((clampedY / window.innerHeight) * 100).toFixed(2));
+    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+      hasDragged.current = true;
+    }
+
+    let newX = dragStart.current.widgetX + deltaX;
+    let newY = dragStart.current.widgetY + deltaY;
+
+    // Fluid viewport clamping
+    newX = Math.max(5, Math.min(newX, window.innerWidth - 75));
+    newY = Math.max(5, Math.min(newY, window.innerHeight - 75));
+
+    setPosition({ x: newX, y: newY });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+
+    // Save placement coordinates as percentages immediately
+    const xPct = (position.x / window.innerWidth) * 100;
+    const yPct = (position.y / window.innerHeight) * 100;
+    localStorage.setItem('sjtutor_streak_widget_x_pct', xPct.toFixed(2));
+    localStorage.setItem('sjtutor_streak_widget_y_pct', yPct.toFixed(2));
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (hasDragged.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    setIsOpen(true);
   };
 
   // Generate 30 Day calendar grid for Streak History
@@ -136,85 +184,43 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
       {/* Floating Draggable Streak Pill */}
       <motion.div
         ref={dragRef}
-        drag
-        dragMomentum={false}
-        dragElastic={0.08}
-        onDragEnd={handleDragEnd}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         style={{
-          x: 0,
-          y: 0,
           left: position.x,
           top: position.y,
           position: 'fixed',
           zIndex: 9999,
         }}
-        initial={{ scale: 0, opacity: 0, rotate: -45 }}
-        animate={{ scale: 1, opacity: 1, rotate: 0 }}
-        transition={{
-          type: 'spring',
-          stiffness: 260,
-          damping: 18,
-          delay: 0.3
-        }}
-        whileHover={{
-          scale: 1.15,
-          cursor: 'grab',
-          rotate: [0, -8, 8, -6, 6, -3, 3, 0],
-          transition: { duration: 0.5, ease: "easeInOut" }
-        }}
-        whileTap={{ scale: 0.95, cursor: 'grabbing', rotate: 0 }}
+        whileHover={{ scale: 1.1, cursor: 'grab' }}
+        whileTap={{ scale: 0.95, cursor: 'grabbing' }}
         className="touch-none select-none"
       >
-        {/* Breathing Aura Ring with Google Cohesive Theme Colors */}
-        <motion.div
-          className="absolute -inset-1.5 rounded-full bg-gradient-to-br from-[#4285F4] via-[#EA4335] via-[#FBBC05] to-[#34A853] blur-md z-[-1]"
-          animate={{
-            scale: [1, 1.25, 1],
-            opacity: [0.25, 0.5, 0.25],
-          }}
-          transition={{
-            duration: 2.8,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-
         <button
-          onClick={() => setIsOpen(true)}
-          title="Keep learning daily to maintain your streak!"
-          className="group relative flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#4285F4] via-[#EA4335] via-[#FBBC05] to-[#34A853] p-0.5 shadow-[0_4px_20px_rgba(66,133,244,0.3)] md:shadow-[0_8px_30px_rgba(66,133,244,0.3)] dark:shadow-[0_8px_30px_rgba(234,67,53,0.2)] hover:shadow-blue-500/50 transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+          onClick={handleClick}
+          title="Drag me to reposition! Click to view Streak Details"
+          className="group relative flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 text-white p-0.5 shadow-[0_4px_20px_rgba(249,115,22,0.4)] md:shadow-[0_8px_30px_rgba(249,115,22,0.4)] dark:shadow-[0_8px_30px_rgba(220,38,38,0.3)] hover:shadow-orange-500/60 transition-all focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
         >
-          {/* Inner white circle for high-contrast Google logo */}
-          <div className="absolute inset-0.5 bg-white dark:bg-slate-950 rounded-full flex items-center justify-center transition-colors group-hover:bg-slate-50 dark:group-hover:bg-slate-900 overflow-hidden">
+          {/* Inner ring & flame details */}
+          <div className="absolute inset-0.5 bg-slate-900 rounded-full flex items-center justify-center transition-colors group-hover:bg-slate-900/90 overflow-hidden">
             {/* Animated Glow Elements */}
-            <span className="absolute inset-[-50%] bg-[radial-gradient(ellipse_at_center,rgba(66,133,244,0.12),transparent_60%)] animate-pulse" />
+            <span className="absolute inset-[-50%] bg-[radial-gradient(ellipse_at_center,rgba(249,115,22,0.15),transparent_60%)] animate-pulse" />
             
-            <div className="relative w-8 h-8 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              {/* SVG Google G Logo */}
-              <svg viewBox="0 0 24 24" className="w-full h-full">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                />
-              </svg>
+            {/* Fire surround effect */}
+            <Flame className="absolute text-orange-500/30 w-11 h-11 animate-pulse" />
+            
+            <div className="relative flex flex-col items-center justify-center pt-1.5">
+              <Calendar className="w-5 h-5 text-amber-200 group-hover:scale-105 transition-transform" />
+              <span className="text-[10px] font-bold tracking-tight text-orange-100 flex items-center gap-0.5 mt-0.5 pb-1">
+                🔥 {streak.currentStreak}
+              </span>
             </div>
           </div>
           
           {/* Active indicator flame flare */}
-          <span className="absolute -top-1.5 -right-1.5 bg-gradient-to-r from-orange-500 to-red-600 text-[10px] font-black h-6 min-w-6 px-1 rounded-full flex items-center justify-center text-white border-2 border-white dark:border-slate-900 animate-bounce shadow-md">
-            🔥{streak.currentStreak}
+          <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-[10px] font-black h-5 w-5 rounded-full flex items-center justify-center border-2 border-slate-900 animate-bounce shadow">
+            🔥
           </span>
         </button>
       </motion.div>
