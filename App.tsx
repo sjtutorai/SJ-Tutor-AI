@@ -69,7 +69,6 @@ import {
   CreditCard,
   QrCode,
   Eye,
-  Camera as CameraIcon,
   BookOpen,
   User as UserIcon,
   Bell,
@@ -1257,6 +1256,14 @@ const App: React.FC = () => {
         bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
       },
       {
+        id: AppMode.TUTOR,
+        label: "AI Tutor Sessions",
+        count: stats.chats,
+        icon: MessageCircle,
+        color: "text-blue-600 dark:text-blue-400",
+        bg: "bg-[#FDF5E6] dark:bg-blue-900/30",
+      },
+      {
         id: AppMode.NOTIFICATIONS,
         label: "Notifications",
         count: unreadCount,
@@ -1275,7 +1282,10 @@ const App: React.FC = () => {
     ];
 
     if (dashboardView !== "OVERVIEW") {
-      const filteredHistory = history.filter((h) => h.type === dashboardView);
+      const filteredHistory = history.filter((h) => 
+        h.type === dashboardView || 
+        (dashboardView === AppMode.HOMEWORK && h.type === AppMode.ESSAY)
+      );
       const categoryLabel =
         dashboardCards.find((c) => c.id === dashboardView)?.label || "History";
       const getSingularName = (view: AppMode) => {
@@ -1362,8 +1372,8 @@ const App: React.FC = () => {
                         <BrainCircuit className="w-4 h-4" />
                       ) : item.type === AppMode.SUMMARY ? (
                         <FileText className="w-4 h-4" />
-                      ) : item.type === AppMode.HOMEWORK ? (
-                        <CameraIcon className="w-4 h-4" />
+                      ) : (item.type === AppMode.HOMEWORK || item.type === AppMode.ESSAY) ? (
+                        <BookOpen className="w-4 h-4" />
                       ) : (
                         <MessageCircle className="w-4 h-4" />
                       )}

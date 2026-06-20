@@ -51,18 +51,13 @@ export const saveHistoryItemToFirestore = async (uid: string, item: HistoryItem)
 
 export const getHistoryFromFirestore = async (uid: string): Promise<HistoryItem[]> => {
   if (!uid || uid === "guest") return [];
-  try {
-    const colRef = collection(db, "users", uid, "history");
-    const snapshot = await getDocs(colRef);
-    const historyList: HistoryItem[] = [];
-    snapshot.forEach((d) => {
-      historyList.push(d.data() as HistoryItem);
-    });
-    return historyList.sort((a, b) => b.timestamp - a.timestamp);
-  } catch (error: any) {
-    console.warn("Error fetching history from Firestore:", error);
-    return [];
-  }
+  const colRef = collection(db, "users", uid, "history");
+  const snapshot = await getDocs(colRef);
+  const historyList: HistoryItem[] = [];
+  snapshot.forEach((d) => {
+    historyList.push(d.data() as HistoryItem);
+  });
+  return historyList.sort((a, b) => b.timestamp - a.timestamp);
 };
 
 export const syncHistoryWithFirestore = async (uid: string, localItems: HistoryItem[]): Promise<HistoryItem[]> => {
