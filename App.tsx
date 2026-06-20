@@ -33,11 +33,14 @@ import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
 import { useStreak } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
+import { SharedContentView } from "./components/SharedContentView";
+import { PublicShareViewer } from "./components/PublicShareViewer";
 import {
   saveProfileToFirestore,
   getProfileFromFirestore,
   saveHistoryItemToFirestore,
   syncHistoryWithFirestore,
+  createSharedContent,
 } from "./utils/firebaseUtils";
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
@@ -70,6 +73,7 @@ import {
   BookOpen,
   User as UserIcon,
   Bell,
+  Copy,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -169,6 +173,22 @@ const App: React.FC = () => {
   });
 
   // App State
+  const [publicShareId, setPublicShareId] = useState<string | null>(() => {
+    const path = window.location.pathname;
+    if (path.startsWith("/share/")) {
+      return path.substring(7); // After "/share/"
+    }
+    const params = new URLSearchParams(window.location.search);
+    return params.get("share");
+  });
+
+  const [shareSuccessModal, setShareSuccessModal] = useState<{
+    isOpen: boolean;
+    shareId: string;
+    title: string;
+    type: string;
+  } | null>(null);
+
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
 
   // Initialize form data with language from settings
@@ -202,6 +222,7 @@ const App: React.FC = () => {
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const isHistoryLoaded = useRef(false);
   const [dashboardView, setDashboardView] = useState<AppMode | "OVERVIEW">(
     "OVERVIEW",
   );
@@ -585,6 +606,7 @@ const App: React.FC = () => {
 
   // History Persistence and Database Synchronization
   useEffect(() => {
+    isHistoryLoaded.current = false;
     let active = true;
     const loadAndSyncHistory = async () => {
       const storageKey = user ? `history_${user.uid}` : "history_guest";
@@ -608,13 +630,20 @@ const App: React.FC = () => {
           if (active) {
             setHistory(syncedHistory);
             localStorage.setItem(`history_${user.uid}`, JSON.stringify(syncedHistory));
+            isHistoryLoaded.current = true;
           }
         } catch (err) {
           console.warn("Firestore history sync failed, fallback to local:", err);
-          if (active) setHistory(initialHistory);
+          if (active) {
+            setHistory(initialHistory);
+            isHistoryLoaded.current = true;
+          }
         }
       } else {
-        if (active) setHistory(initialHistory);
+        if (active) {
+          setHistory(initialHistory);
+          isHistoryLoaded.current = true;
+        }
       }
     };
 
@@ -635,6 +664,7 @@ const App: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
+    if (!isHistoryLoaded.current) return;
     const storageKey = user ? `history_${user.uid}` : "history_guest";
     localStorage.setItem(storageKey, JSON.stringify(history));
   }, [history, user]);
@@ -796,6 +826,28 @@ const App: React.FC = () => {
         }
       }
     });
+  };
+
+  const handleSharePublicLink = async (type: string, title: string, content: any) => {
+    try {
+      const uid = user ? user.uid : "guest";
+      const shareId = await createSharedContent(type, title, content, uid);
+      const shareLink = `${window.location.origin}/share/${shareId}`;
+      try {
+        await navigator.clipboard.writeText(shareLink);
+      } catch {
+        console.warn("Clipboard copy blocked or unsupported, user can copy from modal");
+      }
+      setShareSuccessModal({
+        isOpen: true,
+        shareId,
+        title,
+        type,
+      });
+    } catch (error) {
+      console.error("Failed to share publicly:", error);
+      alert("Sharing failed. Please try again.");
+    }
   };
 
   const handleQuizComplete = (score: number) => {
@@ -1140,6 +1192,8 @@ const App: React.FC = () => {
     { id: AppMode.SUMMARY, label: "Instant Summary", icon: FileText },
     { id: AppMode.QUIZ, label: "Quiz Creator", icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
+    { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
+    { id: AppMode.SHARED_CONTENT, label: "Shared Public Content", icon: Share2 },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
@@ -1524,6 +1578,7 @@ const App: React.FC = () => {
               isViewingShared={isViewingShared}
               onAddToMyList={handleAddSharedToMyList}
               isAddedToList={isAddedSharedContent}
+              onSharePublicLink={handleSharePublicLink}
             />
           );
         }
@@ -1570,6 +1625,7 @@ const App: React.FC = () => {
               isViewingShared={isViewingShared}
               onAddToMyList={handleAddSharedToMyList}
               isAddedToList={isAddedSharedContent}
+              onSharePublicLink={handleSharePublicLink}
             />
           );
         }
@@ -1622,6 +1678,7 @@ const App: React.FC = () => {
               isViewingShared={isViewingShared}
               onAddToMyList={handleAddSharedToMyList}
               isAddedToList={isAddedSharedContent}
+              onSharePublicLink={handleSharePublicLink}
             />
           );
         }
@@ -1756,10 +1813,42 @@ const App: React.FC = () => {
           </div>
         );
 
+      case AppMode.SHARED_CONTENT:
+        return (
+          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <SharedContentView
+              userId={user ? user.uid : null}
+              onSelectSharedItem={(shareId) => setPublicShareId(shareId)}
+            />
+          </div>
+        );
+
       default:
         return renderDashboard();
     }
   };
+
+  if (publicShareId) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-white selection:bg-primary-100 transition-colors duration-300">
+        <PublicShareViewer
+          shareId={publicShareId}
+          onGoToApp={() => {
+            window.history.pushState({}, document.title, "/");
+            setPublicShareId(null);
+            setMode(AppMode.DASHBOARD);
+          }}
+        />
+        {showAuthModal && (
+          <Auth
+            onClose={() => setShowAuthModal(false)}
+            onSignUpSuccess={handleSignUpSuccess}
+            onCountryDetected={setDetectedCountry}
+          />
+        )}
+      </div>
+    );
+  }
 
   if (authLoading) {
     return (
@@ -2304,6 +2393,75 @@ const App: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {shareSuccessModal?.isOpen && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-xs animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-700 animate-in zoom-in-95 duration-200">
+            <div className="text-center">
+              <span className="text-4xl" role="img" aria-label="success">🎉</span>
+              <h3 className="text-xl font-extrabold text-slate-800 dark:text-white mt-3 mb-1">
+                Public Link Created Successfully
+              </h3>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-bold">
+                SJ Tutor AI Sharing
+              </p>
+              
+              <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex flex-col gap-1 text-left mb-6">
+                <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Title</span>
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-350 truncate">{shareSuccessModal.title}</p>
+                <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mt-1.5">Resource Type</span>
+                <p className="text-[10px] font-mono font-extrabold text-primary-500 uppercase">{shareSuccessModal.type}</p>
+              </div>
+
+              <p className="text-xs text-slate-400 dark:text-slate-400 text-left mb-2 font-semibold">Share with anyone:</p>
+              <div className="flex items-center gap-1.5 p-2.5 bg-slate-100 dark:bg-slate-950 rounded-xl mb-6 border border-slate-200/50 dark:border-slate-800">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/share/${shareSuccessModal.shareId}`}
+                  className="bg-transparent text-[11px] text-slate-650 dark:text-slate-400 w-full focus:outline-none select-all font-mono"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={async () => {
+                    const link = `${window.location.origin}/share/${shareSuccessModal.shareId}`;
+                    try {
+                      await navigator.clipboard.writeText(link);
+                      alert("Copied shareable link to clipboard!");
+                    } catch {
+                      alert("Fallback link copy: " + link);
+                    }
+                  }}
+                  className="py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  <Copy className="w-4 h-4" />
+                  <span>Copy Link</span>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    window.open(`/share/${shareSuccessModal.shareId}`, "_blank");
+                  }}
+                  className="py-3 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200/60 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Open Link</span>
+                </button>
+
+                <button
+                  onClick={() => setShareSuccessModal(null)}
+                  className="py-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-bold mt-2"
+                >
+                  Dismiss & Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

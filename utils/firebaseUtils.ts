@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { UserProfile, HistoryItem } from "../types";
 
@@ -91,3 +91,113 @@ export const syncHistoryWithFirestore = async (uid: string, localItems: HistoryI
     return localItems;
   }
 };
+
+export const createSharedContent = async (
+  type: string,
+  title: string,
+  content: any,
+  ownerUid: string
+): Promise<string> => {
+  try {
+    // Generate a unique, user-friendly Share ID
+    const shareId = Math.random().toString(36).substring(2, 8) + Math.random().toString(36).substring(2, 8);
+    const docRef = doc(db, "sharedContent", shareId);
+    
+    const sharedData = {
+      shareId,
+      type,
+      title,
+      content,
+      ownerUid,
+      createdAt: Date.now(),
+      views: 0,
+      likes: 0,
+      sharesCount: 0,
+      lastViewedAt: Date.now(),
+      isPublic: true
+    };
+    
+    await setDoc(docRef, sharedData);
+    return shareId;
+  } catch (error) {
+    console.error("Error creating shared content:", error);
+    throw error;
+  }
+};
+
+export const getSharedContent = async (shareId: string): Promise<any | null> => {
+  try {
+    const docRef = doc(db, "sharedContent", shareId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching shared content:", error);
+    return null;
+  }
+};
+
+export const incrementViewCount = async (shareId: string) => {
+  try {
+    const docRef = doc(db, "sharedContent", shareId);
+    await setDoc(docRef, {
+      views: increment(1),
+      lastViewedAt: Date.now()
+    }, { merge: true });
+  } catch (error) {
+    console.warn("Failed to increment views:", error);
+  }
+};
+
+export const incrementLikeCount = async (shareId: string) => {
+  try {
+    const docRef = doc(db, "sharedContent", shareId);
+    await setDoc(docRef, {
+      likes: increment(1)
+    }, { merge: true });
+  } catch (error) {
+    console.warn("Failed to increment likes:", error);
+  }
+};
+
+export const incrementShareCount = async (shareId: string) => {
+  try {
+    const docRef = doc(db, "sharedContent", shareId);
+    await setDoc(docRef, {
+      sharesCount: increment(1)
+    }, { merge: true });
+  } catch (error) {
+    console.warn("Failed to increment shares count:", error);
+  }
+};
+
+export const deleteSharedContent = async (shareId: string): Promise<boolean> => {
+  try {
+    const docRef = doc(db, "sharedContent", shareId);
+    await deleteDoc(docRef);
+    return true;
+  } catch (error) {
+    console.error("Error deleting shared content:", error);
+    return false;
+  }
+};
+
+export const getUserSharedContent = async (uid: string): Promise<any[]> => {
+  if (!uid || uid === "guest") return [];
+  try {
+    const colRef = collection(db, "sharedContent");
+    const q = query(colRef, where("ownerUid", "==", uid));
+    const snapshot = await getDocs(q);
+    const list: any[] = [];
+    snapshot.forEach((docSnap) => {
+      list.push(docSnap.data());
+    });
+    return list.sort((a, b) => b.createdAt - a.createdAt);
+  } catch (error) {
+    console.error("Error fetching user shared content:", error);
+    return [];
+  }
+};
+

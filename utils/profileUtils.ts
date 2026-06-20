@@ -34,35 +34,36 @@ export const getMissingProfileFields = (profile: UserProfile): string[] => {
 };
 
 export const generateRegistrationNumber = (profile: UserProfile): string => {
-  if (!profile.displayName || !profile.dob) return '';
+  if (!profile.displayName) return '';
   
   const names = profile.displayName.trim().split(/\s+/).filter(Boolean);
   const firstName = names[0] || '';
   const lastName = names.length > 1 ? names[names.length - 1] : '';
   
-  const firstLetter = firstName.charAt(0).toUpperCase();
+  const firstLetter = firstName.charAt(0).toUpperCase() || 'X';
   const surnameLetter = lastName.charAt(0).toUpperCase() || firstLetter; 
   
   // Format DOB: YYYY-MM-DD -> DDMMYYYY
-  const cleanDob = profile.dob.replace(/[^0-9]/g, '');
-  let dobString = '';
-  
-  if (profile.dob.includes('-')) {
-    const parts = profile.dob.split('-');
-    if (parts.length === 3) {
-      // Assuming YYYY-MM-DD (standard for <input type="date">)
-      const year = parts[0];
-      const month = parts[1];
-      const day = parts[2];
-      dobString = `${day}${month}${year}`;
+  let dobString = '00000000';
+  if (profile.dob) {
+    const cleanDob = profile.dob.replace(/[^0-9]/g, '');
+    if (profile.dob.includes('-')) {
+      const parts = profile.dob.split('-');
+      if (parts.length === 3) {
+        // Assuming YYYY-MM-DD (standard for <input type="date">)
+        const year = parts[0];
+        const month = parts[1];
+        const day = parts[2];
+        dobString = `${day}${month}${year}`;
+      } else {
+        dobString = cleanDob;
+      }
     } else {
       dobString = cleanDob;
     }
-  } else {
-    dobString = cleanDob;
   }
   
-  return `${firstLetter}${surnameLetter}${dobString}`.trim();
+  return `SJ-${firstLetter}${surnameLetter}-${dobString}`.trim();
 };
 
 export const calculateGradeFromAge = (dob: string): string => {
