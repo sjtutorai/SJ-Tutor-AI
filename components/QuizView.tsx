@@ -9,9 +9,20 @@ interface QuizViewProps {
   onReset: () => void;
   onComplete?: (score: number) => void;
   existingScore?: number;
+  isViewingShared?: boolean;
+  onAddToMyList?: () => void;
+  isAddedToList?: boolean;
 }
 
-const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, existingScore }) => {
+const QuizView: React.FC<QuizViewProps> = ({ 
+  questions, 
+  onReset, 
+  onComplete, 
+  existingScore,
+  isViewingShared = false,
+  onAddToMyList,
+  isAddedToList = false
+}) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [score, setScore] = useState(0);
@@ -100,8 +111,7 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
             type: 'QUIZ',
             title: 'Quiz Challenge',
             subtitle: `I scored ${score}/${questions.length} on this quiz!`,
-            content: questions,
-            score: score
+            content: questions
           })
         });
 
@@ -260,6 +270,29 @@ const QuizView: React.FC<QuizViewProps> = ({ questions, onReset, onComplete, exi
   return (
     <div className="space-y-6">
       {renderResultModal()}
+
+      {isViewingShared && onAddToMyList && (
+        <div className="bg-primary-50 dark:bg-slate-800 border border-primary-100 dark:border-slate-700 px-6 py-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <span role="img" aria-label="gift" className="text-xl">✨</span>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Viewing Shared Quiz</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">This AI-generated interactive quiz was shared with you. Save it to practice later!</p>
+            </div>
+          </div>
+          <button
+            onClick={onAddToMyList}
+            disabled={isAddedToList}
+            className={`w-full sm:w-auto px-5 py-2.5 text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 ${
+              isAddedToList 
+                ? 'bg-slate-200 text-slate-450 dark:bg-slate-700 dark:text-slate-400 cursor-not-allowed shadow-none' 
+                : 'bg-primary-600 hover:bg-primary-700 text-white transform hover:-translate-y-0.5'
+            }`}
+          >
+            {isAddedToList ? '✓ Added to Study History' : '📥 Add to My Study List'}
+          </button>
+        </div>
+      )}
       
       {quizCompleted && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md border border-slate-200 dark:border-slate-800 overflow-hidden animate-in slide-in-from-bottom-4 duration-500">

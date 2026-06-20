@@ -22,7 +22,8 @@ interface FloatingStreakWidgetProps {
 }
 
 export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({ 
-  userProfile
+  userProfile, 
+  onProfileUpdate 
 }) => {
   const { streak, leaderboard, claimMilestone } = useStreak();
   const [isOpen, setIsOpen] = useState(false);
@@ -31,11 +32,12 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   // Position state saved as percentile to handle responsive window resizes seamlessly
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isReady, setIsReady] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<HTMLDivElement>(null);
-  const dragStartRef = useRef({ x: 0, y: 0 });
-  const positionStartRef = useRef({ x: 0, y: 0 });
-  const hasMovedRef = useRef(false);
+
+  // Performance Pointer dragging state variables
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0, widgetX: 0, widgetY: 0 });
+  const hasDragged = useRef(false);
 
   // Initialize and restore saved percentage coordinates
   useEffect(() => {
@@ -70,45 +72,59 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 
   if (!isReady) return null;
 
+  // Pointer drag event handlers to allow keeping the toy anywhere
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current) {
-      dragRef.current.setPointerCapture(e.pointerId);
-    }
+    // Only drag with primary mouse button or touch
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
     setIsDragging(true);
-    hasMovedRef.current = false;
-    dragStartRef.current = { x: e.clientX, y: e.clientY };
-    positionStartRef.current = { ...position };
+    hasDragged.current = false;
+    dragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      widgetX: position.x,
+      widgetY: position.y
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging) return;
-    const deltaX = e.clientX - dragStartRef.current.x;
-    const deltaY = e.clientY - dragStartRef.current.y;
+    const deltaX = e.clientX - dragStart.current.x;
+    const deltaY = e.clientY - dragStart.current.y;
 
-    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
-      hasMovedRef.current = true;
+    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+      hasDragged.current = true;
     }
 
-    const newX = positionStartRef.current.x + deltaX;
-    const newY = positionStartRef.current.y + deltaY;
+    let newX = dragStart.current.widgetX + deltaX;
+    let newY = dragStart.current.widgetY + deltaY;
 
-    // Clamp coordinates to stay within window bounds
-    const clampedX = Math.max(10, Math.min(newX, window.innerWidth - 80));
-    const clampedY = Math.max(10, Math.min(newY, window.innerHeight - 80));
+    // Fluid viewport clamping
+    newX = Math.max(5, Math.min(newX, window.innerWidth - 75));
+    newY = Math.max(5, Math.min(newY, window.innerHeight - 75));
 
-    setPosition({ x: clampedX, y: clampedY });
+    setPosition({ x: newX, y: newY });
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging) return;
-    if (dragRef.current) {
-      dragRef.current.releasePointerCapture(e.pointerId);
-    }
     setIsDragging(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
 
-    // Save final position in percentage
-    localStorage.setItem('sjtutor_streak_widget_x_pct', ((position.x / window.innerWidth) * 100).toFixed(2));
-    localStorage.setItem('sjtutor_streak_widget_y_pct', ((position.y / window.innerHeight) * 100).toFixed(2));
+    // Save placement coordinates as percentages immediately
+    const xPct = (position.x / window.innerWidth) * 100;
+    const yPct = (position.y / window.innerHeight) * 100;
+    localStorage.setItem('sjtutor_streak_widget_x_pct', xPct.toFixed(2));
+    localStorage.setItem('sjtutor_streak_widget_y_pct', yPct.toFixed(2));
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (hasDragged.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    setIsOpen(true);
   };
 
   // Generate 30 Day calendar grid for Streak History
@@ -176,21 +192,14 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
           top: position.y,
           position: 'fixed',
           zIndex: 9999,
-          touchAction: 'none'
         }}
-        animate={{ scale: isDragging ? 0.95 : 1 }}
-        whileHover={{ scale: 1.1 }}
-        className="select-none cursor-grab active:cursor-grabbing"
+        whileHover={{ scale: 1.1, cursor: 'grab' }}
+        whileTap={{ scale: 0.95, cursor: 'grabbing' }}
+        className="touch-none select-none"
       >
         <button
-          onClick={(e) => {
-            if (hasMovedRef.current) {
-              e.preventDefault();
-              return;
-            }
-            setIsOpen(true);
-          }}
-          title="Keep learning daily to maintain your streak!"
+          onClick={handleClick}
+          title="Drag me to reposition! Click to view Streak Details"
           className="group relative flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 text-white p-0.5 shadow-[0_4px_20px_rgba(249,115,22,0.4)] md:shadow-[0_8px_30px_rgba(249,115,22,0.4)] dark:shadow-[0_8px_30px_rgba(220,38,38,0.3)] hover:shadow-orange-500/60 transition-all focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
         >
           {/* Inner ring & flame details */}
@@ -275,7 +284,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                 >
                   <span className="flex items-center gap-1.5">
                     <Award className="w-4 h-4" />
-                    Emblems
+                    Milestones
                   </span>
                 </button>
                 <button
@@ -335,13 +344,9 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                   </div>
                 )}
 
-                {/* 2. EMBLEMS TAB */}
+                {/* 2. MILESTONES TAB */}
                 {activeTab === 'MILESTONES' && (
                   <div className="space-y-3">
-                    <p className="text-[11px] text-slate-400 font-medium px-1 flex items-center gap-1 mb-2">
-                      <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
-                      Collect prestigious Emblems as you maintain your consecutive daily learning.
-                    </p>
                     {STREAK_MILESTONES.map((m, idx) => {
                       const progress = getMilestoneProgress(m.days);
                       const isReached = streak.currentStreak >= m.days;
@@ -351,33 +356,28 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                       return (
                         <div 
                           key={idx}
-                          className={`bg-white dark:bg-slate-800 p-4 rounded-2xl border transition-all ${isReached ? (isClaimed ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50/10 dark:bg-amber-950/5' : 'border-emerald-300 dark:border-emerald-500/30 ring-2 ring-emerald-500/10') : 'border-slate-100 dark:border-slate-800/80'}`}
+                          className={`bg-white dark:bg-slate-800 p-4 rounded-2xl border transition-all ${isReached ? 'border-orange-200 dark:border-gradient' : 'border-slate-100 dark:border-slate-800/80'}`}
                         >
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex gap-2.5">
-                              <span className={`text-3xl p-2 rounded-xl flex items-center justify-center ${isReached ? (isClaimed ? 'bg-amber-500/10' : 'bg-emerald-500/10') : 'bg-slate-100 dark:bg-slate-700/50 opacity-40'}`}>{m.badge}</span>
+                              <span className="text-2xl mt-0.5">{m.badge}</span>
                               <div>
-                                <h4 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-1.5 flex-wrap">
+                                <h4 className="text-sm font-extrabold text-slate-800 dark:text-white flex items-center gap-1.5">
                                   {m.label}
                                   {isClaimed && (
-                                    <span className="text-[9px] bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5 border border-amber-200 dark:border-amber-900/50">
-                                      ✨ Collected
-                                    </span>
-                                  )}
-                                  {canClaim && (
-                                    <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold animate-pulse">
-                                      Ready to Claim
+                                    <span className="text-[9px] bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full font-bold">
+                                      Claimed
                                     </span>
                                   )}
                                 </h4>
-                                <p className="text-xs text-slate-400 font-bold flex items-center gap-1 mt-0.5 dark:text-slate-400 font-bold">
+                                <p className="text-xs text-slate-400 font-bold flex items-center gap-1 mt-0.5">
                                   Goal: <span className="text-orange-500 font-extrabold">{m.days} consecutive learning days</span>
                                 </p>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${isClaimed ? 'text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400' : isReached ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40' : 'text-slate-400 bg-slate-100 dark:bg-slate-800'}`}>
-                                {isClaimed ? 'Emblem Active' : isReached ? 'Earned' : 'Locked'}
+                            <div className="text-right flex flex-col items-end">
+                              <span className="text-[10px] uppercase font-bold text-violet-500 bg-violet-100 dark:bg-violet-950/50 dark:text-violet-300 px-2.5 py-1 rounded-xl">
+                                {m.badge} Emblem
                               </span>
                             </div>
                           </div>
@@ -390,7 +390,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                             </div>
                             <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
                               <div 
-                                className={`h-full rounded-full transition-all duration-500 ${isClaimed ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-emerald-400 to-emerald-500'}`}
+                                className="bg-gradient-to-r from-amber-400 to-orange-500 h-full rounded-full transition-all duration-500"
                                 style={{ width: `${progress}%` }}
                               />
                             </div>
@@ -399,11 +399,11 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                           {/* Action button */}
                           {canClaim && (
                             <button
-                              onClick={() => claimMilestone(m.days)}
-                              className="mt-3 w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/10 hover:shadow-lg active:scale-95 transition-all"
+                              onClick={() => claimMilestone(m.days, userProfile, onProfileUpdate)}
+                              className="mt-3 w-full py-2 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-violet-500/20 active:scale-95 transition-all"
                             >
                               <Sparkles className="w-3.5 h-3.5 animate-bounce" />
-                              Add Emblem to Collection!
+                              Claim Emblem!
                             </button>
                           )}
                           {!isReached && (

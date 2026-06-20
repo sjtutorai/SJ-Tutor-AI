@@ -11,7 +11,7 @@ import {
   sendEmailVerification
 } from 'firebase/auth';
 import axios from 'axios';
-import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, Inbox, RefreshCw, Fingerprint, Smartphone } from 'lucide-react';
+import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, Inbox, RefreshCw, Smartphone } from 'lucide-react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
 import { saveProfileToFirestore } from '../utils/firebaseUtils';
@@ -91,135 +91,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
     }
     return () => clearInterval(interval);
   }, [resendTimer]);
-
-  const handleNeuralAccess = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // 1. Trigger WebAuthn UI (The "Neural" part)
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
-
-      const neuralEmail = localStorage.getItem('sjtutor_neural_email');
-      const neuralPass = localStorage.getItem('sjtutor_neural_pass');
-
-      // If we have local credentials, we try to 'get' (authenticate)
-      // If we don't, we go straight to 'create' (register) to avoid "No passkeys found" errors
-      if (neuralEmail && neuralPass) {
-        try {
-          const assertion = await navigator.credentials.get({
-            publicKey: {
-              challenge,
-              rpId: window.location.hostname,
-              userVerification: "required",
-            }
-          });
-
-          if (!assertion) {
-            throw new Error("Neural Access failed");
-          }
-        } catch (getErr: any) {
-          // If the passkey was deleted from the device but we still have local storage,
-          // we fall back to creating a new one.
-          if (getErr.name === 'NotFoundError' || getErr.name === 'NotAllowedError') {
-            await createPasskey(challenge);
-          } else {
-            throw getErr;
-          }
-        }
-      } else {
-        // New user for this feature - go straight to create
-        await createPasskey(challenge);
-      }
-
-      // 2. Log them in (using shadow account)
-      await loginNeuralAccount();
-
-    } catch (err: any) {
-      console.error("Neural Access failed:", err);
-      if (err.name === 'NotAllowedError') {
-        setError("Neural Access was cancelled.");
-      } else {
-        setError("Device authentication failed. Please try again.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createPasskey = async (challenge: Uint8Array) => {
-    return await navigator.credentials.create({
-      publicKey: {
-        challenge,
-        rp: {
-          name: "SJ Tutor AI",
-          id: window.location.hostname
-        },
-        user: {
-          id: new Uint8Array(16),
-          name: "neural_user",
-          displayName: "Neural User"
-        },
-        pubKeyCredParams: [{ alg: -7, type: "public-key" }],
-        timeout: 60000,
-        attestation: "direct",
-        authenticatorSelection: {
-          userVerification: "required",
-          residentKey: "preferred"
-        }
-      }
-    });
-  };
-
-  const loginNeuralAccount = async () => {
-    let neuralEmail = localStorage.getItem('sjtutor_neural_email');
-    let neuralPass = localStorage.getItem('sjtutor_neural_pass');
-
-    if (!neuralEmail || !neuralPass) {
-      // Create new shadow account if not exists locally
-      const randomId = Math.random().toString(36).substring(7);
-      neuralEmail = `neural_${randomId}@sjtutor.ai`;
-      neuralPass = `neural_${Math.random().toString(36)}`;
-      
-      // Sign up
-      const result = await createUserWithEmailAndPassword(auth, neuralEmail, neuralPass);
-      if (result.user) {
-        await updateProfile(result.user, { displayName: "Neural User" });
-      }
-      
-      // Store for next time
-      localStorage.setItem('sjtutor_neural_email', neuralEmail);
-      localStorage.setItem('sjtutor_neural_pass', neuralPass);
-      
-      if (onSignUpSuccess) onSignUpSuccess();
-      else onClose();
-
-    } else {
-      // Sign in
-      try {
-        await signInWithEmailAndPassword(auth, neuralEmail, neuralPass);
-        if (onSignUpSuccess) onSignUpSuccess();
-        else onClose();
-      } catch (signInErr) {
-        console.error(signInErr);
-        // If sign in fails (e.g. user deleted), recreate
-        const randomId = Math.random().toString(36).substring(7);
-        neuralEmail = `neural_${randomId}@sjtutor.ai`;
-        neuralPass = `neural_${Math.random().toString(36)}`;
-        
-        const result = await createUserWithEmailAndPassword(auth, neuralEmail, neuralPass);
-        if (result.user) {
-          await updateProfile(result.user, { displayName: "Neural User" });
-        }
-        
-        localStorage.setItem('sjtutor_neural_email', neuralEmail);
-        localStorage.setItem('sjtutor_neural_pass', neuralPass);
-        
-        if (onSignUpSuccess) onSignUpSuccess();
-        else onClose();
-      }
-    }
-  };
 
   const handleProviderSignIn = async (provider: any, providerName: string) => {
     setLoading(true);
@@ -605,11 +476,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
           </button>
 
           <div className="mb-6 text-center">
-            {window.location.search.includes('share=') && (
-              <div className="mb-4 p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs font-extrabold leading-relaxed text-center animate-pulse">
-                🔔 Please log in or sign up first to access your shared quiz score, questions, and summaries!
-              </div>
-            )}
             <div className="flex justify-center mb-4">
                <Logo className="w-20 h-20" iconOnly />
             </div>
@@ -623,26 +489,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
 
           <div className="flex flex-col gap-3 mb-6">
             <button
-              onClick={handleNeuralAccess}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/25 hover:from-indigo-700 hover:to-violet-700 transition-all hover:-translate-y-0.5 group"
-            >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                <>
-                  <Fingerprint className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                  <span>Neural Access</span>
-                  <span className="text-xs font-normal opacity-70 bg-white/20 px-2 py-0.5 rounded-full ml-1">Fast</span>
-                </>
-              )}
-            </button>
-
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-slate-100"></div>
-              <span className="flex-shrink-0 mx-4 text-xs text-slate-400 font-bold uppercase tracking-wider">Or Social</span>
-              <div className="flex-grow border-t border-slate-100"></div>
-            </div>
-
-            <button
               onClick={() => handleProviderSignIn(googleProvider, 'Google')}
               disabled={loading}
               className="w-full flex items-center justify-center gap-3 py-2.5 px-4 bg-white border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm text-sm"
@@ -653,7 +499,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1c-4.7 0-8.53 3.53-9.4 8.2l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                   </svg>
                   Google
                 </>

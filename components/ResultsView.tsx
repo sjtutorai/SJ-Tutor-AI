@@ -13,9 +13,21 @@ interface ResultsViewProps {
   title: string;
   type?: string; // 'Summary' | 'Essay' | 'Quiz' etc.
   onBack: () => void;
+  isViewingShared?: boolean;
+  onAddToMyList?: () => void;
+  isAddedToList?: boolean;
 }
 
-const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, type = 'Document', onBack }) => {
+const ResultsView: React.FC<ResultsViewProps> = ({ 
+  content, 
+  isLoading, 
+  title, 
+  type = 'Document', 
+  onBack,
+  isViewingShared = false,
+  onAddToMyList,
+  isAddedToList = false
+}) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -426,6 +438,29 @@ const ResultsView: React.FC<ResultsViewProps> = ({ content, isLoading, title, ty
         )}
       </div>
       
+      {isViewingShared && onAddToMyList && (
+        <div className="bg-primary-50 dark:bg-slate-800 border-y border-primary-100 dark:border-slate-700 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <span role="img" aria-label="gift" className="text-xl">✨</span>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Viewing Shared {type}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">This AI-generated {type.toLowerCase()} was shared with you. Save it to keep it forever on your dashboard!</p>
+            </div>
+          </div>
+          <button
+            onClick={onAddToMyList}
+            disabled={isAddedToList}
+            className={`w-full sm:w-auto px-5 py-2.5 text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 ${
+              isAddedToList 
+                ? 'bg-slate-200 text-slate-450 dark:bg-slate-700 dark:text-slate-400 cursor-not-allowed shadow-none' 
+                : 'bg-primary-600 hover:bg-primary-700 text-white transform hover:-translate-y-0.5'
+            }`}
+          >
+            {isAddedToList ? '✓ Added to Study History' : '📥 Add to My Study List'}
+          </button>
+        </div>
+      )}
+
       {/* Content Area */}
       <div className="p-6 sm:p-8 min-h-[300px]" ref={contentRef}>
         <div className="markdown-body text-slate-700 bg-white">
