@@ -132,11 +132,31 @@ export const getSharedContent = async (shareId: string): Promise<any | null> => 
     if (docSnap.exists()) {
       return docSnap.data();
     }
-    return null;
   } catch (error) {
-    console.error("Error fetching shared content:", error);
-    return null;
+    console.warn("Firestore share fetch failed, falling back to dynamic API:", error);
   }
+
+  // Fallback to Express router
+  try {
+    const response = await fetch(`/api/auth/share/${shareId}`);
+    if (response.ok) {
+      const result = await response.json();
+      if (result.success && result.data) {
+        return {
+          shareId: result.data.id,
+          type: result.data.type,
+          title: result.data.title,
+          content: result.data.content,
+          createdAt: result.data.createdAt ? new Date(result.data.createdAt).getTime() : Date.now(),
+          views: result.data.views || 0,
+          likes: result.data.likes || 0,
+        };
+      }
+    }
+  } catch (apiError) {
+    console.warn("API share fetch failed:", apiError);
+  }
+  return null;
 };
 
 export const incrementViewCount = async (shareId: string) => {

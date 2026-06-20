@@ -606,6 +606,7 @@ const App: React.FC = () => {
 
   // History Persistence and Database Synchronization
   useEffect(() => {
+    if (authLoading) return; // Wait until auth state is determined!
     let active = true;
     setHistoryInitialized(false); // Lock saving until sync completes
 
@@ -662,13 +663,13 @@ const App: React.FC = () => {
       active = false;
       if (syncInterval) clearInterval(syncInterval);
     };
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
-    if (!historyInitialized) return;
+    if (authLoading || !historyInitialized) return;
     const storageKey = user ? `history_${user.uid}` : "history_guest";
     localStorage.setItem(storageKey, JSON.stringify(history));
-  }, [history, user, historyInitialized]);
+  }, [history, user, historyInitialized, authLoading]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1103,34 +1104,45 @@ const App: React.FC = () => {
     e.stopPropagation();
 
     try {
-      // 1. Save to backend to get a unique public ID
       let shareUrl = window.location.origin;
       try {
-        const response = await fetch("/api/auth/share", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: item.type,
-            title: item.title,
-            subtitle: item.subtitle,
-            content: item.content,
-          }),
-        });
+        // Try Firestore first for durable cloud storage
+        const fbShareId = await createSharedContent(
+          item.type,
+          item.title,
+          item.content,
+          user ? user.uid : "guest"
+        );
+        shareUrl = `${window.location.origin}/share/${fbShareId}`;
+      } catch (fbErr) {
+        console.warn("Firestore share failed, falling back to backend Express route:", fbErr);
+        try {
+          const response = await fetch("/api/auth/share", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: item.type,
+              title: item.title,
+              subtitle: item.subtitle,
+              content: item.content,
+            }),
+          });
 
-        if (response.ok) {
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const data = await response.json();
-            if (data.id) {
-              shareUrl = `${window.location.origin}?share=${data.id}`;
+          if (response.ok) {
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+              const data = await response.json();
+              if (data.id) {
+                shareUrl = `${window.location.origin}/share/${data.id}`;
+              }
             }
           }
+        } catch (e) {
+          console.warn(
+            "Backend sharing unavailable, failing over to local share",
+            e,
+          );
         }
-      } catch (e) {
-        console.warn(
-          "Backend sharing unavailable, failing over to local share",
-          e,
-        );
       }
 
       let text = `${item.title} (${item.type})\n\n`;
@@ -1943,7 +1955,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div className="min-h-screen premium-dashboard-bg font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"

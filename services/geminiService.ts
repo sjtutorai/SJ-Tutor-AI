@@ -317,5 +317,175 @@ export const GeminiService = {
     });
     if (response.text) return JSON.parse(response.text.trim());
     throw new Error("Failed to analyze image");
+  },
+
+  /**
+   * Upload and process a timetable screenshot or document to build a planner
+   */
+  parseTimetableDocument: async (fileBase64AndPrefix: string, fileName: string): Promise<any> => {
+    const ai = getAI();
+    const settings = SettingsService.getSettings();
+    const language = settings.learning.language || "English";
+
+    const matches = fileBase64AndPrefix.match(/^data:(.*);base64,(.*)$/);
+    let mimeType = "image/jpeg";
+    let base64Data = fileBase64AndPrefix;
+    if (matches && matches.length === 3) {
+      mimeType = matches[1];
+      base64Data = matches[2];
+    } else {
+      base64Data = fileBase64AndPrefix.replace(/^data:[^;]+;base64,/, "");
+    }
+
+    const prompt = `
+      You are an expert OCR, document analyzer, and academic advisor.
+      Please parse the attached timetable document ("${fileName}") and extract:
+      1. A list of unique academic subjects/classes.
+      2. A clean weekly schedule, day-by-day.
+      3. Dynamic calculations about class numbers, stress scores (studyLoadScore), productivity scores (free slot optimization), and the most/least frequent subjects.
+      4. Study recommendations.
+      5. An encouraging welcome greeting speech block from their personal AI Academic Coach (greets them as "Hello Scholar👋").
+
+      Requirements:
+      - Cleanly extract days (e.g. Monday, Tuesday, etc.) and list time slots with "time", "subject", "activity" or location.
+      - Translate all textual remarks, recommendations, and messages into ${language.toUpperCase()}.
+      - Return STRICT JSON matching the schema precisely.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        { inlineData: { mimeType: mimeType, data: base64Data } },
+        { text: prompt }
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            subjects: { type: Type.ARRAY, items: { type: Type.STRING } },
+            timetable: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  day: { type: Type.STRING },
+                  date: { type: Type.STRING },
+                  slots: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        time: { type: Type.STRING },
+                        activity: { type: Type.STRING },
+                        subject: { type: Type.STRING }
+                      },
+                      required: ["time", "activity", "subject"]
+                    }
+                  }
+                },
+                required: ["day"]
+              }
+            },
+            insights: {
+              type: Type.OBJECT,
+              properties: {
+                totalClasses: { type: Type.INTEGER },
+                subjectDistribution: { type: Type.OBJECT },
+                mostFrequentSubject: { type: Type.STRING },
+                leastFrequentSubject: { type: Type.STRING },
+                freePeriodAnalysis: { type: Type.STRING },
+                studyLoadScore: { type: Type.INTEGER },
+                productivityScore: { type: Type.INTEGER }
+              },
+              required: ["totalClasses", "mostFrequentSubject", "leastFrequentSubject", "studyLoadScore", "productivityScore"]
+            },
+            recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+            academicCoachMsg: { type: Type.STRING }
+          },
+          required: ["subjects", "timetable", "insights", "recommendations", "academicCoachMsg"]
+        }
+      }
+    });
+
+    if (response.text) return JSON.parse(response.text.trim());
+    throw new Error("Failed to parse timetable document");
+  },
+
+  /**
+   * Refine and update academic plan based on chat adjustments or goals
+   */
+  generateAcademicPlanRecommendations: async (subjects: string[], examDate: string, goals: string): Promise<any> => {
+    const ai = getAI();
+    const settings = SettingsService.getSettings();
+    const language = settings.learning.language || "English";
+
+    const prompt = `
+      Subject list: ${JSON.stringify(subjects)}
+      Exam Date: ${examDate}
+      Goals/Focus: "${goals}"
+      
+      Generate a customized, comprehensive multi-tier planner for an academic student in ${language}.
+      Produce complete details for:
+      1. Daily Schedule (specifically highlighting: Revision, Practice, Homework, Reading, and Breaks)
+      2. Weekly Schedule (specifically outlining: Block hours, tests, assignment, goals)
+      3. Monthly Strategy (highlighting milestones, strategies)
+      
+      Return results as a structural JSON object.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            daily: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  task: { type: Type.STRING },
+                  time: { type: Type.STRING },
+                  category: { type: Type.STRING },
+                  duration: { type: Type.STRING }
+                },
+                required: ["task", "time", "category"]
+              }
+            },
+            weekly: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  day: { type: Type.STRING },
+                  focus: { type: Type.STRING },
+                  tasks: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ["day", "focus", "tasks"]
+              }
+            },
+            monthly: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  month: { type: Type.STRING },
+                  milestone: { type: Type.STRING },
+                  strategy: { type: Type.STRING }
+                },
+                required: ["month", "milestone", "strategy"]
+              }
+            }
+          },
+          required: ["daily", "weekly", "monthly"]
+        }
+      }
+    });
+
+    if (response.text) return JSON.parse(response.text.trim());
+    throw new Error("Failed to generate plan recommendations");
   }
 };
