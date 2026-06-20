@@ -36,7 +36,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 
   // Performance Pointer dragging state variables
   const [isDragging, setIsDragging] = useState(false);
-  const dragStart = useRef({ x: 0, y: 0, widgetX: 0, widgetY: 0 });
+  const dragStart = useRef({ x: 0, y: 0, widgetX: 0, widgetY: 0, timestamp: 0 });
   const hasDragged = useRef(false);
 
   // Initialize and restore saved percentage coordinates
@@ -82,7 +82,8 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
       x: e.clientX,
       y: e.clientY,
       widgetX: position.x,
-      widgetY: position.y
+      widgetY: position.y,
+      timestamp: Date.now()
     };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -92,7 +93,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     const deltaX = e.clientX - dragStart.current.x;
     const deltaY = e.clientY - dragStart.current.y;
 
-    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+    if (Math.abs(deltaX) > 15 || Math.abs(deltaY) > 15) {
       hasDragged.current = true;
     }
 
@@ -116,15 +117,27 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     const yPct = (position.y / window.innerHeight) * 100;
     localStorage.setItem('sjtutor_streak_widget_x_pct', xPct.toFixed(2));
     localStorage.setItem('sjtutor_streak_widget_y_pct', yPct.toFixed(2));
+
+    // Calculate details to detect a simple click/tap reliably and bypass pointer capture side-effects
+    const deltaX = e.clientX - dragStart.current.x;
+    const deltaY = e.clientY - dragStart.current.y;
+    const dragDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const duration = Date.now() - dragStart.current.timestamp;
+
+    // If it was a clean tap (little movement and short duration), trigger modal open
+    if ((!hasDragged.current || dragDistance < 15) && duration < 350) {
+      setIsOpen(true);
+    }
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    if (hasDragged.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Fallback: If for some reason the pointer event did not open it, let standard click trigger it if not dragged
+    if (!hasDragged.current) {
+      setIsOpen(true);
     }
-    setIsOpen(true);
   };
 
   // Generate 30 Day calendar grid for Streak History
