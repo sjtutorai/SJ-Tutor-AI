@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, SJTUTOR_AVATAR } from '../types';
 import { GeminiService } from '../services/geminiService';
-import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle, ExternalLink, Share2, Save, Check, Volume2, VolumeX } from 'lucide-react';
+import { Send, User as UserIcon, Loader2, Mic, MicOff, Sparkles, AlertCircle, ExternalLink, Share2, Save, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Chat, GenerateContentResponse } from "@google/genai";
 
@@ -65,14 +65,6 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [, setIsApiDisabled] = useState(false);
-  
-  // Web Speech API Voice States
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [activeSpeakingIndex, setActiveSpeakingIndex] = useState<number | null>(null);
-  const [handsFreeMode, setHandsFreeMode] = useState(false);
-  const recognitionRef = useRef<any>(null);
-  
   const chatSessionRef = useRef<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -86,173 +78,25 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Clean up any ongoing speech synthesis or recognition on unmount
-  useEffect(() => {
-    return () => {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch (e) {
-          console.warn("Speech recognition cancel error:", e);
-        }
-      }
-    };
-  }, []);
+  const toggleVoiceInput = () => {
+    if (isListening) return;
 
-  const startListening = () => {
-    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      setError("Speech recognition is not supported in this browser.");
-      return;
-    }
-
-    if (isSpeaking) {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      setIsSpeaking(false);
-      setActiveSpeakingIndex(null);
-    }
-
-    try {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
-      recognitionRef.current = recognition;
       recognition.continuous = false;
       recognition.interimResults = false;
       recognition.lang = 'en-US';
 
-      recognition.onstart = () => {
-        setIsListening(true);
-        setError(null);
-      };
-
+      recognition.onstart = () => setIsListening(true);
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
-        if (transcript.trim()) {
-          setInput(transcript);
-          // If in hands-free mode, send immediately
-          if (handsFreeMode) {
-            sendMessageToAi(transcript);
-            setInput('');
-          }
-        }
+        setInput(prev => prev + (prev ? ' ' : '') + transcript);
       };
-
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error);
-        if (event.error !== 'no-speech' && event.error !== 'aborted') {
-          setError(`Speech recognition fault: ${event.error}`);
-        }
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
+      recognition.onend = () => setIsListening(false);
       recognition.start();
-    } catch (e: any) {
-      console.error("Speech recognition start failed:", e);
-      setIsListening(false);
-    }
-  };
-
-  const stopListening = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-    setIsListening(false);
-  };
-
-  const toggleVoiceInput = () => {
-    if (isListening) {
-      stopListening();
     } else {
-      startListening();
-    }
-  };
-
-  const speakResponse = (text: string, index: number | null = null) => {
-    if (!('speechSynthesis' in window)) {
-      setError("Speech synthesis is not supported on this device/browser.");
-      return;
-    }
-
-    // Stop speaking or listening first
-    window.speechSynthesis.cancel();
-    if (isListening) {
-      stopListening();
-    }
-
-    // Process markdown to make speech synthesis cleaner
-    const cleanText = text
-      .trim()
-      .replace(/```[\s\S]*?```/g, "[Code segment omitted]") // skip code blocks
-      .replace(/[*#_`~-]/g, "") // remove formatting symbols
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1"); // read link labels only
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = 'en-US';
-
-    // Choose preferred voice
-    const voices = window.speechSynthesis.getVoices();
-    const enVoice = voices.find(v => v.lang.startsWith('en-US') && v.name.toLowerCase().includes('google')) || 
-                    voices.find(v => v.lang.startsWith('en-US')) || 
-                    voices.find(v => v.lang.startsWith('en')) || 
-                    voices[0];
-    if (enVoice) {
-      utterance.voice = enVoice;
-    }
-
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-      if (index !== null) {
-        setActiveSpeakingIndex(index);
-      }
-    };
-
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      setActiveSpeakingIndex(null);
-      // Wait a half-second then listen back automatically if handsFreeMode is enabled
-      if (handsFreeMode) {
-        setTimeout(() => {
-          if (!isListening) {
-            startListening();
-          }
-        }, 800);
-      }
-    };
-
-    utterance.onerror = (e) => {
-      console.error("Speech synthesis error:", e);
-      setIsSpeaking(false);
-      setActiveSpeakingIndex(null);
-    };
-
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const stopSpeaking = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    setIsSpeaking(false);
-    setActiveSpeakingIndex(null);
-  };
-
-  const toggleSpeakMessage = (text: string, index: number) => {
-    if (isSpeaking && activeSpeakingIndex === index) {
-      stopSpeaking();
-    } else {
-      speakResponse(text, index);
+      alert("Voice input is not supported in this browser.");
     }
   };
 
@@ -325,13 +169,6 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
           });
         }
       }
-
-      // If hands-free mode is active, read the complete response out loud
-      if (handsFreeMode) {
-        // Safe reference model message index
-        const currentModelMessageIndex = messagesRef.current.length - 1;
-        speakResponse(fullResponseText, currentModelMessageIndex);
-      }
     } catch (error: any) {
       console.error("Chat error:", error);
       let errorText = "I'm sorry, I encountered an error. Please try asking again or check your connection.";
@@ -341,7 +178,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
         const parsed = JSON.parse(rawMsg);
         if (parsed.error?.message) rawMsg = parsed.error.message;
       } catch (e) {
-        console.warn("Parsing failed", e);
+        console.warn("Autoscroll failed", e);
       }
 
       if (rawMsg.includes("Generative Language API has not been used") || rawMsg.includes("PERMISSION_DENIED")) {
@@ -394,34 +231,9 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
               </button>
             </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Hands Free Voice Mode Selector */}
-          <button 
-            onClick={() => {
-              const nextState = !handsFreeMode;
-              setHandsFreeMode(nextState);
-              if (nextState) {
-                speakResponse("Hands free voice mode is active. I am listening for your questions!");
-              } else {
-                stopSpeaking();
-                stopListening();
-              }
-            }}
-            className={`px-2.5 py-1 rounded-full transition-all flex items-center gap-1 text-[10px] font-bold border ${
-              handsFreeMode 
-                ? 'border-red-200 bg-red-50 text-red-600 animate-pulse' 
-                : 'border-slate-200 bg-white text-slate-500 hover:text-primary-600'
-            }`}
-            title="Hands-free Converse Mode: Speak questions and listen to answers hands-free"
-          >
-            <Mic className="w-2.5 h-2.5" />
-            <span>{handsFreeMode ? "Speech Mode" : "Voice Mode"}</span>
-          </button>
-
-          <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 text-[10px] font-bold">
-            <Sparkles className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
-            1 Credit / Msg
-          </div>
+        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100 text-[10px] font-bold">
+          <Sparkles className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+          1 Credit / Msg
         </div>
       </div>
 
@@ -438,7 +250,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
             )}
             
             <div
-              className={`max-w-[85%] rounded-xl px-4 py-2.5 shadow-sm text-sm relative group/msg ${
+              className={`max-w-[85%] rounded-xl px-4 py-2.5 shadow-sm text-sm ${
                 msg.role === 'user'
                   ? 'bg-primary-600 text-white rounded-br-none'
                   : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-bl-none'
@@ -464,29 +276,14 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
                   </a>
                 </div>
               ) : msg.role === 'model' ? (
-                <div className="relative">
-                  <div className="markdown-body pr-4">
-                     <ReactMarkdown>{msg.text}</ReactMarkdown>
-                  </div>
-                  {msg.text && (
-                    <div className="absolute top-0 right-[-8px] opacity-0 group-hover/msg:opacity-100 transition-opacity flex gap-1">
-                      <button
-                        onClick={() => toggleSpeakMessage(msg.text, idx)}
-                        className={`p-1 rounded bg-white hover:bg-slate-50 border border-slate-200 shadow-xs transition ${
-                          isSpeaking && activeSpeakingIndex === idx ? 'text-primary-600 animate-pulse bg-primary-50 border-primary-100' : 'text-slate-400 hover:text-slate-600'
-                        }`}
-                        title={isSpeaking && activeSpeakingIndex === idx ? "Stop narration" : "Speak text"}
-                      >
-                        {isSpeaking && activeSpeakingIndex === idx ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
-                      </button>
-                    </div>
-                  )}
+                <div className="markdown-body">
+                   <ReactMarkdown>{msg.text}</ReactMarkdown>
                 </div>
               ) : (
                 <p className="whitespace-pre-wrap">{msg.text}</p>
               )}
             </div>
- 
+
             {msg.role === 'user' && (
               <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
                 <UserIcon className="w-4 h-4 text-slate-500" />
@@ -535,7 +332,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
         <div className="relative flex items-center gap-2">
            <button
             onClick={toggleVoiceInput}
-            className={`p-2.5 rounded-lg transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+            className={`p-2.5 rounded-lg transition-colors ${isListening ? 'bg-red-50 text-red-500 animate-pulse' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
             title="Voice Input"
           >
             {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -544,8 +341,8 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isListening ? "Listening... speak now." : "Ask SJ Tutor AI anything..."}
-            className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-sm max-h-32 text-slate-900 animate-none"
+            placeholder={isListening ? "Listening..." : "Ask SJ Tutor AI anything..."}
+            className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-sm max-h-32 text-slate-900"
             rows={1}
           />
           <button
@@ -558,17 +355,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
         </div>
         <div className="mt-1 flex justify-between px-1">
           <span className="text-[9px] text-slate-400 font-medium">1 message = 1 credit</span>
-          <span className="text-[9px] text-slate-400 font-bold uppercase flex items-center gap-1">
-            {isSpeaking && (
-              <span className="flex gap-0.5 items-center justify-center mr-2 animate-pulse text-primary-500">
-                <span className="w-1 h-2 bg-primary-500 rounded-full inline-block"></span>
-                <span className="w-1 h-3 bg-primary-500 rounded-full inline-block animate-bounce delay-75"></span>
-                <span className="w-1 h-2 bg-primary-500 rounded-full inline-block animate-bounce"></span>
-                <span className="text-[9px] text-primary-600 font-medium ml-1">AI speaking</span>
-              </span>
-            )}
-            Balance: {currentCredits}
-          </span>
+          <span className="text-[9px] text-slate-400 font-bold uppercase">Balance: {currentCredits}</span>
         </div>
       </div>
     </div>

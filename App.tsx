@@ -33,14 +33,11 @@ import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
 import { useStreak } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
-import { SharedContentView } from "./components/SharedContentView";
-import { PublicShareViewer } from "./components/PublicShareViewer";
 import {
   saveProfileToFirestore,
   getProfileFromFirestore,
   saveHistoryItemToFirestore,
   syncHistoryWithFirestore,
-  createSharedContent,
 } from "./utils/firebaseUtils";
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
@@ -73,7 +70,6 @@ import {
   BookOpen,
   User as UserIcon,
   Bell,
-  Copy,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -173,22 +169,6 @@ const App: React.FC = () => {
   });
 
   // App State
-  const [publicShareId, setPublicShareId] = useState<string | null>(() => {
-    const path = window.location.pathname;
-    if (path.startsWith("/share/")) {
-      return path.substring(7); // After "/share/"
-    }
-    const params = new URLSearchParams(window.location.search);
-    return params.get("share");
-  });
-
-  const [shareSuccessModal, setShareSuccessModal] = useState<{
-    isOpen: boolean;
-    shareId: string;
-    title: string;
-    type: string;
-  } | null>(null);
-
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
 
   // Initialize form data with language from settings
@@ -222,7 +202,6 @@ const App: React.FC = () => {
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [historyInitialized, setHistoryInitialized] = useState(false);
   const [dashboardView, setDashboardView] = useState<AppMode | "OVERVIEW">(
     "OVERVIEW",
   );
@@ -606,10 +585,7 @@ const App: React.FC = () => {
 
   // History Persistence and Database Synchronization
   useEffect(() => {
-    if (authLoading) return; // Wait until auth state is determined!
     let active = true;
-    setHistoryInitialized(false); // Lock saving until sync completes
-
     const loadAndSyncHistory = async () => {
       const storageKey = user ? `history_${user.uid}` : "history_guest";
       const savedHistory = localStorage.getItem(storageKey);
@@ -632,20 +608,13 @@ const App: React.FC = () => {
           if (active) {
             setHistory(syncedHistory);
             localStorage.setItem(`history_${user.uid}`, JSON.stringify(syncedHistory));
-            setHistoryInitialized(true);
           }
         } catch (err) {
           console.warn("Firestore history sync failed, fallback to local:", err);
-          if (active) {
-            setHistory(initialHistory);
-            setHistoryInitialized(true);
-          }
+          if (active) setHistory(initialHistory);
         }
       } else {
-        if (active) {
-          setHistory(initialHistory);
-          setHistoryInitialized(true);
-        }
+        if (active) setHistory(initialHistory);
       }
     };
 
@@ -663,13 +632,12 @@ const App: React.FC = () => {
       active = false;
       if (syncInterval) clearInterval(syncInterval);
     };
-  }, [user, authLoading]);
+  }, [user]);
 
   useEffect(() => {
-    if (authLoading || !historyInitialized) return;
     const storageKey = user ? `history_${user.uid}` : "history_guest";
     localStorage.setItem(storageKey, JSON.stringify(history));
-  }, [history, user, historyInitialized, authLoading]);
+  }, [history, user]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -828,28 +796,6 @@ const App: React.FC = () => {
         }
       }
     });
-  };
-
-  const handleSharePublicLink = async (type: string, title: string, content: any) => {
-    try {
-      const uid = user ? user.uid : "guest";
-      const shareId = await createSharedContent(type, title, content, uid);
-      const shareLink = `${window.location.origin}/share/${shareId}`;
-      try {
-        await navigator.clipboard.writeText(shareLink);
-      } catch {
-        console.warn("Clipboard copy blocked or unsupported, user can copy from modal");
-      }
-      setShareSuccessModal({
-        isOpen: true,
-        shareId,
-        title,
-        type,
-      });
-    } catch (error) {
-      console.error("Failed to share publicly:", error);
-      alert("Sharing failed. Please try again.");
-    }
   };
 
   const handleQuizComplete = (score: number) => {
@@ -1104,45 +1050,34 @@ const App: React.FC = () => {
     e.stopPropagation();
 
     try {
+      // 1. Save to backend to get a unique public ID
       let shareUrl = window.location.origin;
       try {
-        // Try Firestore first for durable cloud storage
-        const fbShareId = await createSharedContent(
-          item.type,
-          item.title,
-          item.content,
-          user ? user.uid : "guest"
-        );
-        shareUrl = `${window.location.origin}/share/${fbShareId}`;
-      } catch (fbErr) {
-        console.warn("Firestore share failed, falling back to backend Express route:", fbErr);
-        try {
-          const response = await fetch("/api/auth/share", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: item.type,
-              title: item.title,
-              subtitle: item.subtitle,
-              content: item.content,
-            }),
-          });
+        const response = await fetch("/api/auth/share", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: item.type,
+            title: item.title,
+            subtitle: item.subtitle,
+            content: item.content,
+          }),
+        });
 
-          if (response.ok) {
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.includes("application/json")) {
-              const data = await response.json();
-              if (data.id) {
-                shareUrl = `${window.location.origin}/share/${data.id}`;
-              }
+        if (response.ok) {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await response.json();
+            if (data.id) {
+              shareUrl = `${window.location.origin}?share=${data.id}`;
             }
           }
-        } catch (e) {
-          console.warn(
-            "Backend sharing unavailable, failing over to local share",
-            e,
-          );
         }
+      } catch (e) {
+        console.warn(
+          "Backend sharing unavailable, failing over to local share",
+          e,
+        );
       }
 
       let text = `${item.title} (${item.type})\n\n`;
@@ -1205,8 +1140,6 @@ const App: React.FC = () => {
     { id: AppMode.SUMMARY, label: "Instant Summary", icon: FileText },
     { id: AppMode.QUIZ, label: "Quiz Creator", icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
-    { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
-    { id: AppMode.SHARED_CONTENT, label: "Shared Public Content", icon: Share2 },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
@@ -1471,15 +1404,11 @@ const App: React.FC = () => {
                 </div>
                 {card.count !== null && (
                   <span className="text-2xl font-bold text-slate-800 dark:text-white">
-                    {!historyInitialized && (card.id === AppMode.SUMMARY || card.id === AppMode.QUIZ || card.id === AppMode.HOMEWORK) ? (
-                      <span className="inline-block w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"></span>
-                    ) : (
-                      card.count
-                    )}
+                    {card.count}
                   </span>
                 )}
               </div>
-              <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10 font-sans">
+              <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10">
                 {card.label}
               </h4>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1 relative z-10">
@@ -1524,115 +1453,6 @@ const App: React.FC = () => {
             </button>
           </div>
         </div>
-
-        {/* Recent Study Materials Section */}
-        <div className="mt-8 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-8 duration-700 delay-100 font-sans">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-              <Clock className="w-5 h-5 text-primary-500" />
-              Your Recent Creations
-            </h3>
-            {history.length > 0 && (
-              <button
-                onClick={() => setDashboardView(AppMode.SUMMARY as any)}
-                className="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 flex items-center gap-1 group"
-              >
-                View all history <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            )}
-          </div>
-
-          {!historyInitialized ? (
-            /* Loading State Skeleton */
-            <div className="space-y-3">
-              {[1, 2, 3].map((n) => (
-                <div key={n} className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-100 dark:border-slate-850 animate-pulse bg-slate-50/50 dark:bg-slate-900/10">
-                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700"></div>
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/3"></div>
-                    <div className="h-3 bg-slate-150 dark:bg-slate-800 rounded w-1/4"></div>
-                  </div>
-                  <div className="w-20 h-8 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
-                </div>
-              ))}
-            </div>
-          ) : history.length === 0 ? (
-            /* Empty State */
-            <div className="text-center py-8 bg-slate-50/50 dark:bg-slate-900/10 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6">
-              <Logo className="w-8 h-8 opacity-30 mx-auto mb-3" iconOnly />
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">No Study Materials Created Yet</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 max-w-sm mx-auto">
-                Generate tailored topic summaries, interactive quizzes, or solve problems with SJ Tutor AI.
-              </p>
-            </div>
-          ) : (
-            /* List of recent items */
-            <div className="divide-y divide-slate-100 dark:divide-slate-700/50 border border-slate-100 dark:border-slate-700/40 rounded-xl overflow-hidden bg-slate-50/30 dark:bg-slate-900/5">
-              {history.slice(0, 5).map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => loadHistoryItem(item)}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition-colors group gap-4"
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary-100/50 dark:bg-slate-700 text-primary-600 dark:text-primary-400 border border-primary-200/50 dark:border-slate-600 flex-shrink-0 group-hover:bg-primary-100 transition-colors">
-                      {item.type === AppMode.QUIZ ? (
-                        <BrainCircuit className="w-5 h-5 animate-pulse" />
-                      ) : item.type === AppMode.SUMMARY ? (
-                        <FileText className="w-5 h-5" />
-                      ) : item.type === AppMode.HOMEWORK ? (
-                        <BookOpen className="w-5 h-5" />
-                      ) : (
-                        <MessageCircle className="w-5 h-5" />
-                      )}
-                    </div>
-                    <div className="min-w-0 font-sans">
-                      <h4 className="font-semibold text-xs sm:text-sm text-slate-800 dark:text-white truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors mb-0.5">
-                        {item.title}
-                      </h4>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-bold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-slate-900 border border-primary-100/30 dark:border-slate-800 px-1.5 py-0.5 rounded leading-none">
-                          {item.type === AppMode.QUIZ ? "Interactive Quiz" : item.type === AppMode.SUMMARY ? "Topic Summary" : item.type === AppMode.HOMEWORK ? "Homework Assist" : "Tutor Chat"}
-                        </span>
-                        {item.subtitle && (
-                          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded leading-none">
-                            {item.subtitle}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                          <Calendar className="w-2.5 h-2.5" />
-                          {new Date(item.timestamp).toLocaleDateString()}
-                        </span>
-                        {item.type === AppMode.QUIZ && item.score !== undefined && (
-                          <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-1.5 py-0.5 rounded leading-none">
-                            Score: {item.score}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 self-end sm:self-center flex-shrink-0">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleShareHistoryItem(e, item);
-                      }}
-                      className="w-8 h-8 rounded-lg bg-white dark:bg-slate-800 hover:bg-primary-50 hover:text-primary-600 border border-slate-200 dark:border-slate-750 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
-                      title="Share Creation"
-                    >
-                      <Share2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-xs font-bold hover:bg-primary-700 transition-colors shadow-sm flex items-center gap-1 group-hover:scale-105 duration-200">
-                      Open
-                      <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
     );
   };
@@ -1676,7 +1496,6 @@ const App: React.FC = () => {
             <IdCardView
               userProfile={userProfile}
               email={user?.email || "Guest User"}
-              onNavigateToProfile={() => setMode(AppMode.PROFILE)}
             />
           </div>
         );
@@ -1705,7 +1524,6 @@ const App: React.FC = () => {
               isViewingShared={isViewingShared}
               onAddToMyList={handleAddSharedToMyList}
               isAddedToList={isAddedSharedContent}
-              onSharePublicLink={handleSharePublicLink}
             />
           );
         }
@@ -1752,7 +1570,6 @@ const App: React.FC = () => {
               isViewingShared={isViewingShared}
               onAddToMyList={handleAddSharedToMyList}
               isAddedToList={isAddedSharedContent}
-              onSharePublicLink={handleSharePublicLink}
             />
           );
         }
@@ -1805,7 +1622,6 @@ const App: React.FC = () => {
               isViewingShared={isViewingShared}
               onAddToMyList={handleAddSharedToMyList}
               isAddedToList={isAddedSharedContent}
-              onSharePublicLink={handleSharePublicLink}
             />
           );
         }
@@ -1940,42 +1756,10 @@ const App: React.FC = () => {
           </div>
         );
 
-      case AppMode.SHARED_CONTENT:
-        return (
-          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <SharedContentView
-              userId={user ? user.uid : null}
-              onSelectSharedItem={(shareId) => setPublicShareId(shareId)}
-            />
-          </div>
-        );
-
       default:
         return renderDashboard();
     }
   };
-
-  if (publicShareId) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-white selection:bg-primary-100 transition-colors duration-300">
-        <PublicShareViewer
-          shareId={publicShareId}
-          onGoToApp={() => {
-            window.history.pushState({}, document.title, "/");
-            setPublicShareId(null);
-            setMode(AppMode.DASHBOARD);
-          }}
-        />
-        {showAuthModal && (
-          <Auth
-            onClose={() => setShowAuthModal(false)}
-            onSignUpSuccess={handleSignUpSuccess}
-            onCountryDetected={setDetectedCountry}
-          />
-        )}
-      </div>
-    );
-  }
 
   if (authLoading) {
     return (
@@ -2069,7 +1853,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen premium-dashboard-bg font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
@@ -2520,75 +2304,6 @@ const App: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {shareSuccessModal?.isOpen && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-xs animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-700 animate-in zoom-in-95 duration-200">
-            <div className="text-center">
-              <span className="text-4xl" role="img" aria-label="success">🎉</span>
-              <h3 className="text-xl font-extrabold text-slate-800 dark:text-white mt-3 mb-1">
-                Public Link Created Successfully
-              </h3>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-bold">
-                SJ Tutor AI Sharing
-              </p>
-              
-              <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 flex flex-col gap-1 text-left mb-6">
-                <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Title</span>
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-350 truncate">{shareSuccessModal.title}</p>
-                <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mt-1.5">Resource Type</span>
-                <p className="text-[10px] font-mono font-extrabold text-primary-500 uppercase">{shareSuccessModal.type}</p>
-              </div>
-
-              <p className="text-xs text-slate-400 dark:text-slate-400 text-left mb-2 font-semibold">Share with anyone:</p>
-              <div className="flex items-center gap-1.5 p-2.5 bg-slate-100 dark:bg-slate-950 rounded-xl mb-6 border border-slate-200/50 dark:border-slate-800">
-                <input
-                  type="text"
-                  readOnly
-                  value={`${window.location.origin}/share/${shareSuccessModal.shareId}`}
-                  className="bg-transparent text-[11px] text-slate-650 dark:text-slate-400 w-full focus:outline-none select-all font-mono"
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={async () => {
-                    const link = `${window.location.origin}/share/${shareSuccessModal.shareId}`;
-                    try {
-                      await navigator.clipboard.writeText(link);
-                      alert("Copied shareable link to clipboard!");
-                    } catch {
-                      alert("Fallback link copy: " + link);
-                    }
-                  }}
-                  className="py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 active:scale-95"
-                >
-                  <Copy className="w-4 h-4" />
-                  <span>Copy Link</span>
-                </button>
-                
-                <button
-                  onClick={() => {
-                    window.open(`/share/${shareSuccessModal.shareId}`, "_blank");
-                  }}
-                  className="py-3 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200/60 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 active:scale-95"
-                >
-                  <Share2 className="w-4 h-4" />
-                  <span>Open Link</span>
-                </button>
-
-                <button
-                  onClick={() => setShareSuccessModal(null)}
-                  className="py-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-bold mt-2"
-                >
-                  Dismiss & Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
