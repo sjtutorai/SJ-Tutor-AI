@@ -34,35 +34,25 @@ export const getMissingProfileFields = (profile: UserProfile): string[] => {
 };
 
 export const generateRegistrationNumber = (profile: UserProfile): string => {
-  if (!profile.displayName || !profile.dob) return '';
+  if (!profile.displayName) return '';
   
   const names = profile.displayName.trim().split(/\s+/).filter(Boolean);
   const firstName = names[0] || '';
   const lastName = names.length > 1 ? names[names.length - 1] : '';
   
   const firstLetter = firstName.charAt(0).toUpperCase();
-  const surnameLetter = lastName.charAt(0).toUpperCase() || firstLetter; 
+  const surnameLetter = lastName.charAt(0).toUpperCase() || (firstName.length > 1 ? firstName.charAt(1).toUpperCase() : 'X'); 
   
-  // Format DOB: YYYY-MM-DD -> DDMMYYYY
-  const cleanDob = profile.dob.replace(/[^0-9]/g, '');
-  let dobString = '';
-  
-  if (profile.dob.includes('-')) {
-    const parts = profile.dob.split('-');
-    if (parts.length === 3) {
-      // Assuming YYYY-MM-DD (standard for <input type="date">)
-      const year = parts[0];
-      const month = parts[1];
-      const day = parts[2];
-      dobString = `${day}${month}${year}`;
-    } else {
-      dobString = cleanDob;
-    }
-  } else {
-    dobString = cleanDob;
+  // Stable 6-digit unique registration number
+  const seed = (profile.dob || '') + (profile.phoneNumber || '') + (profile.displayName || '');
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
   }
+  const regNum = Math.abs(hash).toString().substring(0, 6).padStart(6, '0');
   
-  return `${firstLetter}${surnameLetter}${dobString}`.trim();
+  return `SJ-${firstLetter}${surnameLetter}-${regNum}`;
 };
 
 export const calculateGradeFromAge = (dob: string): string => {
