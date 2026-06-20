@@ -222,6 +222,7 @@ const App: React.FC = () => {
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyInitialized, setHistoryInitialized] = useState(false);
   const [dashboardView, setDashboardView] = useState<AppMode | "OVERVIEW">(
     "OVERVIEW",
   );
@@ -606,6 +607,8 @@ const App: React.FC = () => {
   // History Persistence and Database Synchronization
   useEffect(() => {
     let active = true;
+    setHistoryInitialized(false); // Lock saving until sync completes
+
     const loadAndSyncHistory = async () => {
       const storageKey = user ? `history_${user.uid}` : "history_guest";
       const savedHistory = localStorage.getItem(storageKey);
@@ -628,13 +631,20 @@ const App: React.FC = () => {
           if (active) {
             setHistory(syncedHistory);
             localStorage.setItem(`history_${user.uid}`, JSON.stringify(syncedHistory));
+            setHistoryInitialized(true);
           }
         } catch (err) {
           console.warn("Firestore history sync failed, fallback to local:", err);
-          if (active) setHistory(initialHistory);
+          if (active) {
+            setHistory(initialHistory);
+            setHistoryInitialized(true);
+          }
         }
       } else {
-        if (active) setHistory(initialHistory);
+        if (active) {
+          setHistory(initialHistory);
+          setHistoryInitialized(true);
+        }
       }
     };
 
@@ -655,9 +665,10 @@ const App: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
+    if (!historyInitialized) return;
     const storageKey = user ? `history_${user.uid}` : "history_guest";
     localStorage.setItem(storageKey, JSON.stringify(history));
-  }, [history, user]);
+  }, [history, user, historyInitialized]);
 
   useEffect(() => {
     const handleResize = () => {
