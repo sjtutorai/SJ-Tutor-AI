@@ -487,5 +487,203 @@ export const GeminiService = {
 
     if (response.text) return JSON.parse(response.text.trim());
     throw new Error("Failed to generate plan recommendations");
+  },
+
+  /**
+   * Parse a syllabus document (PDF/Image/DOCX) or raw syllabus text and generate a structured
+   * study timetable, planning, difficulty breakdown, revision tasks, and mock exam schedules.
+   */
+  generateSyllabusPlan: async (
+    sourceType: "text" | "file",
+    sourceData: string,
+    fileName?: string,
+    instruction?: string
+  ): Promise<any> => {
+    const ai = getAI();
+    const settings = SettingsService.getSettings();
+    const language = settings.learning.language || "English";
+
+    let prompt = "";
+    const contents: any[] = [];
+
+    if (sourceType === "text") {
+      prompt = `
+        You are an expert syllabus analyst and academic study coach.
+        Please analyze the following syllabus text:
+        -------------------------
+        ${sourceData}
+        -------------------------
+        
+        ${instruction ? `Custom Rescheduling / Regeneration Instructions from Student: "${instruction}"` : ""}
+
+        Requirements:
+        1. Extract academic subjects and chapters/topics. Highlight exact chapter names.
+        2. Analyze each chapter:
+           - Assess difficulty: "Easy", "Medium", or "Hard".
+           - Prioritize importance: "High", "Medium", or "Low" based on typical exam weights.
+           - Estimate study hours required to master this chapter.
+           - Detail what's needed for study revision (e.g., active recall, formula memorization, specific exercises).
+        3. Generate a structured plan in ${language.toUpperCase()}:
+           - Daily Study Plan (time frames, tasks, category, and durations).
+           - Weekly Timetable (mapped focus days and checklists).
+           - Monthly Completion Strategy Milestones.
+           - Revision Schedule (specify which chapters to revise on what date, starting soon).
+           - Mock Test Schedule (specify which date to attempt simulated test papers for what chapters, and target scores).
+        4. Calculate analytics:
+           - Total Chapters extracted.
+           - Estimated completion date (assume reasonable pace from today).
+           - Total Study hours required (sum of all chapters' estimated times).
+
+        Return a STRICT JSON response adhering entirely to the response schema.
+      `;
+      contents.push({ text: prompt });
+    } else {
+      // It's a file base64 data URL
+      const matches = sourceData.match(/^data:(.*);base64,(.*)$/);
+      let mimeType = "application/pdf";
+      let base64Data = sourceData;
+      if (matches && matches.length === 3) {
+        mimeType = matches[1];
+        base64Data = matches[2];
+      } else {
+        base64Data = sourceData.replace(/^data:[^;]+;base64,/, "");
+      }
+
+      prompt = `
+        You are an expert OCR, document analyzer, and academic study coach.
+        Please analyze the attached syllabus file ("${fileName || "syllabus_document"}"):
+        
+        ${instruction ? `Custom Rescheduling / Regeneration Instructions from Student: "${instruction}"` : ""}
+
+        Requirements:
+        1. Extract academic subjects and chapters/topics from the document.
+        2. Analyze each chapter:
+           - Assess difficulty: "Easy", "Medium", or "Hard".
+           - Prioritize importance: "High", "Medium", or "Low" based on typical exam weights.
+           - Estimate study hours required to master this chapter.
+           - Detail what's needed for study revision (e.g., active recall, formula memorization, specific exercises).
+        3. Generate a structured plan in ${language.toUpperCase()}:
+           - Daily Study Plan (time frames, tasks, category, and durations).
+           - Weekly Timetable (mapped focus days and checklists).
+           - Monthly Completion Strategy Milestones.
+           - Revision Schedule (specify which chapters to revise on what date, starting soon).
+           - Mock Test Schedule (specify which date to attempt simulated test papers for what chapters, and target scores).
+        4. Calculate analytics:
+           - Total Chapters extracted.
+           - Estimated completion date (assume reasonable pace from today).
+           - Total Study hours required (sum of all chapters' estimated times).
+
+        Return a STRICT JSON response adhering entirely to the response schema.
+      `;
+      
+      contents.push({ inlineData: { mimeType: mimeType, data: base64Data } });
+      contents.push({ text: prompt });
+    }
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: contents,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            subjects: { type: Type.ARRAY, items: { type: Type.STRING } },
+            chapters: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  subject: { type: Type.STRING },
+                  chapterName: { type: Type.STRING },
+                  difficulty: { type: Type.STRING },
+                  importance: { type: Type.STRING },
+                  estimatedCompletionTime: { type: Type.STRING },
+                  revisionRequirements: { type: Type.STRING }
+                },
+                required: ["id", "subject", "chapterName", "difficulty", "importance", "estimatedCompletionTime", "revisionRequirements"]
+              }
+            },
+            dailyPlan: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  time: { type: Type.STRING },
+                  task: { type: Type.STRING },
+                  category: { type: Type.STRING },
+                  duration: { type: Type.STRING }
+                },
+                required: ["time", "task", "category", "duration"]
+              }
+            },
+            weeklyPlan: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  day: { type: Type.STRING },
+                  focus: { type: Type.STRING },
+                  tasks: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ["day", "focus", "tasks"]
+              }
+            },
+            monthlyPlan: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  month: { type: Type.STRING },
+                  milestone: { type: Type.STRING },
+                  strategy: { type: Type.STRING }
+                },
+                required: ["month", "milestone", "strategy"]
+              }
+            },
+            revisionSchedule: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  chapterName: { type: Type.STRING },
+                  subject: { type: Type.STRING },
+                  scheduledDate: { type: Type.STRING },
+                  focus: { type: Type.STRING }
+                },
+                required: ["chapterName", "subject", "scheduledDate", "focus"]
+              }
+            },
+            mockTestSchedule: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  chapterName: { type: Type.STRING },
+                  subject: { type: Type.STRING },
+                  scheduledDate: { type: Type.STRING },
+                  targetScore: { type: Type.STRING }
+                },
+                required: ["chapterName", "subject", "scheduledDate", "targetScore"]
+              }
+            },
+            analytics: {
+              type: Type.OBJECT,
+              properties: {
+                totalChapters: { type: Type.INTEGER },
+                studyHoursRequired: { type: Type.INTEGER },
+                estimatedCompletionDate: { type: Type.STRING }
+              },
+              required: ["totalChapters", "studyHoursRequired", "estimatedCompletionDate"]
+            }
+          },
+          required: ["subjects", "chapters", "dailyPlan", "weeklyPlan", "monthlyPlan", "revisionSchedule", "mockTestSchedule", "analytics"]
+        }
+      }
+    });
+
+    if (response.text) return JSON.parse(response.text.trim());
+    throw new Error("Failed to generate study roadmap");
   }
 };

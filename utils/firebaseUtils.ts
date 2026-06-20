@@ -221,3 +221,29 @@ export const getUserSharedContent = async (uid: string): Promise<any[]> => {
   }
 };
 
+export const saveSyllabusPlanToFirestore = async (uid: string, plan: any) => {
+  if (!uid || uid === "guest") return false;
+  try {
+    const docRef = doc(db, "syllabusPlans", uid);
+    await setDoc(docRef, { plan, updatedAt: Date.now() }, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn("Failed to save syllabus plan to Firestore. Client may be offline:", err);
+    return false;
+  }
+};
+
+export const getSyllabusPlanFromFirestore = async (uid: string): Promise<any | null> => {
+  if (!uid || uid === "guest") return null;
+  try {
+    const docRef = doc(db, "syllabusPlans", uid);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data().plan;
+    }
+  } catch (err) {
+    console.warn("Failed to fetch syllabus from Firestore:", err);
+  }
+  return null;
+};
+
