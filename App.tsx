@@ -222,7 +222,7 @@ const App: React.FC = () => {
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const isHistoryLoaded = useRef(false);
+  const [historyLoadedUid, setHistoryLoadedUid] = useState<string>("none");
   const [dashboardView, setDashboardView] = useState<AppMode | "OVERVIEW">(
     "OVERVIEW",
   );
@@ -606,7 +606,7 @@ const App: React.FC = () => {
 
   // History Persistence and Database Synchronization
   useEffect(() => {
-    isHistoryLoaded.current = false;
+    setHistoryLoadedUid("none");
     let active = true;
     const loadAndSyncHistory = async () => {
       const storageKey = user ? `history_${user.uid}` : "history_guest";
@@ -630,19 +630,19 @@ const App: React.FC = () => {
           if (active) {
             setHistory(syncedHistory);
             localStorage.setItem(`history_${user.uid}`, JSON.stringify(syncedHistory));
-            isHistoryLoaded.current = true;
+            setHistoryLoadedUid(user.uid);
           }
         } catch (err) {
           console.warn("Firestore history sync failed, fallback to local:", err);
           if (active) {
             setHistory(initialHistory);
-            isHistoryLoaded.current = true;
+            setHistoryLoadedUid(user.uid);
           }
         }
       } else {
         if (active) {
           setHistory(initialHistory);
-          isHistoryLoaded.current = true;
+          setHistoryLoadedUid("guest");
         }
       }
     };
@@ -664,10 +664,10 @@ const App: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    if (!isHistoryLoaded.current) return;
-    const storageKey = user ? `history_${user.uid}` : "history_guest";
-    localStorage.setItem(storageKey, JSON.stringify(history));
-  }, [history, user]);
+    const currentUid = user ? user.uid : "guest";
+    if (historyLoadedUid !== currentUid) return;
+    localStorage.setItem(`history_${currentUid}`, JSON.stringify(history));
+  }, [history, user, historyLoadedUid]);
 
   useEffect(() => {
     const handleResize = () => {

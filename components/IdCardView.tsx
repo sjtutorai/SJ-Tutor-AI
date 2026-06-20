@@ -25,7 +25,16 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
       hash |= 0;
     }
     const suffix = Math.abs(hash).toString().substring(0, 6).padStart(6, '0');
-    return `SJ-${new Date().getFullYear()}-${suffix}`;
+
+    // Extract initials
+    const displayName = userProfile.displayName || '';
+    const names = displayName.trim().split(/\s+/).filter(Boolean);
+    const firstName = names[0] || 'S';
+    const lastName = names[names.length - 1] || 'J';
+    const firstLetter = firstName.charAt(0).toUpperCase() || 'S';
+    const surnameLetter = lastName.charAt(0).toUpperCase() || 'J';
+
+    return `SJ-${firstLetter}${surnameLetter}-${suffix}`;
   }, [email, userProfile.displayName]);
 
   const handleDownload = async () => {
