@@ -77,9 +77,32 @@
         "score": { "type": "number" }
       },
       "required": ["id", "type", "title", "timestamp"]
+    },
+    "SharedContent": {
+      "title": "SharedContent",
+      "description": "Public shared quiz, summary, notes, homework or tutor transcripts",
+      "type": "object",
+      "properties": {
+        "shareId": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "object" },
+        "ownerUid": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "views": { "type": "number" },
+        "likes": { "type": "number" },
+        "isPublic": { "type": "boolean" },
+        "sharesCount": { "type": "number" },
+        "lastViewedAt": { "type": "number" }
+      },
+      "required": ["shareId", "type", "title", "content", "ownerUid", "createdAt", "views", "likes", "isPublic"]
     }
   },
   "firestore": {
+    "/sharedContent/{shareId}": {
+      "schema": "SharedContent",
+      "description": "Public viewing records of shared materials"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "Stores individual user profile and setting details"
