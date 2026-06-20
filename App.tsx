@@ -1193,7 +1193,6 @@ const App: React.FC = () => {
     { id: AppMode.QUIZ, label: "Quiz Creator", icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
-    { id: AppMode.SHARED_CONTENT, label: "Shared Public Content", icon: Share2 },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
