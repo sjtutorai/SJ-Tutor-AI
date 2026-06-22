@@ -603,7 +603,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                       type="text"
                       disabled={true}
                       value={formData.grade || ''}
-                      className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-800/50 border border-slate-200 shadow-sm rounded-xl outline-none transition-all opacity-80 text-slate-900 dark:text-slate-100 cursor-not-allowed"
+                      className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 shadow-sm rounded-xl outline-none transition-all opacity-80 text-slate-900 cursor-not-allowed"
                       placeholder="e.g. 10th Grade"
                     />
                   </div>

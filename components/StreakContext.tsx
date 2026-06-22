@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { doc, getDoc, setDoc, getDocs, collection, query, orderBy, limit } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { UserProfile } from '../types';
@@ -125,6 +125,8 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSoundEnabledState(val);
     localStorage.setItem('sjtutor_streak_sound_enabled', String(val));
   };
+
+  const autoCheckedRef = useRef<string | null>(null);
 
   // Trigger high-end fireworks animation
   const triggerConfetti = useCallback(() => {
@@ -410,6 +412,22 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
     });
   }, [triggerConfetti, soundEnabled]);
+
+  // Auto-increment streak point on app load/login if they haven't done any study activity today
+  useEffect(() => {
+    if (!loading && streak.uid) {
+      const uId = streak.uid;
+      if (autoCheckedRef.current !== uId) {
+        autoCheckedRef.current = uId;
+        const lastIncr = streak.updatedAt || 0;
+        const isFirstTime = streak.currentStreak === 0;
+        const isEligible = isFirstTime || (Date.now() - lastIncr >= 24 * 60 * 60 * 1000);
+        if (isEligible) {
+          recordActivity();
+        }
+      }
+    }
+  }, [loading, streak.uid, streak.updatedAt, recordActivity]);
 
   // Claim specific milestone rewards
   const claimMilestone = useCallback(async (
