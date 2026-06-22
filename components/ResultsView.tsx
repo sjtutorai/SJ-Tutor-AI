@@ -242,6 +242,62 @@ const ResultsView: React.FC<ResultsViewProps> = ({
     }
   };
 
+  const downloadMarkdown = () => {
+    try {
+      const heading = `# ${title}\nCategory: ${type}\nGenerated via SJ Tutor AI on ${new Date().toLocaleDateString()}\n\n---\n\n`;
+      const fileContent = heading + content;
+      const element = document.createElement("a");
+      const file = new Blob([fileContent], { type: 'text/markdown;charset=utf-8' });
+      element.href = URL.createObjectURL(file);
+      element.download = getFilename('md');
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    } catch (e) {
+      console.error("Markdown download failed", e);
+      alert("Failed to download Markdown file.");
+    }
+  };
+
+  const downloadWord = () => {
+    try {
+      const formattedContent = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+          <head>
+            <title>${title}</title>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
+              h1 { color: #1a202c; border-bottom: 2px solid #D4AF37; padding-bottom: 10px; font-size: 24px; }
+              h2 { color: #2d3748; margin-top: 20px; font-size: 18px; }
+              p, li { color: #333333; font-size: 14px; }
+              hr { border: none; border-top: 1px solid #e2e8f0; margin: 20px 0; }
+              .footer { font-size: 11px; color: #718096; margin-top: 30px; text-align: center; }
+            </style>
+          </head>
+          <body>
+            <h1>${title}</h1>
+            <p><strong>Resource Type:</strong> ${type}</p>
+            <p><strong>Generated on:</strong> ${new Date().toLocaleDateString()} by SJ Tutor AI</p>
+            <hr />
+            <div style="white-space: pre-wrap;">${content}</div>
+            <hr />
+            <p class="footer">Thank you for studying with SJ Tutor AI. Keep up the amazing streak!</p>
+          </body>
+        </html>
+      `;
+      const element = document.createElement("a");
+      const file = new Blob(['\ufeff' + formattedContent], { type: 'application/msword;charset=utf-8' });
+      element.href = URL.createObjectURL(file);
+      element.download = getFilename('doc');
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    } catch (e) {
+      console.error("Word download failed", e);
+      alert("Failed to download Word document.");
+    }
+  };
+
   if (!content && !isLoading) return null;
 
   return (
@@ -286,6 +342,26 @@ const ResultsView: React.FC<ResultsViewProps> = ({
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download PDF</span>
+                </button>
+
+                {/* Download Word DOC Button */}
+                <button
+                  onClick={downloadWord}
+                  className="px-3 py-1.5 bg-white hover:bg-blue-50 hover:text-blue-655 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                  title="Download as Word"
+                >
+                  <Download className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Word (.doc)</span>
+                </button>
+
+                {/* Download Markdown Button */}
+                <button
+                  onClick={downloadMarkdown}
+                  className="px-3 py-1.5 bg-white hover:bg-indigo-50 hover:text-indigo-655 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                  title="Download as Markdown"
+                >
+                  <Download className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Markdown (.md)</span>
                 </button>
 
                 {/* Copy Button */}

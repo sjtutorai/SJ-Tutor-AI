@@ -41,6 +41,7 @@ import {
   saveHistoryItemToFirestore,
   syncHistoryWithFirestore,
   createSharedContent,
+  getSharedContent,
 } from "./utils/firebaseUtils";
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
@@ -334,30 +335,41 @@ const App: React.FC = () => {
 
   // Check for shared content on load
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const shareId = params.get("share");
+    const shareId = publicShareId;
 
     if (shareId) {
       const fetchShared = async () => {
         setAuthLoading(true);
         setIsAddedSharedContent(false);
         try {
-          const response = await fetch(`/api/auth/share/${shareId}`);
-          const data = await response.json();
+          // 1. Try loading directly from Firestore first (primary ground truth)
+          let item = await getSharedContent(shareId);
+          
+          // 2. Fallback to server API if not found in Firestore
+          if (!item) {
+            try {
+              const response = await fetch(`/api/auth/share/${shareId}`);
+              const data = await response.json();
+              if (response.ok && data.success) {
+                item = data.data;
+              }
+            } catch (apiErr) {
+              console.warn("Shared API route fallback failed:", apiErr);
+            }
+          }
 
-          if (response.ok && data.success) {
-            const item = data.data;
+          if (item) {
             setSharedContent(item);
             setIsViewingShared(true);
 
             // Load the content into the view
-            if (item.type === AppMode.SUMMARY) {
+            if (item.type === AppMode.SUMMARY || item.type === "Summary") {
               setSummaryContent(item.content);
               setMode(AppMode.SUMMARY);
-            } else if (item.type === AppMode.ESSAY || item.type === AppMode.HOMEWORK) {
+            } else if (item.type === AppMode.ESSAY || item.type === "Essay" || item.type === AppMode.HOMEWORK || item.type === "Homework Solution" || item.type === "Homework Solver") {
               setHomeworkContent(item.content);
               setMode(AppMode.HOMEWORK);
-            } else if (item.type === AppMode.QUIZ) {
+            } else if (item.type === AppMode.QUIZ || item.type === "Interactive Quiz" || item.type === "Quiz Creator") {
               setQuizData(item.content);
               setMode(AppMode.QUIZ);
             }
@@ -375,14 +387,15 @@ const App: React.FC = () => {
           console.error("Failed to fetch shared content", err);
         } finally {
           setAuthLoading(false);
-          // Clear the URL parameter without refreshing
-          const newUrl = window.location.pathname;
-          window.history.replaceState({}, document.title, newUrl);
+          // Clear any path or search parameters to reset URL back to base without refreshing the page
+          if (window.location.pathname !== "/" || window.location.search) {
+            window.history.replaceState({}, document.title, "/");
+          }
         }
       };
       fetchShared();
     }
-  }, [setSummaryContent, setHomeworkContent, setQuizData, setMode, setFormData]);
+  }, [publicShareId, setSummaryContent, setHomeworkContent, setQuizData, setMode, setFormData]);
 
   // Sync formData language with settings whenever settings change
   useEffect(() => {
@@ -1528,7 +1541,7 @@ const App: React.FC = () => {
     if (!sharedContent) return;
 
     const newItem: HistoryItem = {
-      id: "shared-" + sharedContent.id + "-" + Date.now(),
+      id: "shared-" + (sharedContent.shareId || sharedContent.id || "content") + "-" + Date.now(),
       type: sharedContent.type,
       title: sharedContent.title,
       subtitle: sharedContent.subtitle || `${sharedContent.type} Shared with you`,
