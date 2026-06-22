@@ -285,7 +285,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                       <div className="flex justify-between items-start mb-3">
                         <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                           note.template === 'Formula' ? 'bg-blue-50 text-blue-600' :
-                          note.template === 'Q&A' ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-600'
+                          note.template === 'Q&A' ? 'bg-purple-50 text-purple-600' : 'bg-white border border-slate-200 text-slate-600'
                         }`}>
                           {note.template}
                         </div>
@@ -310,7 +310,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
             {viewMode === 'EDITOR' && editingNote && (
               <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden animate-in zoom-in-95 duration-300">
                 {/* Editor Header */}
-                <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                <div className="px-6 py-4 bg-white dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <button onClick={() => setViewMode('LIST')} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg">
                       <X className="w-5 h-5 text-slate-400" />
@@ -340,7 +340,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                     {/* Download MD Button */}
                     <button 
                       onClick={() => downloadNoteFile('md')} 
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-755 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+                      className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 dark:bg-slate-755 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
                       title="Download Notes as Markdown"
                     >
                       <FileText className="w-3.5 h-3.5" />
@@ -379,7 +379,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                   />
                   
                   {/* Live Preview */}
-                  <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50 dark:bg-slate-900/20 custom-scrollbar">
+                  <div className="flex-1 p-6 overflow-y-auto bg-white/50 dark:bg-slate-900/20 custom-scrollbar">
                      <div className="prose prose-sm dark:prose-invert max-w-none markdown-body">
                         <ReactMarkdown>{editingNote.content || '*No content yet*'}</ReactMarkdown>
                      </div>
@@ -426,29 +426,29 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                <h3 className="font-bold text-lg text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                  <Plus className="w-5 h-5 text-primary-500" />
                  Add New Task
-               </h3>
-               <div className="flex flex-col sm:flex-row gap-3">
+                </h3>
+                <div className="flex flex-col sm:flex-row gap-3">
                  <input 
                    type="text" 
                    value={newReminder}
                    onChange={e => setNewReminder(e.target.value)}
                    placeholder="What needs to be done?"
-                   className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none dark:text-white"
+                   className="flex-1 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none dark:text-white"
                  />
                  <div className="flex gap-2">
                     <input 
                       type="date" 
                       value={newDate}
                       onChange={e => setNewDate(e.target.value)}
-                      className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-slate-600 text-sm"
+                      className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-slate-600 text-sm"
                     />
                     <input 
                       type="time" 
                       value={newTime}
                       onChange={e => setNewTime(e.target.value)}
-                      className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-slate-600 text-sm"
+                      className="px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-slate-600 text-sm"
                     />
-                 </div>
+                  </div>
                  <button 
                   onClick={() => {
                     if (!newReminder) return;
@@ -501,15 +501,14 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                   <h2 className="text-2xl font-bold text-slate-800 dark:text-white">SJ Tutor AI&apos;s Planner</h2>
                   <p className="text-slate-500">I can generate a personalized timetable for your upcoming exams.</p>
                 </div>
-
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-500 uppercase">Exam Date</label>
-                    <input type="date" value={examDate} onChange={e => setExamDate(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 dark:text-white" />
+                    <input type="date" value={examDate} onChange={e => setExamDate(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 dark:text-white" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-500 uppercase">Syllabus / Subjects</label>
-                    <textarea placeholder="e.g. Physics (Ch 1-5), Math (Calculus)..." value={examSubjects} onChange={e => setExamSubjects(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 min-h-[100px] resize-none dark:text-white" />
+                    <textarea placeholder="e.g. Physics (Ch 1-5), Math (Calculus)..." value={examSubjects} onChange={e => setExamSubjects(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 min-h-[100px] resize-none dark:text-white" />
                   </div>
                   <button 
                     onClick={async () => {
@@ -535,7 +534,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                 </div>
                 {timetable.map((day, idx) => (
                   <div key={idx} className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-                     <div className="bg-slate-50 dark:bg-slate-900/50 px-6 py-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                     <div className="bg-white dark:bg-slate-900/50 px-6 py-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                         <span className="font-bold text-slate-800 dark:text-white">{day.day}</span>
                         <span className="text-sm text-slate-500">{day.date}</span>
                      </div>

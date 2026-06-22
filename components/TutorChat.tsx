@@ -210,7 +210,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
   return (
     <div className="h-[calc(100vh-140px)] flex flex-col bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
       {/* Header Info */}
-      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+      <div className="px-4 py-2 bg-white border-b border-slate-100 flex justify-between items-center">
         <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SJ Tutor AI Session</span>
             <div className="flex items-center gap-1">
@@ -253,7 +253,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
               className={`max-w-[85%] rounded-xl px-4 py-2.5 shadow-sm text-sm ${
                 msg.role === 'user'
                   ? 'bg-primary-600 text-white rounded-br-none'
-                  : 'bg-slate-50 border border-slate-200 text-slate-800 rounded-bl-none'
+                  : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
               }`}
             >
               {msg.text === "API_DISABLED_BLOCK" ? (
@@ -296,7 +296,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
                <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-100 flex-shrink-0">
                 <img src={SJTUTOR_AVATAR} alt="AI" className="w-full h-full object-cover" />
               </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl rounded-bl-none px-4 py-2.5 flex items-center">
+              <div className="bg-white border border-slate-200 rounded-xl rounded-bl-none px-4 py-2.5 flex items-center">
                 <Loader2 className="w-4 h-4 text-primary-400 animate-spin" />
               </div>
            </div>
@@ -332,7 +332,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
         <div className="relative flex items-center gap-2">
            <button
             onClick={toggleVoiceInput}
-            className={`p-2.5 rounded-lg transition-colors ${isListening ? 'bg-red-50 text-red-500 animate-pulse' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+            className={`p-2.5 rounded-lg border border-slate-200 transition-colors ${isListening ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
             title="Voice Input"
           >
             {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -342,7 +342,7 @@ const TutorChat: React.FC<TutorChatProps> = ({ onDeductCredit, currentCredits, o
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={isListening ? "Listening..." : "Ask SJ Tutor AI anything..."}
-            className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-sm max-h-32 text-slate-900"
+            className="w-full pl-3 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-sm max-h-32 text-slate-900"
             rows={1}
           />
           <button

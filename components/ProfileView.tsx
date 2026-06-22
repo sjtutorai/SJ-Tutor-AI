@@ -332,7 +332,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
         {/* Left Column: Identity Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col items-center text-center lg:sticky lg:top-24">
            <div className="relative group mb-4">
-              <div className="w-32 h-32 rounded-full border-4 border-primary-50 shadow-md bg-slate-50 flex items-center justify-center overflow-hidden relative">
+              <div className="w-32 h-32 rounded-full border-4 border-primary-50 shadow-md bg-white flex items-center justify-center overflow-hidden relative">
                 {formData.photoURL ? (
                   <img src={formData.photoURL} alt="Profile" className="w-full h-full object-cover rounded-full" />
                 ) : (
@@ -389,7 +389,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
             
             <h2 className="text-xl font-bold text-slate-800">{formData.displayName || 'Scholar'}</h2>
             {formData.registrationNumber && (
-              <div className="mt-1 px-3 py-1 bg-slate-50 rounded-full border border-slate-100">
+              <div className="mt-1 px-3 py-1 bg-white rounded-full border border-slate-100">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1.5">ID:</span>
                 <code className="text-xs font-bold text-slate-600 font-mono tracking-tighter">{formData.registrationNumber}</code>
               </div>
@@ -406,13 +406,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                </div>
                <div className="flex justify-between text-sm mb-2">
                  <span className="text-slate-500">Plan</span>
-                 <span className={`font-semibold px-2 py-0.5 rounded text-xs ${!isPremium ? 'text-slate-600 bg-slate-100' : 'text-primary-600 bg-primary-50'}`}>
+                 <span className={`font-semibold px-2 py-0.5 rounded text-xs ${!isPremium ? 'text-slate-600 bg-white border border-slate-205' : 'text-primary-600 bg-primary-50'}`}>
                     {formData.planType || 'Free'}
                  </span>
                </div>
                <div className="flex justify-between text-sm items-center">
                  <span className="text-slate-500">Credits</span>
-                 <div className="flex items-center gap-1 font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-xs">
+                 <div className="flex items-center gap-1 font-semibold text-slate-800 bg-white border border-slate-205 px-2 py-0.5 rounded text-xs">
                     <Zap className="w-3 h-3 fill-amber-400 text-amber-500" />
                     {formData.credits} / 100
                  </div>
@@ -445,7 +445,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
               <div className="w-full grid grid-cols-2 gap-3">
                  <button 
                   onClick={handleCancel}
-                  className="py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors"
+                  className="py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-white transition-colors"
                 >
                   Cancel
                 </button>
@@ -482,7 +482,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                     disabled={!isEditing}
                     value={formData.displayName}
                     onChange={(e) => handleInputChange('displayName', e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-white text-slate-900"
                     placeholder="e.g. John Doe"
                   />
                 </div>
@@ -495,7 +495,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                        disabled={!isEditing}
                        value={formData.dob || ''}
                        onChange={(e) => handleInputChange('dob', e.target.value)}
-                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                       className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-white text-slate-900"
                      />
                   </div>
                 </div>
@@ -509,7 +509,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                       disabled={!isEditing}
                       value={formData.state || ''}
                       onChange={(e) => handleInputChange('state', e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                      className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-white text-slate-900"
                       placeholder="Select or type your State"
                     />
                     <datalist id="states-list">
@@ -527,7 +527,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                       disabled={!isEditing}
                       value={formData.district || ''}
                       onChange={(e) => handleInputChange('district', e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                      className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-white text-slate-900"
                       placeholder={formData.state ? "Select or type your District" : "Select State first"}
                     />
                     <datalist id="districts-list">
@@ -546,7 +546,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                     disabled={!isEditing}
                     value={formData.bio}
                     onChange={(e) => handleInputChange('bio', e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-white text-slate-900"
                     placeholder="e.g. Aspiring Physicist"
                   />
                 </div>
@@ -579,7 +579,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                       disabled={!isEditing}
                       value={formData.institution}
                       onChange={(e) => handleInputChange('institution', e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                      className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-white text-slate-900"
                       placeholder="Type School name... (If not present, type yours)"
                     />
                     <datalist id="school-list">
@@ -603,7 +603,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                       type="text"
                       disabled={true}
                       value={formData.grade || ''}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 rounded-xl outline-none transition-all opacity-80 text-slate-900 dark:text-slate-100 cursor-not-allowed"
+                      className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-800/50 border border-slate-200 shadow-sm rounded-xl outline-none transition-all opacity-80 text-slate-900 dark:text-slate-100 cursor-not-allowed"
                       placeholder="e.g. 10th Grade"
                     />
                   </div>
@@ -624,7 +624,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                       disabled={!isEditing}
                       value={formData.board || ''}
                       onChange={(e) => handleInputChange('board', e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900"
+                      className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-white text-slate-900"
                       placeholder="e.g. CBSE / ICSE / State Board"
                     />
                     <datalist id="board-list">
@@ -651,7 +651,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                         disabled={!isEditing}
                         value={formData.phoneNumber}
                         onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                        className={`w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 text-slate-900 ${
+                        className={`w-full pl-10 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-white text-slate-900 ${
                           formData.phoneNumber && !phoneInfo.isValid ? 'border-red-300 focus:ring-red-200' : 'border-slate-200'
                         }`}
                         placeholder="e.g. +91 9876543210"
@@ -718,7 +718,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                     disabled={!isEditing}
                     value={formData.learningGoal || ''}
                     onChange={(e) => handleInputChange('learningGoal', e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 resize-none min-h-[80px] text-slate-900"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-white resize-none min-h-[80px] text-slate-900"
                     placeholder="e.g. Prepare for finals and improve my understanding of Quantum Physics."
                   />
                 </div>
@@ -731,7 +731,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                         disabled={!isEditing}
                         value={formData.learningStyle || 'Visual'}
                         onChange={(e) => handleInputChange('learningStyle', e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-slate-50/50 appearance-none text-slate-900"
+                        className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all disabled:opacity-70 disabled:bg-white appearance-none text-slate-900"
                       >
                         <option value="Visual">Visual (Images, Diagrams)</option>
                         <option value="Auditory">Auditory (Listening, Discussing)</option>

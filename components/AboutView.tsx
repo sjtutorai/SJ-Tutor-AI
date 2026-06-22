@@ -77,19 +77,19 @@ const AboutView: React.FC<AboutViewProps> = ({ onNavigateToLegal }) => {
            </div>
            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-3">Our Core Values</h2>
            <div className="grid sm:grid-cols-2 gap-4 mt-4">
-              <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700">
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700">
                  <p className="font-bold text-slate-800 dark:text-white text-sm mb-1">Student First</p>
                  <p className="text-xs text-slate-500">Every feature is designed to improve learning outcomes.</p>
               </div>
-              <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700">
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700">
                  <p className="font-bold text-slate-800 dark:text-white text-sm mb-1">Integrity</p>
                  <p className="text-xs text-slate-500">Promoting honest learning, not shortcuts.</p>
               </div>
-              <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700">
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700">
                  <p className="font-bold text-slate-800 dark:text-white text-sm mb-1">Innovation</p>
                  <p className="text-xs text-slate-500">Constantly evolving with new AI capabilities.</p>
               </div>
-              <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700">
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700">
                  <p className="font-bold text-slate-800 dark:text-white text-sm mb-1">Accessibility</p>
                  <p className="text-xs text-slate-500">Quality education should be available to all.</p>
               </div>
@@ -106,15 +106,15 @@ const AboutView: React.FC<AboutViewProps> = ({ onNavigateToLegal }) => {
              We understand that students (and parents) care about data privacy. We are committed to:
            </p>
            <ul className="space-y-3">
-              <li className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg">
+              <li className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300 p-2 bg-white dark:bg-slate-900 rounded-lg">
                  <Lock className="w-4 h-4 text-emerald-500" />
                  <span>Data is encrypted and securely stored.</span>
               </li>
-              <li className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg">
+              <li className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300 p-2 bg-white dark:bg-slate-900 rounded-lg">
                  <Lock className="w-4 h-4 text-emerald-500" />
                  <span>We never sell personal information to advertisers.</span>
               </li>
-              <li className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg">
+              <li className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300 p-2 bg-white dark:bg-slate-900 rounded-lg">
                  <Lock className="w-4 h-4 text-emerald-500" />
                  <span>You have full control to delete your data anytime.</span>
               </li>

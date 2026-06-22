@@ -158,7 +158,7 @@ export const SharedContentView: React.FC<SharedContentViewProps> = ({
         </div>
         <button
           onClick={fetchSharedItems}
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition"
         >
           Refresh List
         </button>
@@ -192,7 +192,7 @@ export const SharedContentView: React.FC<SharedContentViewProps> = ({
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800/50 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                <tr className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800/50 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                   <th className="px-6 py-4">Title & Type</th>
                   <th className="px-6 py-4">Created Date</th>
                   <th className="px-6 py-4">Last Viewed</th>
@@ -210,7 +210,7 @@ export const SharedContentView: React.FC<SharedContentViewProps> = ({
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-900 flex items-center justify-center border border-slate-100 dark:border-slate-800">
+                        <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 flex items-center justify-center border border-slate-100 dark:border-slate-800">
                           {getTypeIcon(item.type)}
                         </div>
                         <div>
@@ -252,7 +252,7 @@ export const SharedContentView: React.FC<SharedContentViewProps> = ({
                         <button
                           onClick={(e) => handleCopyLink(item.shareId, e)}
                           title="Copy Link"
-                          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors flex items-center gap-1 text-xs font-semibold"
+                          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors flex items-center gap-1 text-xs font-semibold"
                         >
                           {copiedId === item.shareId ? (
                             <>
@@ -271,7 +271,7 @@ export const SharedContentView: React.FC<SharedContentViewProps> = ({
                           target="_blank"
                           rel="noreferrer"
                           title="Open Public Page"
-                          className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition"
+                          className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition"
                         >
                           <ExternalLink className="w-4 h-4" />
                         </a>
@@ -300,7 +300,7 @@ export const SharedContentView: React.FC<SharedContentViewProps> = ({
               >
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-900 flex items-center justify-center border border-slate-100 dark:border-slate-800 flex-shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-900 flex items-center justify-center border border-slate-100 dark:border-slate-800 flex-shrink-0">
                       {getTypeIcon(item.type)}
                     </div>
                     <div>

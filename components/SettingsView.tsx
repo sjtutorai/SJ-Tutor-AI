@@ -174,7 +174,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700 overflow-hidden">
-               <div className="p-4 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer" onClick={onNavigateToProfile}>
+               <div className="p-4 flex justify-between items-center hover:bg-white dark:hover:bg-slate-700/50 cursor-pointer" onClick={onNavigateToProfile}>
                   <div>
                     <p className="font-medium text-slate-700 dark:text-slate-200">Personal Information</p>
                     <p className="text-xs text-slate-400">Name, Phone</p>
@@ -182,7 +182,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                </div>
 
-               <div className="p-4 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer" onClick={handleEmailChange}>
+               <div className="p-4 flex justify-between items-center hover:bg-white dark:hover:bg-slate-700/50 cursor-pointer" onClick={handleEmailChange}>
                   <div>
                     <p className="font-medium text-slate-700 dark:text-slate-200">Change Email</p>
                     <p className="text-xs text-slate-400">Update your registered email</p>
@@ -190,7 +190,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                </div>
 
-               <div className="p-4 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer" onClick={handlePasswordChange}>
+               <div className="p-4 flex justify-between items-center hover:bg-white dark:hover:bg-slate-700/50 cursor-pointer" onClick={handlePasswordChange}>
                   <div>
                     <p className="font-medium text-slate-700 dark:text-slate-200">Change Password</p>
                     <p className="text-xs text-slate-400">Update your security credentials</p>
@@ -227,7 +227,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                    type="text" 
                    value={settings.learning.preferredSubject}
                    onChange={(e) => handleSettingChange('learning', 'preferredSubject', e.target.value)}
-                   className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
+                   className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
                  />
                </div>
                <div className="space-y-2">
@@ -236,7 +236,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                    type="text" 
                    value={settings.learning.grade}
                    onChange={(e) => handleSettingChange('learning', 'grade', e.target.value)}
-                   className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
+                   className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
                  />
                </div>
                <div className="space-y-2">
@@ -244,7 +244,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                  <select
                    value={settings.learning.difficulty}
                    onChange={(e) => handleSettingChange('learning', 'difficulty', e.target.value)}
-                   className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
+                   className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
                  >
                    <option value="Easy">Easy</option>
                    <option value="Medium">Medium</option>
@@ -257,7 +257,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                    type="text" 
                    value={settings.learning.language}
                    onChange={(e) => handleSettingChange('learning', 'language', e.target.value)}
-                   className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
+                   className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
                  />
                </div>
                <div className="space-y-2">
@@ -307,7 +307,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                  <select
                    value={settings.aiTutor.explanationStyle}
                    onChange={(e) => handleSettingChange('aiTutor', 'explanationStyle', e.target.value)}
-                   className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
+                   className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
                  >
                    <option value="Short & Simple">Short & Simple</option>
                    <option value="Detailed">Detailed</option>
@@ -320,7 +320,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                  <select
                    value={settings.aiTutor.answerFormat}
                    onChange={(e) => handleSettingChange('aiTutor', 'answerFormat', e.target.value)}
-                   className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
+                   className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
                  >
                    <option value="Text Only">Text Only</option>
                    <option value="Text + Examples">Text + Examples</option>
@@ -376,7 +376,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                </div>
                <div className="flex items-center justify-between">
                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"><Save className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
+                    <div className="p-2 bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-650 rounded-lg"><Save className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Auto-save Chat History</span>
                  </div>
                  <label className="relative inline-flex items-center cursor-pointer">
@@ -386,7 +386,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                </div>
                <div className="flex items-center justify-between">
                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"><Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
+                    <div className="p-2 bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-650 rounded-lg"><Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Voice Output</span>
                  </div>
                  <label className="relative inline-flex items-center cursor-pointer">
@@ -396,7 +396,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                </div>
                <div className="flex items-center justify-between">
                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"><Terminal className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
+                    <div className="p-2 bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-650 rounded-lg"><Terminal className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Show Typing Indicator</span>
                  </div>
                  <label className="relative inline-flex items-center cursor-pointer">
@@ -490,7 +490,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                            className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
                              settings.appearance.theme === t
                              ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 ring-1 ring-primary-500'
-                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700'
                            }`}
                          >
                             {t === 'Light' ? (
@@ -566,7 +566,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                                     className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
                                         (settings.appearance.fontFamily || 'Inter') === font
                                         ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10 text-primary-700 dark:text-primary-400'
-                                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                        : 'border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-700'
                                     }`}
                                 >
                                     <span className="text-sm font-medium" style={{ fontFamily: font }}>{font}</span>
@@ -617,7 +617,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                
                <div className="flex items-center justify-between">
                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"><Shield className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
+                    <div className="p-2 bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-650 rounded-lg"><Shield className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
                     <div>
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300 block">Two-Factor Authentication</span>
                       <span className="text-xs text-slate-400">Add an extra layer of security</span>
@@ -631,7 +631,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
                <div className="flex items-center justify-between">
                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg"><Lock className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
+                    <div className="p-2 bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-650 rounded-lg"><Lock className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
                     <div>
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300 block">App Lock</span>
                       <span className="text-xs text-slate-400">Require biometrics to open app</span>
@@ -646,10 +646,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-3">
                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Data Management</h4>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <button className="flex items-center justify-center gap-2 py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    <button className="flex items-center justify-center gap-2 py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 text-sm hover:bg-white dark:hover:bg-slate-700 transition-colors">
                        <MessageSquare className="w-4 h-4" /> Clear Chat History
                     </button>
-                    <button className="flex items-center justify-center gap-2 py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    <button className="flex items-center justify-center gap-2 py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 text-sm hover:bg-white dark:hover:bg-slate-700 transition-colors">
                        <FlaskConical className="w-4 h-4" /> Clear Learning Data
                     </button>
                  </div>
@@ -660,7 +660,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                  <div className="flex flex-col gap-2">
                     <button 
                       onClick={() => onNavigateToLegal('PRIVACY')}
-                      className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-sm font-medium text-slate-700 dark:text-slate-300"
+                      className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-sm font-medium text-slate-700 dark:text-slate-300"
                     >
                       <span className="flex items-center gap-2">
                          <Shield className="w-4 h-4 text-primary-600" />
@@ -670,7 +670,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                     </button>
                     <button 
                       onClick={() => onNavigateToLegal('TERMS')}
-                      className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-sm font-medium text-slate-700 dark:text-slate-300"
+                      className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-sm font-medium text-slate-700 dark:text-slate-300"
                     >
                       <span className="flex items-center gap-2">
                          <FileText className="w-4 h-4 text-primary-600" />
@@ -707,7 +707,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                    <button className="text-xs font-bold text-primary-600 hover:underline">Clear Cache</button>
                 </div>
 
-                <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-100 dark:border-slate-600 text-xs text-slate-500 dark:text-slate-400">
+                <div className="p-4 bg-white dark:bg-slate-700/50 rounded-lg border border-slate-100 dark:border-slate-600 text-xs text-slate-500 dark:text-slate-400">
                    <p className="font-bold mb-1 flex items-center gap-2"><Smartphone className="w-3 h-3" /> Device Info</p>
                    <p>Browser: {navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Safari/Other'}</p>
                    <p>Platform: Web Application</p>
@@ -768,7 +768,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
              <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Help Center</h3>
              
-             <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-fit">
+             <div className="flex bg-white border border-slate-200 dark:bg-slate-800 p-1 rounded-lg w-fit">
                 <button
                   onClick={() => setHelpTab('FAQ')}
                   className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${helpTab === 'FAQ' ? 'bg-white dark:bg-slate-700 text-primary-600 dark:text-primary-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
@@ -813,7 +813,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                        <p className="text-xs text-slate-400 mt-1">Last Updated: January 2026</p>
                     </div>
                     <div className="prose prose-sm dark:prose-invert max-w-none text-slate-600 dark:text-slate-300">
-                       <p className="text-xs font-medium bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 mb-6">
+                       <p className="text-xs font-medium bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 mb-6">
                          By accessing or using SJ Tutor AI, you agree to these Terms and Conditions. If you do not agree, please do not use the app.
                        </p>
                        
@@ -858,7 +858,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-120px)] bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors duration-300">
       {/* Sidebar / Tabs */}
-      <div className="w-full md:w-64 bg-slate-50 dark:bg-slate-800 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700 flex md:flex-col overflow-x-auto md:overflow-y-auto">
+      <div className="w-full md:w-64 bg-white dark:bg-slate-800 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700 flex md:flex-col overflow-x-auto md:overflow-y-auto">
          <div className="p-4 md:p-6 font-bold text-slate-400 text-xs uppercase tracking-wider hidden md:block">
             Settings Menu
          </div>
