@@ -161,9 +161,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   const handleAiAction = async (task: 'summarize' | 'simplify' | 'mcq' | 'translate') => {
     if (!editingNote?.content) return;
     
-    const cost = 5;
+    const cost = 0; // Free unlimited 10-day trial active
     if (!onDeductCredit(cost)) {
-      alert(`AI actions cost ${cost} credits.`);
+      alert("AI actions are currently free!");
       return;
     }
 

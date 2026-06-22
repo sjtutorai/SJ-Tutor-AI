@@ -22,13 +22,13 @@ interface SettingsViewProps {
 
 type SettingsTab = 'account' | 'learning' | 'aiTutor' | 'chat' | 'notifications' | 'appearance' | 'privacy' | 'system' | 'billing' | 'help';
 
-const SettingsView: React.FC<SettingsViewProps> = ({ 
-  userProfile, 
-  onLogout, 
-  onNavigateToProfile, 
-  onOpenPremium,
-  onNavigateToLegal
-}) => {
+const SettingsView: React.FC<SettingsViewProps> = (props) => {
+  const { 
+    userProfile, 
+    onLogout, 
+    onNavigateToProfile, 
+    onNavigateToLegal
+  } = props;
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
   const [settings, setSettings] = useState<UserSettings>(SettingsService.getSettings());
   const [hasChanges, setHasChanges] = useState(false);
@@ -732,22 +732,22 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                       <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm"><Crown className="w-5 h-5 text-amber-400" /></div>
                       <span className="font-bold text-amber-400 tracking-wider text-sm uppercase">Current Plan</span>
                    </div>
-                   <h2 className="text-3xl font-bold mb-1">{userProfile.planType || 'Free Plan'}</h2>
-                   <p className="text-slate-400 text-sm mb-6">{userProfile.planType === 'Free' ? 'Upgrade to unlock premium features.' : 'You are a premium member.'}</p>
+                   <h2 className="text-3xl font-bold mb-1">10-Day Free Trial</h2>
+                   <p className="text-slate-400 text-sm mb-6">Complete free unlimited access to all AI models and interactive study tools for 10 days.</p>
                    
                    <div className="flex items-center justify-between bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/5">
                       <div>
                          <p className="text-xs text-slate-400 mb-1">Available Credits</p>
                          <p className="text-2xl font-bold flex items-center gap-2">
-                            <Zap className="w-5 h-5 text-amber-400 fill-amber-400" />
-                            {userProfile.credits}
+                            <Zap className="w-5 h-5 text-emerald-400 fill-emerald-400 animate-pulse" />
+                            Unlimited
                          </p>
                       </div>
                       <button 
-                         onClick={onOpenPremium}
-                         className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-lg text-sm transition-colors"
+                         
+                         className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-lg text-xs font-black uppercase tracking-wider select-none"
                       >
-                         Top Up
+                         Free Pass Active
                       </button>
                    </div>
                 </div>

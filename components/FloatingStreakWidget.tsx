@@ -37,6 +37,20 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab ] = useState<'STREAK' | 'BADGES' | 'LEADERBOARD'>('STREAK');
+
+  // Animation trigger whenever user gets a streak update
+  const prevStreakRef = useRef(streak.currentStreak);
+  const [scaleTrigger, setScaleTrigger] = useState(false);
+
+  useEffect(() => {
+    if (streak.currentStreak > prevStreakRef.current) {
+      setScaleTrigger(true);
+      const timer = setTimeout(() => setScaleTrigger(false), 1200);
+      prevStreakRef.current = streak.currentStreak;
+      return () => clearTimeout(timer);
+    }
+    prevStreakRef.current = streak.currentStreak;
+  }, [streak.currentStreak]);
   
   // Position state saved as percentile to handle responsive window resizes seamlessly
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -285,6 +299,17 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
           position: 'fixed',
           zIndex: 9999,
         }}
+        animate={scaleTrigger ? {
+          scale: [1, 1.35, 1.35, 1.1, 1],
+          rotate: [0, -18, 18, -12, 12, 0],
+          boxShadow: [
+            "0_8px_30px_rgba(249,115,22,0.35)",
+            "0_0px_60px_rgba(249,115,22,0.85)",
+            "0_0px_35px_rgba(249,115,22,0.6)",
+            "0_8px_30px_rgba(249,115,22,0.35)"
+          ]
+        } : {}}
+        transition={{ duration: 1.0, ease: "easeInOut" }}
         whileHover={{ scale: 1.1, cursor: 'grab' }}
         whileTap={{ scale: 0.95, cursor: 'grabbing' }}
         className="touch-none select-none"

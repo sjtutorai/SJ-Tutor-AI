@@ -122,6 +122,29 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile }) => {
           icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
         });
       }
+      
+      // Accumulate completed study time to Daily Study Goal tracker
+      if (mode === 'FOCUS') {
+        try {
+          const studyMins = Math.round(initialTime / 60);
+          if (studyMins > 0) {
+            const savedProgress = localStorage.getItem('sjtutor_daily_study_progress');
+            const savedDate = localStorage.getItem('sjtutor_daily_study_date');
+            const todayStr = new Date().toDateString();
+            let currentProg = 0;
+            if (savedDate === todayStr && savedProgress) {
+              currentProg = parseInt(savedProgress);
+            }
+            const nextProg = currentProg + studyMins;
+            localStorage.setItem('sjtutor_daily_study_progress', String(nextProg));
+            localStorage.setItem('sjtutor_daily_study_date', todayStr);
+            // Fire layout refresh trigger
+            window.dispatchEvent(new Event('storage'));
+          }
+        } catch (e) {
+          console.warn("Could not save study progress automatically", e);
+        }
+      }
     } else {
       clearTimerNotification();
     }
