@@ -39,6 +39,21 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
   const [sharesCount, setSharesCount] = useState(0);
   const [copied, setCopied] = useState(false);
   
+  const formatDate = (val: any) => {
+    if (!val) return "Today";
+    try {
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return "Academic Resource";
+      return d.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return "Academic Resource";
+    }
+  };
+
   // Quiz specific states
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
@@ -48,14 +63,34 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
     const loadSharedData = async () => {
       setLoading(true);
       try {
-        const data = await getSharedContent(shareId);
+        let data = await getSharedContent(shareId);
+        
+        // Fallback to Express backend if not found in Firestore
+        if (!data) {
+          try {
+            const response = await fetch(`/api/auth/share/${shareId}`);
+            if (response.ok) {
+              const resData = await response.json();
+              if (resData.success && resData.data) {
+                data = resData.data;
+              }
+            }
+          } catch (apiErr) {
+            console.warn("PublicShareViewer fallback API failed:", apiErr);
+          }
+        }
+
         if (data) {
           setContent(data);
           setLikesCount(data.likes || 0);
           setSharesCount(data.sharesCount || 0);
           
-          // Increment view count on load (asynchronously)
-          await incrementViewCount(shareId);
+          // Increment view count on load (asynchronously if Firebase supports it)
+          try {
+            await incrementViewCount(shareId);
+          } catch (e) {
+            console.warn("Could not increment view count", e);
+          }
         }
       } catch (err) {
         console.error("Error loading shared content:", err);
