@@ -33,6 +33,10 @@ interface StreakContextType {
   claimMilestone: (milestone: number, userProfile: UserProfile, onProfileUpdate: (profile: UserProfile) => void) => Promise<boolean>;
   fetchLeaderboard: () => Promise<void>;
   triggerConfetti: () => void;
+  celebration: { show: boolean; days: number; isMilestone?: boolean; badge?: string } | null;
+  setCelebration: (val: { show: boolean; days: number; isMilestone?: boolean; badge?: string } | null) => void;
+  soundEnabled: boolean;
+  setSoundEnabled: (val: boolean) => void;
 }
 
 const StreakContext = createContext<StreakContextType | undefined>(undefined);
@@ -50,6 +54,37 @@ export const getYesterdayDateString = (): string => {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   return getLocalDateString(yesterday);
+};
+
+export const playCelebrationSound = (soundEnabled: boolean) => {
+  if (!soundEnabled) return;
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const audioCtx = new AudioContextClass();
+    const now = audioCtx.currentTime;
+    
+    const freqs = [329.63, 392.00, 523.25, 659.25, 783.99]; // E4, G4, C5, E5, G5 (Bright, rising major arpeggio)
+    freqs.forEach((freq, index) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + index * 0.07);
+      
+      gain.gain.setValueAtTime(0, now + index * 0.07);
+      gain.gain.linearRampToValueAtTime(0.12, now + index * 0.07 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + index * 0.07 + 0.4);
+      
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      osc.start(now + index * 0.07);
+      osc.stop(now + index * 0.07 + 0.4);
+    });
+  } catch (e) {
+    console.warn("Web Audio API chime prevented or unsupported:", e);
+  }
 };
 
 export const STREAK_MILESTONES = [
@@ -70,7 +105,7 @@ const INITIAL_STREAK: StreakData = {
   lastStudyDate: null,
   streakHistory: [],
   claimedMilestones: [],
-  updatedAt: Date.now(),
+  updatedAt: 0,
 };
 
 export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -81,6 +116,15 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [celebration, setCelebration] = useState<{ show: boolean; days: number; isMilestone?: boolean; badge?: string } | null>(null);
+  const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => {
+    return localStorage.getItem('sjtutor_streak_sound_enabled') !== 'false';
+  });
+
+  const setSoundEnabled = (val: boolean) => {
+    setSoundEnabledState(val);
+    localStorage.setItem('sjtutor_streak_sound_enabled', String(val));
+  };
 
   // Trigger high-end fireworks animation
   const triggerConfetti = useCallback(() => {
@@ -207,6 +251,12 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             const currentStr = data.currentStreak || 0;
             const lastStudy = data.lastStudyDate || data.lastActivityDate || null;
 
+            const parsedUpdatedAt = data.updatedAt 
+              ? (typeof data.updatedAt === 'object' && 'toMillis' in data.updatedAt 
+                 ? (data.updatedAt as any).toMillis() 
+                 : Number(data.updatedAt)) 
+              : 0;
+
             const updatedData: StreakData = {
               ...data,
               uid: user.uid,
@@ -215,7 +265,7 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               currentStreak: currentStr,
               lastActivityDate: lastStudy,
               lastStudyDate: lastStudy,
-              updatedAt: Date.now(),
+              updatedAt: parsedUpdatedAt,
             };
 
             setStreak(updatedData);
@@ -276,77 +326,90 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     fetchLeaderboard();
   }, [currentUserId, fetchLeaderboard]);
 
-  // Record an activity completion
+  // Record an activity completion with accurate 24-hour criteria
   const recordActivity = useCallback(async () => {
     const today = getLocalDateString();
     
-    let isIncremented = false;
-    let reachedMilestone: number | undefined = undefined;
+    return new Promise<{ success: boolean; incremented: boolean; milestoneReached?: number }>((resolve) => {
+      setStreak((prev) => {
+        const lastIncr = prev.updatedAt || 0;
+        const isFirstTime = prev.currentStreak === 0;
+        const isEligible = isFirstTime || (Date.now() - lastIncr >= 24 * 60 * 60 * 1000);
+        
+        let newCount = prev.currentStreak;
+        let didIncrement = false;
+        
+        if (isEligible) {
+          newCount += 1;
+          didIncrement = true;
+        }
 
-    setStreak((prev) => {
-      const lastStudy = prev.lastStudyDate || prev.lastActivityDate;
-      const isAlreadyCompletedToday = lastStudy === today;
-      let newCount = prev.currentStreak;
-      const history = [...prev.streakHistory];
+        const history = [...prev.streakHistory];
+        if (!history.includes(today)) {
+          history.push(today);
+        }
 
-      if (!isAlreadyCompletedToday) {
-        // Streak increases by 1 only when a new calendar day is detected
-        newCount += 1;
-        isIncremented = true;
-      }
+        const newHighest = Math.max(prev.highestStreak, newCount);
+        let mReached: number | undefined = undefined;
+        let isMilestone = false;
+        let badgeSymbol = '';
 
-      // Record today in historical history list if absent
-      if (!history.includes(today)) {
-        history.push(today);
-      }
+        const milestone = STREAK_MILESTONES.find(m => m.days === newCount);
+        if (milestone && didIncrement && (!prev.claimedMilestones || !prev.claimedMilestones.includes(newCount))) {
+          mReached = newCount;
+          isMilestone = true;
+          badgeSymbol = milestone.badge;
+        }
 
-      const newHighest = Math.max(prev.highestStreak, newCount);
-
-      // Check for milestone reaching events
-      const milestone = STREAK_MILESTONES.find(m => m.days === newCount);
-      if (milestone && isIncremented && (!prev.claimedMilestones || !prev.claimedMilestones.includes(newCount))) {
-        reachedMilestone = newCount;
-      }
-
-      const updated: StreakData = {
-        ...prev,
-        currentStreak: newCount,
-        highestStreak: newHighest,
-        lastActivityDate: today,
-        lastStudyDate: today,
-        streakHistory: history,
-        updatedAt: Date.now(),
-      };
-
-      // Save locally
-      const storageKey = prev.uid === 'guest' ? 'sjtutor_streak_guest' : `sjtutor_streak_${prev.uid}`;
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-
-      // Push to Firestore asynchronously
-      if (prev.uid !== 'guest') {
-        const userDocRef = doc(db, 'streaks', prev.uid);
-        setDoc(userDocRef, {
-          ...updated,
+        const updated: StreakData = {
+          ...prev,
+          currentStreak: newCount,
+          highestStreak: newHighest,
+          lastActivityDate: today,
           lastStudyDate: today,
-          currentStreak: newCount
-        }, { merge: true }).catch((err) => {
-          console.warn('Asynchronous streak Firestore sync deferred/failed:', err);
+          streakHistory: history,
+          updatedAt: didIncrement ? Date.now() : prev.updatedAt,
+        };
+
+        // Save locally
+        const storageKey = prev.uid === 'guest' ? 'sjtutor_streak_guest' : `sjtutor_streak_${prev.uid}`;
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+
+        // Push to Firestore asynchronously
+        if (prev.uid !== 'guest') {
+          const userDocRef = doc(db, 'streaks', prev.uid);
+          setDoc(userDocRef, {
+            ...updated,
+            lastStudyDate: today,
+            currentStreak: newCount
+          }, { merge: true }).catch((err) => {
+            console.warn('Asynchronous streak Firestore sync deferred/failed:', err);
+          });
+        }
+
+        if (didIncrement) {
+          setTimeout(() => {
+            triggerConfetti();
+            playCelebrationSound(soundEnabled);
+            setCelebration({
+              show: true,
+              days: newCount,
+              isMilestone: isMilestone,
+              badge: badgeSymbol
+            });
+          }, 30);
+        }
+
+        resolve({
+          success: true,
+          incremented: didIncrement,
+          milestoneReached: mReached,
         });
-      }
 
-      return updated;
+        return updated;
+      });
     });
-
-    if (reachedMilestone) {
-      triggerConfetti();
-    }
-
-    return {
-      success: true,
-      incremented: isIncremented,
-      milestoneReached: reachedMilestone,
-    };
-  }, [triggerConfetti]);
+  }, [triggerConfetti, soundEnabled]);
 
   // Claim specific milestone rewards
   const claimMilestone = useCallback(async (
@@ -417,6 +480,10 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       claimMilestone,
       fetchLeaderboard,
       triggerConfetti,
+      celebration,
+      setCelebration,
+      soundEnabled,
+      setSoundEnabled,
     }}>
       {children}
     </StreakContext.Provider>
