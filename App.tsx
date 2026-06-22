@@ -74,8 +74,6 @@ import {
   User as UserIcon,
   Bell,
   Copy,
-  Target,
-  CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -249,78 +247,6 @@ const App: React.FC = () => {
   const [sharedContent, setSharedContent] = useState<any | null>(null);
   const [isViewingShared, setIsViewingShared] = useState(false);
   const [isAddedSharedContent, setIsAddedSharedContent] = useState(false);
-
-  // Daily Study Goal Tracker States
-  const [dailyTarget, setDailyTarget] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('sjtutor_daily_study_target');
-      return saved ? parseFloat(saved) : 2.0;
-    } catch {
-      return 2.0;
-    }
-  });
-
-  const [dailyProgress, setDailyProgress] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('sjtutor_daily_study_progress');
-      const savedDate = localStorage.getItem('sjtutor_daily_study_date');
-      const todayStr = new Date().toDateString();
-      if (savedDate !== todayStr) {
-        return 0; // reset on new day
-      }
-      return saved ? parseInt(saved) : 0;
-    } catch {
-      return 0;
-    }
-  });
-
-  // Keep progress state in sync across different tab triggers (e.g. StudyTimer completions)
-  useEffect(() => {
-    const handleStorageSync = () => {
-      const savedProg = localStorage.getItem('sjtutor_daily_study_progress');
-      const savedDate = localStorage.getItem('sjtutor_daily_study_date');
-      const todayStr = new Date().toDateString();
-      if (savedDate === todayStr && savedProg) {
-        setDailyProgress(parseInt(savedProg));
-      } else {
-        setDailyProgress(0);
-      }
-    };
-    window.addEventListener('storage', handleStorageSync);
-    return () => window.removeEventListener('storage', handleStorageSync);
-  }, []);
-
-  const handleUpdateDailyTarget = (newVal: number) => {
-    const rounded = Math.round(newVal * 10) / 10;
-    setDailyTarget(rounded);
-    localStorage.setItem('sjtutor_daily_study_target', String(rounded));
-  };
-
-  const handleQuickLogMinutes = (mins: number) => {
-    setDailyProgress(prev => {
-      const nextProg = prev + mins;
-      localStorage.setItem('sjtutor_daily_study_progress', String(nextProg));
-      localStorage.setItem('sjtutor_daily_study_date', new Date().toDateString());
-      return nextProg;
-    });
-  };
-
-  const handleResetProgress = () => {
-    if (window.confirm("Are you sure you want to reset today's study progress to 0?")) {
-      setDailyProgress(0);
-      localStorage.setItem('sjtutor_daily_study_progress', '0');
-      localStorage.setItem('sjtutor_daily_study_date', new Date().toDateString());
-    }
-  };
-
-  const formatLoggedTime = (minutes: number) => {
-    if (minutes <= 0) return "0 mins";
-    const hrs = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hrs === 0) return `${mins} mins`;
-    if (mins === 0) return `${hrs} hr${hrs === 1 ? '' : 's'}`;
-    return `${hrs} hr${hrs === 1 ? '' : 's'} ${mins} min${mins === 1 ? '' : 's'}`;
-  };
 
   // Content States
   const [summaryContent, setSummaryContent] = useState("");
@@ -1583,99 +1509,6 @@ const App: React.FC = () => {
               </p>
             </button>
           ))}
-        </div>
-
-        {/* Daily Study Goal Tracker Widget Container */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-8 animate-in slide-in-from-bottom-5 duration-605">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-            <div>
-              <h3 className="text-base font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
-                <Target className="w-5 h-5 text-amber-500" />
-                Daily Study Goal Tracker
-              </h3>
-              <p className="text-xs text-slate-450 dark:text-slate-400 mt-0.5 font-medium">Set how many hours you want to study today and keep yourself on track!</p>
-            </div>
-            
-            <div className="flex items-center gap-3.5 flex-wrap sm:flex-nowrap">
-              {/* Daily Target Changer */}
-              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/40 px-3 py-1 bg-white/5 border border-slate-200/60 dark:border-slate-750 rounded-xl shadow-xs">
-                <span className="text-[10px] uppercase font-black tracking-wider text-slate-400">Target</span>
-                <button 
-                  onClick={() => handleUpdateDailyTarget(Math.max(0.5, dailyTarget - 0.5))}
-                  className="w-5 h-5 bg-white dark:bg-slate-800 border rounded flex items-center justify-center text-xs font-bold text-slate-500 active:scale-90 hover:border-amber-400 transition"
-                  title="Decrease Target"
-                >
-                  -
-                </button>
-                <span className="text-xs font-extrabold text-slate-800 dark:text-amber-400 min-w-[50px] text-center">
-                  {dailyTarget} {dailyTarget === 1 ? 'hr' : 'hrs'}
-                </span>
-                <button 
-                  onClick={() => handleUpdateDailyTarget(Math.min(12, dailyTarget + 0.5))}
-                  className="w-5 h-5 bg-white dark:bg-slate-800 border rounded flex items-center justify-center text-xs font-bold text-slate-500 active:scale-90 hover:border-amber-400 transition"
-                  title="Increase Target"
-                >
-                  +
-                </button>
-              </div>
-
-              {/* Incremental Study Time additions */}
-              <div className="flex items-center gap-1.5 select-none">
-                <button
-                  onClick={() => handleQuickLogMinutes(15)}
-                  className="px-2.5 py-1.5 bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 rounded-lg text-xs font-bold border border-amber-100 dark:border-amber-900/40 transition active:scale-95"
-                >
-                  +15 mins
-                </button>
-                <button
-                  onClick={() => handleQuickLogMinutes(60)}
-                  className="px-2.5 py-1.5 bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 rounded-lg text-xs font-bold border border-amber-100 dark:border-amber-900/40 transition active:scale-95"
-                >
-                  +1 hr
-                </button>
-                <button
-                  onClick={handleResetProgress}
-                  className="px-2 py-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg text-[10px] font-bold transition active:scale-95 ml-1 border border-transparent hover:border-red-105"
-                  title="Reset Completed Study Hours"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Goals progress visualization */}
-          <div>
-            <div className="flex justify-between items-baseline mb-2">
-              <span className="text-xs text-slate-500 dark:text-slate-450 font-bold flex items-center gap-1">
-                Completed Today: <span className="text-slate-850 dark:text-white font-black">{formatLoggedTime(dailyProgress)}</span>
-              </span>
-              <span className="text-xs font-black text-amber-600 dark:text-amber-400 shadow-amber-50/10">
-                {Math.min(100, Math.round((dailyProgress / (dailyTarget * 60)) * 100))}%
-              </span>
-            </div>
-
-            <div className="w-full h-3.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-200/50 dark:border-slate-800">
-              <motion.div 
-                className="h-full bg-gradient-to-r from-amber-400 via-orange-400 to-primary-600 rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, (dailyProgress / (dailyTarget * 60)) * 100)}%` }}
-                transition={{ type: 'spring', damping: 15, stiffness: 70 }}
-                style={{ originX: 0 }}
-              />
-            </div>
-
-            {dailyProgress >= dailyTarget * 60 ? (
-              <div className="mt-3.5 p-3.5 rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/10 dark:text-emerald-400 border border-emerald-150/40 dark:border-emerald-900/40 font-bold text-xs flex items-center gap-2 animate-in zoom-in-95 duration-400">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500 animate-bounce flex-shrink-0" />
-                <span>Unstoppable Scholar! You have officially accomplished your study goal target for today! Keep up this incredible momentum!</span>
-              </div>
-            ) : (
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-tight mt-2 italic flex items-center gap-1">
-                <span>⚡ Only {formatLoggedTime(Math.max(0, (dailyTarget * 60) - dailyProgress))} remaining to hit your target goal. Study on or log items to lock it.</span>
-              </p>
-            )}
-          </div>
         </div>
 
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
