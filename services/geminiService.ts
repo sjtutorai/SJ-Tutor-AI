@@ -199,50 +199,6 @@ export const GeminiService = {
     throw new Error("Failed to generate quiz data");
   },
 
-  generateFlashcards: async (data: StudyRequestData): Promise<any[]> => {
-    const ai = getAI();
-    const settings = SettingsService.getSettings();
-    const language = data.language || settings.learning.language;
-    const count = data.questionCount || 10;
-
-    const prompt = `
-      Create a highly structured academic study deck containing exactly ${count} flashcards.
-      Each card MUST have a 'front' (the precise term, dynamic flashcard question, or core concept) 
-      and 'back' (the exact, thorough but concise definition, correct explanation or response).
-      
-      THE ENTIRE OUTPUT - FRONT AND BACKS - MUST BE WRITTEN SOLELY IN ${language.toUpperCase()}.
-      
-      Subject: ${data.subject}
-      Class/Grade: ${data.gradeClass || settings.learning.grade}
-      Education Board: ${data.board}
-      Language: ${language}
-      Chapter/Topic: ${data.chapterName}
-      ${data.author ? `Author: ${data.author}` : ''}
-    `;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              front: { type: Type.STRING },
-              back: { type: Type.STRING }
-            },
-            required: ["front", "back"]
-          }
-        }
-      }
-    });
-
-    if (response.text) return JSON.parse(response.text.trim());
-    throw new Error("Failed to generate flashcard data");
-  },
-
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
     const ai = getAI();
     const settings = SettingsService.getSettings();
