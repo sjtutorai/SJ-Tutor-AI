@@ -303,9 +303,15 @@ const App: React.FC = () => {
 
   // Notification Service
   useEffect(() => {
-    // Request permission on mount
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
+    // Request permission on mount safely
+    try {
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission().catch((err) => {
+          console.warn("Failed to request notification permission:", err);
+        });
+      }
+    } catch (e) {
+      console.warn("Notification permission check blocked on mount:", e);
     }
 
     const interval = setInterval(() => {
@@ -323,20 +329,28 @@ const App: React.FC = () => {
               const dueTime = new Date(item.dueTime).getTime();
               // Check if the due time fell within the last check interval window
               if (dueTime > lastCheck && dueTime <= now) {
-                if (Notification.permission === "granted") {
-                  new Notification("SJ Tutor AI Reminder", {
-                    body: item.task,
-                    icon: SJTUTOR_AVATAR,
-                  });
-                } else if (Notification.permission !== "denied") {
-                  Notification.requestPermission().then((permission) => {
-                    if (permission === "granted") {
+                try {
+                  if ("Notification" in window) {
+                    if (Notification.permission === "granted") {
                       new Notification("SJ Tutor AI Reminder", {
                         body: item.task,
                         icon: SJTUTOR_AVATAR,
                       });
+                    } else if (Notification.permission !== "denied") {
+                      Notification.requestPermission().then((permission) => {
+                        if (permission === "granted") {
+                          new Notification("SJ Tutor AI Reminder", {
+                            body: item.task,
+                            icon: SJTUTOR_AVATAR,
+                          });
+                        }
+                      }).catch((err) => {
+                        console.warn("Notification request failed in scheduler:", err);
+                      });
                     }
-                  });
+                  }
+                } catch (notifErr) {
+                  console.warn("Notification delivery failed inside timer:", notifErr);
                 }
               }
             }

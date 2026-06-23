@@ -423,12 +423,22 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                 </p>
                 <button 
                   onClick={async () => {
-                    if ("Notification" in window) {
-                      const permission = await Notification.requestPermission();
-                      alert(`Notification permission: ${permission}`);
-                      if (permission === 'granted') {
-                        new Notification("SJ Tutor AI", { body: "Notifications are now active!" });
+                    try {
+                      if ("Notification" in window) {
+                        const permission = await Notification.requestPermission();
+                        console.log(`Notification permission: ${permission}`);
+                        if (permission === 'granted') {
+                          try {
+                            new Notification("SJ Tutor AI", { body: "Notifications are now active!" });
+                          } catch (e) {
+                            console.warn("Failed to deliver test notification:", e);
+                          }
+                        }
+                      } else {
+                        console.warn("System notifications are not supported in this browser.");
                       }
+                    } catch (err) {
+                      console.warn("Notification request blocked in this context:", err);
                     }
                   }}
                   className="bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-300 px-4 py-2 rounded-lg text-xs font-bold border border-amber-200 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
