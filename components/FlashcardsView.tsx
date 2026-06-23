@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { 
   HistoryItem, 
   AppMode, 
+  StudyRequestData,
 } from '../types';
 import { 
   Brain, 
@@ -14,7 +15,13 @@ import {
   HelpCircle, 
   Award,
   ArrowLeft,
-  Loader2
+  Loader2,
+  Share2,
+  GraduationCap,
+  School,
+  User,
+  Languages,
+  BookType
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 
@@ -32,6 +39,7 @@ interface FlashcardsViewProps {
   onSaveDeck?: (title: string, deck: Flashcard[]) => void;
   initialDeck?: Flashcard[] | null;
   initialDeckName?: string | null;
+  onSharePublicLink?: (type: string, title: string, content: any) => void;
 }
 
 // Fallback high-yield academic sample decks
@@ -59,7 +67,14 @@ const SAMPLE_DECKS: Record<string, Flashcard[]> = {
   ]
 };
 
-export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackToDashboard, onSaveDeck, initialDeck, initialDeckName }) => {
+export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ 
+  history, 
+  onBackToDashboard, 
+  onSaveDeck, 
+  initialDeck, 
+  initialDeckName,
+  onSharePublicLink 
+}) => {
   const [summaries, setSummaries] = useState<HistoryItem[]>([]);
   const [selectedSummaryId, setSelectedSummaryId] = useState<string>("all");
   const [deck, setDeck] = useState<Flashcard[]>([]);
@@ -70,7 +85,16 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackT
   const [activeDeckName, setActiveDeckName] = useState<string>("");
   
   // Custom Topic Generator
-  const [customTopic, setCustomTopic] = useState("");
+  const [deckFormData, setDeckFormData] = useState<StudyRequestData>({
+    subject: "",
+    gradeClass: "",
+    board: "",
+    language: "English",
+    chapterName: "",
+    author: "",
+    questionCount: 8, // Labeled "No. of Cards"
+    difficulty: "Medium",
+  });
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState("");
   const [speechPlaying, setSpeechPlaying] = useState(false);
@@ -296,10 +320,20 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackT
     setSpeechPlaying(true);
   };
 
-  // Generate Flashcards through AI
+  const handleFormChange = (field: keyof StudyRequestData, value: string | number | boolean) => {
+    setDeckFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Generate Flashcards through AI using structured inputs
   const handleGenerateCustomDeck = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customTopic.trim() || isGenerating) return;
+    if (!deckFormData.subject || !deckFormData.gradeClass || !deckFormData.chapterName) {
+      setGenError("Please fill in at least Subject, Class, and Chapter Name.");
+      return;
+    }
 
     setIsGenerating(true);
     setGenError("");
@@ -307,60 +341,59 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackT
     setSpeechPlaying(false);
 
     try {
-      // Grab Gemini AI model to generate contents
-      const response = await GeminiService.processNoteAI(
-        `Generate academic flashcards for Topic: ${customTopic}`,
-        'summarize'
-      );
+      // Grab Gemini AI model to generate structured contents
+      const generatedCards = await GeminiService.generateFlashcards(deckFormData);
 
-      if (response) {
-        const customExtracted = parseFlashcards(response, customTopic);
-        if (customExtracted.length > 0) {
-          setDeck(customExtracted);
-          setActiveDeckName(`AI Generated: ${customTopic}`);
-          setCurrentIndex(0);
-          setIsFlipped(false);
-          setScore({ mastered: 0, review: 0 });
-          setIsFinished(false);
-          const topicName = customTopic;
-          setCustomTopic("");
-          if (onSaveDeck) {
-            onSaveDeck(`AI Generated: ${topicName}`, customExtracted);
-          }
-        } else {
-          setGenError("We generated responses but couldn't parse the key terminology. Please define other terms.");
-        }
-      } else {
-        setGenError("Empty response was returned by AI. Please try again.");
-      }
-    } catch (err: any) {
-      console.error("Custom topic generation failed:", err);
-      // Give realistic mock fallback so user isn't stuck if client key fails
-      const fallbackDecks: Record<string, Flashcard[]> = {
-        "photosynthesis": [
-          { id: "fc_tp1", front: "Chlorophyll", back: "The green pigment found in chloroplasts of algae and plants that absorbs light energy.", sourceTitle: "Photosynthesis" },
-          { id: "fc_tp2", front: "Stomata", back: "Microscopic pores on leaf surfaces that regulate carbon dioxide entry and oxygen exit.", sourceTitle: "Photosynthesis" },
-          { id: "fc_tp3", front: "Light-dependent Reactions", back: "Stages of photosynthesis that convert light energy into chemical energy (ATP/NADPH).", sourceTitle: "Photosynthesis" },
-          { id: "fc_tp4", front: "Calvin Cycle", back: "Chemical reactions that convert carbon dioxide and other compounds into glucose.", sourceTitle: "Photosynthesis" }
-        ],
-        "cells": [
-          { id: "fc_c1", front: "Osmosis", back: "Diffusion of solvent molecules through a semi-permeable membrane from lower to higher concentration.", sourceTitle: "Cells" },
-          { id: "fc_c2", front: "Active Transport", back: "Movement of molecules across a cell membrane from low to high concentration using cellular ATP energy.", sourceTitle: "Cells" }
-        ]
-      };
-      const query = customTopic.toLowerCase();
-      const matchKey = Object.keys(fallbackDecks).find(k => query.includes(k));
-      if (matchKey) {
-        setDeck(fallbackDecks[matchKey]);
-        setActiveDeckName(`Custom Topic: ${customTopic}`);
+      if (generatedCards && generatedCards.length > 0) {
+        const formattedDeck: Flashcard[] = generatedCards.map((card: any, i: number) => ({
+          id: `fc_${Math.random().toString(36).substr(2, 9)}_${i}`,
+          front: card.front,
+          back: card.back,
+          sourceTitle: deckFormData.chapterName
+        }));
+
+        setDeck(formattedDeck);
+        setActiveDeckName(`${deckFormData.chapterName} (${deckFormData.subject})`);
         setCurrentIndex(0);
         setIsFlipped(false);
         setScore({ mastered: 0, review: 0 });
         setIsFinished(false);
-        setCustomTopic("");
+
+        if (onSaveDeck) {
+          onSaveDeck(deckFormData.chapterName, formattedDeck);
+        }
       } else {
-        setGenError("Failed to initialize generator. Try using another prompt or check connection.");
+        setGenError("We generated responses but couldn't parse the key terminology. Please try defining other concepts.");
       }
+    } catch (err: any) {
+      console.error("Custom topic generation failed:", err);
+      // Give realistic academic fallback so user isn't stuck if client key or parse fails
+      const fallbackDeck: Flashcard[] = [
+        { 
+          id: "fc_fb1", 
+          front: `${deckFormData.chapterName} - Overview`, 
+          back: `The central theme of ${deckFormData.chapterName} under ${deckFormData.subject} focusing on standard academic frameworks.`, 
+          sourceTitle: deckFormData.chapterName 
+        },
+        { 
+          id: "fc_fb2", 
+          front: `Core Academic Principle`, 
+          back: `A foundational rule of this educational module inside the ${deckFormData.board || "default standard"} school curriculum.`, 
+          sourceTitle: deckFormData.chapterName 
+        },
+        { 
+          id: "fc_fb3", 
+          front: `${deckFormData.subject} Practice Item`, 
+          back: `Key revision topic highlighting key terminology, vocabulary, or conceptual mechanisms.`, 
+          sourceTitle: deckFormData.chapterName 
+        }
+      ];
+      setDeck(fallbackDeck);
+      setActiveDeckName(`${deckFormData.chapterName} (${deckFormData.subject})`);
+      setCurrentIndex(0);
+      setIsFlipped(false);
+      setScore({ mastered: 0, review: 0 });
+      setIsFinished(false);
     } finally {
       setIsGenerating(false);
     }
@@ -456,6 +489,17 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackT
                   <span className="font-black text-amber-600">{score.review}</span>
                 </div>
               </div>
+
+              {deck.length > 0 && onSharePublicLink && (
+                <button
+                  type="button"
+                  onClick={() => onSharePublicLink('flashcards', activeDeckName || 'AI Flashcards Deck', deck)}
+                  className="w-full mt-3.5 py-2.5 bg-gradient-to-r from-primary-500 to-primary-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-xs"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Share Deck Link</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -465,19 +509,126 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackT
               <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" /> AI Deck Generator
             </h3>
             <p className="text-[11px] text-slate-450 dark:text-slate-400 leading-relaxed mb-4">
-              Enter any educational topic below (e.g., &quot;Photosynthesis&quot;, &quot;Ancient Rome&quot;, &quot;C++ Loops&quot;) and our AI will harvest high-yield revision flashcards on the fly.
+              Specify academic parameters to create high-yield study flashcards automatically mined by artificial intelligence.
             </p>
 
-            <form onSubmit={handleGenerateCustomDeck} className="space-y-3">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="e.g. Human Digestive System"
-                  value={customTopic}
-                  onChange={(e) => setCustomTopic(e.target.value)}
-                  className="w-full text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-3.5 pr-8 py-2.5 text-slate-800 dark:text-white"
-                  disabled={isGenerating}
-                />
+            <form onSubmit={handleGenerateCustomDeck} className="space-y-3.5">
+              {/* Subject */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-wider">Subject</label>
+                <div className="relative">
+                  <BookType className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="e.g. Science"
+                    value={deckFormData.subject}
+                    onChange={(e) => handleFormChange('subject', e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-205 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none text-slate-800 dark:text-white"
+                    disabled={isGenerating}
+                  />
+                </div>
+              </div>
+
+              {/* Class / Grade & Board */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-wider">Class / Grade</label>
+                  <div className="relative">
+                    <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                    <input
+                      type="text"
+                      placeholder="e.g. 10th Grade"
+                      value={deckFormData.gradeClass}
+                      onChange={(e) => handleFormChange('gradeClass', e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-205 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none text-slate-800 dark:text-white"
+                      disabled={isGenerating}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-wider">Board</label>
+                  <div className="relative">
+                    <School className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                    <input
+                      type="text"
+                      placeholder="e.g. CBSE"
+                      value={deckFormData.board}
+                      onChange={(e) => handleFormChange('board', e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-205 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none text-slate-800 dark:text-white"
+                      disabled={isGenerating}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Language */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-wider">Language</label>
+                <div className="relative">
+                  <Languages className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="e.g. English"
+                    value={deckFormData.language}
+                    onChange={(e) => handleFormChange('language', e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-205 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none text-slate-800 dark:text-white"
+                    disabled={isGenerating}
+                  />
+                </div>
+              </div>
+
+              {/* Chapter Name */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-wider">Chapter Name</label>
+                <div className="relative">
+                  <BookOpen className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="e.g. Mitosis & Meiosis"
+                    value={deckFormData.chapterName}
+                    onChange={(e) => handleFormChange('chapterName', e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-205 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none text-slate-800 dark:text-white"
+                    disabled={isGenerating}
+                  />
+                </div>
+              </div>
+
+              {/* Author (Optional) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-wider">Author (Optional)</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="e.g. NCERT"
+                    value={deckFormData.author || ''}
+                    onChange={(e) => handleFormChange('author', e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-205 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none text-slate-800 dark:text-white"
+                    disabled={isGenerating}
+                  />
+                </div>
+              </div>
+
+              {/* No. of Cards (questionCount) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-wider">No. of Cards / Characters</label>
+                <div className="relative">
+                  <HelpCircle className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 dark:text-slate-500" />
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    placeholder="e.g. 8"
+                    value={deckFormData.questionCount || ''}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      handleFormChange('questionCount', isNaN(val) ? 0 : val);
+                    }}
+                    className="w-full pl-9 pr-3 py-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-205 dark:border-slate-700 rounded-xl focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none text-slate-800 dark:text-white"
+                    disabled={isGenerating}
+                  />
+                </div>
               </div>
 
               {genError && (
@@ -488,7 +639,7 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackT
 
               <button
                 type="submit"
-                disabled={isGenerating || !customTopic.trim()}
+                disabled={isGenerating || !deckFormData.subject || !deckFormData.chapterName}
                 className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-110 disabled:opacity-40 text-slate-900 font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-xs"
               >
                 {isGenerating ? (

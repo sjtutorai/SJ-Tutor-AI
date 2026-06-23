@@ -1262,37 +1262,55 @@ const App: React.FC = () => {
     e.stopPropagation();
 
     try {
-      // 1. Save to backend to get a unique public ID
-      let shareUrl = window.location.origin;
+      let shareId = "";
+      // 1. Try Firestore direct save first
       try {
-        const response = await fetch("/api/auth/share", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: item.type,
-            title: item.title,
-            subtitle: item.subtitle,
-            content: item.content,
-          }),
-        });
-
-        if (response.ok) {
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const data = await response.json();
-            if (data.id) {
-              shareUrl = `${window.location.origin}?share=${data.id}`;
-            }
-          }
-        }
-      } catch (e) {
-        console.warn(
-          "Backend sharing unavailable, failing over to local share",
-          e,
-        );
+        const uid = user ? user.uid : "guest";
+        shareId = await createSharedContent(item.type, item.title, item.content, uid);
+      } catch (fsErr) {
+        console.warn("Firestore share failed, attempting server API fallback:", fsErr);
       }
 
-      let text = `${item.title} (${item.type})\n\n`;
+      // 2. Fallback to server API if Firestore failed to return shareId
+      if (!shareId) {
+        try {
+          const response = await fetch("/api/auth/share", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: item.type,
+              title: item.title,
+              subtitle: item.subtitle,
+              content: item.content,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.id) {
+              shareId = data.id;
+            }
+          }
+        } catch (apiErr) {
+          console.error("API share fallback failed:", apiErr);
+        }
+      }
+
+      if (!shareId) {
+        throw new Error("Could not register shared content ID on server or database.");
+      }
+
+      // 3. Open Success Modal!
+      setShareSuccessModal({
+        isOpen: true,
+        shareId: shareId,
+        title: item.title,
+        type: item.type,
+      });
+
+      // 4. Fallback or additional standard native share options
+      const shareUrl = `${window.location.origin}/share/${shareId}`;
+      let text = `${item.title} (${getSingularName(item.type) || item.type})\n\n`;
 
       if (item.type === AppMode.QUIZ) {
         const qData = item.content as QuizQuestion[];
@@ -1320,14 +1338,13 @@ const App: React.FC = () => {
             url: shareUrl,
           });
         } catch {
-          // Fallback to clipboard if share fails or is cancelled
+          // User closed sharing sheet or unsupported context
         }
       } else {
         try {
-          await navigator.clipboard.writeText(text);
-          alert("Share link copied to clipboard!");
+          await navigator.clipboard.writeText(shareUrl);
         } catch {
-          alert("Failed to copy content.");
+          console.warn("Clipboard copy blocked or unsupported, user can copy from modal");
         }
       }
     } catch (err: any) {
@@ -1965,6 +1982,7 @@ const App: React.FC = () => {
             <TutorChat
               onDeductCredit={deductCredit}
               currentCredits={userProfile.credits}
+              onSharePublicLink={handleSharePublicLink}
               onSaveSession={(msgs) => {
                 if (msgs.length > 1) {
                   const tutorItemContent = {
@@ -2018,6 +2036,7 @@ const App: React.FC = () => {
               history={history}
               initialDeck={flashcardsData}
               initialDeckName={flashcardsTitle}
+              onSharePublicLink={handleSharePublicLink}
               onBackToDashboard={() => {
                 setFlashcardsData(null);
                 setFlashcardsTitle("");

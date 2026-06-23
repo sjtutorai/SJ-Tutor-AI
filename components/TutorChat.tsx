@@ -40,6 +40,7 @@ interface TutorChatProps {
   currentCredits: number;
   onSaveSession: (messages: ChatMessage[]) => void;
   initialMessages?: ChatMessage[];
+  onSharePublicLink?: (type: string, title: string, content: any) => void;
 }
 
 const TutorChat: React.FC<TutorChatProps> = (props) => {
@@ -185,10 +186,24 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   };
 
   const handleShareChat = () => {
-    const transcript = messages.map(m => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.text}`).join('\n\n');
-    navigator.clipboard.writeText(transcript)
-      .then(() => alert("Chat transcript copied to clipboard!"))
-      .catch(() => alert("Failed to copy transcript."));
+    if (messages.length === 0) {
+      alert("No messages to share yet. Start chatting!");
+      return;
+    }
+    if (props.onSharePublicLink) {
+      const firstUserMsg = messages.find(m => m.role === 'user')?.text || '';
+      const topicSnippet = firstUserMsg ? `"${firstUserMsg.substring(0, 30)}..."` : 'AI Lesson';
+      props.onSharePublicLink(
+        "tutor",
+        `Tutor Session: ${topicSnippet}`,
+        { messages }
+      );
+    } else {
+      const transcript = messages.map(m => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.text}`).join('\n\n');
+      navigator.clipboard.writeText(transcript)
+        .then(() => alert("Chat transcript copied to clipboard!"))
+        .catch(() => alert("Failed to copy transcript."));
+    }
   };
 
   const handleSave = () => {
