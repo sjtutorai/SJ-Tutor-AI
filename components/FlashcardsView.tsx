@@ -29,6 +29,9 @@ export interface Flashcard {
 interface FlashcardsViewProps {
   history: HistoryItem[];
   onBackToDashboard: () => void;
+  onSaveDeck?: (title: string, deck: Flashcard[]) => void;
+  initialDeck?: Flashcard[] | null;
+  initialDeckName?: string | null;
 }
 
 // Fallback high-yield academic sample decks
@@ -56,7 +59,7 @@ const SAMPLE_DECKS: Record<string, Flashcard[]> = {
   ]
 };
 
-export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackToDashboard }) => {
+export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackToDashboard, onSaveDeck, initialDeck, initialDeckName }) => {
   const [summaries, setSummaries] = useState<HistoryItem[]>([]);
   const [selectedSummaryId, setSelectedSummaryId] = useState<string>("all");
   const [deck, setDeck] = useState<Flashcard[]>([]);
@@ -72,8 +75,15 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackT
   const [genError, setGenError] = useState("");
   const [speechPlaying, setSpeechPlaying] = useState(false);
 
-  // Load summaries from history
+  // Initialize deck or summaries
   useEffect(() => {
+    if (initialDeck && initialDeck.length > 0) {
+      setDeck(initialDeck);
+      setActiveDeckName(initialDeckName || "Flashcards Deck");
+      setSelectedSummaryId("custom");
+      return;
+    }
+    
     const summaryItems = history.filter((item) => item.type === AppMode.SUMMARY);
     setSummaries(summaryItems);
     
@@ -85,7 +95,7 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackT
       setDeck(SAMPLE_DECKS["Science: Mitosis & Meiosis"]);
       setActiveDeckName("Science: Mitosis & Meiosis (Sample)");
     }
-  }, [history]);
+  }, [history, initialDeck, initialDeckName]);
 
   // Clean speech synthesis if playing
   useEffect(() => {
@@ -312,7 +322,11 @@ export const FlashcardsView: React.FC<FlashcardsViewProps> = ({ history, onBackT
           setIsFlipped(false);
           setScore({ mastered: 0, review: 0 });
           setIsFinished(false);
+          const topicName = customTopic;
           setCustomTopic("");
+          if (onSaveDeck) {
+            onSaveDeck(`AI Generated: ${topicName}`, customExtracted);
+          }
         } else {
           setGenError("We generated responses but couldn't parse the key terminology. Please define other terms.");
         }

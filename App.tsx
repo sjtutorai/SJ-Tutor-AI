@@ -291,6 +291,17 @@ const App: React.FC = () => {
       return saved ? parseInt(saved) : undefined;
     } catch { return undefined; }
   });
+  const [flashcardsData, setFlashcardsData] = useState<any | null>(() => {
+    try {
+      const saved = localStorage.getItem('sjtutor_autosave_flashcards');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [flashcardsTitle, setFlashcardsTitle] = useState(() => {
+    try {
+      return localStorage.getItem('sjtutor_autosave_flashcards_title') || "";
+    } catch { return ""; }
+  });
 
   // Save active outputs to localStorage
   useEffect(() => {
@@ -307,10 +318,17 @@ const App: React.FC = () => {
       } else {
         localStorage.removeItem('sjtutor_autosave_quiz_score');
       }
+      if (flashcardsData) {
+        localStorage.setItem('sjtutor_autosave_flashcards', JSON.stringify(flashcardsData));
+        localStorage.setItem('sjtutor_autosave_flashcards_title', flashcardsTitle);
+      } else {
+        localStorage.removeItem('sjtutor_autosave_flashcards');
+        localStorage.removeItem('sjtutor_autosave_flashcards_title');
+      }
     } catch (e) {
       console.warn("Could not autosave active outputs", e);
     }
-  }, [summaryContent, homeworkContent, quizData, existingQuizScore]);
+  }, [summaryContent, homeworkContent, quizData, existingQuizScore, flashcardsData, flashcardsTitle]);
 
   // Loading States
   const [loading, setLoading] = useState(false);
@@ -337,6 +355,8 @@ const App: React.FC = () => {
     setHomeworkContent("");
     setHomeworkImages([]);
     setQuizData(null);
+    setFlashcardsData(null);
+    setFlashcardsTitle("");
     setExistingQuizScore(undefined);
     setCurrentHistoryId(null);
     setError(null);
@@ -726,9 +746,46 @@ const App: React.FC = () => {
         }
       }
 
+      // Migrate guest history if user just logged in
       if (user) {
         try {
-          // Sync with Firestore, merging both local and remote items
+          const guestHistoryKey = "history_guest";
+          const savedGuestHistory = localStorage.getItem(guestHistoryKey);
+          if (savedGuestHistory) {
+            const parsedGuest = JSON.parse(savedGuestHistory);
+            if (Array.isArray(parsedGuest) && parsedGuest.length > 0) {
+              const existingIds = new Set(initialHistory.map(item => item.id));
+              let migratedCount = 0;
+              parsedGuest.forEach(guestItem => {
+                if (!existingIds.has(guestItem.id)) {
+                  // Merge guest items into initialHistory, keeping guest item details
+                  initialHistory.push(guestItem);
+                  migratedCount++;
+                }
+              });
+              if (migratedCount > 0) {
+                // Save merged history back to local storage
+                localStorage.setItem(`history_${user.uid}`, JSON.stringify(initialHistory));
+                // Remove guest history so we don't migrate multiple times
+                localStorage.removeItem(guestHistoryKey);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Guest history migration failed:", e);
+        }
+      }
+
+      // 1. Immediately (synchronously) populate history from local storage so that
+      // counters and dashboard items render instantly without network delay!
+      if (active) {
+        setHistory(initialHistory);
+        setHistoryLoadedUid(user ? user.uid : "guest");
+      }
+
+      if (user) {
+        try {
+          // 2. background-sync/fetch from Firestore, reconciling offline modifications
           const syncedHistory = await syncHistoryWithFirestore(user.uid, initialHistory);
           if (active) {
             setHistory(syncedHistory);
@@ -741,11 +798,6 @@ const App: React.FC = () => {
             setHistory(initialHistory);
             setHistoryLoadedUid(user.uid);
           }
-        }
-      } else {
-        if (active) {
-          setHistory(initialHistory);
-          setHistoryLoadedUid("guest");
         }
       }
     };
@@ -954,6 +1006,7 @@ const App: React.FC = () => {
   };
 
   const handleQuizComplete = (score: number) => {
+    setExistingQuizScore(score);
     if (currentHistoryId) {
       const historyItem = history.find((item) => item.id === currentHistoryId);
       if (!historyItem) return;
@@ -1195,6 +1248,10 @@ const App: React.FC = () => {
       setMode(AppMode.QUIZ);
     } else if (item.type === AppMode.TUTOR) {
       setMode(AppMode.TUTOR);
+    } else if (item.type === AppMode.FLASHCARDS) {
+      setFlashcardsData(item.content);
+      setFlashcardsTitle(item.title);
+      setMode(AppMode.FLASHCARDS);
     }
   };
 
@@ -1309,6 +1366,23 @@ const App: React.FC = () => {
   };
 
   const renderDashboard = () => {
+    const getSingularName = (view: AppMode) => {
+      switch (view) {
+        case AppMode.SUMMARY:
+          return "Summary";
+        case AppMode.QUIZ:
+          return "Quiz";
+        case AppMode.HOMEWORK:
+          return "Homework";
+        case AppMode.TUTOR:
+          return "Chat";
+        case AppMode.FLASHCARDS:
+          return "Deck";
+        default:
+          return "Item";
+      }
+    };
+
     const noteCount = (() => {
       try {
         const key = user ? `notes_${user.uid}` : "notes_guest";
@@ -1325,6 +1399,7 @@ const App: React.FC = () => {
       quizzes: history.filter((h) => h.type === AppMode.QUIZ).length,
       homeworks: history.filter((h) => h.type === AppMode.HOMEWORK).length,
       chats: history.filter((h) => h.type === AppMode.TUTOR).length,
+      flashcards: history.filter((h) => h.type === AppMode.FLASHCARDS).length,
     };
 
     const dashboardCards = [
@@ -1355,7 +1430,7 @@ const App: React.FC = () => {
       {
         id: AppMode.FLASHCARDS,
         label: "Flashcards",
-        count: null,
+        count: stats.flashcards,
         icon: BrainCircuit,
         color: "text-amber-500 dark:text-amber-400",
         bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
@@ -1401,20 +1476,6 @@ const App: React.FC = () => {
       );
       const categoryLabel =
         dashboardCards.find((c) => c.id === dashboardView)?.label || "History";
-      const getSingularName = (view: AppMode) => {
-        switch (view) {
-          case AppMode.SUMMARY:
-            return "Summary";
-          case AppMode.QUIZ:
-            return "Quiz";
-          case AppMode.HOMEWORK:
-            return "Homework";
-          case AppMode.TUTOR:
-            return "Chat";
-          default:
-            return "Item";
-        }
-      };
 
       return (
         <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
@@ -1448,6 +1509,8 @@ const App: React.FC = () => {
                   setHomeworkContent("");
                   setHomeworkImages([]);
                   setQuizData(null);
+                  setFlashcardsData(null);
+                  setFlashcardsTitle("");
                   setExistingQuizScore(undefined);
                   setCurrentHistoryId(null);
                   setError(null);
@@ -1581,9 +1644,13 @@ const App: React.FC = () => {
                   <card.icon className="w-5 h-5" />
                 </div>
                 {card.count !== null && (
-                  <span className="text-2xl font-bold text-slate-800 dark:text-white">
-                    {card.count}
-                  </span>
+                  historyLoadedUid === "none" ? (
+                    <div className="h-6 w-10 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                  ) : (
+                    <span className="text-2xl font-bold text-slate-800 dark:text-white">
+                      {card.count}
+                    </span>
+                  )
                 )}
               </div>
               <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10">
@@ -1631,6 +1698,67 @@ const App: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Recent Study History */}
+        {history.length > 0 && (
+          <div className="mt-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <Clock className="w-5 h-5 text-amber-500" />
+                Recent Study History
+              </h3>
+              <span className="text-xs text-slate-400 font-medium font-mono bg-slate-150 dark:bg-slate-900 px-2.5 py-1 rounded">
+                {history.length} items
+              </span>
+            </div>
+            <div className="grid gap-3">
+              {history.slice(0, 5).map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => loadHistoryItem(item)}
+                  className="bg-slate-50/50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:border-amber-200 dark:hover:border-amber-800 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-50 dark:bg-slate-750 text-primary-600 dark:text-primary-400`}
+                    >
+                      {item.type === AppMode.QUIZ ? (
+                        <BrainCircuit className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      ) : item.type === AppMode.SUMMARY ? (
+                        <FileText className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      ) : (item.type === AppMode.HOMEWORK || item.type === AppMode.ESSAY) ? (
+                        <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      ) : item.type === AppMode.FLASHCARDS ? (
+                        <BrainCircuit className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                      ) : (
+                        <MessageCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-800 dark:text-white text-sm group-hover:text-amber-700 dark:group-hover:text-amber-405 transition-colors">
+                        {item.title}
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-3 mt-1">
+                        <span className="font-medium bg-slate-200/50 dark:bg-slate-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-350">
+                          {getSingularName(item.type)}
+                        </span>
+                        <span className="flex items-center gap-1 text-slate-400">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {new Date(item.timestamp).toLocaleDateString()}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center border border-slate-100 dark:border-slate-700 shadow-sm opacity-60 group-hover:opacity-100 group-hover:text-amber-600 transition-all">
+                      <ChevronRight className="w-4 h-4" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -1888,7 +2016,27 @@ const App: React.FC = () => {
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <FlashcardsView
               history={history}
-              onBackToDashboard={() => setMode(AppMode.DASHBOARD)}
+              initialDeck={flashcardsData}
+              initialDeckName={flashcardsTitle}
+              onBackToDashboard={() => {
+                setFlashcardsData(null);
+                setFlashcardsTitle("");
+                setMode(AppMode.DASHBOARD);
+              }}
+              onSaveDeck={(title, deck) => {
+                const newId = Date.now().toString();
+                const newItem: HistoryItem = {
+                  id: newId,
+                  type: AppMode.FLASHCARDS,
+                  title: title,
+                  subtitle: `Generated Flashcards • ${deck.length} cards`,
+                  timestamp: Date.now(),
+                  content: deck,
+                  formData: { ...formData }, // we don't really have form data but okay
+                };
+                setHistory((prev) => [newItem, ...prev]);
+                if (user) saveHistoryItemToFirestore(user.uid, newItem);
+              }}
             />
           </div>
         );
@@ -2097,6 +2245,8 @@ const App: React.FC = () => {
               setHomeworkContent("");
               setHomeworkImages([]);
               setQuizData(null);
+              setFlashcardsData(null);
+              setFlashcardsTitle("");
               setExistingQuizScore(undefined);
               setCurrentHistoryId(null);
               setError(null);
