@@ -20,6 +20,7 @@ import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
 import LoadingState from "./components/LoadingState";
 import NotesView from "./components/NotesView";
+import { FlashcardsView } from "./components/FlashcardsView";
 import SettingsView from "./components/SettingsView";
 import AboutView from "./components/AboutView";
 import IdCardView from "./components/IdCardView";
@@ -74,6 +75,8 @@ import {
   User as UserIcon,
   Bell,
   Copy,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -189,7 +192,21 @@ const App: React.FC = () => {
     type: string;
   } | null>(null);
 
-  const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
+  const [mode, setMode] = useState<AppMode>(() => {
+    try {
+      return (localStorage.getItem('sjtutor_autosave_mode') as AppMode) || AppMode.DASHBOARD;
+    } catch {
+      return AppMode.DASHBOARD;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('sjtutor_autosave_mode', mode);
+    } catch (e) {
+      console.warn("Could not save mode", e);
+    }
+  }, [mode]);
 
   // Initialize form data with auto-saved local copies or fallback language from settings
   const [formData, setFormData] = useState<StudyRequestData>(() => {
@@ -249,13 +266,51 @@ const App: React.FC = () => {
   const [isAddedSharedContent, setIsAddedSharedContent] = useState(false);
 
   // Content States
-  const [summaryContent, setSummaryContent] = useState("");
-  const [homeworkContent, setHomeworkContent] = useState("");
+  const [summaryContent, setSummaryContent] = useState(() => {
+    try {
+      return localStorage.getItem('sjtutor_autosave_summary') || "";
+    } catch { return ""; }
+  });
+  const [homeworkContent, setHomeworkContent] = useState(() => {
+    try {
+      return localStorage.getItem('sjtutor_autosave_homework') || "";
+    } catch { return ""; }
+  });
   const [homeworkImages, setHomeworkImages] = useState<string[]>([]);
-  const [quizData, setQuizData] = useState<QuizQuestion[] | null>(null);
+  const [quizData, setQuizData] = useState<QuizQuestion[] | null>(() => {
+    try {
+      const saved = localStorage.getItem('sjtutor_autosave_quiz');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
   const [existingQuizScore, setExistingQuizScore] = useState<
     number | undefined
-  >(undefined);
+  >(() => {
+    try {
+      const saved = localStorage.getItem('sjtutor_autosave_quiz_score');
+      return saved ? parseInt(saved) : undefined;
+    } catch { return undefined; }
+  });
+
+  // Save active outputs to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('sjtutor_autosave_summary', summaryContent);
+      localStorage.setItem('sjtutor_autosave_homework', homeworkContent);
+      if (quizData) {
+        localStorage.setItem('sjtutor_autosave_quiz', JSON.stringify(quizData));
+      } else {
+        localStorage.removeItem('sjtutor_autosave_quiz');
+      }
+      if (existingQuizScore !== undefined) {
+        localStorage.setItem('sjtutor_autosave_quiz_score', existingQuizScore.toString());
+      } else {
+        localStorage.removeItem('sjtutor_autosave_quiz_score');
+      }
+    } catch (e) {
+      console.warn("Could not autosave active outputs", e);
+    }
+  }, [summaryContent, homeworkContent, quizData, existingQuizScore]);
 
   // Loading States
   const [loading, setLoading] = useState(false);
@@ -428,6 +483,25 @@ const App: React.FC = () => {
     window.addEventListener("settings-changed", syncLanguage);
     return () => window.removeEventListener("settings-changed", syncLanguage);
   }, []);
+
+  const handleThemeToggle = () => {
+    const settings = SettingsService.getSettings();
+    const currentTheme = settings.appearance.theme;
+    let nextTheme: "Light" | "Dark" | "System" = "Dark";
+    
+    if (currentTheme === "Light" || (currentTheme === "System" && !window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+      nextTheme = "Dark";
+    } else {
+      nextTheme = "Light";
+    }
+
+    SettingsService.updateSettings({
+      appearance: {
+        ...settings.appearance,
+        theme: nextTheme
+      }
+    });
+  };
 
   // Theme Management
   useEffect(() => {
@@ -1220,6 +1294,7 @@ const App: React.FC = () => {
     { id: AppMode.ID_CARD, label: "Student ID Card", icon: CreditCard },
     { id: AppMode.SUMMARY, label: "Instant Summary", icon: FileText },
     { id: AppMode.QUIZ, label: "Quiz Creator", icon: BrainCircuit },
+    { id: AppMode.FLASHCARDS, label: "Flashcards", icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
@@ -1275,6 +1350,14 @@ const App: React.FC = () => {
         count: stats.quizzes,
         icon: BrainCircuit,
         color: "text-amber-700 dark:text-amber-400",
+        bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
+      },
+      {
+        id: AppMode.FLASHCARDS,
+        label: "Flashcards",
+        count: null,
+        icon: BrainCircuit,
+        color: "text-amber-500 dark:text-amber-400",
         bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
       },
       {
@@ -1474,6 +1557,8 @@ const App: React.FC = () => {
 
                 if (card.id === AppMode.NOTES) {
                   setMode(AppMode.NOTES);
+                } else if (card.id === AppMode.FLASHCARDS) {
+                  setMode(AppMode.FLASHCARDS);
                 } else if (card.id === AppMode.ID_CARD) {
                   setMode(AppMode.ID_CARD);
                 } else if (card.id === AppMode.NOTIFICATIONS) {
@@ -1794,6 +1879,16 @@ const App: React.FC = () => {
             <NotesView
               userId={user ? user.uid : null}
               onDeductCredit={deductCredit}
+            />
+          </div>
+        );
+
+      case AppMode.FLASHCARDS:
+        return (
+          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <FlashcardsView
+              history={history}
+              onBackToDashboard={() => setMode(AppMode.DASHBOARD)}
             />
           </div>
         );
@@ -2218,6 +2313,14 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={handleThemeToggle}
+              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors hidden sm:block"
+              title="Toggle Theme"
+            >
+              <Moon className="w-5 h-5 hidden dark:block" />
+              <Sun className="w-5 h-5 block dark:hidden" />
+            </button>
             <button
               onClick={async () => {
                 const shareUrl = window.location.origin;

@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { X, Check, Crown, Zap, Shield, Smartphone, Upload, Loader2, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { X, Check, Crown, Zap, Shield, Smartphone, Upload, Loader2, Image as ImageIcon, AlertCircle, ExternalLink, CreditCard } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 import { SJTUTOR_AVATAR } from '../types';
 
@@ -176,17 +176,46 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess }
                    <p className="text-slate-500 mt-1">Total: ₹{currentPlan.price}</p>
                 </div>
                 
-                <div className="bg-slate-50 p-4 rounded-xl text-left text-sm text-slate-600 border border-slate-100">
-                  <p className="flex items-center gap-2 mb-2"><Check className="w-4 h-4 text-green-500" /> Instant activation</p>
-                  <p className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Secure payment via UPI</p>
-                </div>
+                {selectedPlan === 'SCHOLAR' ? (
+                  <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl text-left text-sm text-emerald-800">
+                    <p className="flex items-center gap-2 mb-1.5 font-bold text-emerald-900">
+                      <Zap className="w-4 h-4 text-emerald-500 fill-emerald-500 animate-pulse" /> Recommended payment
+                    </p>
+                    <p className="text-xs mb-3 text-emerald-700/90 leading-relaxed">
+                      Instant online payment using Razorpay. Supports Credit Cards, Debit Cards, Netbanking, Google Pay, PhonePe, and Wallets.
+                    </p>
+                    <button
+                      onClick={() => window.open('https://rzp.io/rzp/pOcXrKBU', '_blank')}
+                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg shadow-sm flex items-center justify-center gap-2 transition"
+                    >
+                      💳 Pay ₹299 Online <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 p-4 rounded-xl text-left text-sm text-slate-600 border border-slate-100">
+                    <p className="flex items-center gap-2 mb-2"><Check className="w-4 h-4 text-green-500" /> Instant activation</p>
+                    <p className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Secure payment via UPI</p>
+                  </div>
+                )}
 
-                <button 
-                  onClick={() => setStep('PAYMENT')}
-                  className={`w-full py-4 rounded-xl text-white font-bold shadow-lg transition-all active:scale-95 ${currentPlan.btnColor}`}
-                >
-                  Proceed to Payment
-                </button>
+                <div className="space-y-2">
+                  <button 
+                    onClick={() => setStep('PAYMENT')}
+                    className={`w-full py-3 rounded-xl text-white font-bold shadow-md transition-all active:scale-95 ${currentPlan.btnColor}`}
+                  >
+                    {selectedPlan === 'SCHOLAR' ? 'Proceed with UPI QR' : 'Proceed to Payment'}
+                  </button>
+                  {selectedPlan === 'SCHOLAR' && (
+                    <button
+                      onClick={() => {
+                        setStep('VERIFY');
+                      }}
+                      className="w-full text-xs text-slate-400 hover:text-slate-600 font-semibold underline transition py-1"
+                    >
+                      Already paid? Verify screenshot
+                    </button>
+                  )}
+                </div>
              </div>
           )}
 
@@ -203,6 +232,21 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess }
                   <h3 className="text-xl font-bold text-slate-800">Scan to Pay</h3>
                   <p className="text-sm text-slate-400 mt-1">Use any UPI app (GPay, PhonePe, Paytm)</p>
                 </div>
+
+                {selectedPlan === 'SCHOLAR' && (
+                  <div className="mb-6 p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl text-left shadow-sm">
+                    <p className="text-xs font-bold text-emerald-800 flex items-center gap-1 mb-1">
+                      <CreditCard className="w-3.5 h-3.5 text-emerald-500" /> Pay using cards / netbanking:
+                    </p>
+                    <p className="text-[11px] text-emerald-700 mb-2 font-medium">Use the official secure Razorpay portal for instant processing.</p>
+                    <button
+                      onClick={() => window.open('https://rzp.io/rzp/pOcXrKBU', '_blank')}
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                    >
+                      💳 Pay ₹299 via Razorpay Portal <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
 
                 <div className="bg-white p-4 rounded-2xl shadow-lg border border-slate-100 mb-6 relative group inline-block">
                   <img 

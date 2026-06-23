@@ -12,6 +12,7 @@ export enum AppMode {
   ABOUT = 'ABOUT',
   ID_CARD = 'ID_CARD',
   TIMER = 'TIMER',
+  FLASHCARDS = 'FLASHCARDS',
   PRIVACY = 'PRIVACY',
   TERMS = 'TERMS',
   NOTIFICATIONS = 'NOTIFICATIONS',
@@ -43,6 +44,7 @@ export interface QuizQuestion {
 export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
+  images?: string[];
   timestamp: number;
 }
 

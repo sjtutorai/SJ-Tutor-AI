@@ -1,7 +1,7 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { StudyRequestData, AppMode, DifficultyLevel } from '../types';
-import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Crown, Image as ImageIcon, X } from 'lucide-react';
+import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Crown, Image as ImageIcon, X, Mic, MicOff } from 'lucide-react';
 
 interface InputFormProps {
   data: StudyRequestData;
@@ -26,7 +26,62 @@ const InputForm: React.FC<InputFormProps> = ({
 }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isListening, setIsListening] = useState(false);
   const isRewardMode = mode === AppMode.QUIZ && data.questionCount === 10 && data.difficulty === 'Hard';
+
+  useEffect(() => {
+    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!Recognition) return;
+
+    const rec = new Recognition();
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.lang = 'en-US';
+
+    rec.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      if (mode === AppMode.HOMEWORK) {
+        const currentVal = data.homeworkQuery || '';
+        onChange('homeworkQuery', currentVal + (currentVal ? ' ' : '') + transcript);
+      } else {
+        const currentVal = data.chapterName || '';
+        onChange('chapterName', currentVal + (currentVal ? ' ' : '') + transcript);
+      }
+      setIsListening(false);
+    };
+
+    rec.onerror = () => {
+      setIsListening(false);
+    };
+
+    rec.onend = () => {
+      setIsListening(false);
+    };
+
+    if (isListening) {
+      rec.start();
+    } else {
+      rec.stop();
+    }
+
+    return () => {
+      try {
+        rec.stop();
+      } catch {
+        // Already stopped
+      }
+    };
+  }, [isListening, data.homeworkQuery, onChange]);
+
+  const toggleVoiceInput = () => {
+    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!Recognition) {
+      alert("Speech recognition is not supported in this browser. Try Google Chrome.");
+      return;
+    }
+    setIsListening(!isListening);
+  };
+
 
   const getEstimatedCost = () => {
     if (mode === AppMode.SUMMARY) return 10;
@@ -159,7 +214,23 @@ const InputForm: React.FC<InputFormProps> = ({
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Homework Text / Questions</label>
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Homework Text / Questions</label>
+              <button
+                onClick={toggleVoiceInput}
+                disabled={disabled}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] uppercase font-bold transition-colors ${
+                  isListening ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+                title="Dictate your request"
+              >
+                {isListening ? (
+                  <><MicOff className="w-3 h-3" /> Listening...</>
+                ) : (
+                  <><Mic className="w-3 h-3" /> Dictate</>
+                )}
+              </button>
+            </div>
             <textarea
               value={data.homeworkQuery || ''}
               onChange={(e) => onChange('homeworkQuery', e.target.value)}
@@ -224,7 +295,36 @@ const InputForm: React.FC<InputFormProps> = ({
             </div>
             {renderInput("Board", "board", School, "e.g. CBSE")}
             {renderInput("Language", "language", Languages, "e.g. English")}
-            {renderInput("Chapter Name", "chapterName", BookOpen, "e.g. The French Revolution")}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Chapter Name</label>
+                <button
+                  onClick={toggleVoiceInput}
+                  disabled={disabled}
+                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] uppercase font-bold transition-colors ${
+                    isListening ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
+                  title="Dictate Chapter"
+                >
+                  {isListening ? (
+                    <><MicOff className="w-3 h-3" /> Listening...</>
+                  ) : (
+                    <><Mic className="w-3 h-3" /> Dictate</>
+                  )}
+                </button>
+              </div>
+              <div className="relative group">
+                <BookOpen className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={data.chapterName as string}
+                  onChange={(e) => onChange('chapterName', e.target.value)}
+                  disabled={disabled}
+                  placeholder="e.g. The French Revolution"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm"
+                />
+              </div>
+            </div>
             {renderInput("Author (Optional)", "author", User, "e.g. NCERT")}
           </>
         )}
