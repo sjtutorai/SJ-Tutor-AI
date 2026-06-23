@@ -16,8 +16,7 @@ import {
   Star, 
   Bookmark, 
   X, 
-  Trash2,
-  Image as ImageIcon
+  Trash2 
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -40,7 +39,6 @@ interface TutorChatProps {
   currentCredits: number;
   onSaveSession: (messages: ChatMessage[]) => void;
   initialMessages?: ChatMessage[];
-  onSharePublicLink?: (type: string, title: string, content: any) => void;
 }
 
 const TutorChat: React.FC<TutorChatProps> = (props) => {
@@ -100,24 +98,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   const [error, setError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [attachedImage, setAttachedImage] = useState<string | null>(null);
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files[0]) {
-      const reader = new FileReader();
-      reader.onloadend = () => setAttachedImage(reader.result as string);
-      reader.readAsDataURL(files[0]);
-    }
-  };
-
-  const removeImage = () => {
-    setAttachedImage(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
 
   const toggleStar = (timestamp: number) => {
     setStarredTimestamps(prev => 
@@ -186,24 +166,10 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   };
 
   const handleShareChat = () => {
-    if (messages.length === 0) {
-      alert("No messages to share yet. Start chatting!");
-      return;
-    }
-    if (props.onSharePublicLink) {
-      const firstUserMsg = messages.find(m => m.role === 'user')?.text || '';
-      const topicSnippet = firstUserMsg ? `"${firstUserMsg.substring(0, 30)}..."` : 'AI Lesson';
-      props.onSharePublicLink(
-        "tutor",
-        `Tutor Session: ${topicSnippet}`,
-        { messages }
-      );
-    } else {
-      const transcript = messages.map(m => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.text}`).join('\n\n');
-      navigator.clipboard.writeText(transcript)
-        .then(() => alert("Chat transcript copied to clipboard!"))
-        .catch(() => alert("Failed to copy transcript."));
-    }
+    const transcript = messages.map(m => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.text}`).join('\n\n');
+    navigator.clipboard.writeText(transcript)
+      .then(() => alert("Chat transcript copied to clipboard!"))
+      .catch(() => alert("Failed to copy transcript."));
   };
 
   const handleSave = () => {
@@ -213,7 +179,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   };
 
   const sendMessageToAi = async (textToSend: string) => {
-    if (isTyping && !textToSend) return;
+    if (isTyping) return;
     setError(null);
 
     // Credit Check
@@ -223,13 +189,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       return;
     }
 
-    const currentImage = attachedImage;
-    if (currentImage) removeImage(); // clear early
-
     const newMsg: ChatMessage = {
       role: 'user',
       text: textToSend,
-      images: currentImage ? [currentImage] : undefined,
       timestamp: Date.now()
     };
 
@@ -237,7 +199,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     setIsTyping(true);
 
     try {
-      const responseText = await GeminiService.chatWithTutor(textToSend, messages, currentImage ? [currentImage] : []);
+      const responseText = await GeminiService.chatWithTutor(textToSend, messages);
       setMessages(prev => [...prev, {
         role: 'model',
         text: responseText,
@@ -273,7 +235,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   };
 
   const handleSend = () => {
-    if ((!input.trim() && !attachedImage) || isTyping) return;
+    if (!input.trim() || isTyping) return;
     sendMessageToAi(input);
     setInput('');
   };
@@ -349,11 +311,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                         : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
                     }`}
                   >
-                    {msg.images && msg.images.map((img, i) => (
-                      <div key={i} className="mb-2">
-                        <img src={img} alt="Attached" className="max-w-xs rounded-lg shadow-sm border border-black/10" />
-                      </div>
-                    ))}
                     {msg.text === "API_DISABLED_BLOCK" ? (
                       <div className="bg-red-50 border border-red-100 p-4 rounded-lg space-y-3">
                         <div className="flex items-start gap-2 text-red-800">
@@ -437,43 +394,14 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         </div>
 
         {/* Input Controls */}
-        <div className="p-3 bg-white border-t border-slate-100 flex flex-col gap-2">
+        <div className="p-3 bg-white border-t border-slate-100">
           {error && (
-            <div className="p-2 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 text-xs text-red-600 animate-in fade-in slide-in-from-bottom-2">
+            <div className="mb-2 p-2 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 text-xs text-red-600 animate-in fade-in slide-in-from-bottom-2">
               <AlertCircle className="w-3.5 h-3.5" />
               {error}
             </div>
           )}
-          
-          {attachedImage && (
-            <div className="flex relative w-16 h-16 rounded overflow-hidden border border-slate-200">
-              <img src={attachedImage} alt="Preview" className="w-full h-full object-cover" />
-              <button 
-                onClick={removeImage}
-                className="absolute top-0.5 right-0.5 bg-red-500 rounded-full text-white p-0.5 hover:bg-red-600"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          )}
-
           <div className="relative flex items-center gap-2">
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleImageChange} 
-              accept="image/*" 
-              className="hidden" 
-              capture="environment"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors"
-              title="Add Image"
-            >
-              <ImageIcon className="w-4 h-4" />
-            </button>
-
             <button
               onClick={toggleVoiceInput}
               className={`p-2.5 rounded-lg border border-slate-200 transition-colors ${isListening ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
@@ -491,7 +419,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             />
             <button
               onClick={handleSend}
-              disabled={(!input.trim() && !attachedImage) || isTyping}
+              disabled={!input.trim() || isTyping}
               className="absolute right-1.5 p-1.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Send className="w-3.5 h-3.5" />

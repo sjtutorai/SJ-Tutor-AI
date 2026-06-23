@@ -291,35 +291,6 @@ export const GeminiService = {
     });
   },
 
-  chatWithTutor: async (text: string, history: any[], imagesBase64: string[] = []) => {
-    const ai = getAI();
-    const systemInstruction = SettingsService.getTutorSystemInstruction();
-    
-    const formattedHistory = history.map(msg => ({
-      role: msg.role === 'model' ? 'model' : 'user',
-      parts: msg.images ? [
-        ...msg.images.map((img: string) => ({
-          inlineData: { mimeType: 'image/jpeg', data: img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "") }
-        })),
-        { text: msg.text }
-      ] : [{ text: msg.text }]
-    }));
-
-    const currentParts: any[] = [{ text }];
-    imagesBase64.forEach(img => {
-      const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-      currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
-    });
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: [...formattedHistory, { role: 'user', parts: currentParts }],
-      config: { systemInstruction }
-    });
-
-    return response.text || "";
-  },
-
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
     const ai = getAI();
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");

@@ -27,7 +27,6 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     userProfile, 
     onLogout, 
     onNavigateToProfile, 
-    onOpenPremium,
     onNavigateToLegal
   } = props;
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
@@ -752,25 +751,6 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                       </button>
                    </div>
                 </div>
-             </div>
-
-             {/* Permanent Premium Options Invitation */}
-             <div className="bg-gradient-to-r from-amber-500/5 to-primary-650/5 dark:from-amber-500/10 dark:to-primary-650/10 border border-amber-500/15 dark:border-amber-500/10 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-                <div className="text-left font-sans">
-                   <h4 className="font-extrabold text-slate-800 dark:text-white flex items-center gap-2 text-sm">
-                      <Crown className="w-5 h-5 text-amber-500 fill-amber-500 animate-bounce" />
-                      Buy Lifetime Premium Upgrades
-                   </h4>
-                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed animate-pulse">
-                      Our free trial pass is fully active for 10 days! Want standard permanent lifetime credits or unlimited packs? Select our lifetime packages anytime.
-                   </p>
-                </div>
-                <button
-                   onClick={onOpenPremium}
-                   className="px-4.5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-650 hover:to-orange-650 active:scale-95 text-slate-900 font-extrabold rounded-xl text-xs tracking-wider uppercase shadow-md hover:shadow-lg transition-all whitespace-nowrap animate-pulse"
-                >
-                   View Packages
-                </button>
              </div>
 
              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">

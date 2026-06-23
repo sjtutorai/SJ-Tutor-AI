@@ -74,8 +74,6 @@ import {
   User as UserIcon,
   Bell,
   Copy,
-  Sun,
-  Moon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -178,10 +176,12 @@ const App: React.FC = () => {
   const [publicShareId, setPublicShareId] = useState<string | null>(() => {
     const path = window.location.pathname;
     if (path.startsWith("/share/")) {
-      return path.substring(7); // After "/share/"
+      const rawId = path.substring(7);
+      return rawId.endsWith("/") ? rawId.slice(0, -1) : rawId;
     }
     const params = new URLSearchParams(window.location.search);
-    return params.get("share");
+    const paramVal = params.get("share");
+    return paramVal ? (paramVal.endsWith("/") ? paramVal.slice(0, -1) : paramVal) : null;
   });
 
   const [shareSuccessModal, setShareSuccessModal] = useState<{
@@ -191,21 +191,7 @@ const App: React.FC = () => {
     type: string;
   } | null>(null);
 
-  const [mode, setMode] = useState<AppMode>(() => {
-    try {
-      return (localStorage.getItem('sjtutor_autosave_mode') as AppMode) || AppMode.DASHBOARD;
-    } catch {
-      return AppMode.DASHBOARD;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('sjtutor_autosave_mode', mode);
-    } catch (e) {
-      console.warn("Could not save mode", e);
-    }
-  }, [mode]);
+  const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
 
   // Initialize form data with auto-saved local copies or fallback language from settings
   const [formData, setFormData] = useState<StudyRequestData>(() => {
@@ -265,51 +251,13 @@ const App: React.FC = () => {
   const [isAddedSharedContent, setIsAddedSharedContent] = useState(false);
 
   // Content States
-  const [summaryContent, setSummaryContent] = useState(() => {
-    try {
-      return localStorage.getItem('sjtutor_autosave_summary') || "";
-    } catch { return ""; }
-  });
-  const [homeworkContent, setHomeworkContent] = useState(() => {
-    try {
-      return localStorage.getItem('sjtutor_autosave_homework') || "";
-    } catch { return ""; }
-  });
+  const [summaryContent, setSummaryContent] = useState("");
+  const [homeworkContent, setHomeworkContent] = useState("");
   const [homeworkImages, setHomeworkImages] = useState<string[]>([]);
-  const [quizData, setQuizData] = useState<QuizQuestion[] | null>(() => {
-    try {
-      const saved = localStorage.getItem('sjtutor_autosave_quiz');
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-  });
+  const [quizData, setQuizData] = useState<QuizQuestion[] | null>(null);
   const [existingQuizScore, setExistingQuizScore] = useState<
     number | undefined
-  >(() => {
-    try {
-      const saved = localStorage.getItem('sjtutor_autosave_quiz_score');
-      return saved ? parseInt(saved) : undefined;
-    } catch { return undefined; }
-  });
-
-  // Save active outputs to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('sjtutor_autosave_summary', summaryContent);
-      localStorage.setItem('sjtutor_autosave_homework', homeworkContent);
-      if (quizData) {
-        localStorage.setItem('sjtutor_autosave_quiz', JSON.stringify(quizData));
-      } else {
-        localStorage.removeItem('sjtutor_autosave_quiz');
-      }
-      if (existingQuizScore !== undefined) {
-        localStorage.setItem('sjtutor_autosave_quiz_score', existingQuizScore.toString());
-      } else {
-        localStorage.removeItem('sjtutor_autosave_quiz_score');
-      }
-    } catch (e) {
-      console.warn("Could not autosave active outputs", e);
-    }
-  }, [summaryContent, homeworkContent, quizData, existingQuizScore]);
+  >(undefined);
 
   // Loading States
   const [loading, setLoading] = useState(false);
@@ -336,8 +284,6 @@ const App: React.FC = () => {
     setHomeworkContent("");
     setHomeworkImages([]);
     setQuizData(null);
-    setFlashcardsData(null);
-    setFlashcardsTitle("");
     setExistingQuizScore(undefined);
     setCurrentHistoryId(null);
     setError(null);
@@ -484,25 +430,6 @@ const App: React.FC = () => {
     window.addEventListener("settings-changed", syncLanguage);
     return () => window.removeEventListener("settings-changed", syncLanguage);
   }, []);
-
-  const handleThemeToggle = () => {
-    const settings = SettingsService.getSettings();
-    const currentTheme = settings.appearance.theme;
-    let nextTheme: "Light" | "Dark" | "System" = "Dark";
-    
-    if (currentTheme === "Light" || (currentTheme === "System" && !window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-      nextTheme = "Dark";
-    } else {
-      nextTheme = "Light";
-    }
-
-    SettingsService.updateSettings({
-      appearance: {
-        ...settings.appearance,
-        theme: nextTheme
-      }
-    });
-  };
 
   // Theme Management
   useEffect(() => {
@@ -727,46 +654,9 @@ const App: React.FC = () => {
         }
       }
 
-      // Migrate guest history if user just logged in
       if (user) {
         try {
-          const guestHistoryKey = "history_guest";
-          const savedGuestHistory = localStorage.getItem(guestHistoryKey);
-          if (savedGuestHistory) {
-            const parsedGuest = JSON.parse(savedGuestHistory);
-            if (Array.isArray(parsedGuest) && parsedGuest.length > 0) {
-              const existingIds = new Set(initialHistory.map(item => item.id));
-              let migratedCount = 0;
-              parsedGuest.forEach(guestItem => {
-                if (!existingIds.has(guestItem.id)) {
-                  // Merge guest items into initialHistory, keeping guest item details
-                  initialHistory.push(guestItem);
-                  migratedCount++;
-                }
-              });
-              if (migratedCount > 0) {
-                // Save merged history back to local storage
-                localStorage.setItem(`history_${user.uid}`, JSON.stringify(initialHistory));
-                // Remove guest history so we don't migrate multiple times
-                localStorage.removeItem(guestHistoryKey);
-              }
-            }
-          }
-        } catch (e) {
-          console.warn("Guest history migration failed:", e);
-        }
-      }
-
-      // 1. Immediately (synchronously) populate history from local storage so that
-      // counters and dashboard items render instantly without network delay!
-      if (active) {
-        setHistory(initialHistory);
-        setHistoryLoadedUid(user ? user.uid : "guest");
-      }
-
-      if (user) {
-        try {
-          // 2. background-sync/fetch from Firestore, reconciling offline modifications
+          // Sync with Firestore, merging both local and remote items
           const syncedHistory = await syncHistoryWithFirestore(user.uid, initialHistory);
           if (active) {
             setHistory(syncedHistory);
@@ -779,6 +669,11 @@ const App: React.FC = () => {
             setHistory(initialHistory);
             setHistoryLoadedUid(user.uid);
           }
+        }
+      } else {
+        if (active) {
+          setHistory(initialHistory);
+          setHistoryLoadedUid("guest");
         }
       }
     };
@@ -987,7 +882,6 @@ const App: React.FC = () => {
   };
 
   const handleQuizComplete = (score: number) => {
-    setExistingQuizScore(score);
     if (currentHistoryId) {
       const historyItem = history.find((item) => item.id === currentHistoryId);
       if (!historyItem) return;
@@ -1239,55 +1133,24 @@ const App: React.FC = () => {
     e.stopPropagation();
 
     try {
-      let shareId = "";
-      // 1. Try Firestore direct save first
+      let shareUrl = window.location.origin;
       try {
         const uid = user ? user.uid : "guest";
-        shareId = await createSharedContent(item.type, item.title, item.content, uid);
-      } catch (fsErr) {
-        console.warn("Firestore share failed, attempting server API fallback:", fsErr);
+        const shareId = await createSharedContent(
+          item.type,
+          item.title,
+          item.content,
+          uid
+        );
+        shareUrl = `${window.location.origin}/share/${shareId}`;
+      } catch (e) {
+        console.warn(
+          "Firestore sharing failed, failing over to base URL",
+          e,
+        );
       }
 
-      // 2. Fallback to server API if Firestore failed to return shareId
-      if (!shareId) {
-        try {
-          const response = await fetch("/api/auth/share", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: item.type,
-              title: item.title,
-              subtitle: item.subtitle,
-              content: item.content,
-            }),
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.id) {
-              shareId = data.id;
-            }
-          }
-        } catch (apiErr) {
-          console.error("API share fallback failed:", apiErr);
-        }
-      }
-
-      if (!shareId) {
-        throw new Error("Could not register shared content ID on server or database.");
-      }
-
-      // 3. Open Success Modal!
-      setShareSuccessModal({
-        isOpen: true,
-        shareId: shareId,
-        title: item.title,
-        type: item.type,
-      });
-
-      // 4. Fallback or additional standard native share options
-      const shareUrl = `${window.location.origin}/share/${shareId}`;
-      let text = `${item.title} (${getSingularName(item.type) || item.type})\n\n`;
+      let text = `${item.title} (${item.type})\n\n`;
 
       if (item.type === AppMode.QUIZ) {
         const qData = item.content as QuizQuestion[];
@@ -1315,13 +1178,14 @@ const App: React.FC = () => {
             url: shareUrl,
           });
         } catch {
-          // User closed sharing sheet or unsupported context
+          // Fallback to clipboard if share fails or is cancelled
         }
       } else {
         try {
-          await navigator.clipboard.writeText(shareUrl);
+          await navigator.clipboard.writeText(text);
+          alert("Share link copied to clipboard!");
         } catch {
-          console.warn("Clipboard copy blocked or unsupported, user can copy from modal");
+          alert("Failed to copy content.");
         }
       }
     } catch (err: any) {
@@ -1359,21 +1223,6 @@ const App: React.FC = () => {
   };
 
   const renderDashboard = () => {
-    const getSingularName = (view: AppMode) => {
-      switch (view) {
-        case AppMode.SUMMARY:
-          return "Summary";
-        case AppMode.QUIZ:
-          return "Quiz";
-        case AppMode.HOMEWORK:
-          return "Homework";
-        case AppMode.TUTOR:
-          return "Chat";
-        default:
-          return "Item";
-      }
-    };
-
     const noteCount = (() => {
       try {
         const key = user ? `notes_${user.uid}` : "notes_guest";
@@ -1458,6 +1307,20 @@ const App: React.FC = () => {
       );
       const categoryLabel =
         dashboardCards.find((c) => c.id === dashboardView)?.label || "History";
+      const getSingularName = (view: AppMode) => {
+        switch (view) {
+          case AppMode.SUMMARY:
+            return "Summary";
+          case AppMode.QUIZ:
+            return "Quiz";
+          case AppMode.HOMEWORK:
+            return "Homework";
+          case AppMode.TUTOR:
+            return "Chat";
+          default:
+            return "Item";
+        }
+      };
 
       return (
         <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
@@ -1491,8 +1354,6 @@ const App: React.FC = () => {
                   setHomeworkContent("");
                   setHomeworkImages([]);
                   setQuizData(null);
-                  setFlashcardsData(null);
-                  setFlashcardsTitle("");
                   setExistingQuizScore(undefined);
                   setCurrentHistoryId(null);
                   setError(null);
@@ -1624,13 +1485,9 @@ const App: React.FC = () => {
                   <card.icon className="w-5 h-5" />
                 </div>
                 {card.count !== null && (
-                  historyLoadedUid === "none" ? (
-                    <div className="h-6 w-10 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
-                  ) : (
-                    <span className="text-2xl font-bold text-slate-800 dark:text-white">
-                      {card.count}
-                    </span>
-                  )
+                  <span className="text-2xl font-bold text-slate-800 dark:text-white">
+                    {card.count}
+                  </span>
                 )}
               </div>
               <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10">
@@ -1678,65 +1535,6 @@ const App: React.FC = () => {
             </button>
           </div>
         </div>
-
-        {/* Recent Study History */}
-        {history.length > 0 && (
-          <div className="mt-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-500" />
-                Recent Study History
-              </h3>
-              <span className="text-xs text-slate-400 font-medium font-mono bg-slate-150 dark:bg-slate-900 px-2.5 py-1 rounded">
-                {history.length} items
-              </span>
-            </div>
-            <div className="grid gap-3">
-              {history.slice(0, 5).map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => loadHistoryItem(item)}
-                  className="bg-slate-50/50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:border-amber-200 dark:hover:border-amber-800 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-50 dark:bg-slate-750 text-primary-600 dark:text-primary-400`}
-                    >
-                      {item.type === AppMode.QUIZ ? (
-                        <BrainCircuit className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                      ) : item.type === AppMode.SUMMARY ? (
-                        <FileText className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      ) : (item.type === AppMode.HOMEWORK || item.type === AppMode.ESSAY) ? (
-                        <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      ) : (
-                        <MessageCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                      )}
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-slate-800 dark:text-white text-sm group-hover:text-amber-700 dark:group-hover:text-amber-405 transition-colors">
-                        {item.title}
-                      </h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-3 mt-1">
-                        <span className="font-medium bg-slate-200/50 dark:bg-slate-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-350">
-                          {getSingularName(item.type)}
-                        </span>
-                        <span className="flex items-center gap-1 text-slate-400">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {new Date(item.timestamp).toLocaleDateString()}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center border border-slate-100 dark:border-slate-700 shadow-sm opacity-60 group-hover:opacity-100 group-hover:text-amber-600 transition-all">
-                      <ChevronRight className="w-4 h-4" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     );
   };
@@ -1943,7 +1741,6 @@ const App: React.FC = () => {
             <TutorChat
               onDeductCredit={deductCredit}
               currentCredits={userProfile.credits}
-              onSharePublicLink={handleSharePublicLink}
               onSaveSession={(msgs) => {
                 if (msgs.length > 1) {
                   const tutorItemContent = {
@@ -2194,8 +1991,6 @@ const App: React.FC = () => {
               setHomeworkContent("");
               setHomeworkImages([]);
               setQuizData(null);
-              setFlashcardsData(null);
-              setFlashcardsTitle("");
               setExistingQuizScore(undefined);
               setCurrentHistoryId(null);
               setError(null);
@@ -2412,14 +2207,6 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={handleThemeToggle}
-              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors hidden sm:block"
-              title="Toggle Theme"
-            >
-              <Moon className="w-5 h-5 hidden dark:block" />
-              <Sun className="w-5 h-5 block dark:hidden" />
-            </button>
             <button
               onClick={async () => {
                 const shareUrl = window.location.origin;
