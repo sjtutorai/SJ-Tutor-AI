@@ -336,8 +336,6 @@ const App: React.FC = () => {
     setHomeworkContent("");
     setHomeworkImages([]);
     setQuizData(null);
-    setFlashcardsData(null);
-    setFlashcardsTitle("");
     setExistingQuizScore(undefined);
     setCurrentHistoryId(null);
     setError(null);
@@ -1536,8 +1534,6 @@ const App: React.FC = () => {
                   setHomeworkContent("");
                   setHomeworkImages([]);
                   setQuizData(null);
-                  setFlashcardsData(null);
-                  setFlashcardsTitle("");
                   setExistingQuizScore(undefined);
                   setCurrentHistoryId(null);
                   setError(null);
@@ -2252,8 +2248,6 @@ const App: React.FC = () => {
               setHomeworkContent("");
               setHomeworkImages([]);
               setQuizData(null);
-              setFlashcardsData(null);
-              setFlashcardsTitle("");
               setExistingQuizScore(undefined);
               setCurrentHistoryId(null);
               setError(null);

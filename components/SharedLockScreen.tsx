@@ -62,7 +62,7 @@ const SharedLockScreen: React.FC<SharedLockScreenProps> = ({
             <div className="text-center sm:text-left">
               <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Log in or Sign up to access this content</h4>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-normal">
-                Sign up for a free student account to read this full AI Summary, practice with interactive flashcards/quizzes, and save it directly to your dashboard.
+                Sign up for a free student account to read this full AI Summary, practice with interactive quizzes, and save it directly to your dashboard.
               </p>
             </div>
           </div>

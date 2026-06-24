@@ -159,13 +159,31 @@ export const GeminiService = {
     const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
 
     const prompt = `
-      Create a ${count}-question multiple-choice quiz based on the following chapter details.
+      Create a ${count}-question quiz based on the following chapter details.
+      The quiz MUST contain a mix of multiple-choice questions AND fill-in-the-blank questions.
       EVERYTHING INCLUDING QUESTIONS, OPTIONS, AND EXPLANATIONS MUST BE IN ${language.toUpperCase()}.
       
-      The difficulty level of the questions should be: ${difficulty}.
-      Return the result as a JSON array.
+      For each question, assign a specific 'topic' area representing the category/concept being tested (e.g. "Laws of Motion", "Organic Nomenclature", "Cell Mitosis", "Algebraic Substitution", etc.) so we can analyze the student's sub-topic strengths.
       
-      IMPORTANT: Randomize the position of the correct answer for every question.
+      For 'multiple-choice' questions:
+      - Set 'type' to "multiple-choice"
+      - Provide a 'question'
+      - Provide 4 'options'
+      - Provide a valid 'correctAnswerIndex' (0 to 3) pointing to the correct option
+      - Set 'correctAnswerText' to the text of the correct option
+      - Set 'acceptedAnswers' to an array containing that correct option text
+      - Randomize the position of the correct answer
+      
+      For 'fill-in-the-blank' questions:
+      - Set 'type' to "fill-in-the-blank"
+      - Provide a 'question' containing a blank space represented by underscores (e.g., "The primary gas in Earth's atmosphere is _______.")
+      - Set 'options' to an empty array []
+      - Set 'correctAnswerIndex' to -1
+      - Set 'correctAnswerText' to the exact correct word or short phrase (e.g., "Nitrogen")
+      - Set 'acceptedAnswers' to a list of acceptable alternative answers, lowercases, or variations (e.g., ["nitrogen", "N2"])
+      
+      The difficulty level of the questions should be: ${difficulty}.
+      Return the result as a JSON array matching the specified schema.
       
       Subject: ${data.subject}
       Chapter: ${data.chapterName}
@@ -184,12 +202,36 @@ export const GeminiService = {
           items: {
             type: Type.OBJECT,
             properties: {
+              type: { 
+                type: Type.STRING, 
+                description: "Type of question: 'multiple-choice' or 'fill-in-the-blank'" 
+              },
               question: { type: Type.STRING },
-              options: { type: Type.ARRAY, items: { type: Type.STRING } },
-              correctAnswerIndex: { type: Type.INTEGER },
+              topic: {
+                type: Type.STRING,
+                description: "The conceptual category or sub-topic area being tested (e.g., 'Grammar', 'Cytology', 'Calculations')"
+              },
+              options: { 
+                type: Type.ARRAY, 
+                items: { type: Type.STRING }, 
+                description: "List of options for multiple-choice. Set to empty array [] for fill-in-the-blank." 
+              },
+              correctAnswerIndex: { 
+                type: Type.INTEGER, 
+                description: "Index of correct answer (0-3) for multiple-choice. Use -1 for fill-in-the-blank." 
+              },
+              correctAnswerText: { 
+                type: Type.STRING, 
+                description: "The correct string answer for fill-in-the-blank or MCQ." 
+              },
+              acceptedAnswers: { 
+                type: Type.ARRAY, 
+                items: { type: Type.STRING }, 
+                description: "List of alternative acceptable answers (especially case-insensitive forms, e.g. ['nitrogen', 'N2'])" 
+              },
               explanation: { type: Type.STRING }
             },
-            required: ["question", "options", "correctAnswerIndex", "explanation"]
+            required: ["type", "question", "topic", "options", "correctAnswerIndex", "correctAnswerText", "explanation"]
           }
         }
       }
