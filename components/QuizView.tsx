@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { QuizQuestion } from '../types';
 import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Send, MessageCircle, Link, Share2, X, Trophy, Check, Copy, Download } from 'lucide-react';
-import { createSharedContent } from '../utils/firebaseUtils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface QuizViewProps {
@@ -77,19 +76,32 @@ const QuizView: React.FC<QuizViewProps> = ({
 
   const handleShare = async (platform: string) => {
     try {
+      // 1. Save to backend to get a unique public ID
       let shareId = '';
       try {
-        shareId = await createSharedContent(
-          'QUIZ',
-          'Quiz Challenge',
-          questions,
-          'guest'
-        );
+        const response = await fetch('/api/auth/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'QUIZ',
+            title: 'Quiz Challenge',
+            subtitle: `I scored ${score}/${questions.length} on this quiz!`,
+            content: questions
+          })
+        });
+
+        const contentType = response.headers.get("content-type");
+        if (response.ok && contentType && contentType.indexOf("application/json") !== -1) {
+          const data = await response.json();
+          shareId = data.id;
+        } else {
+          console.warn("Backend share endpoint failed or returned non-JSON. Falling back to local share.");
+        }
       } catch (e) {
-        console.warn("Firestore sharing unavailable", e);
+        console.warn("Backend sharing unavailable, falling back to local share", e);
       }
 
-      const shareUrl = shareId ? `${window.location.origin}/share/${shareId}` : window.location.origin;
+      const shareUrl = shareId ? `${window.location.origin}?share=${shareId}` : window.location.origin;
       const text = `I scored ${score}/${questions.length} on my SJ Tutor AI Quiz! 🎓`;
       const shareTextWithLink = `${text}\nCheck it out here: ${shareUrl}`;
       

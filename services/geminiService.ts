@@ -30,7 +30,7 @@ export const GeminiService = {
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
       config: {
         systemInstruction: `You are an AI study assistant. You must communicate and generate content strictly in ${language}.`
@@ -64,7 +64,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: prompt,
     });
 
@@ -91,7 +91,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
@@ -139,7 +139,7 @@ export const GeminiService = {
     });
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: {
         parts: contents
       },
@@ -175,7 +175,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -208,7 +208,7 @@ export const GeminiService = {
     const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -249,7 +249,7 @@ export const GeminiService = {
     
     const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -286,9 +286,38 @@ export const GeminiService = {
     const ai = getAI();
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       config: { systemInstruction: systemInstruction }
     });
+  },
+
+  chatWithTutor: async (text: string, history: any[], imagesBase64: string[] = []) => {
+    const ai = getAI();
+    const systemInstruction = SettingsService.getTutorSystemInstruction();
+    
+    const formattedHistory = history.map(msg => ({
+      role: msg.role === 'model' ? 'model' : 'user',
+      parts: msg.images ? [
+        ...msg.images.map((img: string) => ({
+          inlineData: { mimeType: 'image/jpeg', data: img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "") }
+        })),
+        { text: msg.text }
+      ] : [{ text: msg.text }]
+    }));
+
+    const currentParts: any[] = [{ text }];
+    imagesBase64.forEach(img => {
+      const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+      currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
+    });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: [...formattedHistory, { role: 'user', parts: currentParts }],
+      config: { systemInstruction }
+    });
+
+    return response.text || "";
   },
 
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
@@ -296,7 +325,7 @@ export const GeminiService = {
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },

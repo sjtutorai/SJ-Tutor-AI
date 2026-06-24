@@ -487,9 +487,20 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                       
                       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
                         <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Total Days Studied</p>
-                        <p className="text-xl font-black text-slate-800 dark:text-white mt-1 flex items-center gap-1">
-                          📆 {streak.streakHistory ? streak.streakHistory.length : 0} Days
-                        </p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          {/* Mini Custom Dynamic Calendar Component */}
+                          <div className="flex-shrink-0 w-8 h-8 rounded-lg overflow-hidden border border-rose-200/50 dark:border-rose-950/40 flex flex-col text-center shadow-xs">
+                            <div className="bg-rose-500 text-[8px] font-bold text-white py-0.5 uppercase tracking-wider leading-none">
+                              {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][new Date().getMonth()]}
+                            </div>
+                            <div className="bg-rose-50/50 dark:bg-rose-950/10 flex-1 flex items-center justify-center text-xs font-black text-rose-600 dark:text-rose-400 leading-none">
+                              {new Date().getDate()}
+                            </div>
+                          </div>
+                          <p className="text-xl font-black text-slate-800 dark:text-white leading-none">
+                            {streak.streakHistory ? streak.streakHistory.length : 0} Days
+                          </p>
+                        </div>
                       </div>
 
                       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm col-span-2">

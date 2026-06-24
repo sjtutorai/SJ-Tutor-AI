@@ -80,21 +80,16 @@ export class NotificationService {
    * Request browser push notification permissions and register service worker.
    */
   static async requestPermission(): Promise<NotificationPermission> {
-    try {
-      if (!('Notification' in window)) {
-        console.warn('This browser does not support system notifications.');
-        return 'denied';
-      }
-
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        await this.registerServiceWorker();
-      }
-      return permission;
-    } catch (e) {
-      console.warn('Notification permission request was blocked or failed:', e);
+    if (!('Notification' in window)) {
+      console.warn('This browser does not support system notifications.');
       return 'denied';
     }
+
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      await this.registerServiceWorker();
+    }
+    return permission;
   }
 
   /**
@@ -122,39 +117,31 @@ export class NotificationService {
    * Trigger a raw system notification inside the browser/device (Foreground or Background helper)
    */
   static async showLocalNotification(title: string, body: string, category?: string) {
-    try {
-      if (!('Notification' in window)) return;
-      
-      if (Notification.permission === 'granted') {
-        try {
-          const registration = await navigator.serviceWorker.getRegistration();
-          if (registration) {
-            registration.showNotification(title, {
-              body,
-              icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-              badge: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-              vibrate: [200, 100, 200],
-              data: { category }
-            });
-          } else {
-            new Notification(title, {
-              body,
-              icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
-            });
-          }
-        } catch {
-          try {
-            new Notification(title, {
-              body,
-              icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
-            });
-          } catch (err) {
-            console.warn("Failed to trigger local Notification in fallback:", err);
-          }
+    if (!('Notification' in window)) return;
+    
+    if (Notification.permission === 'granted') {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          registration.showNotification(title, {
+            body,
+            icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+            badge: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+            vibrate: [200, 100, 200],
+            data: { category }
+          });
+        } else {
+          new Notification(title, {
+            body,
+            icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
+          });
         }
+      } catch {
+        new Notification(title, {
+          body,
+          icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
+        });
       }
-    } catch (e) {
-      console.warn("Failed to check or trigger local Notification:", e);
     }
   }
 

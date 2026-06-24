@@ -51,10 +51,10 @@ service cloud.firestore {
 
     // Shared content collection - zero-trust dynamic permissions
     match /sharedContent/{shareId} {
-      allow read: if true;
+      allow read: if resource == null || resource.data.isPublic == true;
       allow create: if isValidId(shareId) && (
-        (request.resource.data.ownerUid == "guest") ||
-        (isSignedIn() && request.resource.data.ownerUid == request.auth.uid)
+        (isSignedIn() && request.resource.data.ownerUid == request.auth.uid) ||
+        (request.resource.data.ownerUid == "guest")
       );
       allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid && isValidId(shareId);
       allow update: if isValidId(shareId) && (

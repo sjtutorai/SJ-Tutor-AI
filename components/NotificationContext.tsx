@@ -71,16 +71,9 @@ const SEED_NOTIFICATIONS: NotificationItem[] = [
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(() => {
-    try {
-      if ('Notification' in window) {
-        return Notification.permission;
-      }
-    } catch (e) {
-      console.warn("Notification permission check failed or is blocked in this context:", e);
-    }
-    return 'denied';
-  });
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
+    'Notification' in window ? Notification.permission : 'denied'
+  );
 
   const seenNotificationIdsRef = useRef<Set<string>>(new Set());
 
@@ -289,44 +282,24 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Trigger system notification
   const triggerSystemNotification = (title: string, body: string, url = '/') => {
-    try {
-      if ('Notification' in window && Notification.permission === 'granted') {
-        const options = {
-          body,
-          icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-          badge: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-          data: { url }
-        };
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const options = {
+        body,
+        icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+        badge: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+        data: { url }
+      };
 
-        // Try using service worker if active for best OS support (Android/iOS/PWA)
-        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.ready.then((reg) => {
-            try {
-              reg.showNotification(title, options);
-            } catch {
-              try {
-                new Notification(title, options);
-              } catch (innerErr) {
-                console.warn("Service worker notification fallback failed:", innerErr);
-              }
-            }
-          }).catch(() => {
-            try {
-              new Notification(title, options);
-            } catch (err) {
-              console.warn("Failed to create Notification:", err);
-            }
-          });
-        } else {
-          try {
-            new Notification(title, options);
-          } catch (err) {
-            console.warn("Failed to create Notification directly:", err);
-          }
-        }
+      // Try using service worker if active for best OS support (Android/iOS/PWA)
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then((reg) => {
+          reg.showNotification(title, options);
+        }).catch(() => {
+          new Notification(title, options);
+        });
+      } else {
+        new Notification(title, options);
       }
-    } catch (e) {
-      console.warn("System notification triggered error (likely sandbox block):", e);
     }
   };
 
