@@ -26,60 +26,6 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile }) => {
   const [showForgotTip, setShowForgotTip] = useState(false);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  const taskRef = useRef(task);
-  useEffect(() => {
-    taskRef.current = task;
-  }, [task]);
-
-  const updateNotification = (seconds: number) => {
-    if ("Notification" in window && Notification.permission === "granted") {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-      const title = `SJ Tutor AI Timer: ${timeStr}`;
-      const body = taskRef.current ? `Task: ${taskRef.current}` : "Stay focused on your study goal!";
-
-      const options = {
-        body,
-        tag: 'study-timer-view',
-        requireInteraction: true,
-        silent: true,
-        renotify: false,
-        icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-      };
-
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.ready.then((reg) => {
-          reg.showNotification(title, options);
-        }).catch(() => {
-          try {
-            new Notification(title, options);
-          } catch (e) {
-            console.warn("Notification fallback failed", e);
-          }
-        });
-      } else {
-        try {
-          new Notification(title, options);
-        } catch (e) {
-          console.warn("Notification fallback failed", e);
-        }
-      }
-    }
-  };
-
-  const clearTimerNotification = () => {
-    if ("Notification" in window && Notification.permission === "granted") {
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.ready.then((reg) => {
-          reg.getNotifications({ tag: 'study-timer-view' }).then((notifications) => {
-            notifications.forEach((notif) => notif.close());
-          });
-        });
-      }
-    }
-  };
 
   // Visibility Change Detection
   useEffect(() => {
@@ -107,46 +53,19 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile }) => {
 
   useEffect(() => {
     if (isActive && timeLeft > 0) {
-      updateNotification(timeLeft);
       intervalRef.current = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
       }, 1000);
     } else if (timeLeft === 0) {
       setIsActive(false);
-      clearTimerNotification();
       if (intervalRef.current) clearInterval(intervalRef.current);
       // Play sound or notify
       if (Notification.permission === 'granted') {
         new Notification("Time's up!", {
           body: mode === 'FOCUS' ? "Great job! Take a break." : "Break's over! Back to work.",
-          icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
+          icon: '/favicon.ico' // Fallback
         });
       }
-      
-      // Accumulate completed study time to Daily Study Goal tracker
-      if (mode === 'FOCUS') {
-        try {
-          const studyMins = Math.round(initialTime / 60);
-          if (studyMins > 0) {
-            const savedProgress = localStorage.getItem('sjtutor_daily_study_progress');
-            const savedDate = localStorage.getItem('sjtutor_daily_study_date');
-            const todayStr = new Date().toDateString();
-            let currentProg = 0;
-            if (savedDate === todayStr && savedProgress) {
-              currentProg = parseInt(savedProgress);
-            }
-            const nextProg = currentProg + studyMins;
-            localStorage.setItem('sjtutor_daily_study_progress', String(nextProg));
-            localStorage.setItem('sjtutor_daily_study_date', todayStr);
-            // Fire layout refresh trigger
-            window.dispatchEvent(new Event('storage'));
-          }
-        } catch (e) {
-          console.warn("Could not save study progress automatically", e);
-        }
-      }
-    } else {
-      clearTimerNotification();
     }
 
     return () => {
@@ -158,7 +77,6 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile }) => {
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      clearTimerNotification();
     };
   }, []);
 

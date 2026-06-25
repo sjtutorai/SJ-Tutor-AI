@@ -30,7 +30,7 @@ export const GeminiService = {
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
       config: {
         systemInstruction: `You are an AI study assistant. You must communicate and generate content strictly in ${language}.`
@@ -64,7 +64,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
 
@@ -91,7 +91,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
@@ -139,7 +139,7 @@ export const GeminiService = {
     });
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: contents
       },
@@ -159,31 +159,13 @@ export const GeminiService = {
     const difficulty = data.difficulty || settings.learning.difficulty || 'Medium';
 
     const prompt = `
-      Create a ${count}-question quiz based on the following chapter details.
-      The quiz MUST contain a mix of multiple-choice questions AND fill-in-the-blank questions.
+      Create a ${count}-question multiple-choice quiz based on the following chapter details.
       EVERYTHING INCLUDING QUESTIONS, OPTIONS, AND EXPLANATIONS MUST BE IN ${language.toUpperCase()}.
       
-      For each question, assign a specific 'topic' area representing the category/concept being tested (e.g. "Laws of Motion", "Organic Nomenclature", "Cell Mitosis", "Algebraic Substitution", etc.) so we can analyze the student's sub-topic strengths.
-      
-      For 'multiple-choice' questions:
-      - Set 'type' to "multiple-choice"
-      - Provide a 'question'
-      - Provide 4 'options'
-      - Provide a valid 'correctAnswerIndex' (0 to 3) pointing to the correct option
-      - Set 'correctAnswerText' to the text of the correct option
-      - Set 'acceptedAnswers' to an array containing that correct option text
-      - Randomize the position of the correct answer
-      
-      For 'fill-in-the-blank' questions:
-      - Set 'type' to "fill-in-the-blank"
-      - Provide a 'question' containing a blank space represented by underscores (e.g., "The primary gas in Earth's atmosphere is _______.")
-      - Set 'options' to an empty array []
-      - Set 'correctAnswerIndex' to -1
-      - Set 'correctAnswerText' to the exact correct word or short phrase (e.g., "Nitrogen")
-      - Set 'acceptedAnswers' to a list of acceptable alternative answers, lowercases, or variations (e.g., ["nitrogen", "N2"])
-      
       The difficulty level of the questions should be: ${difficulty}.
-      Return the result as a JSON array matching the specified schema.
+      Return the result as a JSON array.
+      
+      IMPORTANT: Randomize the position of the correct answer for every question.
       
       Subject: ${data.subject}
       Chapter: ${data.chapterName}
@@ -193,7 +175,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -202,36 +184,12 @@ export const GeminiService = {
           items: {
             type: Type.OBJECT,
             properties: {
-              type: { 
-                type: Type.STRING, 
-                description: "Type of question: 'multiple-choice' or 'fill-in-the-blank'" 
-              },
               question: { type: Type.STRING },
-              topic: {
-                type: Type.STRING,
-                description: "The conceptual category or sub-topic area being tested (e.g., 'Grammar', 'Cytology', 'Calculations')"
-              },
-              options: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING }, 
-                description: "List of options for multiple-choice. Set to empty array [] for fill-in-the-blank." 
-              },
-              correctAnswerIndex: { 
-                type: Type.INTEGER, 
-                description: "Index of correct answer (0-3) for multiple-choice. Use -1 for fill-in-the-blank." 
-              },
-              correctAnswerText: { 
-                type: Type.STRING, 
-                description: "The correct string answer for fill-in-the-blank or MCQ." 
-              },
-              acceptedAnswers: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING }, 
-                description: "List of alternative acceptable answers (especially case-insensitive forms, e.g. ['nitrogen', 'N2'])" 
-              },
+              options: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correctAnswerIndex: { type: Type.INTEGER },
               explanation: { type: Type.STRING }
             },
-            required: ["type", "question", "topic", "options", "correctAnswerIndex", "correctAnswerText", "explanation"]
+            required: ["question", "options", "correctAnswerIndex", "explanation"]
           }
         }
       }
@@ -250,7 +208,7 @@ export const GeminiService = {
     const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -291,7 +249,7 @@ export const GeminiService = {
     
     const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -328,38 +286,9 @@ export const GeminiService = {
     const ai = getAI();
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       config: { systemInstruction: systemInstruction }
     });
-  },
-
-  chatWithTutor: async (text: string, history: any[], imagesBase64: string[] = []) => {
-    const ai = getAI();
-    const systemInstruction = SettingsService.getTutorSystemInstruction();
-    
-    const formattedHistory = history.map(msg => ({
-      role: msg.role === 'model' ? 'model' : 'user',
-      parts: msg.images ? [
-        ...msg.images.map((img: string) => ({
-          inlineData: { mimeType: 'image/jpeg', data: img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "") }
-        })),
-        { text: msg.text }
-      ] : [{ text: msg.text }]
-    }));
-
-    const currentParts: any[] = [{ text }];
-    imagesBase64.forEach(img => {
-      const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-      currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
-    });
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
-      contents: [...formattedHistory, { role: 'user', parts: currentParts }],
-      config: { systemInstruction }
-    });
-
-    return response.text || "";
   },
 
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
@@ -367,7 +296,7 @@ export const GeminiService = {
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },

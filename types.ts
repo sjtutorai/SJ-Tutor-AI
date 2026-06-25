@@ -38,16 +38,11 @@ export interface QuizQuestion {
   correctAnswerIndex: number;
   explanation: string;
   answerKeyExplanation?: string;
-  type?: 'multiple-choice' | 'fill-in-the-blank';
-  correctAnswerText?: string;
-  acceptedAnswers?: string[];
-  topic?: string;
 }
 
 export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
-  images?: string[];
   timestamp: number;
 }
 

@@ -350,6 +350,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <a href="#demo" className="hover:text-blue-400 transition-colors">Simulator Demo</a>
             <a href="#subjects" className="hover:text-blue-400 transition-colors">Subjects</a>
             <a href="#about" className="hover:text-blue-400 transition-colors">Our Vision</a>
+            <a href="#pricing" className="hover:text-blue-400 transition-colors">Pricing Plans</a>
           </div>
 
           <div className="flex items-center gap-4">
@@ -1235,6 +1236,158 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           </div>
         </section>
 
+        {/* PRICING SECTION */}
+        <section id="pricing" className="max-w-7xl mx-auto px-6 py-24 select-none">
+          <div className="text-center space-y-4 mb-20">
+            <span className="text-xs text-blue-400 font-extrabold uppercase tracking-[0.25em]">PRISTINE LEARNING PLANS</span>
+            <h2 className="text-3xl md:text-5xl font-black text-white">Choose Your Learning Plan</h2>
+            <p className="text-slate-400 max-w-xl mx-auto text-sm">
+              Unlock unlimited AI answers, advanced math coordinate tracers, student credentials, and extra daily streak credit multipliers.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+            
+            {/* PLAN 1: Free */}
+            <div className="bg-[#0F172A]/40 border border-slate-800 p-8 rounded-3xl flex flex-col justify-between hover:border-slate-700 transition-all duration-300">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-300">Basic Explorer</h3>
+                  <span className="text-[10px] text-slate-500 uppercase block mt-1 tracking-wider">Free account study credentials</span>
+                </div>
+
+                <div className="flex items-baseline gap-1 text-white">
+                  <span className="text-4xl font-extrabold font-mono">$0</span>
+                  <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">/ Month</span>
+                </div>
+
+                <p className="text-xs text-slate-400">Great for fundamental study assistance and standard chapter summaries.</p>
+
+                <ul className="space-y-3.5 pt-6 border-t border-slate-900">
+                  <li className="flex items-center gap-3 text-xs text-slate-300">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Limited daily AI Questions</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-xs text-slate-300">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Basic Learning Tools (Summaries)</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-xs text-slate-500 line-through">
+                    <span>Advanced Interactive Graphs</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-xs text-slate-500 line-through">
+                    <span>Comprehensive Exam Prep Quizzes</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button 
+                onClick={onGetStarted}
+                className="w-full mt-8 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-bold text-white transition-colors"
+              >
+                Start Learning Free
+              </button>
+            </div>
+
+            {/* PLAN 2: PRO (Highlighted Glowing Card) */}
+            <div className="bg-gradient-to-b from-[#131b3a] to-[#0A0D1D] border border-blue-500/50 p-8 rounded-3xl flex flex-col justify-between shadow-[0_0_60px_rgba(37,99,235,0.25)] relative transform md:-translate-y-4">
+              
+              {/* Popular ribbon */}
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white border border-blue-400 text-[10px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full shadow-lg">
+                ★ MOST POPULAR PLAN
+              </div>
+
+              <div className="space-y-6 pt-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white">Academic Pro</h3>
+                  <span className="px-2.5 py-0.5 bg-blue-500/20 border border-blue-500/40 rounded-full text-[9px] font-bold text-blue-400">BEST VALUE</span>
+                </div>
+
+                <div className="flex items-baseline gap-1 text-white">
+                  <span className="text-5xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-cyan-300 to-purple-300">$12</span>
+                  <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">/ Month</span>
+                </div>
+
+                <p className="text-xs text-slate-300">Perfect for students looking to completely master their syllabus roots and score A+ grades.</p>
+
+                <ul className="space-y-3.5 pt-6 border-t border-slate-800">
+                  <li className="flex items-center gap-3 text-xs text-blue-300 font-semibold">
+                    <CorrectGoogleLogo className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <span>Unlimited AI Tutoring Questions</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-xs text-slate-200">
+                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                    <span>Advanced Interactive Math Plots</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-xs text-slate-200">
+                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                    <span>Comprehensive AP/Exam Prep Tools</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-xs text-slate-200">
+                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                    <span>Personalized Adaptive Practice Paths</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-xs text-slate-200">
+                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                    <span>500 Bonus Monthly Learning Credits</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button 
+                onClick={onGetStarted}
+                className="w-full mt-8 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-505 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/35 border border-blue-400/40 transition-all hover:scale-[1.03]"
+              >
+                Claim My Academic Pro Plan
+              </button>
+            </div>
+
+            {/* PLAN 3: School */}
+            <div className="bg-[#0F172A]/40 border border-slate-800 p-8 rounded-3xl flex flex-col justify-between hover:border-slate-700 transition-all duration-300">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-300">Institution Portal</h3>
+                  <span className="text-[10px] text-slate-500 block mt-1 tracking-wider uppercase">Syllabi for complete schools</span>
+                </div>
+
+                <div className="flex items-baseline gap-1 text-white">
+                  <span className="text-4xl font-extrabold font-mono">$89</span>
+                  <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">/ Month</span>
+                </div>
+
+                <p className="text-xs text-slate-400">Empower teacher rooms with structured student progress trackers and quiz creator analytics.</p>
+
+                <ul className="space-y-3.5 pt-6 border-t border-slate-900">
+                  <li className="flex items-center gap-3 text-xs text-slate-300">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Comprehensive Teacher Dashboard</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-xs text-slate-300">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Advanced Classroom Management Tools</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-xs text-slate-300">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Detailed Student Performance metrics</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-xs text-slate-300">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>School District Grade Analytics reports</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button 
+                onClick={onGetStarted}
+                className="w-full mt-8 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-bold text-white transition-colors"
+              >
+                Contact Institution Partner
+              </button>
+            </div>
+
+          </div>
+        </section>
+
         {/* FINAL CTA SECTION (Ready to Learn Smarter?) */}
         <section className="max-w-7xl mx-auto px-6 py-24 select-none">
           <div className="bg-gradient-to-r from-[#1E293B]/40 to-[#0F172A]/80 border border-slate-800/80 rounded-3xl p-12 md:p-16 text-center shadow-2xl relative overflow-hidden">
@@ -1244,7 +1397,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <div className="absolute bottom-0 left-0 w-[240px] h-[240px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
 
             <div className="max-w-2xl mx-auto space-y-6 relative z-10">
-              <span className="text-xs text-cyan-400 font-extrabold uppercase tracking-[0.25em]">START LEARNING NOW</span>
+              <span className="text-xs text-cyan-400 font-extrabold uppercase tracking-[0.25em]">UNLIMITED ACCESS NOW</span>
               <h2 className="text-3xl md:text-5xl font-black text-white tracking-tight">Ready to Learn Smarter?</h2>
               
               <p className="text-slate-300 text-sm md:text-base leading-relaxed">
@@ -1288,6 +1441,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               <ul className="space-y-2.5 text-xs text-slate-400">
                 <li><a href="#features" className="hover:text-blue-400 transition-colors">Core Features</a></li>
                 <li><a href="#demo" className="hover:text-blue-400 transition-colors">Tutor Simulator</a></li>
+                <li><a href="#pricing" className="hover:text-blue-400 transition-colors">Pricing Options</a></li>
                 <li><span className="text-slate-600 cursor-not-allowed">Roadmap 2027</span></li>
               </ul>
             </div>

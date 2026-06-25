@@ -39,23 +39,8 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
   const [sharesCount, setSharesCount] = useState(0);
   const [copied, setCopied] = useState(false);
   
-  const formatDate = (val: any) => {
-    if (!val) return "Today";
-    try {
-      const d = new Date(val);
-      if (isNaN(d.getTime())) return "Academic Resource";
-      return d.toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch {
-      return "Academic Resource";
-    }
-  };
-
   // Quiz specific states
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, any>>({});
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
 
@@ -63,34 +48,14 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
     const loadSharedData = async () => {
       setLoading(true);
       try {
-        let data = await getSharedContent(shareId);
-        
-        // Fallback to Express backend if not found in Firestore
-        if (!data) {
-          try {
-            const response = await fetch(`/api/auth/share/${shareId}`);
-            if (response.ok) {
-              const resData = await response.json();
-              if (resData.success && resData.data) {
-                data = resData.data;
-              }
-            }
-          } catch (apiErr) {
-            console.warn("PublicShareViewer fallback API failed:", apiErr);
-          }
-        }
-
+        const data = await getSharedContent(shareId);
         if (data) {
           setContent(data);
           setLikesCount(data.likes || 0);
           setSharesCount(data.sharesCount || 0);
           
-          // Increment view count on load (asynchronously if Firebase supports it)
-          try {
-            await incrementViewCount(shareId);
-          } catch (e) {
-            console.warn("Could not increment view count", e);
-          }
+          // Increment view count on load (asynchronously)
+          await incrementViewCount(shareId);
         }
       } catch (err) {
         console.error("Error loading shared content:", err);
@@ -116,7 +81,7 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
   };
 
   const handleShare = async () => {
-    const link = `${window.location.origin}/share/${shareId}`;
+    const link = window.location.href;
     try {
       if (navigator.share) {
         await navigator.share({
@@ -138,9 +103,9 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
     }
   };
 
-  const handleQuizAnswer = (qIndex: number, optionValue: any) => {
+  const handleQuizAnswer = (qIndex: number, optionIndex: number) => {
     if (quizSubmitted) return;
-    setSelectedAnswers(prev => ({ ...prev, [qIndex]: optionValue }));
+    setSelectedAnswers(prev => ({ ...prev, [qIndex]: optionIndex }));
   };
 
   const calculateSubmittingQuiz = () => {
@@ -149,23 +114,8 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
     
     let correct = 0;
     questions.forEach((q: any, idx: number) => {
-      const ans = selectedAnswers[idx];
-      if (q.type === 'fill-in-the-blank') {
-        if (typeof ans === 'string') {
-          const cleanUser = ans.trim().toLowerCase();
-          const cleanCorrect = (q.correctAnswerText || '').trim().toLowerCase();
-          let isAnsCorrect = cleanUser === cleanCorrect;
-          if (!isAnsCorrect && Array.isArray(q.acceptedAnswers)) {
-            isAnsCorrect = q.acceptedAnswers.some(
-              (a: string) => a.trim().toLowerCase() === cleanUser
-            );
-          }
-          if (isAnsCorrect) correct++;
-        }
-      } else {
-        if (ans === q.correctAnswerIndex) {
-          correct++;
-        }
+      if (selectedAnswers[idx] === q.correctAnswerIndex) {
+        correct++;
       }
     });
     
@@ -298,24 +248,8 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
 
           <div className="space-y-6">
             {questions.map((q: any, qIdx: number) => {
-              const ans = selectedAnswers[qIdx];
-              const hasAnswered = ans !== undefined;
-              let isCorrect = false;
-              if (q.type === 'fill-in-the-blank') {
-                if (typeof ans === 'string') {
-                  const cleanUser = ans.trim().toLowerCase();
-                  const cleanCorrect = (q.correctAnswerText || '').trim().toLowerCase();
-                  isCorrect = cleanUser === cleanCorrect;
-                  if (!isCorrect && Array.isArray(q.acceptedAnswers)) {
-                    isCorrect = q.acceptedAnswers.some(
-                      (a: string) => a.trim().toLowerCase() === cleanUser
-                    );
-                  }
-                }
-              } else {
-                isCorrect = ans === q.correctAnswerIndex;
-              }
-
+              const isCorrect = selectedAnswers[qIdx] === q.correctAnswerIndex;
+              const hasAnswered = selectedAnswers[qIdx] !== undefined;
               return (
                 <div 
                   key={qIdx} 
@@ -328,73 +262,47 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
                     <span className="text-sm md:text-base">{q.question}</span>
                   </p>
                   
-                  {q.type === 'fill-in-the-blank' ? (
-                    <div className="space-y-2">
-                      <input
-                        type="text"
-                        placeholder="Type your answer here..."
-                        disabled={quizSubmitted}
-                        value={selectedAnswers[qIdx] || ""}
-                        onChange={(e) => handleQuizAnswer(qIdx, e.target.value)}
-                        className={`w-full px-4 py-3 rounded-xl border bg-white dark:bg-slate-900 text-slate-800 dark:text-white font-medium text-sm focus:outline-none transition-all ${
-                          quizSubmitted
-                            ? isCorrect
-                              ? "border-emerald-500 bg-emerald-50/20 text-emerald-800 dark:text-emerald-300 ring-1 ring-emerald-500"
-                              : "border-rose-500 bg-rose-50/20 text-rose-800 dark:text-rose-300 ring-1 ring-rose-500"
-                            : "border-slate-150 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-slate-850"
-                        }`}
-                      />
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                      {q.options && q.options.map((opt: string, optIdx: number) => {
-                        const isSelected = selectedAnswers[qIdx] === optIdx;
-                        let optionStyle = "border-slate-150 dark:border-slate-800 text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800";
-                        
-                        if (isSelected) {
-                          optionStyle = "bg-primary-50 dark:bg-primary-955 border-primary-500 text-primary-700 dark:text-primary-300 font-semibold shadow-inner";
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    {q.options.map((opt: string, optIdx: number) => {
+                      const isSelected = selectedAnswers[qIdx] === optIdx;
+                      let optionStyle = "border-slate-150 dark:border-slate-800 text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800";
+                      
+                      if (isSelected) {
+                        optionStyle = "bg-primary-50 dark:bg-primary-955 border-primary-500 text-primary-700 dark:text-primary-300 font-semibold shadow-inner";
+                      }
+                      
+                      if (quizSubmitted) {
+                        if (optIdx === q.correctAnswerIndex) {
+                          optionStyle = "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-700 dark:text-emerald-400 font-semibold";
+                        } else if (isSelected && !isCorrect) {
+                          optionStyle = "bg-red-50 dark:bg-red-950/20 border-red-500 text-red-700 dark:text-red-400";
                         }
-                        
-                        if (quizSubmitted) {
-                          if (optIdx === q.correctAnswerIndex) {
-                            optionStyle = "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-700 dark:text-emerald-400 font-semibold";
-                          } else if (isSelected && !isCorrect) {
-                            optionStyle = "bg-red-50 dark:bg-red-950/20 border-red-500 text-red-700 dark:text-red-400";
-                          }
-                        }
-                        
-                        return (
-                          <button
-                            key={optIdx}
-                            disabled={quizSubmitted}
-                            onClick={() => handleQuizAnswer(qIdx, optIdx)}
-                            className={`w-full py-3 px-4 rounded-xl border text-left text-sm transition-all focus:outline-none flex items-center gap-2.5 ${optionStyle}`}
-                          >
-                            <span className="text-xs font-bold text-slate-400">{String.fromCharCode(65 + optIdx)}.</span>
-                            <span>{opt}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                      }
+                      
+                      return (
+                        <button
+                          key={optIdx}
+                          disabled={quizSubmitted}
+                          onClick={() => handleQuizAnswer(qIdx, optIdx)}
+                          className={`w-full py-3 px-4 rounded-xl border text-left text-sm transition-all focus:outline-none flex items-center gap-2.5 ${optionStyle}`}
+                        >
+                          <span className="text-xs font-bold text-slate-400">{String.fromCharCode(65 + optIdx)}.</span>
+                          <span>{opt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
                   {quizSubmitted && hasAnswered && (
                     <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-850 animate-in slide-in-from-top-1">
-                      <div className="flex flex-col gap-1 text-xs mb-1.5 font-bold">
+                      <div className="flex gap-2 text-xs mb-1.5 font-bold">
                         {isCorrect ? (
                           <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">✓ Correct Answer</span>
                         ) : (
-                          <div className="space-y-1">
-                            <span className="text-red-650 dark:text-red-400 flex items-center gap-1">
-                              ✗ Incorrect {q.type === 'fill-in-the-blank' ? `(Your answer: "${selectedAnswers[qIdx]}")` : `(Selected ${String.fromCharCode(65 + (selectedAnswers[qIdx] || 0))})`}
-                            </span>
-                            {q.type === 'fill-in-the-blank' && (
-                              <span className="text-emerald-600 dark:text-emerald-400 block">Correct response: &quot;{q.correctAnswerText}&quot;</span>
-                            )}
-                          </div>
+                          <span className="text-red-650 dark:text-red-400 flex items-center gap-1">✗ Incorrect (Selected {String.fromCharCode(65 + (selectedAnswers[qIdx] || 0))})</span>
                         )}
                       </div>
-                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400 flex items-start gap-1.5 leading-relaxed mt-2">
+                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400 flex items-start gap-1.5 leading-relaxed">
                         <Lightbulb className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                         <span>{q.explanation}</span>
                       </p>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, setDoc, getDocs, collection, query, orderBy, limit } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { UserProfile } from '../types';
@@ -125,8 +125,6 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSoundEnabledState(val);
     localStorage.setItem('sjtutor_streak_sound_enabled', String(val));
   };
-
-  const autoCheckedRef = useRef<string | null>(null);
 
   // Trigger high-end fireworks animation
   const triggerConfetti = useCallback(() => {
@@ -329,10 +327,7 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [currentUserId, fetchLeaderboard]);
 
   // Record an activity completion with accurate 24-hour criteria
-  const recordActivity = useCallback(async (
-    userProfile?: UserProfile,
-    onProfileUpdate?: (profile: UserProfile) => void
-  ) => {
+  const recordActivity = useCallback(async () => {
     const today = getLocalDateString();
     
     return new Promise<{ success: boolean; incremented: boolean; milestoneReached?: number }>((resolve) => {
@@ -393,29 +388,6 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         if (didIncrement) {
-          // If profile and onProfileUpdate are provided, reward 10 credits
-          if (userProfile && onProfileUpdate) {
-            const updatedProfile = {
-              ...userProfile,
-              credits: (userProfile.credits || 0) + 10,
-            };
-            onProfileUpdate(updatedProfile);
-            localStorage.setItem(`profile_${prev.uid}`, JSON.stringify(updatedProfile));
-          } else {
-            // fallback: check if we can update profile from localStorage directly
-            const profileKey = prev.uid === 'guest' ? 'sjtutor_guest_profile' : `profile_${prev.uid}`;
-            const localProfileRaw = localStorage.getItem(profileKey);
-            if (localProfileRaw) {
-              try {
-                const localProfile = JSON.parse(localProfileRaw) as UserProfile;
-                localProfile.credits = (localProfile.credits || 0) + 10;
-                localStorage.setItem(profileKey, JSON.stringify(localProfile));
-              } catch (e) {
-                console.warn('Could not parse/update local profile credits on auto-increment:', e);
-              }
-            }
-          }
-
           setTimeout(() => {
             triggerConfetti();
             playCelebrationSound(soundEnabled);
@@ -438,22 +410,6 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
     });
   }, [triggerConfetti, soundEnabled]);
-
-  // Auto-increment streak point on app load/login if they haven't done any study activity today
-  useEffect(() => {
-    if (!loading && streak.uid) {
-      const uId = streak.uid;
-      if (autoCheckedRef.current !== uId) {
-        autoCheckedRef.current = uId;
-        const lastIncr = streak.updatedAt || 0;
-        const isFirstTime = streak.currentStreak === 0;
-        const isEligible = isFirstTime || (Date.now() - lastIncr >= 24 * 60 * 60 * 1000);
-        if (isEligible) {
-          recordActivity();
-        }
-      }
-    }
-  }, [loading, streak.uid, streak.updatedAt, recordActivity]);
 
   // Claim specific milestone rewards
   const claimMilestone = useCallback(async (

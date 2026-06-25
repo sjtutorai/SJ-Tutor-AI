@@ -37,20 +37,6 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab ] = useState<'STREAK' | 'BADGES' | 'LEADERBOARD'>('STREAK');
-
-  // Animation trigger whenever user gets a streak update
-  const prevStreakRef = useRef(streak.currentStreak);
-  const [scaleTrigger, setScaleTrigger] = useState(false);
-
-  useEffect(() => {
-    if (streak.currentStreak > prevStreakRef.current) {
-      setScaleTrigger(true);
-      const timer = setTimeout(() => setScaleTrigger(false), 1200);
-      prevStreakRef.current = streak.currentStreak;
-      return () => clearTimeout(timer);
-    }
-    prevStreakRef.current = streak.currentStreak;
-  }, [streak.currentStreak]);
   
   // Position state saved as percentile to handle responsive window resizes seamlessly
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -299,17 +285,6 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
           position: 'fixed',
           zIndex: 9999,
         }}
-        animate={scaleTrigger ? {
-          scale: [1, 1.35, 1.35, 1.1, 1],
-          rotate: [0, -18, 18, -12, 12, 0],
-          boxShadow: [
-            "0_8px_30px_rgba(249,115,22,0.35)",
-            "0_0px_60px_rgba(249,115,22,0.85)",
-            "0_0px_35px_rgba(249,115,22,0.6)",
-            "0_8px_30px_rgba(249,115,22,0.35)"
-          ]
-        } : {}}
-        transition={{ duration: 1.0, ease: "easeInOut" }}
         whileHover={{ scale: 1.1, cursor: 'grab' }}
         whileTap={{ scale: 0.95, cursor: 'grabbing' }}
         className="touch-none select-none"
@@ -487,20 +462,9 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                       
                       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm">
                         <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Total Days Studied</p>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          {/* Mini Custom Dynamic Calendar Component */}
-                          <div className="flex-shrink-0 w-8 h-8 rounded-lg overflow-hidden border border-rose-200/50 dark:border-rose-950/40 flex flex-col text-center shadow-xs">
-                            <div className="bg-rose-500 text-[8px] font-bold text-white py-0.5 uppercase tracking-wider leading-none">
-                              {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][new Date().getMonth()]}
-                            </div>
-                            <div className="bg-rose-50/50 dark:bg-rose-950/10 flex-1 flex items-center justify-center text-xs font-black text-rose-600 dark:text-rose-400 leading-none">
-                              {new Date().getDate()}
-                            </div>
-                          </div>
-                          <p className="text-xl font-black text-slate-800 dark:text-white leading-none">
-                            {streak.streakHistory ? streak.streakHistory.length : 0} Days
-                          </p>
-                        </div>
+                        <p className="text-xl font-black text-slate-800 dark:text-white mt-1 flex items-center gap-1">
+                          📆 {streak.streakHistory ? streak.streakHistory.length : 0} Days
+                        </p>
                       </div>
 
                       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-sm col-span-2">

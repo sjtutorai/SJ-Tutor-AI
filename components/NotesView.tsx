@@ -161,9 +161,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   const handleAiAction = async (task: 'summarize' | 'simplify' | 'mcq' | 'translate') => {
     if (!editingNote?.content) return;
     
-    const cost = 5; // AI Note actions cost 5 credits
+    const cost = 5;
     if (!onDeductCredit(cost)) {
-      alert(`Insufficient credits! This AI action requires ${cost} credits. Complete daily study activities to maintain streaks and earn more!`);
+      alert(`AI actions cost ${cost} credits.`);
       return;
     }
 
