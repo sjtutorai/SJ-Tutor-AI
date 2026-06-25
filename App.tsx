@@ -20,7 +20,6 @@ import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
 import LoadingState from "./components/LoadingState";
 import NotesView from "./components/NotesView";
-import { FlashcardsView } from "./components/FlashcardsView";
 import SettingsView from "./components/SettingsView";
 import AboutView from "./components/AboutView";
 import IdCardView from "./components/IdCardView";
@@ -291,17 +290,6 @@ const App: React.FC = () => {
       return saved ? parseInt(saved) : undefined;
     } catch { return undefined; }
   });
-  const [flashcardsData, setFlashcardsData] = useState<any | null>(() => {
-    try {
-      const saved = localStorage.getItem('sjtutor_autosave_flashcards');
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-  });
-  const [flashcardsTitle, setFlashcardsTitle] = useState(() => {
-    try {
-      return localStorage.getItem('sjtutor_autosave_flashcards_title') || "";
-    } catch { return ""; }
-  });
 
   // Save active outputs to localStorage
   useEffect(() => {
@@ -318,17 +306,10 @@ const App: React.FC = () => {
       } else {
         localStorage.removeItem('sjtutor_autosave_quiz_score');
       }
-      if (flashcardsData) {
-        localStorage.setItem('sjtutor_autosave_flashcards', JSON.stringify(flashcardsData));
-        localStorage.setItem('sjtutor_autosave_flashcards_title', flashcardsTitle);
-      } else {
-        localStorage.removeItem('sjtutor_autosave_flashcards');
-        localStorage.removeItem('sjtutor_autosave_flashcards_title');
-      }
     } catch (e) {
       console.warn("Could not autosave active outputs", e);
     }
-  }, [summaryContent, homeworkContent, quizData, existingQuizScore, flashcardsData, flashcardsTitle]);
+  }, [summaryContent, homeworkContent, quizData, existingQuizScore]);
 
   // Loading States
   const [loading, setLoading] = useState(false);
@@ -355,8 +336,6 @@ const App: React.FC = () => {
     setHomeworkContent("");
     setHomeworkImages([]);
     setQuizData(null);
-    setFlashcardsData(null);
-    setFlashcardsTitle("");
     setExistingQuizScore(undefined);
     setCurrentHistoryId(null);
     setError(null);
@@ -1248,10 +1227,6 @@ const App: React.FC = () => {
       setMode(AppMode.QUIZ);
     } else if (item.type === AppMode.TUTOR) {
       setMode(AppMode.TUTOR);
-    } else if (item.type === AppMode.FLASHCARDS) {
-      setFlashcardsData(item.content);
-      setFlashcardsTitle(item.title);
-      setMode(AppMode.FLASHCARDS);
     }
   };
 
@@ -1368,7 +1343,6 @@ const App: React.FC = () => {
     { id: AppMode.ID_CARD, label: "Student ID Card", icon: CreditCard },
     { id: AppMode.SUMMARY, label: "Instant Summary", icon: FileText },
     { id: AppMode.QUIZ, label: "Quiz Creator", icon: BrainCircuit },
-    { id: AppMode.FLASHCARDS, label: "Flashcards", icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
@@ -1393,8 +1367,6 @@ const App: React.FC = () => {
           return "Homework";
         case AppMode.TUTOR:
           return "Chat";
-        case AppMode.FLASHCARDS:
-          return "Deck";
         default:
           return "Item";
       }
@@ -1416,7 +1388,6 @@ const App: React.FC = () => {
       quizzes: history.filter((h) => h.type === AppMode.QUIZ).length,
       homeworks: history.filter((h) => h.type === AppMode.HOMEWORK).length,
       chats: history.filter((h) => h.type === AppMode.TUTOR).length,
-      flashcards: history.filter((h) => h.type === AppMode.FLASHCARDS).length,
     };
 
     const dashboardCards = [
@@ -1442,14 +1413,6 @@ const App: React.FC = () => {
         count: stats.quizzes,
         icon: BrainCircuit,
         color: "text-amber-700 dark:text-amber-400",
-        bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
-      },
-      {
-        id: AppMode.FLASHCARDS,
-        label: "Flashcards",
-        count: stats.flashcards,
-        icon: BrainCircuit,
-        color: "text-amber-500 dark:text-amber-400",
         bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
       },
       {
@@ -1526,8 +1489,6 @@ const App: React.FC = () => {
                   setHomeworkContent("");
                   setHomeworkImages([]);
                   setQuizData(null);
-                  setFlashcardsData(null);
-                  setFlashcardsTitle("");
                   setExistingQuizScore(undefined);
                   setCurrentHistoryId(null);
                   setError(null);
@@ -1637,8 +1598,6 @@ const App: React.FC = () => {
 
                 if (card.id === AppMode.NOTES) {
                   setMode(AppMode.NOTES);
-                } else if (card.id === AppMode.FLASHCARDS) {
-                  setMode(AppMode.FLASHCARDS);
                 } else if (card.id === AppMode.ID_CARD) {
                   setMode(AppMode.ID_CARD);
                 } else if (card.id === AppMode.NOTIFICATIONS) {
@@ -1745,8 +1704,6 @@ const App: React.FC = () => {
                         <FileText className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                       ) : (item.type === AppMode.HOMEWORK || item.type === AppMode.ESSAY) ? (
                         <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      ) : item.type === AppMode.FLASHCARDS ? (
-                        <BrainCircuit className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                       ) : (
                         <MessageCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       )}
@@ -2029,37 +1986,6 @@ const App: React.FC = () => {
           </div>
         );
 
-      case AppMode.FLASHCARDS:
-        return (
-          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <FlashcardsView
-              history={history}
-              initialDeck={flashcardsData}
-              initialDeckName={flashcardsTitle}
-              onSharePublicLink={handleSharePublicLink}
-              onBackToDashboard={() => {
-                setFlashcardsData(null);
-                setFlashcardsTitle("");
-                setMode(AppMode.DASHBOARD);
-              }}
-              onSaveDeck={(title, deck) => {
-                const newId = Date.now().toString();
-                const newItem: HistoryItem = {
-                  id: newId,
-                  type: AppMode.FLASHCARDS,
-                  title: title,
-                  subtitle: `Generated Flashcards • ${deck.length} cards`,
-                  timestamp: Date.now(),
-                  content: deck,
-                  formData: { ...formData }, // we don't really have form data but okay
-                };
-                setHistory((prev) => [newItem, ...prev]);
-                if (user) saveHistoryItemToFirestore(user.uid, newItem);
-              }}
-            />
-          </div>
-        );
-
       case AppMode.PROFILE:
         return (
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -2264,8 +2190,6 @@ const App: React.FC = () => {
               setHomeworkContent("");
               setHomeworkImages([]);
               setQuizData(null);
-              setFlashcardsData(null);
-              setFlashcardsTitle("");
               setExistingQuizScore(undefined);
               setCurrentHistoryId(null);
               setError(null);

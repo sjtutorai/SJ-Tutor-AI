@@ -59,10 +59,6 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
 
-  // Flashcards specific states
-  const [fcIndex, setFcIndex] = useState(0);
-  const [fcFlipped, setFcFlipped] = useState(false);
-
   useEffect(() => {
     const loadSharedData = async () => {
       setLoading(true);
@@ -172,8 +168,6 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
         return <BookOpen className="w-5 h-5 text-emerald-500" />;
       case "tutor":
         return <MessageSquare className="w-5 h-5 text-indigo-500" />;
-      case "flashcards":
-        return <BrainCircuit className="w-5 h-5 text-amber-500" />;
       default:
         return <FileText className="w-5 h-5 text-indigo-500" />;
     }
@@ -189,8 +183,6 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
         return "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30";
       case "tutor":
         return "bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30";
-      case "flashcards":
-        return "bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30";
       default:
         return "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-800";
     }
@@ -206,8 +198,6 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
         return "AI Homework Help";
       case "tutor":
         return "Tutor Chat Transcript";
-      case "flashcards":
-        return "Interactive Flashcard Deck";
       default:
         return "Shared Study Resource";
     }
@@ -415,80 +405,6 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
                 </div>
               );
             })}
-          </div>
-        </div>
-      );
-    }
-
-    if (typeLower === "flashcards" || typeLower === "flashcard") {
-      const cards = (Array.isArray(rawData) ? rawData : rawData.cards || []) as any[];
-      if (cards.length === 0) return <p className="text-slate-500 text-sm">Empty flashcard deck</p>;
-      const currentCard = cards[fcIndex] || cards[0];
-
-      return (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-450 uppercase tracking-wider">
-            <span>Card {fcIndex + 1} of {cards.length}</span>
-            <span>Click card to reveal definition</span>
-          </div>
-
-          {/* Interactive Flip Card for Public Viewer */}
-          <div 
-            onClick={() => setFcFlipped(!fcFlipped)}
-            className="w-full min-h-[220px] md:min-h-[260px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 shadow-sm flex flex-col justify-between items-center text-center cursor-pointer hover:border-amber-450 dark:hover:border-amber-800 transition-all duration-300 relative group select-none"
-          >
-            <div className="w-full flex justify-between text-[10px] uppercase font-bold tracking-widest text-slate-400">
-              <span>{fcFlipped ? "Back (Definition)" : "Front (Term)"}</span>
-              <span className="text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity">Click to Flip</span>
-            </div>
-
-            <div className="my-auto py-6">
-              <h3 className={`font-extrabold tracking-tight leading-relaxed ${fcFlipped ? "text-sm md:text-lg text-slate-700 dark:text-slate-200 font-normal italic" : "text-xl md:text-3xl text-slate-900 dark:text-white"}`}>
-                {fcFlipped ? currentCard.back : currentCard.front}
-              </h3>
-            </div>
-
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-              {fcFlipped ? "Showing definition • Click to flip back" : "Showing concept term • Click to reveal definition"}
-            </p>
-          </div>
-
-          {/* Controls */}
-          <div className="flex justify-between items-center gap-3">
-            <button
-              disabled={fcIndex === 0}
-              onClick={(e) => {
-                e.stopPropagation();
-                setFcFlipped(false);
-                setFcIndex(prev => Math.max(0, prev - 1));
-              }}
-              className="px-4 py-2 border border-slate-200 dark:border-slate-750 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-750 dark:text-slate-200 disabled:opacity-40 rounded-xl text-xs font-bold transition select-none"
-            >
-              Previous Card
-            </button>
-
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setFcFlipped(false);
-                setFcIndex(0);
-              }}
-              className="px-4 py-2 text-slate-400 hover:text-slate-600 text-xs font-bold transition"
-            >
-              Reset Deck
-            </button>
-
-            <button
-              disabled={fcIndex === cards.length - 1}
-              onClick={(e) => {
-                e.stopPropagation();
-                setFcFlipped(false);
-                setFcIndex(prev => Math.min(cards.length - 1, prev + 1));
-              }}
-              className="px-4 py-2 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white disabled:opacity-40 rounded-xl text-xs font-bold transition shadow-sm select-none"
-            >
-              Next Card
-            </button>
           </div>
         </div>
       );
