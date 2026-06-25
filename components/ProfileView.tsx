@@ -267,7 +267,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
     setIsEditing(false);
   };
 
-  const isPremium = formData.planType && formData.planType !== 'Free';
   const completionPercentage = calculateProfileCompletion(formData);
   const incompletePercentage = 100 - completionPercentage;
   const missingFields = getMissingProfileFields(formData);
@@ -406,15 +405,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                </div>
                <div className="flex justify-between text-sm mb-2">
                  <span className="text-slate-500">Plan</span>
-                 <span className={`font-semibold px-2 py-0.5 rounded text-xs ${!isPremium ? 'text-slate-600 bg-white border border-slate-205' : 'text-primary-600 bg-primary-50'}`}>
-                    {formData.planType || 'Free'}
+                 <span className="font-semibold px-2 py-0.5 rounded text-xs text-primary-600 bg-primary-50">
+                    10-Day Free Trial
                  </span>
                </div>
-               <div className="flex justify-between text-sm items-center">
-                 <span className="text-slate-500">Credits</span>
-                 <div className="flex items-center gap-1 font-semibold text-slate-800 bg-white border border-slate-205 px-2 py-0.5 rounded text-xs">
-                    <Zap className="w-3 h-3 fill-amber-400 text-amber-500" />
-                    {formData.credits} / 100
+               <div className="flex justify-between text-sm items-center mt-2.5 p-2 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 rounded-lg">
+                 <span className="text-slate-500 font-medium">Credits</span>
+                 <div className="flex items-center gap-1 font-extrabold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-slate-900 border border-emerald-100 dark:border-emerald-950 px-2 py-0.5 rounded text-xs">
+                    <Zap className="w-3 h-3 fill-emerald-400 text-emerald-500 animate-pulse" />
+                    Unlimited Access
                  </div>
                </div>
                
@@ -603,7 +602,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                       type="text"
                       disabled={true}
                       value={formData.grade || ''}
-                      className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-800/50 border border-slate-200 shadow-sm rounded-xl outline-none transition-all opacity-80 text-slate-900 dark:text-slate-100 cursor-not-allowed"
+                      className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 shadow-sm rounded-xl outline-none transition-all opacity-80 text-slate-900 cursor-not-allowed"
                       placeholder="e.g. 10th Grade"
                     />
                   </div>

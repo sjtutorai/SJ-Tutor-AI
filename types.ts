@@ -43,6 +43,7 @@ export interface QuizQuestion {
 export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
+  images?: string[];
   timestamp: number;
 }
 
