@@ -404,16 +404,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                  <span className="font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-xs">Active</span>
                </div>
                <div className="flex justify-between text-sm mb-2">
-                 <span className="text-slate-500">Plan</span>
+                 <span className="text-slate-500">Account Type</span>
                  <span className="font-semibold px-2 py-0.5 rounded text-xs text-primary-600 bg-primary-50">
-                    10-Day Free Trial
+                    Standard Free
                  </span>
                </div>
                <div className="flex justify-between text-sm items-center mt-2.5 p-2 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 rounded-lg">
                  <span className="text-slate-500 font-medium">Credits</span>
                  <div className="flex items-center gap-1 font-extrabold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-slate-900 border border-emerald-100 dark:border-emerald-950 px-2 py-0.5 rounded text-xs">
                     <Zap className="w-3 h-3 fill-emerald-400 text-emerald-500 animate-pulse" />
-                    Unlimited Access
+                    {profile.credits}
                  </div>
                </div>
                

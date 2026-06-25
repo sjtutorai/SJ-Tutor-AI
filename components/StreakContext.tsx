@@ -329,7 +329,10 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [currentUserId, fetchLeaderboard]);
 
   // Record an activity completion with accurate 24-hour criteria
-  const recordActivity = useCallback(async () => {
+  const recordActivity = useCallback(async (
+    userProfile?: UserProfile,
+    onProfileUpdate?: (profile: UserProfile) => void
+  ) => {
     const today = getLocalDateString();
     
     return new Promise<{ success: boolean; incremented: boolean; milestoneReached?: number }>((resolve) => {
@@ -390,6 +393,29 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         if (didIncrement) {
+          // If profile and onProfileUpdate are provided, reward 10 credits
+          if (userProfile && onProfileUpdate) {
+            const updatedProfile = {
+              ...userProfile,
+              credits: (userProfile.credits || 0) + 10,
+            };
+            onProfileUpdate(updatedProfile);
+            localStorage.setItem(`profile_${prev.uid}`, JSON.stringify(updatedProfile));
+          } else {
+            // fallback: check if we can update profile from localStorage directly
+            const profileKey = prev.uid === 'guest' ? 'sjtutor_guest_profile' : `profile_${prev.uid}`;
+            const localProfileRaw = localStorage.getItem(profileKey);
+            if (localProfileRaw) {
+              try {
+                const localProfile = JSON.parse(localProfileRaw) as UserProfile;
+                localProfile.credits = (localProfile.credits || 0) + 10;
+                localStorage.setItem(profileKey, JSON.stringify(localProfile));
+              } catch (e) {
+                console.warn('Could not parse/update local profile credits on auto-increment:', e);
+              }
+            }
+          }
+
           setTimeout(() => {
             triggerConfetti();
             playCelebrationSound(soundEnabled);

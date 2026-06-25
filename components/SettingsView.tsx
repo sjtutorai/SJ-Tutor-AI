@@ -27,7 +27,6 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     userProfile, 
     onLogout, 
     onNavigateToProfile, 
-    onOpenPremium,
     onNavigateToLegal
   } = props;
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
@@ -721,7 +720,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
       case 'billing':
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Subscription & Credits</h3>
+             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Credits & Balance</h3>
              
              {/* Current Plan Card */}
              <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
@@ -733,44 +732,25 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                       <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm"><Crown className="w-5 h-5 text-amber-400" /></div>
                       <span className="font-bold text-amber-400 tracking-wider text-sm uppercase">Current Plan</span>
                    </div>
-                   <h2 className="text-3xl font-bold mb-1">10-Day Free Trial</h2>
-                   <p className="text-slate-400 text-sm mb-6">Complete free unlimited access to all AI models and interactive study tools for 10 days.</p>
+                   <h2 className="text-3xl font-bold mb-1">Standard Free Account</h2>
+                   <p className="text-slate-400 text-sm mb-6">Enjoy access to conversational AI tutoring, homework help, notes summarizers, and quizzes using your available credits.</p>
                    
                    <div className="flex items-center justify-between bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/5">
                       <div>
                          <p className="text-xs text-slate-400 mb-1">Available Credits</p>
                          <p className="text-2xl font-bold flex items-center gap-2">
                             <Zap className="w-5 h-5 text-emerald-400 fill-emerald-400 animate-pulse" />
-                            Unlimited
+                            {userProfile.credits}
                          </p>
                       </div>
                       <button 
                          
                          className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-lg text-xs font-black uppercase tracking-wider select-none"
                       >
-                         Free Pass Active
+                         Active Account
                       </button>
                    </div>
                 </div>
-             </div>
-
-             {/* Permanent Premium Options Invitation */}
-             <div className="bg-gradient-to-r from-amber-500/5 to-primary-650/5 dark:from-amber-500/10 dark:to-primary-650/10 border border-amber-500/15 dark:border-amber-500/10 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-                <div className="text-left font-sans">
-                   <h4 className="font-extrabold text-slate-800 dark:text-white flex items-center gap-2 text-sm">
-                      <Crown className="w-5 h-5 text-amber-500 fill-amber-500 animate-bounce" />
-                      Buy Lifetime Premium Upgrades
-                   </h4>
-                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed animate-pulse">
-                      Our free trial pass is fully active for 10 days! Want standard permanent lifetime credits or unlimited packs? Select our lifetime packages anytime.
-                   </p>
-                </div>
-                <button
-                   onClick={onOpenPremium}
-                   className="px-4.5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-650 hover:to-orange-650 active:scale-95 text-slate-900 font-extrabold rounded-xl text-xs tracking-wider uppercase shadow-md hover:shadow-lg transition-all whitespace-nowrap animate-pulse"
-                >
-                   View Packages
-                </button>
              </div>
 
              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">

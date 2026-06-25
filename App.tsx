@@ -17,7 +17,6 @@ import TutorChat from "./components/TutorChat";
 import ProfileView from "./components/ProfileView";
 import Auth from "./components/Auth";
 import SharedLockScreen from "./components/SharedLockScreen";
-import PremiumModal from "./components/PremiumModal";
 import LoadingState from "./components/LoadingState";
 import NotesView from "./components/NotesView";
 import SettingsView from "./components/SettingsView";
@@ -62,7 +61,6 @@ import {
   Calendar,
   LogOut,
   Zap,
-  Crown,
   Plus,
   Clock,
   Settings,
@@ -165,7 +163,6 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showCompletionReminder, setShowCompletionReminder] = useState(false);
@@ -857,23 +854,6 @@ const App: React.FC = () => {
     setShowAuthModal(false);
   };
 
-  const handlePaymentSuccess = (
-    creditsToAdd: number,
-    planName: "STARTER" | "SCHOLAR" | "ACHIEVER",
-  ) => {
-    const planTypeMap: Record<string, "Starter" | "Scholar" | "Achiever"> = {
-      STARTER: "Starter",
-      SCHOLAR: "Scholar",
-      ACHIEVER: "Achiever",
-    };
-    const updatedProfile: UserProfile = {
-      ...userProfile,
-      credits: userProfile.credits + creditsToAdd,
-      planType: planTypeMap[planName],
-    };
-    handleProfileSave(updatedProfile);
-  };
-
   const handleFormChange = (
     field: keyof StudyRequestData,
     value: string | number | boolean,
@@ -961,11 +941,15 @@ const App: React.FC = () => {
     }
 
     // Record learning activity sequence progress
-    recordActivity().then((res) => {
+    recordActivity(userProfile, handleProfileSave).then((res) => {
       if (res.success && res.incremented) {
         if (res.milestoneReached) {
           setTimeout(() => {
             alert(`🎉 STREAK MILESTONE REACHED! 🎉\n\nYou have completed ${res.milestoneReached} consecutive learning days on SJ Tutor AI!\n\nOpen the Streak Widget on your screen to claim your Reward in learning credits!`);
+          }, 1500);
+        } else {
+          setTimeout(() => {
+            alert(`🔥 Daily Streak Maintained! You've earned +10 learning credits!`);
           }, 1500);
         }
       }
@@ -1047,11 +1031,15 @@ const App: React.FC = () => {
       }
 
       // Record active quiz completion sequence
-      recordActivity().then((res) => {
+      recordActivity(userProfile, handleProfileSave).then((res) => {
         if (res.success && res.incremented) {
           if (res.milestoneReached) {
             setTimeout(() => {
               alert(`🎉 STREAK MILESTONE REACHED! 🎉\n\nYou have completed ${res.milestoneReached} consecutive learning days on SJ Tutor AI!\n\nOpen the Streak Widget on your screen to claim your Reward in learning credits!`);
+            }, 1500);
+          } else {
+            setTimeout(() => {
+              alert(`🔥 Daily Streak Maintained! You've earned +10 learning credits!`);
             }, 1500);
           }
         }
@@ -1146,7 +1134,7 @@ const App: React.FC = () => {
     const cost = calculateCost(mode, formData);
     if (userProfile.credits < cost) {
       setError(
-        `Insufficient credits. This generation requires ${cost} credits, but you have ${userProfile.credits}. Upgrade to Premium for more.`,
+        `Insufficient credits. This generation requires ${cost} credits, but you have ${userProfile.credits}. Maintain daily streaks to earn free bonus credits!`,
       );
       return;
     }
@@ -2049,7 +2037,7 @@ const App: React.FC = () => {
               userProfile={userProfile}
               onLogout={handleLogout}
               onNavigateToProfile={() => setMode(AppMode.PROFILE)}
-              onOpenPremium={() => setShowPremiumModal(true)}
+              onOpenPremium={() => {}}
               onNavigateToLegal={(legalMode) => setMode(legalMode as any)}
             />
           </div>
@@ -2425,13 +2413,13 @@ const App: React.FC = () => {
             )}
 
             {user && (
-              <button
-                onClick={() => setShowPremiumModal(true)}
-                className="w-full py-2 bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
-              >
-                <Crown className="w-3.5 h-3.5" />
-                Upgrade Plan
-              </button>
+              <div className="w-full py-2 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-350 rounded-lg font-bold text-xs flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Zap className="w-3.5 h-3.5 text-emerald-500 fill-emerald-500" />
+                  Available Credits:
+                </span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{userProfile.credits}</span>
+              </div>
             )}
           </div>
         </div>
@@ -2533,7 +2521,7 @@ const App: React.FC = () => {
               <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm border border-emerald-400 rounded-full">
                 <Zap className="w-3.5 h-3.5 fill-current text-white animate-pulse" />
                 <span className="text-xs font-extrabold select-none">
-                  10-Day Free Unlimited Pass
+                  {userProfile.credits} Credits
                 </span>
               </div>
             )}
@@ -2550,13 +2538,6 @@ const App: React.FC = () => {
           onClose={() => setShowAuthModal(false)}
           onSignUpSuccess={handleSignUpSuccess}
           onCountryDetected={setDetectedCountry}
-        />
-      )}
-
-      {showPremiumModal && (
-        <PremiumModal
-          onClose={() => setShowPremiumModal(false)}
-          onPaymentSuccess={handlePaymentSuccess}
         />
       )}
 

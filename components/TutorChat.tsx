@@ -321,7 +321,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           </div>
           <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 text-[10px] font-bold">
             <Sparkles className="w-2.5 h-2.5 fill-emerald-500 text-emerald-500 animate-pulse" />
-            Free Unlimited Access
+            1 Credit / msg
           </div>
         </div>
 
@@ -497,10 +497,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               <Send className="w-3.5 h-3.5" />
             </button>
           </div>
-          <div className="mt-1 flex justify-between px-1">
-            <span className="text-[9px] text-emerald-500 font-bold">🎉 Active Campaign: Free Unlimited</span>
-            <span className="text-[9px] text-slate-400 font-bold uppercase">10 Days Left</span>
-          </div>
+
         </div>
       </div>
 
