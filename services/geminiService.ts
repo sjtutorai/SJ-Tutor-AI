@@ -30,7 +30,7 @@ export const GeminiService = {
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
       config: {
         systemInstruction: `You are an AI study assistant. You must communicate and generate content strictly in ${language}.`
@@ -64,7 +64,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
 
@@ -91,7 +91,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
@@ -139,7 +139,7 @@ export const GeminiService = {
     });
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: contents
       },
@@ -175,7 +175,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -199,6 +199,50 @@ export const GeminiService = {
     throw new Error("Failed to generate quiz data");
   },
 
+  generateFlashcards: async (data: StudyRequestData): Promise<any[]> => {
+    const ai = getAI();
+    const settings = SettingsService.getSettings();
+    const language = data.language || settings.learning.language;
+    const count = data.questionCount || 10;
+
+    const prompt = `
+      Create a highly structured academic study deck containing exactly ${count} flashcards.
+      Each card MUST have a 'front' (the precise term, dynamic flashcard question, or core concept) 
+      and 'back' (the exact, thorough but concise definition, correct explanation or response).
+      
+      THE ENTIRE OUTPUT - FRONT AND BACKS - MUST BE WRITTEN SOLELY IN ${language.toUpperCase()}.
+      
+      Subject: ${data.subject}
+      Class/Grade: ${data.gradeClass || settings.learning.grade}
+      Education Board: ${data.board}
+      Language: ${language}
+      Chapter/Topic: ${data.chapterName}
+      ${data.author ? `Author: ${data.author}` : ''}
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              front: { type: Type.STRING },
+              back: { type: Type.STRING }
+            },
+            required: ["front", "back"]
+          }
+        }
+      }
+    });
+
+    if (response.text) return JSON.parse(response.text.trim());
+    throw new Error("Failed to generate flashcard data");
+  },
+
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
     const ai = getAI();
     const settings = SettingsService.getSettings();
@@ -208,7 +252,7 @@ export const GeminiService = {
     const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -249,7 +293,7 @@ export const GeminiService = {
     
     const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -286,7 +330,7 @@ export const GeminiService = {
     const ai = getAI();
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       config: { systemInstruction: systemInstruction }
     });
   },
@@ -312,7 +356,7 @@ export const GeminiService = {
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: [...formattedHistory, { role: 'user', parts: currentParts }],
       config: { systemInstruction }
     });
@@ -325,7 +369,7 @@ export const GeminiService = {
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
