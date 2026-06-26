@@ -2380,16 +2380,6 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden relative">
-        <div 
-          className="absolute inset-0 pointer-events-none opacity-15 dark:opacity-35 transition-opacity"
-          style={{
-            backgroundImage: 'url("/sj_tutor_bg.jpg")',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            mixBlendMode: 'normal'
-          }}
-        />
         <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button
