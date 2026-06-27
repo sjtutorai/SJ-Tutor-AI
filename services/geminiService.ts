@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate } from "../types";
+import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate, HomeworkFile } from "../types";
 import { SettingsService } from "./settingsService";
 
 // Helper to initialize AI client.
@@ -101,7 +101,7 @@ export const GeminiService = {
     return response;
   },
 
-  solveHomeworkStream: async (data: StudyRequestData, imagesBase64: string[] = []) => {
+  solveHomeworkStream: async (data: StudyRequestData, files: HomeworkFile[] = []) => {
     const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
@@ -118,24 +118,26 @@ export const GeminiService = {
 
       Input:
       ${data.homeworkQuery ? `Text Question/Description: "${data.homeworkQuery}"` : "No text description provided."}
-      ${imagesBase64.length > 0 ? `Images: I have attached ${imagesBase64.length} image(s) of the homework/problem.` : "No images provided."}
+      ${files.length > 0 ? `Files/Images Attached: I have attached ${files.length} file(s)/document(s)/image(s) of the homework/problem.` : "No files provided."}
       
       Requirements:
-      1. Carefully analyze ALL inputs (text and images).
-      2. If images are provided, extract the text/problems from them.
+      1. Carefully analyze ALL inputs (text, images, and documents).
+      2. If files are provided (such as PDFs, photos, DOCS, SHEETS, or TEXT files), extract the questions, data, or problems from them.
       3. Provide a clear, step-by-step solution for all identified problems.
       4. Explain the underlying concepts simply so the student can learn, not just copy.
       5. THE ENTIRE RESPONSE MUST BE IN ${language.toUpperCase()}.
       
-      If the inputs are unclear or do not contain educational problems, politely ask the student for more details or clearer photos.
+      If the inputs are unclear or do not contain educational problems, politely ask the student for more details or clearer files.
     `;
 
     const contents: any[] = [{ text: prompt }];
     
-    // Add all images to the request
-    imagesBase64.forEach(img => {
-      const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-      contents.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
+    // Add all files to the request
+    files.forEach(file => {
+      const matches = file.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      const mimeType = matches ? matches[1] : file.type || 'image/jpeg';
+      const cleanBase64 = matches ? matches[2] : file.dataUrl;
+      contents.push({ inlineData: { mimeType: mimeType, data: cleanBase64 } });
     });
 
     const response = await ai.models.generateContentStream({

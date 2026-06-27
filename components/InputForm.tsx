@@ -1,7 +1,27 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { StudyRequestData, AppMode, DifficultyLevel } from '../types';
-import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Crown, Image as ImageIcon, X, Mic, MicOff } from 'lucide-react';
+import { StudyRequestData, AppMode, DifficultyLevel, HomeworkFile } from '../types';
+import { 
+  BookOpen, 
+  GraduationCap, 
+  School, 
+  User, 
+  Languages, 
+  BookType, 
+  HelpCircle, 
+  BarChart, 
+  Sparkles, 
+  Zap, 
+  Crown, 
+  Image as ImageIcon, 
+  X, 
+  Mic, 
+  MicOff, 
+  FileText, 
+  FileSpreadsheet, 
+  FileCode, 
+  FileUp
+} from 'lucide-react';
 
 interface InputFormProps {
   data: StudyRequestData;
@@ -10,9 +30,82 @@ interface InputFormProps {
   onFillSample?: () => void;
   disabled?: boolean;
   lockGradeClass?: boolean;
-  onImagesUpload?: (base64s: string[]) => void;
-  homeworkImages?: string[];
+  onFilesUpload?: (files: HomeworkFile[]) => void;
+  homeworkFiles?: HomeworkFile[];
 }
+
+const getMimeTypeFromExtension = (filename: string): string => {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'pdf': return 'application/pdf';
+    case 'doc': return 'application/msword';
+    case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    case 'xls': return 'application/vnd.ms-excel';
+    case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case 'csv': return 'text/csv';
+    case 'txt': return 'text/plain';
+    case 'md': return 'text/plain';
+    case 'png': return 'image/png';
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'webp': return 'image/webp';
+    default: return 'application/octet-stream';
+  }
+};
+
+const getFileMetadata = (file: HomeworkFile) => {
+  const type = file.type.toLowerCase();
+  const name = file.name || "File";
+  
+  if (type.startsWith("image/")) {
+    return {
+      isImage: true,
+      bgColor: "bg-slate-100",
+      textColor: "text-slate-600",
+      borderColor: "border-slate-200",
+      icon: ImageIcon,
+      label: "Image"
+    };
+  }
+  if (type === "application/pdf") {
+    return {
+      isImage: false,
+      bgColor: "bg-red-50 dark:bg-red-950/20",
+      textColor: "text-red-600 dark:text-red-400",
+      borderColor: "border-red-100 dark:border-red-900/30",
+      icon: FileText,
+      label: "PDF"
+    };
+  }
+  if (type.includes("sheet") || type.includes("excel") || type.includes("csv") || name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".csv")) {
+    return {
+      isImage: false,
+      bgColor: "bg-emerald-50 dark:bg-emerald-950/20",
+      textColor: "text-emerald-600 dark:text-emerald-400",
+      borderColor: "border-emerald-100 dark:border-emerald-900/30",
+      icon: FileSpreadsheet,
+      label: "Sheet"
+    };
+  }
+  if (type.includes("word") || type.includes("officedocument") || name.endsWith(".docx") || name.endsWith(".doc") || name.endsWith(".odt")) {
+    return {
+      isImage: false,
+      bgColor: "bg-blue-50 dark:bg-blue-950/20",
+      textColor: "text-blue-600 dark:text-blue-400",
+      borderColor: "border-blue-100 dark:border-blue-900/30",
+      icon: FileText,
+      label: "Document"
+    };
+  }
+  return {
+    isImage: false,
+    bgColor: "bg-slate-50 dark:bg-slate-900",
+    textColor: "text-slate-600 dark:text-slate-400",
+    borderColor: "border-slate-100 dark:border-slate-800",
+    icon: FileCode,
+    label: "Text"
+  };
+};
 
 const InputForm: React.FC<InputFormProps> = ({ 
   data, 
@@ -21,8 +114,8 @@ const InputForm: React.FC<InputFormProps> = ({
   onFillSample, 
   disabled, 
   lockGradeClass,
-  onImagesUpload,
-  homeworkImages = []
+  onFilesUpload,
+  homeworkFiles = []
 }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -99,28 +192,34 @@ const InputForm: React.FC<InputFormProps> = ({
     return 0;
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files && onImagesUpload) {
+    if (files && onFilesUpload) {
       const readers = Array.from(files).map(file => {
-        return new Promise<string>((resolve) => {
+        return new Promise<HomeworkFile>((resolve) => {
           const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
+          reader.onloadend = () => {
+            resolve({
+              name: file.name,
+              type: file.type || getMimeTypeFromExtension(file.name),
+              dataUrl: reader.result as string
+            });
+          };
           reader.readAsDataURL(file);
         });
       });
       
       Promise.all(readers).then(results => {
-        onImagesUpload([...homeworkImages, ...results]);
+        onFilesUpload([...homeworkFiles, ...results]);
       });
     }
   };
 
-  const removeImage = (index: number) => {
-    if (onImagesUpload) {
-      const newImages = [...homeworkImages];
-      newImages.splice(index, 1);
-      onImagesUpload(newImages);
+  const removeFile = (index: number) => {
+    if (onFilesUpload) {
+      const newFiles = [...homeworkFiles];
+      newFiles.splice(index, 1);
+      onFilesUpload(newFiles);
     }
   };
 
@@ -191,25 +290,38 @@ const InputForm: React.FC<InputFormProps> = ({
       {mode === AppMode.HOMEWORK && (
         <div className="mb-6 animate-in fade-in slide-in-from-top-4 duration-500 space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {homeworkImages.map((img, idx) => (
-              <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 shadow-sm group">
-                <img src={img} alt={`Homework Scan ${idx + 1}`} className="w-full h-full object-cover" />
-                <button 
-                  onClick={() => removeImage(idx)}
-                  className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all opacity-0 group-hover:opacity-100"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
+            {homeworkFiles.map((file, idx) => {
+              const meta = getFileMetadata(file);
+              return (
+                <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm group">
+                  {meta.isImage ? (
+                    <img src={file.dataUrl} alt={file.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className={`w-full h-full ${meta.bgColor} flex flex-col items-center justify-center p-3 select-none text-center`}>
+                      <meta.icon className={`w-10 h-10 ${meta.textColor} mb-2`} />
+                      <span className={`text-[10px] font-bold ${meta.textColor} uppercase tracking-wider block mb-1`}>{meta.label}</span>
+                      <p className="text-[10px] text-slate-500 font-medium truncate w-full px-1">{file.name}</p>
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => removeFile(idx)}
+                    className="absolute top-1.5 right-1.5 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all opacity-0 group-hover:opacity-100 z-10"
+                    title="Remove file"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="aspect-square border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-primary-50 hover:border-primary-300 rounded-xl flex flex-col items-center justify-center transition-all group"
+              className="aspect-square border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 hover:bg-primary-50 dark:hover:bg-primary-950/20 hover:border-primary-300 rounded-xl flex flex-col items-center justify-center transition-all group p-3"
             >
-              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm mb-2 group-hover:scale-110 transition-transform">
-                <ImageIcon className="w-5 h-5 text-slate-400 group-hover:text-primary-500" />
+              <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-sm mb-2 group-hover:scale-110 transition-transform">
+                <FileUp className="w-5 h-5 text-slate-400 group-hover:text-primary-500" />
               </div>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Add Photo</span>
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center">Upload Files</span>
+              <span className="text-[8px] text-slate-400 text-center mt-0.5 leading-tight">PDF, DOCS, SHEETS, PHOTO, TEXT</span>
             </button>
           </div>
 
@@ -234,7 +346,7 @@ const InputForm: React.FC<InputFormProps> = ({
             <textarea
               value={data.homeworkQuery || ''}
               onChange={(e) => onChange('homeworkQuery', e.target.value)}
-              placeholder="Type your questions here, or let the AI analyze the photos above..."
+              placeholder="Type your questions here, or let the AI analyze the files above..."
               className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-slate-900 text-sm min-h-[100px] resize-none"
             />
           </div>
@@ -242,11 +354,10 @@ const InputForm: React.FC<InputFormProps> = ({
           <input 
             type="file" 
             ref={fileInputRef} 
-            onChange={handleImageChange} 
-            accept="image/*" 
+            onChange={handleFileChange} 
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,image/*" 
             multiple
             className="hidden" 
-            capture="environment"
           />
         </div>
       )}

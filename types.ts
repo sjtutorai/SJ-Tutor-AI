@@ -20,6 +20,12 @@ export enum AppMode {
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
 
+export interface HomeworkFile {
+  name: string;
+  type: string;
+  dataUrl: string;
+}
+
 export interface StudyRequestData {
   subject: string;
   gradeClass: string;

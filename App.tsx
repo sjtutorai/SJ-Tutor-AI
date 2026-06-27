@@ -7,6 +7,7 @@ import {
   HistoryItem,
   UserProfile,
   SJTUTOR_AVATAR,
+  HomeworkFile,
 } from "./types";
 import { calculateProfileCompletion } from "./utils/profileUtils";
 import InputForm from "./components/InputForm";
@@ -275,7 +276,7 @@ const App: React.FC = () => {
       return localStorage.getItem('sjtutor_autosave_homework') || "";
     } catch { return ""; }
   });
-  const [homeworkImages, setHomeworkImages] = useState<string[]>([]);
+  const [homeworkFiles, setHomeworkFiles] = useState<HomeworkFile[]>([]);
   const [quizData, setQuizData] = useState<QuizQuestion[] | null>(() => {
     try {
       const saved = localStorage.getItem('sjtutor_autosave_quiz');
@@ -334,7 +335,7 @@ const App: React.FC = () => {
     setDashboardView("OVERVIEW");
     setSummaryContent("");
     setHomeworkContent("");
-    setHomeworkImages([]);
+    setHomeworkFiles([]);
     setQuizData(null);
     setExistingQuizScore(undefined);
     setCurrentHistoryId(null);
@@ -1145,7 +1146,7 @@ const App: React.FC = () => {
         setHomeworkContent("");
         const stream = await GeminiService.solveHomeworkStream(
           formData,
-          homeworkImages,
+          homeworkFiles,
         );
 
         let text = "";
@@ -1487,7 +1488,7 @@ const App: React.FC = () => {
                 onClick={() => {
                   setSummaryContent("");
                   setHomeworkContent("");
-                  setHomeworkImages([]);
+                  setHomeworkFiles([]);
                   setQuizData(null);
                   setExistingQuizScore(undefined);
                   setCurrentHistoryId(null);
@@ -1843,7 +1844,7 @@ const App: React.FC = () => {
               isLoading={false}
               onBack={() => {
                 setHomeworkContent("");
-                setHomeworkImages([]);
+                setHomeworkFiles([]);
                 setCurrentHistoryId(null);
                 setIsViewingShared(false);
                 setSharedContent(null);
@@ -1863,8 +1864,8 @@ const App: React.FC = () => {
               onChange={handleFormChange}
               onFillSample={handleFillSample}
               lockGradeClass={!!(userProfile.dob && userProfile.grade)}
-              onImagesUpload={setHomeworkImages}
-              homeworkImages={homeworkImages}
+              onFilesUpload={setHomeworkFiles}
+              homeworkFiles={homeworkFiles}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -1876,7 +1877,7 @@ const App: React.FC = () => {
               onClick={handleGenerate}
               disabled={
                 !formData.subject &&
-                homeworkImages.length === 0 &&
+                homeworkFiles.length === 0 &&
                 !formData.homeworkQuery
               }
               className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:transform-none"
@@ -2188,7 +2189,7 @@ const App: React.FC = () => {
               setDashboardView("OVERVIEW");
               setSummaryContent("");
               setHomeworkContent("");
-              setHomeworkImages([]);
+              setHomeworkFiles([]);
               setQuizData(null);
               setExistingQuizScore(undefined);
               setCurrentHistoryId(null);
