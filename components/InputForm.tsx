@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { StudyRequestData, AppMode, DifficultyLevel } from '../types';
-import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Crown, Image as ImageIcon, X, Mic, MicOff } from 'lucide-react';
+import { BookOpen, GraduationCap, School, User, Languages, BookType, HelpCircle, BarChart, Sparkles, Zap, Crown, Image as ImageIcon, X, Mic, MicOff, FileText, FileSpreadsheet } from 'lucide-react';
 
 interface InputFormProps {
   data: StudyRequestData;
@@ -191,25 +191,56 @@ const InputForm: React.FC<InputFormProps> = ({
       {mode === AppMode.HOMEWORK && (
         <div className="mb-6 animate-in fade-in slide-in-from-top-4 duration-500 space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {homeworkImages.map((img, idx) => (
-              <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 shadow-sm group">
-                <img src={img} alt={`Homework Scan ${idx + 1}`} className="w-full h-full object-cover" />
-                <button 
-                  onClick={() => removeImage(idx)}
-                  className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all opacity-0 group-hover:opacity-100"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
+            {homeworkImages.map((img, idx) => {
+              const getFileDetails = (dataUrl: string) => {
+                if (dataUrl.startsWith("data:image/")) {
+                  return { isImage: true, label: "Photo", icon: ImageIcon, bgClass: "" };
+                }
+                if (dataUrl.startsWith("data:application/pdf")) {
+                  return { isImage: false, label: "PDF Document", icon: FileText, bgClass: "bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border-rose-100" };
+                }
+                if (dataUrl.includes("wordprocessingml") || dataUrl.includes("msword") || dataUrl.includes("document") || dataUrl.includes("rtf")) {
+                  return { isImage: false, label: "DOCS Document", icon: FileText, bgClass: "bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 border-blue-100" };
+                }
+                if (dataUrl.includes("spreadsheetml") || dataUrl.includes("ms-excel") || dataUrl.includes("csv") || dataUrl.includes("excel")) {
+                  return { isImage: false, label: "SHEETS Spreadsheet", icon: FileSpreadsheet, bgClass: "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-100" };
+                }
+                if (dataUrl.startsWith("data:text/")) {
+                  return { isImage: false, label: "TEXT File", icon: FileText, bgClass: "bg-slate-150 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border-slate-200" };
+                }
+                return { isImage: false, label: "Attached File", icon: FileText, bgClass: "bg-slate-50 dark:bg-slate-950/20 text-slate-600 dark:text-slate-400 border-slate-100" };
+              };
+
+              const details = getFileDetails(img);
+
+              return (
+                <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm group">
+                  {details.isImage ? (
+                    <img src={img} alt={`Homework Scan ${idx + 1}`} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className={`w-full h-full flex flex-col items-center justify-center p-3 text-center ${details.bgClass}`}>
+                      <details.icon className="w-8 h-8 mb-1" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider truncate max-w-full px-1">{details.label}</span>
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => removeImage(idx)}
+                    className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all opacity-100 group-hover:opacity-100 md:opacity-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="aspect-square border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-primary-50 hover:border-primary-300 rounded-xl flex flex-col items-center justify-center transition-all group"
+              className="aspect-square border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-primary-50 hover:border-primary-300 rounded-xl flex flex-col items-center justify-center transition-all group p-2 text-center"
             >
               <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm mb-2 group-hover:scale-110 transition-transform">
-                <ImageIcon className="w-5 h-5 text-slate-400 group-hover:text-primary-500" />
+                <FileText className="w-5 h-5 text-slate-400 group-hover:text-primary-500" />
               </div>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Add Photo</span>
+              <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Upload File</span>
+              <span className="text-[8px] text-slate-400 mt-1 leading-tight">PDF, DOCS, SHEETS, PHOTO, TEXT</span>
             </button>
           </div>
 
@@ -234,7 +265,7 @@ const InputForm: React.FC<InputFormProps> = ({
             <textarea
               value={data.homeworkQuery || ''}
               onChange={(e) => onChange('homeworkQuery', e.target.value)}
-              placeholder="Type your questions here, or let the AI analyze the photos above..."
+              placeholder="Type your questions here, or let the AI analyze the uploaded documents/photos above..."
               className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all text-slate-900 text-sm min-h-[100px] resize-none"
             />
           </div>
@@ -243,10 +274,9 @@ const InputForm: React.FC<InputFormProps> = ({
             type="file" 
             ref={fileInputRef} 
             onChange={handleImageChange} 
-            accept="image/*" 
+            accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md" 
             multiple
             className="hidden" 
-            capture="environment"
           />
         </div>
       )}
