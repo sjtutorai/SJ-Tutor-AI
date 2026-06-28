@@ -22,6 +22,7 @@ import {
   Award
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface PublicShareViewerProps {
   shareId: string;
@@ -242,7 +243,7 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
       const textToRender = typeof rawData === "string" ? rawData : (rawData.content || rawData.summary || "");
       return (
         <div className="markdown-body text-slate-855 dark:text-slate-200 leading-relaxed text-sm md:text-base space-y-4">
-          <ReactMarkdown>{textToRender}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{textToRender}</ReactMarkdown>
         </div>
       );
     }
@@ -258,12 +259,12 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
           )}
           {rawData.solution && (
             <div className="markdown-body space-y-4">
-              <ReactMarkdown>{rawData.solution}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{rawData.solution}</ReactMarkdown>
             </div>
           )}
           {rawData.content && typeof rawData.content === "string" && (
             <div className="markdown-body space-y-4">
-              <ReactMarkdown>{rawData.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{rawData.content}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -399,7 +400,7 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
                   <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed ${isUser ? "bg-primary-600 text-white rounded-br-none" : "bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-850 dark:text-slate-200 rounded-bl-none shadow-sm"}`}>
                     <span className="block text-[9px] uppercase font-bold tracking-widest opacity-60 mb-1">{isUser ? "Student" : "SJ Tutor AI"}</span>
                     <div className="markdown-body">
-                      <ReactMarkdown>{m.text}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
                     </div>
                   </div>
                 </div>

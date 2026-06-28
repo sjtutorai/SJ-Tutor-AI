@@ -170,6 +170,44 @@
         background: #1f2937;
         color: #9ca3af;
       }
+
+      /* Beautiful Responsive Table Styles for Markdown */
+      .markdown-body table {
+        width: 100%;
+        margin-top: 1rem;
+        margin-bottom: 1.5rem;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+      }
+      html.dark .markdown-body table {
+        border-color: #374151;
+      }
+      .markdown-body th, .markdown-body td {
+        border: 1px solid #e2e8f0;
+        padding: 0.75rem 1rem;
+        text-align: left;
+      }
+      html.dark .markdown-body th, html.dark .markdown-body td {
+        border-color: #374151;
+      }
+      .markdown-body th {
+        background-color: #f8fafc;
+        font-weight: 600;
+        color: #1a202c;
+      }
+      html.dark .markdown-body th {
+        background-color: #1f2937;
+        color: #f3f4f6;
+      }
+      .markdown-body tr:nth-child(even) {
+        background-color: #f8fafc;
+      }
+      html.dark .markdown-body tr:nth-child(even) {
+        background-color: rgba(31, 41, 55, 0.4);
+      }
     </style>
   <script type="importmap">
 {

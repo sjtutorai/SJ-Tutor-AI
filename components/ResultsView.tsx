@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Loader2, Volume2, Square, ArrowLeft, Download, Share2, Facebook, Mail, MessageCircle, Link, RefreshCw, Check, Copy } from 'lucide-react';
 // @ts-expect-error - html2canvas missing types
 import html2canvas from 'html2canvas';
@@ -497,7 +498,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({
       {/* Content Area */}
       <div className="p-6 sm:p-8 min-h-[300px]" ref={contentRef}>
         <div className="markdown-body text-slate-700 bg-white">
-          <ReactMarkdown>{content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
         </div>
         {content === '' && isLoading && (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">

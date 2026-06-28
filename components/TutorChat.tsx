@@ -20,6 +20,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 
 const SAMPLE_QUESTIONS = [
@@ -379,7 +380,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                       </div>
                     ) : msg.role === 'model' ? (
                       <div className="markdown-body">
-                        <ReactMarkdown>{msg.text}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
                       </div>
                     ) : (
                       <p className="whitespace-pre-wrap">{msg.text}</p>
