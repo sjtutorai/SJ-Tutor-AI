@@ -15,7 +15,106 @@ export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemPro
   const [commandSuccess, setCommandSuccess] = useState<string | null>(null);
   const [errorType, setErrorType] = useState<string | null>(null);
 
+  // Draggable microphone widget position state and handlers
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isReady, setIsReady] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef({ x: 0, y: 0, widgetX: 0, widgetY: 0, timestamp: 0 });
+  const hasDragged = useRef(false);
+
   const recognitionRef = useRef<any>(null);
+
+  // Initialize and restore saved percentage coordinates for the mic button
+  useEffect(() => {
+    const xPct = localStorage.getItem("sjtutor_mic_widget_x_pct");
+    const yPct = localStorage.getItem("sjtutor_mic_widget_y_pct");
+    
+    // Default left corner, above the voice commands HUD to avoid overlap, say x = 24, y = window.innerHeight - 88
+    const x = xPct ? (parseFloat(xPct) / 100) * window.innerWidth : 24;
+    const y = yPct ? (parseFloat(yPct) / 100) * window.innerHeight : window.innerHeight - 88;
+    
+    const clampedX = Math.max(10, Math.min(x, window.innerWidth - 80));
+    const clampedY = Math.max(10, Math.min(y, window.innerHeight - 80));
+
+    setPosition({ x: clampedX, y: clampedY });
+    setIsReady(true);
+
+    const handleResize = () => {
+      const currentXPct = localStorage.getItem("sjtutor_mic_widget_x_pct") || "3";
+      const currentYPct = localStorage.getItem("sjtutor_mic_widget_y_pct") || "88";
+      const resizedX = (parseFloat(currentXPct) / 100) * window.innerWidth;
+      const resizedY = (parseFloat(currentYPct) / 100) * window.innerHeight;
+      
+      setPosition({
+        x: Math.max(10, Math.min(resizedX, window.innerWidth - 80)),
+        y: Math.max(10, Math.min(resizedY, window.innerHeight - 80))
+      });
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    setIsDragging(true);
+    hasDragged.current = false;
+    dragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      widgetX: position.x,
+      widgetY: position.y,
+      timestamp: Date.now()
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const deltaX = e.clientX - dragStart.current.x;
+    const deltaY = e.clientY - dragStart.current.y;
+
+    if (Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12) {
+      hasDragged.current = true;
+    }
+
+    let newX = dragStart.current.widgetX + deltaX;
+    let newY = dragStart.current.widgetY + deltaY;
+
+    newX = Math.max(5, Math.min(newX, window.innerWidth - 75));
+    newY = Math.max(5, Math.min(newY, window.innerHeight - 75));
+
+    setPosition({ x: newX, y: newY });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+
+    const xPct = (position.x / window.innerWidth) * 100;
+    const yPct = (position.y / window.innerHeight) * 100;
+    localStorage.setItem("sjtutor_mic_widget_x_pct", xPct.toFixed(2));
+    localStorage.setItem("sjtutor_mic_widget_y_pct", yPct.toFixed(2));
+
+    const deltaX = e.clientX - dragStart.current.x;
+    const deltaY = e.clientY - dragStart.current.y;
+    const dragDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const duration = Date.now() - dragStart.current.timestamp;
+
+    if ((!hasDragged.current || dragDistance < 12) && duration < 350) {
+      setIsOpen(true);
+    }
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!hasDragged.current) {
+      setIsOpen(true);
+    }
+  };
 
   const COMMANDS = [
     { phrases: ["open quiz", "quiz creator", "quiz", "interactive quiz", "start quiz"], mode: AppMode.QUIZ, label: "Quiz Creator" },
@@ -153,20 +252,35 @@ export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemPro
     }
   };
 
+  if (!isReady) return null;
+
   return (
     <>
-      {/* Floating Launcher Button */}
-      <div className="fixed bottom-6 left-6 z-40">
-        <motion.button
-          onClick={() => setIsOpen(!isOpen)}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className={`flex items-center gap-2 p-3.5 rounded-full shadow-lg border text-white transition-all ${
+      {/* Floating Launcher Button - Draggable */}
+      <motion.div
+        ref={dragRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        style={{
+          left: position.x,
+          top: position.y,
+          position: "fixed",
+          zIndex: 9999,
+        }}
+        whileHover={{ scale: 1.05, cursor: "grab" }}
+        whileTap={{ scale: 0.95, cursor: "grabbing" }}
+        className="touch-none select-none"
+      >
+        <button
+          type="button"
+          onClick={handleClick}
+          className={`flex items-center gap-2 p-3.5 rounded-full shadow-lg border text-white transition-colors duration-200 ${
             isOpen 
               ? "bg-slate-800 border-slate-700" 
               : "bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 border-primary-400"
           }`}
-          title="Hands-free Voice Commands"
+          title="Drag me anywhere! Click to dictate command."
         >
           {isListening ? (
             <span className="relative flex h-5 w-5">
@@ -177,8 +291,8 @@ export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemPro
             <Mic className="w-5 h-5" />
           )}
           <span className="text-xs font-bold uppercase tracking-wider pr-1 hidden sm:inline">Dictate Navigate</span>
-        </motion.button>
-      </div>
+        </button>
+      </motion.div>
 
       {/* Voice Control Panel / HUD Modal */}
       <AnimatePresence>
