@@ -23,18 +23,109 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 
-const SAMPLE_QUESTIONS = [
-  "What is the difference between weather and climate?",
-  "Explain the process of photosynthesis in plants.",
-  "What are natural resources? Name any four.",
-  "Define force. What are its different effects?",
-  "What is the Indian Constitution and why is it important?",
-  "Explain the water cycle with the help of a diagram (description).",
-  "What are rational numbers? Give two examples.",
-  "Who was Mahatma Gandhi? Write any four of his contributions to India.",
-  "What is soil erosion? Mention two methods to prevent it.",
-  "Explain the difference between renewable and non-renewable resources."
-];
+import { SettingsService } from '../services/settingsService';
+
+function getDynamicSampleQuestions(subject: string, grade: string): string[] {
+  const normSubject = subject.toLowerCase().trim();
+  const normGrade = grade.toLowerCase().trim();
+
+  // Mathematics
+  if (normSubject.includes("math") || normSubject.includes("algebra") || normSubject.includes("geometry") || normSubject.includes("trig") || normSubject.includes("calculus") || normSubject.includes("arithmetic")) {
+    if (normGrade.includes("10") || normGrade.includes("11") || normGrade.includes("12") || normGrade.includes("high")) {
+      return [
+        `Solve a quadratic equation step-by-step for ${grade} Math.`,
+        `Explain trigonometric ratios (sin, cos, tan) and how to remember them.`,
+        `What is coordinate geometry? Solve an example problem.`,
+        `Explain the concept of Arithmetic Progression (AP) with formulas.`,
+        `Show me how to prove Pythagoras' theorem and apply it.`
+      ];
+    } else {
+      return [
+        `Explain fractions and decimals with easy real-life examples.`,
+        `How do we find the area and perimeter of a circle?`,
+        `What are rational numbers? Provide 3 examples.`,
+        `Help me understand simple interest and compound interest formulas.`,
+        `What is algebraic factoring? Factorise x² + 5x + 6.`
+      ];
+    }
+  }
+
+  // Physics
+  if (normSubject.includes("physics") || normSubject.includes("mechanics") || normSubject.includes("electricity") || normSubject.includes("light")) {
+    return [
+      `Explain Ohm's Law and the relationship between voltage, current, and resistance.`,
+      `What are Newton's three laws of motion? Give daily life examples.`,
+      `Explain the reflection and refraction of light with key differences.`,
+      `What is electromagnetic induction? How does a generator work?`,
+      `Explain kinetic energy and potential energy with their formulas.`
+    ];
+  }
+
+  // Chemistry
+  if (normSubject.includes("chemistry") || normSubject.includes("chemical") || normSubject.includes("acid")) {
+    return [
+      `What is the difference between ionic and covalent bonding?`,
+      `Explain how to balance chemical equations with a simple guide.`,
+      `What are acids, bases, and salts? How is pH measured?`,
+      `Explain the modern periodic table structure and its trends.`,
+      `What is a redox (oxidation-reduction) reaction? Give an example.`
+    ];
+  }
+
+  // Biology
+  if (normSubject.includes("biology") || normSubject.includes("bio") || normSubject.includes("botany") || normSubject.includes("zoology") || normSubject.includes("plant") || normSubject.includes("animal")) {
+    return [
+      `Explain the process of photosynthesis and its chemical equation.`,
+      `What is the difference between animal cells and plant cells?`,
+      `Explain the structure and function of DNA and RNA.`,
+      `Describe the process of cell division (Mitosis vs Meiosis).`,
+      `Explain the human digestive system and how enzymes work.`
+    ];
+  }
+
+  // Social Science, History, Geography, Civics
+  if (normSubject.includes("social") || normSubject.includes("history") || normSubject.includes("geography") || normSubject.includes("civics") || normSubject.includes("political") || normSubject.includes("economics") || normSubject.includes("sst")) {
+    return [
+      `What are the core features of the Indian Constitution?`,
+      `Explain the causes and impact of the French Revolution.`,
+      `What is the difference between renewable and non-renewable natural resources?`,
+      `Explain the water cycle and its importance to Earth's climate.`,
+      `What is democracy? Discuss its key advantages and disadvantages.`
+    ];
+  }
+
+  // English or Languages
+  if (normSubject.includes("english") || normSubject.includes("lang") || normSubject.includes("grammar") || normSubject.includes("literature") || normSubject.includes("writing")) {
+    return [
+      `Explain active and passive voice with clear practice examples.`,
+      `What is the difference between a metaphor and a simile? Give examples.`,
+      `How do I write a compelling essay introduction and conclusion?`,
+      `What are parts of speech? Briefly explain pronouns and prepositions.`,
+      `Explain tense rules in English grammar (Present, Past, Future).`
+    ];
+  }
+
+  // Computer Science or Coding
+  if (normSubject.includes("computer") || normSubject.includes("coding") || normSubject.includes("programming") || normSubject.includes("python") || normSubject.includes("java") || normSubject.includes("html") || normSubject.includes("css") || normSubject.includes("javascript") || normSubject.includes("js")) {
+    return [
+      `What are the four pillars of Object-Oriented Programming (OOP)?`,
+      `Explain the difference between a list (array) and a dictionary (hashmap).`,
+      `What is database normalization? Why is it important?`,
+      `Explain compiled vs interpreted programming languages.`,
+      `How does a binary search algorithm work? What is its time complexity?`
+    ];
+  }
+
+  // Default general fallback based on the user's specific subject and grade
+  const capSubject = subject.charAt(0).toUpperCase() + subject.slice(1);
+  return [
+    `What are the most important fundamental concepts in ${capSubject} for ${grade}?`,
+    `Explain a tricky chapter from my ${grade} ${capSubject} syllabus.`,
+    `Give me an interesting quiz question from ${capSubject} to test my understanding.`,
+    `What are the best study techniques or tricks to master ${capSubject} in ${grade}?`,
+    `Can you explain a real-world application of ${capSubject} that we see everyday?`
+  ];
+}
 
 interface TutorChatProps {
   onDeductCredit: (amount: number) => boolean;
@@ -46,13 +137,28 @@ interface TutorChatProps {
 
 const TutorChat: React.FC<TutorChatProps> = (props) => {
   const { onDeductCredit, onSaveSession, initialMessages } = props;
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages || [
-    {
-      role: 'model',
-      text: "Hi there! I'm SJ Tutor AI. I can help you understand complex topics, solve problems, or just clarify your doubts. What are we studying today?",
-      timestamp: Date.now()
-    }
-  ]);
+
+  const { subject, grade, sampleQuestions } = React.useMemo(() => {
+    const settings = SettingsService.getSettings();
+    const sub = settings.learning.preferredSubject || "Science";
+    const grd = settings.learning.grade || "10th";
+    return {
+      subject: sub,
+      grade: grd,
+      sampleQuestions: getDynamicSampleQuestions(sub, grd)
+    };
+  }, []);
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (initialMessages) return initialMessages;
+    return [
+      {
+        role: 'model',
+        text: `Hi there! I'm SJ Tutor AI. I've customized my answers for your **${grade} Grade ${subject}** studies. What are we studying today?`,
+        timestamp: Date.now()
+      }
+    ];
+  });
   
   const messagesRef = useRef<ChatMessage[]>(messages);
   const [isSaved, setIsSaved] = useState(false);
@@ -433,9 +539,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           
           {messages.length === 1 && !isTyping && (
             <div className="space-y-3 mt-4 ml-11">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Try a question:</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recommended for {subject} studies ({grade}):</p>
               <div className="flex flex-wrap gap-2">
-                {SAMPLE_QUESTIONS.map((q, idx) => (
+                {sampleQuestions.map((q, idx) => (
                   <button
                     key={idx}
                     onClick={() => sendMessageToAi(q)}
