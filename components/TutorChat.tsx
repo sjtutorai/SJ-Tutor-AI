@@ -142,6 +142,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!Recognition) return;
 
+    if (!isListening) return;
+
     const rec = new Recognition();
     rec.continuous = false;
     rec.interimResults = false;
@@ -153,7 +155,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       setIsListening(false);
     };
 
-    rec.onerror = () => {
+    rec.onerror = (err: any) => {
+      console.warn("Speech recognition error:", err);
       setIsListening(false);
     };
 
@@ -161,10 +164,11 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       setIsListening(false);
     };
 
-    if (isListening) {
+    try {
       rec.start();
-    } else {
-      rec.stop();
+    } catch (e) {
+      console.error("Speech recognition start failed:", e);
+      setIsListening(false);
     }
 
     return () => {

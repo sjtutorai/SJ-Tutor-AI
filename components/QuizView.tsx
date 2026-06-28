@@ -31,6 +31,16 @@ const QuizView: React.FC<QuizViewProps> = ({
   const [showResult, setShowResult] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
+  const [localSaved, setLocalSaved] = useState(false);
+
+  const handleSaveClick = () => {
+    if (onAddToMyList) {
+      onAddToMyList();
+    } else {
+      setLocalSaved(true);
+      setTimeout(() => setLocalSaved(false), 4000);
+    }
+  };
 
   // Initialize view if there's an existing score (viewing history)
   useEffect(() => {
@@ -207,11 +217,16 @@ const QuizView: React.FC<QuizViewProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {/* Save Button */}
                     <button
-                      onClick={() => alert("🎉 Your quiz performance and academic credits are safely saved in your Study History dashboard!")}
-                      className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-755 dark:text-slate-255 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-xs transition"
+                      onClick={handleSaveClick}
+                      disabled={isAddedToList || localSaved}
+                      className={`p-3 border rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-xs transition ${
+                        (isAddedToList || localSaved)
+                          ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50 text-emerald-600 dark:text-emerald-400 cursor-not-allowed'
+                          : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                      }`}
                     >
-                      <Check className="w-4 h-4 text-emerald-500" />
-                      <span>Save Score</span>
+                      <Check className={`w-4 h-4 ${(isAddedToList || localSaved) ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} />
+                      <span>{(isAddedToList || localSaved) ? "Saved" : "Save Score"}</span>
                     </button>
 
                     {/* Download TXT Button */}

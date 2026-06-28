@@ -122,9 +122,28 @@ const InputForm: React.FC<InputFormProps> = ({
   const [isListening, setIsListening] = useState(false);
   const isRewardMode = mode === AppMode.QUIZ && data.questionCount === 10 && data.difficulty === 'Hard';
 
+  const stateRef = useRef({
+    mode,
+    homeworkQuery: data.homeworkQuery,
+    chapterName: data.chapterName,
+    onChange
+  });
+
+  // Keep stateRef up to date
+  useEffect(() => {
+    stateRef.current = {
+      mode,
+      homeworkQuery: data.homeworkQuery,
+      chapterName: data.chapterName,
+      onChange
+    };
+  });
+
   useEffect(() => {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!Recognition) return;
+
+    if (!isListening) return;
 
     const rec = new Recognition();
     rec.continuous = false;
@@ -133,17 +152,19 @@ const InputForm: React.FC<InputFormProps> = ({
 
     rec.onresult = (e: any) => {
       const transcript = e.results[0][0].transcript;
+      const { mode, homeworkQuery, chapterName, onChange } = stateRef.current;
       if (mode === AppMode.HOMEWORK) {
-        const currentVal = data.homeworkQuery || '';
+        const currentVal = homeworkQuery || '';
         onChange('homeworkQuery', currentVal + (currentVal ? ' ' : '') + transcript);
       } else {
-        const currentVal = data.chapterName || '';
+        const currentVal = chapterName || '';
         onChange('chapterName', currentVal + (currentVal ? ' ' : '') + transcript);
       }
       setIsListening(false);
     };
 
-    rec.onerror = () => {
+    rec.onerror = (err: any) => {
+      console.warn("Speech recognition error:", err);
       setIsListening(false);
     };
 
@@ -151,10 +172,11 @@ const InputForm: React.FC<InputFormProps> = ({
       setIsListening(false);
     };
 
-    if (isListening) {
+    try {
       rec.start();
-    } else {
-      rec.stop();
+    } catch (e) {
+      console.error("Speech recognition start failed:", e);
+      setIsListening(false);
     }
 
     return () => {
@@ -164,7 +186,7 @@ const InputForm: React.FC<InputFormProps> = ({
         // Already stopped
       }
     };
-  }, [isListening, data.homeworkQuery, onChange]);
+  }, [isListening]);
 
   const toggleVoiceInput = () => {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;

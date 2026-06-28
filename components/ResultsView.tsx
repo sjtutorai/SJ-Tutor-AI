@@ -32,23 +32,34 @@ const ResultsView: React.FC<ResultsViewProps> = ({
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [localSaved, setLocalSaved] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
     // Cleanup speech synthesis on unmount
     return () => {
-      window.speechSynthesis.cancel();
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
     };
   }, []);
 
   useEffect(() => {
     if (isLoading) {
-      window.speechSynthesis.cancel();
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
       setIsPlaying(false);
     }
   }, [isLoading, content]);
 
   const toggleSpeech = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      alert("Text-to-speech is not supported in this browser context.");
+      return;
+    }
+
     if (isPlaying) {
       window.speechSynthesis.cancel();
       setIsPlaying(false);
@@ -61,15 +72,44 @@ const ResultsView: React.FC<ResultsViewProps> = ({
         .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Keep link text, remove URL
         .replace(/\n/g, '. '); // Pause on newlines
 
+      // Always cancel before starting a new speak to reset any stuck queue
+      window.speechSynthesis.cancel();
+
       const utterance = new SpeechSynthesisUtterance(textToRead);
+      utteranceRef.current = utterance; // Keep reference to prevent GC
+
       utterance.rate = 1;
       utterance.pitch = 1;
-      
-      utterance.onend = () => setIsPlaying(false);
-      utterance.onerror = () => setIsPlaying(false);
-      
+
+      // Select default english voice if possible
+      const voices = window.speechSynthesis.getVoices();
+      if (voices && voices.length > 0) {
+        const englishVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+        utterance.voice = englishVoice;
+      }
+
+      utterance.onend = () => {
+        setIsPlaying(false);
+        utteranceRef.current = null;
+      };
+
+      utterance.onerror = (e) => {
+        console.warn("SpeechSynthesis error:", e);
+        setIsPlaying(false);
+        utteranceRef.current = null;
+      };
+
       window.speechSynthesis.speak(utterance);
       setIsPlaying(true);
+    }
+  };
+
+  const handleSaveClick = () => {
+    if (onAddToMyList) {
+      onAddToMyList();
+    } else {
+      setLocalSaved(true);
+      setTimeout(() => setLocalSaved(false), 4000);
     }
   };
 
@@ -325,12 +365,17 @@ const ResultsView: React.FC<ResultsViewProps> = ({
               <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-205/80 shadow-sm">
                 {/* Save Button */}
                 <button
-                  onClick={() => alert("🎉 Successfully saved! This document is persistently cataloged in your learning logs.")}
-                  className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
-                  title="Save content"
+                  onClick={handleSaveClick}
+                  disabled={isAddedToList || localSaved}
+                  className={`px-3 py-1.5 border rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs ${
+                    (isAddedToList || localSaved)
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-600 cursor-not-allowed'
+                      : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                  }`}
+                  title={(isAddedToList || localSaved) ? "Document is saved" : "Save content"}
                 >
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Save</span>
+                  <Check className={`w-3.5 h-3.5 ${(isAddedToList || localSaved) ? 'text-emerald-500' : 'text-slate-400'}`} />
+                  <span>{(isAddedToList || localSaved) ? "Saved" : "Save"}</span>
                 </button>
 
                 {/* Download PDF Button */}
