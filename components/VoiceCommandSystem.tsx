@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Mic, MicOff, X, HelpCircle, ChevronRight, Zap, Sparkles, Navigation } from "lucide-react";
+import { Mic, MicOff, X, Zap, Sparkles, Navigation } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { AppMode } from "../types";
 
@@ -267,33 +267,6 @@ export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemPro
                     </p>
                   </div>
                 )}
-              </div>
-
-              {/* Supported Command List */}
-              <div className="p-4 bg-slate-50/50 dark:bg-slate-950/30">
-                <div className="flex items-center gap-1 mb-2">
-                  <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Supported Commands</span>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto custom-scrollbar text-left pr-1">
-                  {COMMANDS.map((cmd) => (
-                    <button
-                      key={cmd.label}
-                      onClick={() => {
-                        onNavigate(cmd.mode);
-                        setIsOpen(false);
-                      }}
-                      className="p-2 bg-white dark:bg-slate-800/80 hover:bg-slate-100/50 dark:hover:bg-slate-800 border border-slate-150 dark:border-slate-800 rounded-xl flex items-center justify-between text-left group transition-colors"
-                    >
-                      <div className="truncate pr-1">
-                        <span className="block text-[10px] font-bold text-slate-700 dark:text-slate-300">{cmd.label}</span>
-                        <span className="block text-[9px] text-slate-400 truncate">Say: &quot;{cmd.phrases[0]}&quot;</span>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-350 group-hover:text-primary-500 group-hover:translate-x-0.5 transition" />
-                    </button>
-                  ))}
-                </div>
               </div>
             </motion.div>
           </div>
