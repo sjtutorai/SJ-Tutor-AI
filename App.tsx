@@ -1791,11 +1791,7 @@ const App: React.FC = () => {
         );
 
       case AppMode.TIMER:
-        return (
-          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <StudyTimerView userProfile={userProfile} />
-          </div>
-        );
+        return null; // Rendered persistently outside switch to prevent unmounting and losing timer state
 
       case AppMode.SUMMARY:
         if (summaryContent) {
@@ -2494,7 +2490,14 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
-          <div className="w-full h-full">{renderContent()}</div>
+          <div className="w-full h-full">
+            <div style={{ display: mode === AppMode.TIMER ? "block" : "none" }}>
+              <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <StudyTimerView userProfile={userProfile} />
+              </div>
+            </div>
+            {renderContent()}
+          </div>
         </div>
       </main>
 

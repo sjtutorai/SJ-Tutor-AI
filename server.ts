@@ -6,11 +6,11 @@ import authRoutes from "./server/routes/auth";
 import path from "path";
 import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const resolvedFilename = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
+const resolvedDirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(resolvedFilename);
 
 // Load .env with override to ensure it takes precedence over system defaults
-const envPath = path.resolve(__dirname, ".env");
+const envPath = path.resolve(resolvedDirname, ".env");
 dotenv.config({ path: envPath, override: true });
 
 const app = express();
@@ -49,7 +49,7 @@ async function startServer() {
   } else {
     app.use(express.static("dist"));
     app.get("*", (req, res) => {
-      res.sendFile(path.resolve(__dirname, "dist", "index.html"));
+      res.sendFile(path.resolve(resolvedDirname, "dist", "index.html"));
     });
   }
 

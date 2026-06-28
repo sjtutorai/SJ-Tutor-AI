@@ -1257,7 +1257,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 </div>
 
                 <div className="flex items-baseline gap-1 text-white">
-                  <span className="text-4xl font-extrabold font-mono">$0</span>
+                  <span className="text-4xl font-extrabold font-mono">₹0</span>
                   <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">/ Month</span>
                 </div>
 
@@ -1304,7 +1304,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 </div>
 
                 <div className="flex items-baseline gap-1 text-white">
-                  <span className="text-5xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-cyan-300 to-purple-300">$12</span>
+                  <span className="text-5xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-cyan-300 to-purple-300">₹999</span>
                   <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">/ Month</span>
                 </div>
 
@@ -1351,7 +1351,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 </div>
 
                 <div className="flex items-baseline gap-1 text-white">
-                  <span className="text-4xl font-extrabold font-mono">$89</span>
+                  <span className="text-4xl font-extrabold font-mono">₹7,499</span>
                   <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">/ Month</span>
                 </div>
 

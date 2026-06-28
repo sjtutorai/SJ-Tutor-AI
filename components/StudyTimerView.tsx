@@ -87,14 +87,14 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile }) => {
       if (document.hidden && isActive) {
         if (isStrictFocus) {
           setIsLocked(true);
-        }
-        setIsActive(false);
-        setShowWarning(true);
-        if (Notification.permission === 'granted') {
-          new Notification("Timer Paused", {
-            body: "Timer paused because you switched tabs. Stay focused!",
-            icon: '/favicon.ico'
-          });
+          setIsActive(false);
+          setShowWarning(true);
+          if (Notification.permission === 'granted') {
+            new Notification("Timer Paused", {
+              body: "Timer paused because you switched tabs. Stay focused!",
+              icon: '/favicon.ico'
+            });
+          }
         }
       }
     };
@@ -103,7 +103,7 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile }) => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isActive]);
+  }, [isActive, isStrictFocus]);
 
   useEffect(() => {
     if (isActive && timeLeft > 0) {
