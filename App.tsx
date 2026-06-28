@@ -14,7 +14,6 @@ import InputForm from "./components/InputForm";
 import QRScanner from "./components/QRScanner";
 import ResultsView from "./components/ResultsView";
 import QuizView from "./components/QuizView";
-import QuizLeaderboardView from "./components/QuizLeaderboardView";
 import VoiceCommandSystem from "./components/VoiceCommandSystem";
 import TutorChat from "./components/TutorChat";
 import ProfileView from "./components/ProfileView";
@@ -1936,7 +1935,6 @@ const App: React.FC = () => {
               <BrainCircuit className="w-5 h-5 group-hover:animate-pulse" />
               Generate Quiz
             </button>
-            <QuizLeaderboardView currentUserId={user?.uid || null} />
           </div>
         );
 
