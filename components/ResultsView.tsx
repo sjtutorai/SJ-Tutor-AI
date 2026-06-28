@@ -100,8 +100,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({
         utteranceRef.current = null;
       };
 
-      window.speechSynthesis.speak(utterance);
-      setIsPlaying(true);
+      try {
+        window.speechSynthesis.speak(utterance);
+        setIsPlaying(true);
+      } catch (e) {
+        console.error("Speech Synthesis failed:", e);
+        setIsPlaying(false);
+        alert("Text-to-speech could not start. Because the app is running in a preview iframe, speech synthesis may be restricted by browser security policies. Please click the 'Open in New Tab' button in the top-right of your screen to run the app in its own tab and enjoy full audio features!");
+      }
     }
   };
 

@@ -159,6 +159,16 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     rec.onerror = (err: any) => {
       console.warn("Speech recognition error:", err);
       setIsListening(false);
+      const errorType = err.error;
+      if (errorType === 'not-allowed') {
+        alert("Microphone permission was denied or blocked. Since the application is running inside a preview iframe, the browser restricts microphone access. Please click the 'Open in New Tab' button in the top-right of your screen, then click 'Voice Input' there to grant microphone permissions!");
+      } else if (errorType === 'no-speech') {
+        alert("No speech was detected. Please try speaking clearly into your microphone.");
+      } else if (errorType === 'audio-capture') {
+        alert("No microphone was found on your device or audio capture failed.");
+      } else {
+        alert(`Speech recognition issue: ${errorType || 'unknown error'}. Please try opening the app in a new tab for full permissions.`);
+      }
     };
 
     rec.onend = () => {
@@ -480,6 +490,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             </button>
 
             <button
+              type="button"
               onClick={toggleVoiceInput}
               className={`p-2.5 rounded-lg border border-slate-200 transition-colors ${isListening ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
               title="Voice Input"

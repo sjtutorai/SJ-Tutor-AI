@@ -166,6 +166,16 @@ const InputForm: React.FC<InputFormProps> = ({
     rec.onerror = (err: any) => {
       console.warn("Speech recognition error:", err);
       setIsListening(false);
+      const errorType = err.error;
+      if (errorType === 'not-allowed') {
+        alert("Microphone permission was denied or blocked. Since the application is running inside a preview iframe, the browser restricts microphone access. Please click the 'Open in New Tab' button in the top-right of your screen, then click 'Dictate' there to grant microphone permissions!");
+      } else if (errorType === 'no-speech') {
+        alert("No speech was detected. Please try speaking clearly into your microphone.");
+      } else if (errorType === 'audio-capture') {
+        alert("No microphone was found on your device or audio capture failed.");
+      } else {
+        alert(`Speech recognition issue: ${errorType || 'unknown error'}. Please try opening the app in a new tab for full permissions.`);
+      }
     };
 
     rec.onend = () => {
@@ -351,6 +361,7 @@ const InputForm: React.FC<InputFormProps> = ({
             <div className="flex justify-between items-center">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Homework Text / Questions</label>
               <button
+                type="button"
                 onClick={toggleVoiceInput}
                 disabled={disabled}
                 className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] uppercase font-bold transition-colors ${
@@ -432,6 +443,7 @@ const InputForm: React.FC<InputFormProps> = ({
               <div className="flex justify-between items-center">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Chapter Name</label>
                 <button
+                  type="button"
                   onClick={toggleVoiceInput}
                   disabled={disabled}
                   className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] uppercase font-bold transition-colors ${
