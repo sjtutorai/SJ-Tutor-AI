@@ -153,6 +153,16 @@ export interface TimetableEntry {
   slots: { time: string; activity: string; subject: string }[];
 }
 
+export interface LeaderboardEntry {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  totalScore: number;
+  quizzesCompleted: number;
+  highestScore: number;
+  lastActive: number;
+}
+
 export const INITIAL_FORM_DATA: StudyRequestData = {
   subject: '',
   gradeClass: '',

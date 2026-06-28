@@ -14,6 +14,8 @@ import InputForm from "./components/InputForm";
 import QRScanner from "./components/QRScanner";
 import ResultsView from "./components/ResultsView";
 import QuizView from "./components/QuizView";
+import QuizLeaderboardView from "./components/QuizLeaderboardView";
+import VoiceCommandSystem from "./components/VoiceCommandSystem";
 import TutorChat from "./components/TutorChat";
 import ProfileView from "./components/ProfileView";
 import Auth from "./components/Auth";
@@ -43,6 +45,7 @@ import {
   syncHistoryWithFirestore,
   createSharedContent,
   getSharedContent,
+  saveQuizScoreToLeaderboard,
 } from "./utils/firebaseUtils";
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
@@ -998,6 +1001,12 @@ const App: React.FC = () => {
         ),
       );
 
+      // Save score to leaderboard
+      const userUid = user?.uid || "guest";
+      const userDispName = userProfile.displayName || "Guest Learner";
+      const userPhoto = userProfile.photoURL || "";
+      saveQuizScoreToLeaderboard(userUid, userDispName, userPhoto, score);
+
       if (user) {
         saveHistoryItemToFirestore(user.uid, updatedItem);
       }
@@ -1931,6 +1940,7 @@ const App: React.FC = () => {
               <BrainCircuit className="w-5 h-5 group-hover:animate-pulse" />
               Generate Quiz
             </button>
+            <QuizLeaderboardView currentUserId={user?.uid || null} />
           </div>
         );
 
@@ -2506,6 +2516,11 @@ const App: React.FC = () => {
       <FloatingStreakWidget
         userProfile={userProfile}
         onProfileUpdate={handleProfileSave}
+      />
+
+      <VoiceCommandSystem
+        onNavigate={(m) => setMode(m)}
+        currentMode={mode}
       />
 
       <AnimatePresence>

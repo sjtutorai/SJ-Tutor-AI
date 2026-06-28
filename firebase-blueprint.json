@@ -96,12 +96,31 @@
         "lastViewedAt": { "type": "number" }
       },
       "required": ["shareId", "type", "title", "content", "ownerUid", "createdAt", "views", "likes", "isPublic"]
+    },
+    "QuizLeaderboard": {
+      "title": "QuizLeaderboard",
+      "description": "User overall quiz points, high score, and rank summaries",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "totalScore": { "type": "number" },
+        "quizzesCompleted": { "type": "number" },
+        "highestScore": { "type": "number" },
+        "lastActive": { "type": "number" }
+      },
+      "required": ["uid", "displayName", "totalScore", "quizzesCompleted", "highestScore", "lastActive"]
     }
   },
   "firestore": {
     "/sharedContent/{shareId}": {
       "schema": "SharedContent",
       "description": "Public viewing records of shared materials"
+    },
+    "/quiz_leaderboard/{userId}": {
+      "schema": "QuizLeaderboard",
+      "description": "Leaderboard statistics for each user"
     },
     "/users/{userId}": {
       "schema": "User",

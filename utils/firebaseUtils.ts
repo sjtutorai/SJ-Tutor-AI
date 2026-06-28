@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where } from "firebase/firestore";
 import { db } from "../firebaseConfig";
-import { UserProfile, HistoryItem } from "../types";
+import { UserProfile, HistoryItem, LeaderboardEntry } from "../types";
 
 export const saveProfileToFirestore = async (uid: string, profile: Partial<UserProfile>) => {
   try {
@@ -193,6 +193,98 @@ export const getUserSharedContent = async (uid: string): Promise<any[]> => {
   } catch (error) {
     console.error("Error fetching user shared content:", error);
     return [];
+  }
+};
+
+export const saveQuizScoreToLeaderboard = async (
+  uid: string,
+  displayName: string,
+  photoURL: string | undefined,
+  score: number
+) => {
+  if (!uid || uid === "guest") {
+    try {
+      const localLeaderboardStr = localStorage.getItem("sjtutor_local_leaderboard") || "[]";
+      const localLeaderboard: LeaderboardEntry[] = JSON.parse(localLeaderboardStr);
+      let guestEntry = localLeaderboard.find(item => item.uid === "guest");
+      if (!guestEntry) {
+        guestEntry = {
+          uid: "guest",
+          displayName: displayName || "Guest Learner",
+          photoURL: photoURL || "",
+          totalScore: 0,
+          quizzesCompleted: 0,
+          highestScore: 0,
+          lastActive: Date.now()
+        };
+        localLeaderboard.push(guestEntry);
+      }
+      guestEntry.totalScore += score;
+      guestEntry.quizzesCompleted += 1;
+      guestEntry.highestScore = Math.max(guestEntry.highestScore, score);
+      guestEntry.lastActive = Date.now();
+      localStorage.setItem("sjtutor_local_leaderboard", JSON.stringify(localLeaderboard));
+      return true;
+    } catch (e) {
+      console.warn("Guest leaderboard save failed:", e);
+      return false;
+    }
+  }
+
+  try {
+    const docRef = doc(db, "quiz_leaderboard", uid);
+    const docSnap = await getDoc(docRef);
+    let totalScore = score;
+    let quizzesCompleted = 1;
+    let highestScore = score;
+
+    if (docSnap.exists()) {
+      const current = docSnap.data();
+      totalScore = (current.totalScore || 0) + score;
+      quizzesCompleted = (current.quizzesCompleted || 0) + 1;
+      highestScore = Math.max(current.highestScore || 0, score);
+    }
+
+    const leaderboardData: LeaderboardEntry = {
+      uid,
+      displayName: displayName || "Anonymous Student",
+      photoURL: photoURL || "",
+      totalScore,
+      quizzesCompleted,
+      highestScore,
+      lastActive: Date.now()
+    };
+
+    await setDoc(docRef, leaderboardData, { merge: true });
+    return true;
+  } catch (error) {
+    console.error("Error saving leaderboard score:", error);
+    return false;
+  }
+};
+
+export const getQuizLeaderboard = async (): Promise<LeaderboardEntry[]> => {
+  try {
+    const colRef = collection(db, "quiz_leaderboard");
+    const snapshot = await getDocs(colRef);
+    const leaderboard: LeaderboardEntry[] = [];
+    snapshot.forEach((d) => {
+      leaderboard.push(d.data() as LeaderboardEntry);
+    });
+
+    // Also include guest entry from local storage if exists
+    const localLeaderboardStr = localStorage.getItem("sjtutor_local_leaderboard") || "[]";
+    const localLeaderboard: LeaderboardEntry[] = JSON.parse(localLeaderboardStr);
+    const guestEntry = localLeaderboard.find(item => item.uid === "guest");
+    if (guestEntry && !leaderboard.some(item => item.uid === "guest")) {
+      leaderboard.push(guestEntry);
+    }
+
+    return leaderboard.sort((a, b) => b.totalScore - a.totalScore);
+  } catch (error) {
+    console.error("Error getting quiz leaderboard:", error);
+    const localLeaderboardStr = localStorage.getItem("sjtutor_local_leaderboard") || "[]";
+    return JSON.parse(localLeaderboardStr);
   }
 };
 
