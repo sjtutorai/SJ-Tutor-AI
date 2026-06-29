@@ -5,6 +5,7 @@ import { AppMode } from "../types";
 
 interface VoiceCommandSystemProps {
   onNavigate: (mode: AppMode) => void;
+  currentMode?: AppMode;
 }
 
 export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemProps) {
@@ -15,106 +16,7 @@ export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemPro
   const [commandSuccess, setCommandSuccess] = useState<string | null>(null);
   const [errorType, setErrorType] = useState<string | null>(null);
 
-  // Draggable microphone widget position state and handlers
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isReady, setIsReady] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef<HTMLDivElement>(null);
-  const dragStart = useRef({ x: 0, y: 0, widgetX: 0, widgetY: 0, timestamp: 0 });
-  const hasDragged = useRef(false);
-
   const recognitionRef = useRef<any>(null);
-
-  // Initialize and restore saved percentage coordinates for the mic button
-  useEffect(() => {
-    const xPct = localStorage.getItem("sjtutor_mic_widget_x_pct");
-    const yPct = localStorage.getItem("sjtutor_mic_widget_y_pct");
-    
-    // Default left corner, above the voice commands HUD to avoid overlap, say x = 24, y = window.innerHeight - 88
-    const x = xPct ? (parseFloat(xPct) / 100) * window.innerWidth : 24;
-    const y = yPct ? (parseFloat(yPct) / 100) * window.innerHeight : window.innerHeight - 88;
-    
-    const clampedX = Math.max(10, Math.min(x, window.innerWidth - 80));
-    const clampedY = Math.max(10, Math.min(y, window.innerHeight - 80));
-
-    setPosition({ x: clampedX, y: clampedY });
-    setIsReady(true);
-
-    const handleResize = () => {
-      const currentXPct = localStorage.getItem("sjtutor_mic_widget_x_pct") || "3";
-      const currentYPct = localStorage.getItem("sjtutor_mic_widget_y_pct") || "88";
-      const resizedX = (parseFloat(currentXPct) / 100) * window.innerWidth;
-      const resizedY = (parseFloat(currentYPct) / 100) * window.innerHeight;
-      
-      setPosition({
-        x: Math.max(10, Math.min(resizedX, window.innerWidth - 80)),
-        y: Math.max(10, Math.min(resizedY, window.innerHeight - 80))
-      });
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 && e.pointerType === "mouse") return;
-    setIsDragging(true);
-    hasDragged.current = false;
-    dragStart.current = {
-      x: e.clientX,
-      y: e.clientY,
-      widgetX: position.x,
-      widgetY: position.y,
-      timestamp: Date.now()
-    };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging) return;
-    const deltaX = e.clientX - dragStart.current.x;
-    const deltaY = e.clientY - dragStart.current.y;
-
-    if (Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12) {
-      hasDragged.current = true;
-    }
-
-    let newX = dragStart.current.widgetX + deltaX;
-    let newY = dragStart.current.widgetY + deltaY;
-
-    newX = Math.max(5, Math.min(newX, window.innerWidth - 75));
-    newY = Math.max(5, Math.min(newY, window.innerHeight - 75));
-
-    setPosition({ x: newX, y: newY });
-  };
-
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    e.currentTarget.releasePointerCapture(e.pointerId);
-
-    const xPct = (position.x / window.innerWidth) * 100;
-    const yPct = (position.y / window.innerHeight) * 100;
-    localStorage.setItem("sjtutor_mic_widget_x_pct", xPct.toFixed(2));
-    localStorage.setItem("sjtutor_mic_widget_y_pct", yPct.toFixed(2));
-
-    const deltaX = e.clientX - dragStart.current.x;
-    const deltaY = e.clientY - dragStart.current.y;
-    const dragDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-    const duration = Date.now() - dragStart.current.timestamp;
-
-    if ((!hasDragged.current || dragDistance < 12) && duration < 350) {
-      setIsOpen(true);
-    }
-  };
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!hasDragged.current) {
-      setIsOpen(true);
-    }
-  };
 
   const COMMANDS = [
     { phrases: ["open quiz", "quiz creator", "quiz", "interactive quiz", "start quiz"], mode: AppMode.QUIZ, label: "Quiz Creator" },
@@ -210,7 +112,6 @@ export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemPro
   };
 
   const processCommand = (phrase: string) => {
-    // Look for matches
     let matchedCommand = null;
 
     for (const cmd of COMMANDS) {
@@ -226,11 +127,8 @@ export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemPro
     if (matchedCommand) {
       setCommandSuccess(`Opening ${matchedCommand.label}! 🚀`);
       setStatusMessage(`Success! Navigating to: ${matchedCommand.label}`);
-      
-      // Navigate to the section
       onNavigate(matchedCommand.mode);
 
-      // Trigger optional speak confirmation
       if (typeof window !== "undefined" && window.speechSynthesis) {
         try {
           window.speechSynthesis.cancel();
@@ -242,7 +140,6 @@ export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemPro
         }
       }
 
-      // Close the HUD after a brief delay
       setTimeout(() => {
         setCommandSuccess(null);
         setIsOpen(false);
@@ -252,57 +149,35 @@ export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemPro
     }
   };
 
-  if (!isReady) return null;
-
   return (
     <>
-      {/* Floating Launcher Button - Draggable */}
-      <motion.div
-        ref={dragRef}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        style={{
-          left: position.x,
-          top: position.y,
-          position: "fixed",
-          zIndex: 9999,
-        }}
-        whileHover={{ scale: 1.05, cursor: "grab" }}
-        whileTap={{ scale: 0.95, cursor: "grabbing" }}
-        className="touch-none select-none"
+      {/* Top Header Button */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors relative"
+        title="Voice Command Navigator"
       >
-        <button
-          type="button"
-          onClick={handleClick}
-          className={`flex items-center justify-center p-3.5 rounded-full shadow-lg border text-white transition-colors duration-200 ${
-            isOpen 
-              ? "bg-slate-800 border-slate-700" 
-              : "bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 border-primary-400"
-          }`}
-          title="Drag me anywhere! Click to dictate command."
-        >
-          {isListening ? (
-            <span className="relative flex h-5 w-5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <Mic className="relative inline-flex rounded-full text-red-500 w-5 h-5 fill-red-500/20" />
-            </span>
-          ) : (
-            <Mic className="w-5 h-5" />
-          )}
-        </button>
-      </motion.div>
+        {isListening ? (
+          <span className="relative flex h-5 w-5 items-center justify-center">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <Mic className="relative inline-flex text-red-500 w-5 h-5 fill-red-500/20" />
+          </span>
+        ) : (
+          <Mic className="w-5 h-5" />
+        )}
+      </button>
 
       {/* Voice Control Panel / HUD Modal */}
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               transition={{ type: "spring", duration: 0.4 }}
-              className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden"
+              className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden text-left"
             >
               {/* Head */}
               <div className="p-4 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
