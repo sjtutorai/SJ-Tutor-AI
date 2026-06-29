@@ -576,24 +576,14 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                       <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                         Language <span className="text-red-500">*</span>
                       </label>
-                      <select
+                      <input
+                        type="text"
                         required
                         value={languageInput}
                         onChange={(e) => setLanguageInput(e.target.value)}
+                        placeholder="e.g. English, Hindi, Spanish, French"
                         className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none dark:text-white font-medium"
-                      >
-                        <option value="English">English</option>
-                        <option value="Hindi">Hindi (हिन्दी)</option>
-                        <option value="Kannada">Kannada (ಕನ್ನಡ)</option>
-                        <option value="Telugu">Telugu (తెలుగు)</option>
-                        <option value="Tamil">Tamil (தமிழ்)</option>
-                        <option value="Marathi">Marathi (मराठी)</option>
-                        <option value="Bengali">Bengali (বাংলা)</option>
-                        <option value="Gujarati">Gujarati (ગુજરાતી)</option>
-                        <option value="Spanish">Spanish (Español)</option>
-                        <option value="French">French (Français)</option>
-                        <option value="German">German (Deutsch)</option>
-                      </select>
+                      />
                     </div>
 
                     {/* Chapter Name Input */}
