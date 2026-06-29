@@ -26,54 +26,460 @@ export interface AppNotification {
 const NOTIFICATION_STORAGE_KEY = 'sj_tutor_notifications';
 const READ_GLOBAL_KEY = 'sj_tutor_read_globals';
 
-// Elegant default seeded notifications
+// Elegant default seeded notifications with 50 custom notifications
 const DEFAULT_NOTIFICATIONS: AppNotification[] = [
   {
     id: 'seed-1',
-    title: 'Welcome to your Notification Center! 🔔',
-    body: 'You can now track all dynamic alerts, daily learning goals, personal streaks, and competition announcements in real-time.',
-    category: 'New Features',
+    title: 'Ready to learn? 📚',
+    body: "Open SJ Tutor AI and start today's study session!",
+    category: 'Daily Streak Reminders',
+    read: false,
+    createdAt: Date.now() - 300000, // 5 minutes ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-2',
+    title: 'Study Streak Alert! 🔥',
+    body: "Your study streak is waiting! Don't break it today.",
+    category: 'Daily Streak Reminders',
+    read: false,
+    createdAt: Date.now() - 1800000, // 30 minutes ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-3',
+    title: 'Quick Revision Time ⏰',
+    body: 'Time for a quick revision. Just 10 minutes can make a big difference.',
+    category: 'Daily Streak Reminders',
     read: false,
     createdAt: Date.now() - 3600000, // 1 hour ago
     userId: 'all'
   },
   {
-    id: 'seed-2',
-    title: 'Keep your daily learning streak alive! 🔥',
-    body: 'You are currently on a 4-day streak! Check out your custom summaries and secure today\'s goal to maintain your streak.',
+    id: 'seed-4',
+    title: 'Ask Anything 🧠',
+    body: 'Ask your AI Tutor any question and learn instantly.',
+    category: 'New Features',
+    read: false,
+    createdAt: Date.now() - 7200000, // 2 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-5',
+    title: 'A New Opportunity ✨',
+    body: 'A new day means a new opportunity to improve your knowledge.',
     category: 'Daily Streak Reminders',
     read: false,
     createdAt: Date.now() - 10800000, // 3 hours ago
     userId: 'all'
   },
   {
-    id: 'seed-3',
-    title: 'New Algebra Practice Quiz Available 📝',
-    body: 'An adaptive mathematics quiz on algebraic functions has been prepared for you based on your learning style.',
-    category: 'Quiz Updates',
+    id: 'seed-6',
+    title: 'Daily Goal 🎯',
+    body: "Complete today's learning goal and stay ahead.",
+    category: 'Important Alerts',
     read: false,
+    createdAt: Date.now() - 14400000, // 4 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-7',
+    title: "Yesterday's Topics 📖",
+    body: "Revision time! Review yesterday's topics.",
+    category: 'Daily Streak Reminders',
+    read: false,
+    createdAt: Date.now() - 18000000, // 5 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-8',
+    title: 'Consistency is Key 💪',
+    body: 'Small efforts every day lead to big achievements.',
+    category: 'Daily Streak Reminders',
+    read: false,
+    createdAt: Date.now() - 21600000, // 6 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-9',
+    title: 'Consistent Progress 🎉',
+    body: "Great job! You're making consistent progress.",
+    category: 'Daily Streak Reminders',
+    read: false,
+    createdAt: Date.now() - 25200000, // 7 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-10',
+    title: 'Exam Reminder 📅',
+    body: "Don't forget to check your exam timetable.",
+    category: 'Important Alerts',
+    read: false,
+    createdAt: Date.now() - 28800000, // 8 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-11',
+    title: 'Practice Quiz 📝',
+    body: 'Solve a practice quiz and test your understanding.',
+    category: 'Quiz Updates',
+    read: true,
+    createdAt: Date.now() - 36000000, // 10 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-12',
+    title: 'Step Closer to Success 🚀',
+    body: 'Every lesson completed brings you closer to success.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 43200000, // 12 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-13',
+    title: 'Streak Guardian 🌟',
+    body: 'Keep your learning streak alive today.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 50400000, // 14 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-14',
+    title: 'Stuck on a Concept? 💡',
+    body: 'Confused about a topic? Let AI explain it simply.',
+    category: 'New Features',
+    read: true,
+    createdAt: Date.now() - 57600000, // 16 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-15',
+    title: 'Invest in Yourself 📈',
+    body: 'Your future self will thank you for studying today.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 64800000, // 18 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-16',
+    title: 'Keep Going 🎓',
+    body: 'Learning never stops. Continue where you left off.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 72000000, // 20 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-17',
+    title: 'Confidence Builder ⏳',
+    body: 'Just 15 minutes of study can improve your confidence.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 79200000, // 22 hours ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-18',
+    title: 'Unlock Achievements 🏆',
+    body: 'Complete another lesson to unlock new achievements.',
+    category: 'Competition Announcements',
+    read: true,
     createdAt: Date.now() - 86400000, // 1 day ago
     userId: 'all'
   },
   {
-    id: 'seed-4',
-    title: 'Weekly Grand Quiz Competition is Live! 🏆',
-    body: 'Join the SJ Tutor AI League today. The top 3 rankers on the scoreboard will win 500 extra AI summary credits.',
-    category: 'Competition Announcements',
+    id: 'seed-19',
+    title: 'Next Chapter 📚',
+    body: 'Your next chapter is waiting for you.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 93600000, // 1.1 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-20',
+    title: 'Study Time Bell 🔔',
+    body: "Don't miss today's study session.",
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 100800000, // 1.2 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-21',
+    title: 'Practice Makes Perfect 🧪',
+    body: 'Practice makes perfect. Solve a few questions now.',
+    category: 'Quiz Updates',
+    read: true,
+    createdAt: Date.now() - 108000000, // 1.25 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-22',
+    title: 'Smarter Tomorrow 📖',
+    body: 'Read one concept today and become smarter tomorrow.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 115200000, // 1.3 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-23',
+    title: 'Tutor is Ready 🤖',
+    body: 'AI Tutor is online and ready to help.',
+    category: 'New Features',
+    read: true,
+    createdAt: Date.now() - 122400000, // 1.4 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-24',
+    title: 'Daily Tasks 🎯',
+    body: "Finish today's tasks before the day ends.",
+    category: 'Important Alerts',
+    read: true,
+    createdAt: Date.now() - 129600000, // 1.5 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-25',
+    title: 'Build Confidence 🌈',
+    body: 'Every correct answer builds your confidence.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 136800000, // 1.6 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-26',
+    title: 'Almost There 🏅',
+    body: "You're closer to your learning goals than you think.",
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 144000000, // 1.7 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-27',
+    title: 'Homework Rescue 📚',
+    body: 'Need homework help? Open SJ Tutor AI now.',
+    category: 'Important Alerts',
+    read: true,
+    createdAt: Date.now() - 151200000, // 1.75 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-28',
+    title: 'Grow Everyday ✨',
+    body: 'Keep learning, keep growing.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 158400000, // 1.8 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-29',
+    title: 'Brain Challenge 🧠',
+    body: "Challenge yourself with today's quiz.",
+    category: 'Quiz Updates',
     read: true,
     createdAt: Date.now() - 172800000, // 2 days ago
     userId: 'all'
   },
   {
-    id: 'seed-5',
-    title: 'Free Monthly Learning Credits Active! ⚡',
-    body: 'We have renewed your wallet with 100 high-speed AI tokens. Use them to scan & solve, converse with your tutor,, or write essays.',
-    category: 'Important Alerts',
+    id: 'seed-30',
+    title: 'Improve Everyday 📊',
+    body: 'Track your progress and improve every day.',
+    category: 'New Features',
+    read: true,
+    createdAt: Date.now() - 187200000, // 2.2 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-31',
+    title: 'Milestone Awaits 🎉',
+    body: 'Congratulations! Another milestone is within reach.',
+    category: 'Competition Announcements',
+    read: true,
+    createdAt: Date.now() - 201600000, // 2.3 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-32',
+    title: 'Ask, Learn, Repeat 💬',
+    body: 'Ask, Learn, Repeat with SJ Tutor AI.',
+    category: 'New Features',
+    read: true,
+    createdAt: Date.now() - 216000000, // 2.5 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-33',
+    title: 'Beat the Stress 📖',
+    body: 'A little revision today prevents stress tomorrow.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 230400000, // 2.7 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-34',
+    title: 'Stay Focused 🚀',
+    body: "Stay focused. Success starts with today's effort.",
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 244800000, // 2.8 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-35',
+    title: 'Explore Something New 📚',
+    body: 'Open a subject and explore something new today.',
+    category: 'Daily Streak Reminders',
     read: true,
     createdAt: Date.now() - 259200000, // 3 days ago
     userId: 'all'
+  },
+  {
+    id: 'seed-36',
+    title: 'Protect your Streak 🔥',
+    body: 'Your streak deserves another day of success.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 273600000, // 3.2 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-37',
+    title: 'Superpower 🌟',
+    body: 'Learning is your superpower.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 288000000, // 3.3 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-38',
+    title: 'Dream Big 🎓',
+    body: 'Every lesson completed is a step toward your dream.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 302400000, // 3.5 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-39',
+    title: 'Exam Prep 📅',
+    body: 'Upcoming exam? Start preparing today.',
+    category: 'Important Alerts',
+    read: true,
+    createdAt: Date.now() - 316800000, // 3.7 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-40',
+    title: 'Perform Better 📝',
+    body: 'Practice now, perform better later.',
+    category: 'Quiz Updates',
+    read: true,
+    createdAt: Date.now() - 331200000, // 3.8 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-41',
+    title: 'Smart Study 💡',
+    body: 'Smart students revise regularly. Join them!',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 345600000, // 4 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-42',
+    title: 'Instant Explanations 📚',
+    body: 'Discover AI-powered explanations in seconds.',
+    category: 'New Features',
+    read: true,
+    createdAt: Date.now() - 360000000, // 4.2 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-43',
+    title: 'Chapter Goal 🎯',
+    body: 'Finish one chapter before taking a break.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 374400000, // 4.3 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-44',
+    title: 'Brain Teaser 🧩',
+    body: 'Challenge your brain with today\'s questions.',
+    category: 'Quiz Updates',
+    read: true,
+    createdAt: Date.now() - 388800000, // 4.5 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-45',
+    title: 'One Step at a Time 🏆',
+    body: 'Success is built one study session at a time.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 403200000, // 4.7 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-46',
+    title: 'Be Productive 🚀',
+    body: 'Make today productive with SJ Tutor AI.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 417600000, // 4.8 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-47',
+    title: 'Onward & Upward 📖',
+    body: "Your learning journey continues. Let's go!",
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 432000000, // 5 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-48',
+    title: 'Unlock Potential 🔔',
+    body: 'Time to unlock your full potential.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 446400000, // 5.2 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-49',
+    title: 'Believe 🌟',
+    body: 'Believe in yourself. Keep studying consistently.',
+    category: 'Daily Streak Reminders',
+    read: true,
+    createdAt: Date.now() - 460800000, // 5.3 days ago
+    userId: 'all'
+  },
+  {
+    id: 'seed-50',
+    title: 'With Love ❤️',
+    body: 'Thank you for learning with SJ Tutor AI. Keep shining!',
+    category: 'Important Alerts',
+    read: true,
+    createdAt: Date.now() - 475200000, // 5.5 days ago
+    userId: 'all'
   }
 ];
+
 
 export class NotificationService {
   /**
@@ -156,8 +562,14 @@ export class NotificationService {
       return DEFAULT_NOTIFICATIONS;
     }
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed) || parsed.length < 20) {
+        localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(DEFAULT_NOTIFICATIONS));
+        return DEFAULT_NOTIFICATIONS;
+      }
+      return parsed;
     } catch {
+      localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(DEFAULT_NOTIFICATIONS));
       return DEFAULT_NOTIFICATIONS;
     }
   }
