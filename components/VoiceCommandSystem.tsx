@@ -275,7 +275,7 @@ export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemPro
         <button
           type="button"
           onClick={handleClick}
-          className={`flex items-center gap-2 p-3.5 rounded-full shadow-lg border text-white transition-colors duration-200 ${
+          className={`flex items-center justify-center p-3.5 rounded-full shadow-lg border text-white transition-colors duration-200 ${
             isOpen 
               ? "bg-slate-800 border-slate-700" 
               : "bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 border-primary-400"
@@ -290,7 +290,6 @@ export default function VoiceCommandSystem({ onNavigate }: VoiceCommandSystemPro
           ) : (
             <Mic className="w-5 h-5" />
           )}
-          <span className="text-xs font-bold uppercase tracking-wider pr-1 hidden sm:inline">Dictate Navigate</span>
         </button>
       </motion.div>
 
