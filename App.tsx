@@ -2108,7 +2108,7 @@ const App: React.FC = () => {
 
     if (hasSharedContent || isPublicPage) {
       return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100">
+        <div className="min-h-screen app-custom-bg font-sans text-slate-900 dark:text-slate-100">
           <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-500 shadow-sm flex-shrink-0 bg-white dark:bg-slate-800">
@@ -2174,7 +2174,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div className="min-h-screen app-custom-bg font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
