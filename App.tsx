@@ -1987,6 +1987,7 @@ const App: React.FC = () => {
             <NotesView
               userId={user ? user.uid : null}
               onDeductCredit={deductCredit}
+              userProfile={userProfile}
             />
           </div>
         );

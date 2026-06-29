@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { NoteItem, ReminderItem, TimetableEntry, SJTUTOR_AVATAR, NoteStatus, NoteTemplate } from '../types';
+import { NoteItem, ReminderItem, TimetableEntry, SJTUTOR_AVATAR, NoteStatus, NoteTemplate, UserProfile } from '../types';
 import { 
   Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, 
   StickyNote, Bell, Edit3, Loader2, Folder, 
@@ -8,17 +8,22 @@ import {
   CheckCircle2, Circle, Download, FileText
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
+import { SettingsService } from '../services/settingsService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 interface NotesViewProps {
   userId: string | null;
   onDeductCredit: (amount: number) => boolean;
+  userProfile?: UserProfile;
 }
 
-const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
+const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfile }) => {
   const [activeTab, setActiveTab] = useState<'NOTES' | 'REMINDERS' | 'TIMETABLE'>('NOTES');
-  const [viewMode, setViewMode] = useState<'SUBJECTS' | 'LIST' | 'EDITOR'>('SUBJECTS');
+  const [viewMode, setViewMode] = useState<'SUBJECTS' | 'LIST' | 'EDITOR' | 'AI_GENERATOR'>('SUBJECTS');
+  
+  const userClass = userProfile?.grade || "10th";
+  const userBoard = userProfile?.board || "CBSE (Central Board of Secondary Education)";
   
   // States
   const [notes, setNotes] = useState<NoteItem[]>([]);
@@ -26,6 +31,14 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   const [editingNote, setEditingNote] = useState<Partial<NoteItem> | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // AI Notes Generator Form States
+  const [subjectInput, setSubjectInput] = useState('Science');
+  const [languageInput, setLanguageInput] = useState('English');
+  const [chapterNameInput, setChapterNameInput] = useState('');
+  const [authorInput, setAuthorInput] = useState('');
+  const [maxCharactersInput, setMaxCharactersInput] = useState(5000);
+  const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
   
   // Reminders/Timetable (Existing Logic Preserved)
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
@@ -37,6 +50,23 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
   const [examSubjects, setExamSubjects] = useState('');
   const [studyHours] = useState(4);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Load defaults from Settings
+  useEffect(() => {
+    try {
+      const settings = SettingsService.getSettings();
+      if (settings) {
+        if (settings.learning?.preferredSubject) {
+          setSubjectInput(settings.learning.preferredSubject);
+        }
+        if (settings.learning?.language) {
+          setLanguageInput(settings.learning.language);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load settings defaults for AI Notes form", e);
+    }
+  }, []);
 
   // Load/Persist
   useEffect(() => {
@@ -104,6 +134,72 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
     setNotes(prev => prev.map(n => n.id === editingNote.id ? { ...n, ...editingNote } as NoteItem : n));
     setViewMode('LIST');
     setEditingNote(null);
+  };
+
+  const handleGenerateAiNotesSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subjectInput || !languageInput || !chapterNameInput) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+
+    const cost = 5;
+    if (!onDeductCredit(cost)) {
+      alert("Insufficient credits. You need at least 5 credits to generate study notes.");
+      return;
+    }
+
+    setIsGeneratingNotes(true);
+    try {
+      const classGrade = userProfile?.grade || "10th";
+      const board = userProfile?.board || "CBSE (Central Board of Secondary Education)";
+
+      const content = await GeminiService.generateAiNotes({
+        classGrade,
+        board,
+        subject: subjectInput,
+        language: languageInput,
+        chapterName: chapterNameInput,
+        author: authorInput || undefined,
+        maxCharacters: maxCharactersInput
+      });
+
+      if (content) {
+        // Automatically save as a new note item
+        const newNote: NoteItem = {
+          id: Date.now().toString(),
+          title: chapterNameInput,
+          content,
+          subject: subjectInput,
+          chapter: chapterNameInput,
+          template: 'Theory',
+          status: 'New',
+          isFavorite: false,
+          date: Date.now(),
+          tags: ['AI-Generated']
+        };
+
+        const updatedNotes = [newNote, ...notes];
+        setNotes(updatedNotes);
+        
+        const key = userId || 'guest';
+        localStorage.setItem(`notes_${key}`, JSON.stringify(updatedNotes));
+
+        setEditingNote(newNote);
+        setViewMode('EDITOR');
+        
+        // Clear Chapter & Author inputs for future creations
+        setChapterNameInput('');
+        setAuthorInput('');
+      } else {
+        alert("Failed to generate notes. Please check your input or try again.");
+      }
+    } catch (err) {
+      console.error("AI notes generation error:", err);
+      alert("Something went wrong during notes generation. Please check your connection and try again.");
+    } finally {
+      setIsGeneratingNotes(false);
+    }
   };
 
   const downloadNoteFile = (format: 'md' | 'doc' | 'txt') => {
@@ -214,7 +310,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
           <div className="animate-in fade-in duration-300">
             
             {/* SEARCH & FILTERS */}
-            {viewMode !== 'EDITOR' && (
+            {viewMode !== 'EDITOR' && viewMode !== 'AI_GENERATOR' && (
               <div className="flex flex-col md:flex-row gap-4 mb-6">
                 <div className="flex-1 relative">
                   <input 
@@ -227,6 +323,12 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                   <Folder className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                 </div>
                 <div className="flex gap-2">
+                  <button 
+                    onClick={() => setViewMode('AI_GENERATOR')} 
+                    className="px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300/20" /> AI Notes Generator
+                  </button>
                   <button onClick={() => handleCreateNote('Blank')} className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary-500/20">
                     <Plus className="w-4 h-4" /> New Note
                   </button>
@@ -414,6 +516,155 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit }) => {
                     </label>
                   </div>
                   {isAiLoading && <div className="flex items-center gap-2 text-primary-600"><Loader2 className="w-3 h-3 animate-spin" /> AI Thinking...</div>}
+                </div>
+              </div>
+            )}
+
+            {viewMode === 'AI_GENERATOR' && (
+              <div className="space-y-6 max-w-2xl mx-auto animate-in zoom-in-95 duration-300">
+                <button 
+                  onClick={() => setViewMode('SUBJECTS')}
+                  className="flex items-center text-sm font-bold text-slate-500 hover:text-primary-600 mb-2"
+                >
+                  <ChevronRight className="w-4 h-4 rotate-180" /> Back to Notes
+                </button>
+                
+                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden p-8">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 bg-gradient-to-tr from-violet-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-md shadow-indigo-500/10">
+                      <Sparkles className="w-6 h-6 text-amber-300 fill-amber-300/20" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-800 dark:text-white">SJ Tutor AI Notes Generator</h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Generate high-quality, syllabus-aligned exam notes instantly.</p>
+                    </div>
+                  </div>
+
+                  {/* Student Profile Info Banner - Read-only */}
+                  <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 mb-6 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Retrieved from Profile</span>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-sm font-bold text-slate-800 dark:text-white">Class: <span className="text-violet-600 dark:text-violet-400">{userClass}</span></span>
+                        <span className="text-slate-300 dark:text-slate-700">•</span>
+                        <span className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[240px]" title={userBoard}>Board: <span className="text-violet-600 dark:text-violet-400">{userBoard}</span></span>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-full text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      Auto-Aligned
+                    </span>
+                  </div>
+
+                  <form onSubmit={handleGenerateAiNotesSubmit} className="space-y-5">
+                    {/* Subject Input */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex justify-between">
+                        <span>Subject <span className="text-red-500">*</span></span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={subjectInput}
+                        onChange={(e) => setSubjectInput(e.target.value)}
+                        placeholder="e.g. Science, Mathematics, History, Economics"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none dark:text-white font-medium"
+                      />
+                    </div>
+
+                    {/* Language Input */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Language <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        required
+                        value={languageInput}
+                        onChange={(e) => setLanguageInput(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none dark:text-white font-medium"
+                      >
+                        <option value="English">English</option>
+                        <option value="Hindi">Hindi (हिन्दी)</option>
+                        <option value="Kannada">Kannada (ಕನ್ನಡ)</option>
+                        <option value="Telugu">Telugu (తెలుగు)</option>
+                        <option value="Tamil">Tamil (தமிழ்)</option>
+                        <option value="Marathi">Marathi (मराठी)</option>
+                        <option value="Bengali">Bengali (বাংলা)</option>
+                        <option value="Gujarati">Gujarati (ગુજરાતી)</option>
+                        <option value="Spanish">Spanish (Español)</option>
+                        <option value="French">French (Français)</option>
+                        <option value="German">German (Deutsch)</option>
+                      </select>
+                    </div>
+
+                    {/* Chapter Name Input */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Chapter Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={chapterNameInput}
+                        onChange={(e) => setChapterNameInput(e.target.value)}
+                        placeholder="e.g. Chemical Reactions and Equations"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none dark:text-white font-medium"
+                      />
+                    </div>
+
+                    {/* Author/Poet Input */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex justify-between">
+                        <span>Author / Poet <span className="text-slate-400 font-normal">(Optional)</span></span>
+                      </label>
+                      <input
+                        type="text"
+                        value={authorInput}
+                        onChange={(e) => setAuthorInput(e.target.value)}
+                        placeholder="e.g. Shakespeare, Rabindranath Tagore, Robert Frost"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none dark:text-white"
+                      />
+                    </div>
+
+                    {/* Max Characters Input */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider">
+                        <span className="text-slate-500 dark:text-slate-400">Maximum Characters <span className="text-red-500">*</span></span>
+                        <span className="text-indigo-600 dark:text-indigo-400 font-mono">{maxCharactersInput.toLocaleString()} characters</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1000"
+                        max="12000"
+                        step="500"
+                        value={maxCharactersInput}
+                        onChange={(e) => setMaxCharactersInput(Number(e.target.value))}
+                        className="w-full accent-indigo-600 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-400 font-bold">
+                        <span>1,000 (Quick Summary)</span>
+                        <span>12,000 (Very Detailed)</span>
+                      </div>
+                    </div>
+
+                    {/* Generate Button */}
+                    <button
+                      type="submit"
+                      disabled={isGeneratingNotes}
+                      className="w-full py-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20 disabled:opacity-75 transition-all mt-4"
+                    >
+                      {isGeneratingNotes ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>Generating Syllabus-Aligned Notes...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-5 h-5 text-amber-300 fill-amber-300/20" />
+                          <span>Generate Notes (Cost: 5 Credits)</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
                 </div>
               </div>
             )}
