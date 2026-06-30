@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { doc, setDoc, getDocs, collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, query, orderBy, limit } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { UserProfile } from '../types';
 import confetti from 'canvas-confetti';
@@ -228,18 +228,10 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  // Sync auth-state and fetch/align profiles with real-time onSnapshot sync
+  // Sync auth-state and fetch/align profiles
   useEffect(() => {
-    let unsubscribeStreak: (() => void) | null = null;
-
     const unsub = auth.onAuthStateChanged(async (user) => {
       setLoading(true);
-
-      if (unsubscribeStreak) {
-        unsubscribeStreak();
-        unsubscribeStreak = null;
-      }
-
       if (user) {
         setCurrentUserId(user.uid);
         
@@ -254,9 +246,8 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         const userDocRef = doc(db, 'streaks', user.uid);
-        
-        // 2. Set up real-time listener
-        unsubscribeStreak = onSnapshot(userDocRef, async (snap) => {
+        try {
+          const snap = await getDoc(userDocRef);
           if (snap.exists()) {
             const data = snap.data() as StreakData;
             const currentStr = data.currentStreak || 0;
@@ -279,31 +270,8 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               updatedAt: parsedUpdatedAt,
             };
 
-            // Read local stored streak to compare
-            const latestLocalSaved = localStorage.getItem(`sjtutor_streak_${user.uid}`);
-            let localUpdatedAt = 0;
-            if (latestLocalSaved) {
-              try {
-                localUpdatedAt = JSON.parse(latestLocalSaved).updatedAt || 0;
-              } catch (e) {
-                console.warn("Failed to parse local stored streak:", e);
-              }
-            }
-
-            if (parsedUpdatedAt >= localUpdatedAt) {
-              setStreak(updatedData);
-              localStorage.setItem(`sjtutor_streak_${user.uid}`, JSON.stringify(updatedData));
-            } else {
-              // Local is newer (offline changes made)! Push local streak back to cloud
-              if (latestLocalSaved) {
-                try {
-                  const localObj = JSON.parse(latestLocalSaved);
-                  await setDoc(userDocRef, localObj, { merge: true });
-                } catch (e) {
-                  console.warn("Failed to push newer local streak to cloud on sync:", e);
-                }
-              }
-            }
+            setStreak(updatedData);
+            localStorage.setItem(`sjtutor_streak_${user.uid}`, JSON.stringify(updatedData));
           } else {
             // New Firebase user streak setup from local guest data if available
             const localGuest = localStorage.getItem('sjtutor_streak_guest');
@@ -325,12 +293,16 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             await setDoc(userDocRef, initial, { merge: true });
             localStorage.setItem(`sjtutor_streak_${user.uid}`, JSON.stringify(initial));
           }
-          setLoading(false);
-        }, (err) => {
-          console.warn("Real-time streak sync listener error:", err);
-          setLoading(false);
-        });
-
+        } catch (e) {
+          console.warn('Network offline or error fetching user streak from DB (using local storage fallback):', e);
+          // Local fallback (if not already set in step 1)
+          if (!localSaved) {
+            const fallbackLocal = localStorage.getItem(`sjtutor_streak_${user.uid}`);
+            if (fallbackLocal) {
+              setStreak(JSON.parse(fallbackLocal));
+            }
+          }
+        }
       } else {
         // Guest user fallback
         setCurrentUserId(null);
@@ -344,14 +316,11 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         } else {
           setStreak(INITIAL_STREAK);
         }
-        setLoading(false);
       }
+      setLoading(false);
     });
 
-    return () => {
-      unsub();
-      if (unsubscribeStreak) unsubscribeStreak();
-    };
+    return () => unsub();
   }, []);
 
   // Fetch leaderboard initially

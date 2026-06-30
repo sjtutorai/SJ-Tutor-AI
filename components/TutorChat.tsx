@@ -177,30 +177,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     messagesRef.current = messages;
   }, [messages]);
 
-  // Load and subscribe to starred messages sync events
-  useEffect(() => {
-    const loadStarred = () => {
-      try {
-        const saved = localStorage.getItem('sjtutor_starred_messages');
-        if (saved) {
-          setStarredTimestamps(JSON.parse(saved));
-        } else {
-          setStarredTimestamps([]);
-        }
-      } catch {
-        setStarredTimestamps([]);
-      }
-    };
-
-    window.addEventListener('sjtutor_sync', loadStarred);
-    window.addEventListener('storage', loadStarred);
-
-    return () => {
-      window.removeEventListener('sjtutor_sync', loadStarred);
-      window.removeEventListener('storage', loadStarred);
-    };
-  }, []);
-
   // Sync starred messages to localStorage
   useEffect(() => {
     localStorage.setItem('sjtutor_starred_messages', JSON.stringify(starredTimestamps));

@@ -70,49 +70,13 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
 
   // Load/Persist
   useEffect(() => {
-    const loadData = () => {
-      const key = userId || 'guest';
-      const savedNotes = localStorage.getItem(`notes_${key}`);
-      const savedReminders = localStorage.getItem(`reminders_${key}`);
-      const savedTimetable = localStorage.getItem(`timetable_${key}`);
-      if (savedNotes) {
-        try {
-          setNotes(JSON.parse(savedNotes));
-        } catch (e) {
-          console.warn("Failed to parse notes:", e);
-        }
-      } else {
-        setNotes([]);
-      }
-      if (savedReminders) {
-        try {
-          setReminders(JSON.parse(savedReminders));
-        } catch (e) {
-          console.warn("Failed to parse reminders:", e);
-        }
-      } else {
-        setReminders([]);
-      }
-      if (savedTimetable) {
-        try {
-          setTimetable(JSON.parse(savedTimetable));
-        } catch (e) {
-          console.warn("Failed to parse timetable:", e);
-        }
-      } else {
-        setTimetable([]);
-      }
-    };
-
-    loadData();
-
-    window.addEventListener('sjtutor_sync', loadData);
-    window.addEventListener('storage', loadData);
-
-    return () => {
-      window.removeEventListener('sjtutor_sync', loadData);
-      window.removeEventListener('storage', loadData);
-    };
+    const key = userId || 'guest';
+    const savedNotes = localStorage.getItem(`notes_${key}`);
+    const savedReminders = localStorage.getItem(`reminders_${key}`);
+    const savedTimetable = localStorage.getItem(`timetable_${key}`);
+    if (savedNotes) setNotes(JSON.parse(savedNotes));
+    if (savedReminders) setReminders(JSON.parse(savedReminders));
+    if (savedTimetable) setTimetable(JSON.parse(savedTimetable));
   }, [userId]);
 
   useEffect(() => {

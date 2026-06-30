@@ -39,7 +39,9 @@ import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
 import {
   saveProfileToFirestore,
+  getProfileFromFirestore,
   saveHistoryItemToFirestore,
+  syncHistoryWithFirestore,
   createSharedContent,
   getSharedContent,
   saveQuizScoreToLeaderboard,
@@ -47,10 +49,9 @@ import {
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
-import { auth, db } from "./firebaseConfig";
+import { auth } from "./firebaseConfig";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import type { User } from "firebase/auth";
-import { doc, onSnapshot, setDoc, collection } from "firebase/firestore";
 import {
   FileText,
   BrainCircuit,
@@ -165,8 +166,6 @@ const App: React.FC = () => {
   // Auth State
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [profileSyncCompleted, setProfileSyncCompleted] = useState(false);
-  const [historySyncCompleted, setHistorySyncCompleted] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -604,8 +603,6 @@ const App: React.FC = () => {
           setIsNewUser(false);
           setUserProfile(initialProfileState);
           setMode(AppMode.DASHBOARD);
-          setProfileSyncCompleted(false);
-          setHistorySyncCompleted(false);
         }
       },
       (err) => {
@@ -629,7 +626,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Profile Persistence & Real-time Profile/Settings/Notes/Starred messages sync
+  // Profile Persistence
   useEffect(() => {
     if (user) {
       // Check if 30 days have passed since last tutorial
@@ -687,305 +684,122 @@ const App: React.FC = () => {
         }
       }
 
-      // Set up real-time listener on the user's document
-      const userDocRef = doc(db, "users", user.uid);
-      const unsubscribe = onSnapshot(userDocRef, (snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          const remoteUpdatedAt = data.updatedAt || 0;
-          
-          // Get local updatedAt
-          const localUpdatedAtStr = localStorage.getItem(`sjtutor_user_updated_at_${user.uid}`);
-          const localUpdatedAt = localUpdatedAtStr ? parseInt(localUpdatedAtStr) : 0;
-
-          if (remoteUpdatedAt >= localUpdatedAt) {
-            // Apply cloud version to local storage & state
-            const remoteProfile = {
-              displayName: data.displayName || "",
-              phoneNumber: data.phoneNumber || "",
-              institution: data.institution || "",
-              grade: data.grade || "",
-              board: data.board || "",
-              bio: data.bio || "",
-              photoURL: data.photoURL || "",
-              learningGoal: data.learningGoal || "",
-              learningStyle: data.learningStyle || "Reading/Writing",
-              credits: data.credits !== undefined ? data.credits : 100,
-              planType: data.planType || "Free",
-              claimedOffers: data.claimedOffers || [],
-              emblems: data.emblems || [],
+      // Revalidate / Sync from Firestore in the background
+      const loadProfileFromDb = async () => {
+        try {
+          const firestoreProfile = await getProfileFromFirestore(user.uid);
+          if (firestoreProfile) {
+            const merged = {
+              ...initialProfileState,
+              credits: 100,
+              ...cached,
+              ...firestoreProfile,
+              displayName: firestoreProfile.displayName || (cached && cached.displayName) || user.displayName || "",
+              photoURL: firestoreProfile.photoURL || (cached && cached.photoURL) || user.photoURL || "",
             };
-            setUserProfile(remoteProfile);
-            localStorage.setItem(`profile_${user.uid}`, JSON.stringify(remoteProfile));
-
-            if (data.settings) {
-              localStorage.setItem('sjtutor_user_settings', JSON.stringify(data.settings));
-              window.dispatchEvent(new Event("settings-changed"));
-            }
-
-            if (data.notes) {
-              localStorage.setItem(`notes_${user.uid}`, JSON.stringify(data.notes));
-            }
-            if (data.reminders) {
-              localStorage.setItem(`reminders_${user.uid}`, JSON.stringify(data.reminders));
-            }
-            if (data.timetable) {
-              localStorage.setItem(`timetable_${user.uid}`, JSON.stringify(data.timetable));
-            }
-            if (data.starred_messages) {
-              localStorage.setItem('sjtutor_starred_messages', JSON.stringify(data.starred_messages));
-            }
-
-            localStorage.setItem(`sjtutor_user_updated_at_${user.uid}`, remoteUpdatedAt.toString());
-            window.dispatchEvent(new Event('sjtutor_sync'));
-          } else {
-            // Local is newer (offline changes occurred).
-            // We'll let our polling loop push local updates to the cloud.
+            setUserProfile(merged);
+            localStorage.setItem(`profile_${user.uid}`, JSON.stringify(merged));
           }
-        } else {
-          // Document doesn't exist on Firestore. Create it using local data.
-          const initialNow = Date.now();
-          localStorage.setItem(`sjtutor_user_updated_at_${user.uid}`, initialNow.toString());
-          
-          const pRaw = localStorage.getItem(`profile_${user.uid}`);
-          const sRaw = localStorage.getItem('sjtutor_user_settings');
-          const nRaw = localStorage.getItem(`notes_${user.uid}`);
-          const rRaw = localStorage.getItem(`reminders_${user.uid}`);
-          const tRaw = localStorage.getItem(`timetable_${user.uid}`);
-          const smRaw = localStorage.getItem('sjtutor_starred_messages');
-
-          const profileObj = pRaw ? JSON.parse(pRaw) : initialProfile;
-          const settingsObj = sRaw ? JSON.parse(sRaw) : null;
-          const notesObj = nRaw ? JSON.parse(nRaw) : [];
-          const remindersObj = rRaw ? JSON.parse(rRaw) : [];
-          const timetableObj = tRaw ? JSON.parse(tRaw) : [];
-          const starredObj = smRaw ? JSON.parse(smRaw) : [];
-
-          setDoc(userDocRef, {
-            ...profileObj,
-            settings: settingsObj,
-            notes: notesObj,
-            reminders: remindersObj,
-            timetable: timetableObj,
-            starred_messages: starredObj,
-            updatedAt: initialNow,
-          }, { merge: true }).catch(e => console.warn("Failed to create user doc:", e));
+        } catch (err) {
+          console.warn("Background profile sync failed:", err);
         }
-        setProfileSyncCompleted(true);
-      }, (err) => {
-        console.warn("Real-time profile sync error:", err);
-        setProfileSyncCompleted(true);
-      });
-
-      return () => {
-        unsubscribe();
       };
-    } else {
-      setProfileSyncCompleted(false);
+
+      loadProfileFromDb();
     }
   }, [user, sendNotification]);
 
-  // Unified Local Storage Polling Listener to Push Newer Changes to the Cloud
-  const lastLocalStateRef = useRef<string>("");
-  useEffect(() => {
-    if (!user || !profileSyncCompleted) {
-      lastLocalStateRef.current = "";
-      return;
-    }
-
-    const getLocalString = () => {
-      const p = localStorage.getItem(`profile_${user.uid}`) || "";
-      const s = localStorage.getItem('sjtutor_user_settings') || "";
-      const n = localStorage.getItem(`notes_${user.uid}`) || "";
-      const r = localStorage.getItem(`reminders_${user.uid}`) || "";
-      const t = localStorage.getItem(`timetable_${user.uid}`) || "";
-      const sm = localStorage.getItem('sjtutor_starred_messages') || "";
-      return JSON.stringify({ p, s, n, r, t, sm });
-    };
-
-    lastLocalStateRef.current = getLocalString();
-
-    const intervalId = setInterval(async () => {
-      if (!navigator.onLine) return;
-
-      const currentLocal = getLocalString();
-      if (currentLocal !== lastLocalStateRef.current) {
-        lastLocalStateRef.current = currentLocal;
-
-        const now = Date.now();
-        localStorage.setItem(`sjtutor_user_updated_at_${user.uid}`, now.toString());
-
-        const pRaw = localStorage.getItem(`profile_${user.uid}`);
-        const sRaw = localStorage.getItem('sjtutor_user_settings');
-        const nRaw = localStorage.getItem(`notes_${user.uid}`);
-        const rRaw = localStorage.getItem(`reminders_${user.uid}`);
-        const tRaw = localStorage.getItem(`timetable_${user.uid}`);
-        const smRaw = localStorage.getItem('sjtutor_starred_messages');
-
-        const profile = pRaw ? JSON.parse(pRaw) : {};
-        const settings = sRaw ? JSON.parse(sRaw) : null;
-        const notes = nRaw ? JSON.parse(nRaw) : [];
-        const reminders = rRaw ? JSON.parse(rRaw) : [];
-        const timetable = tRaw ? JSON.parse(tRaw) : [];
-        const starred_messages = smRaw ? JSON.parse(smRaw) : [];
-
-        try {
-          const userDocRef = doc(db, "users", user.uid);
-          await setDoc(userDocRef, {
-            ...profile,
-            settings,
-            notes,
-            reminders,
-            timetable,
-            starred_messages,
-            updatedAt: now,
-          }, { merge: true });
-        } catch (e) {
-          console.warn("Error pushing local changes to cloud:", e);
-        }
-      }
-    }, 1500);
-
-    return () => clearInterval(intervalId);
-  }, [user, profileSyncCompleted]);
-
-  // History Persistence and Database Synchronization with Real-time Sync
+  // History Persistence and Database Synchronization
   useEffect(() => {
     setHistoryLoadedUid("none");
-    setHistorySyncCompleted(false);
-
-    const storageKey = user ? `history_${user.uid}` : "history_guest";
-    const savedHistory = localStorage.getItem(storageKey);
-    let initialHistory: HistoryItem[] = [];
-    if (savedHistory) {
-      try {
-        const parsedHistory = JSON.parse(savedHistory);
-        if (Array.isArray(parsedHistory)) {
-          initialHistory = parsedHistory;
+    let active = true;
+    const loadAndSyncHistory = async () => {
+      const storageKey = user ? `history_${user.uid}` : "history_guest";
+      const savedHistory = localStorage.getItem(storageKey);
+      let initialHistory: HistoryItem[] = [];
+      if (savedHistory) {
+        try {
+          const parsedHistory = JSON.parse(savedHistory);
+          if (Array.isArray(parsedHistory)) {
+            initialHistory = parsedHistory;
+          }
+        } catch {
+          initialHistory = [];
         }
-      } catch {
-        initialHistory = [];
       }
-    }
 
-    // Migrate guest history if user just logged in
-    if (user) {
-      try {
-        const guestHistoryKey = "history_guest";
-        const savedGuestHistory = localStorage.getItem(guestHistoryKey);
-        if (savedGuestHistory) {
-          const parsedGuest = JSON.parse(savedGuestHistory);
-          if (Array.isArray(parsedGuest) && parsedGuest.length > 0) {
-            const existingIds = new Set(initialHistory.map(item => item.id));
-            let migratedCount = 0;
-            parsedGuest.forEach(guestItem => {
-              if (!existingIds.has(guestItem.id)) {
-                initialHistory.push(guestItem);
-                migratedCount++;
+      // Migrate guest history if user just logged in
+      if (user) {
+        try {
+          const guestHistoryKey = "history_guest";
+          const savedGuestHistory = localStorage.getItem(guestHistoryKey);
+          if (savedGuestHistory) {
+            const parsedGuest = JSON.parse(savedGuestHistory);
+            if (Array.isArray(parsedGuest) && parsedGuest.length > 0) {
+              const existingIds = new Set(initialHistory.map(item => item.id));
+              let migratedCount = 0;
+              parsedGuest.forEach(guestItem => {
+                if (!existingIds.has(guestItem.id)) {
+                  // Merge guest items into initialHistory, keeping guest item details
+                  initialHistory.push(guestItem);
+                  migratedCount++;
+                }
+              });
+              if (migratedCount > 0) {
+                // Save merged history back to local storage
+                localStorage.setItem(`history_${user.uid}`, JSON.stringify(initialHistory));
+                // Remove guest history so we don't migrate multiple times
+                localStorage.removeItem(guestHistoryKey);
               }
-            });
-            if (migratedCount > 0) {
-              localStorage.setItem(`history_${user.uid}`, JSON.stringify(initialHistory));
-              localStorage.removeItem(guestHistoryKey);
             }
           }
-        }
-      } catch (e) {
-        console.warn("Guest history migration failed:", e);
-      }
-    }
-
-    // Instantly show local history
-    setHistory(initialHistory);
-    setHistoryLoadedUid(user ? user.uid : "guest");
-
-    if (!user) {
-      setHistorySyncCompleted(true);
-      return;
-    }
-
-    const historyColRef = collection(db, "users", user.uid, "history");
-    
-    // Register real-time snapshot listener on history collection
-    const unsubscribe = onSnapshot(historyColRef, async (snapshot) => {
-      const firestoreItems: HistoryItem[] = [];
-      snapshot.forEach((doc) => {
-        firestoreItems.push(doc.data() as HistoryItem);
-      });
-
-      // Deduplicate and resolve conflicts using updatedAt (or timestamp)
-      const mergedMap = new Map<string, HistoryItem>();
-      
-      // Load current local items into the map
-      const currentLocalRaw = localStorage.getItem(`history_${user.uid}`);
-      let currentLocalItems: HistoryItem[] = [];
-      try {
-        currentLocalItems = currentLocalRaw ? JSON.parse(currentLocalRaw) : [];
-      } catch (e) {
-        console.warn("Failed to parse local history raw JSON:", e);
-      }
-      
-      currentLocalItems.forEach(item => mergedMap.set(item.id, item));
-
-      // Reconcile Firestore items
-      firestoreItems.forEach((remoteItem) => {
-        const localItem = mergedMap.get(remoteItem.id);
-        if (!localItem) {
-          // Exists on remote but not local, save it!
-          mergedMap.set(remoteItem.id, remoteItem);
-        } else {
-          // Exists on both, use updatedAt / timestamp to keep latest version
-          const remoteTime = remoteItem.updatedAt || remoteItem.timestamp || 0;
-          const localTime = localItem.updatedAt || localItem.timestamp || 0;
-          if (remoteTime > localTime) {
-            mergedMap.set(remoteItem.id, remoteItem);
-          }
-        }
-      });
-
-      const mergedList = Array.from(mergedMap.values()).sort((a, b) => b.timestamp - a.timestamp);
-
-      // Save merged results locally
-      setHistory(mergedList);
-      localStorage.setItem(`history_${user.uid}`, JSON.stringify(mergedList));
-
-      // Merge local modifications / offline items back to Firestore
-      const itemsToSave: Promise<any>[] = [];
-      mergedMap.forEach((item) => {
-        const remoteMatch = firestoreItems.find(f => f.id === item.id);
-        if (!remoteMatch) {
-          // Local item not yet on Firestore
-          itemsToSave.push(saveHistoryItemToFirestore(user.uid, item));
-        } else {
-          // Local is newer than remote version
-          const remoteTime = remoteMatch.updatedAt || remoteMatch.timestamp || 0;
-          const localTime = item.updatedAt || item.timestamp || 0;
-          if (localTime > remoteTime) {
-            itemsToSave.push(saveHistoryItemToFirestore(user.uid, item));
-          }
-        }
-      });
-
-      if (itemsToSave.length > 0) {
-        try {
-          await Promise.all(itemsToSave);
         } catch (e) {
-          console.warn("Error uploading local history entries on sync:", e);
+          console.warn("Guest history migration failed:", e);
         }
       }
 
-      setHistorySyncCompleted(true);
-    }, (err) => {
-      console.warn("History real-time subscription error:", err);
-      setHistorySyncCompleted(true);
-    });
+      // 1. Immediately (synchronously) populate history from local storage so that
+      // counters and dashboard items render instantly without network delay!
+      if (active) {
+        setHistory(initialHistory);
+        setHistoryLoadedUid(user ? user.uid : "guest");
+      }
+
+      if (user) {
+        try {
+          // 2. background-sync/fetch from Firestore, reconciling offline modifications
+          const syncedHistory = await syncHistoryWithFirestore(user.uid, initialHistory);
+          if (active) {
+            setHistory(syncedHistory);
+            localStorage.setItem(`history_${user.uid}`, JSON.stringify(syncedHistory));
+            setHistoryLoadedUid(user.uid);
+          }
+        } catch (err) {
+          console.warn("Firestore history sync failed, fallback to local:", err);
+          if (active) {
+            setHistory(initialHistory);
+            setHistoryLoadedUid(user.uid);
+          }
+        }
+      }
+    };
+
+    loadAndSyncHistory();
+
+    // Setup 30-seconds sync timer to seamlessly match history across devices
+    let syncInterval: NodeJS.Timeout | null = null;
+    if (user) {
+      syncInterval = setInterval(() => {
+        loadAndSyncHistory();
+      }, 30000);
+    }
 
     return () => {
-      unsubscribe();
+      active = false;
+      if (syncInterval) clearInterval(syncInterval);
     };
   }, [user]);
 
-  // Save changes in memory history state to localStorage for instant loading
   useEffect(() => {
     const currentUid = user ? user.uid : "guest";
     if (historyLoadedUid !== currentUid) return;
@@ -2269,7 +2083,7 @@ const App: React.FC = () => {
     );
   }
 
-  if (authLoading || (user && (!profileSyncCompleted || !historySyncCompleted))) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-primary-50 dark:bg-slate-900 flex items-center justify-center flex-col gap-4">
         <div className="relative">
@@ -2278,8 +2092,8 @@ const App: React.FC = () => {
           </div>
           <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
         </div>
-        <p className="text-slate-800 dark:text-white font-bold animate-pulse text-center px-4">
-          {authLoading ? "Loading..." : "Synchronizing your profile & study history across devices..."}
+        <p className="text-slate-800 dark:text-white font-bold animate-pulse">
+          Loading...
         </p>
       </div>
     );
