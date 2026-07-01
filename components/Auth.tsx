@@ -82,6 +82,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
   // Resend Verification State
   const [resendTimer, setResendTimer] = useState(0);
   const [resendStatus, setResendStatus] = useState<string | null>(null);
+  const [magicLinkTimer, setMagicLinkTimer] = useState(0);
 
   useEffect(() => {
     let interval: any;
@@ -92,6 +93,16 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
     }
     return () => clearInterval(interval);
   }, [resendTimer]);
+
+  useEffect(() => {
+    let interval: any;
+    if (magicLinkTimer > 0) {
+      interval = setInterval(() => {
+        setMagicLinkTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [magicLinkTimer]);
 
   const handleProviderSignIn = async (provider: any, providerName: string) => {
     setLoading(true);
@@ -153,8 +164,10 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
     }
   };
 
-  const handleSendMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMagicLink = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
     if (!email) {
       setError("Please enter your email address.");
       return;
@@ -168,6 +181,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
       };
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
       window.localStorage.setItem('emailForSignIn', email);
+      setMagicLinkTimer(60);
       setView('magic-link-sent');
     } catch (err: any) {
       console.error(err);
@@ -462,8 +476,29 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
             <p className="text-slate-500 mb-6 text-sm">
               We&apos;ve sent a passwordless login link to <span className="font-bold text-slate-700">{email}</span>. Click the link in your email to log in instantly.
             </p>
+
+            {error && <div className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg border border-red-100 mb-6">{error}</div>}
+
+            <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+              {magicLinkTimer > 0 ? (
+                <p className="text-sm text-slate-500 font-medium">
+                  Didn&apos;t receive the email? Resend in <span className="font-bold text-indigo-600">{magicLinkTimer}s</span>
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleSendMagicLink()}
+                  disabled={loading}
+                  className="text-sm font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 mx-auto"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> : <RefreshCw className="w-4 h-4 text-indigo-500" />}
+                  <span>{loading ? "Resending Link..." : "Resend Magic Link"}</span>
+                </button>
+              )}
+            </div>
+
             <button 
-              onClick={() => { setView('login'); }}
+              onClick={() => { setView('login'); setError(null); }}
               className="w-full py-3 bg-slate-950 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors"
             >
               Back to Login

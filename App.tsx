@@ -652,10 +652,17 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error("Error signing in with email link:", error);
       setError("Invalid or expired sign-in link, or incorrect confirmation email. Please request a new magic link.");
+      // Clean up URL parameters on error as well, so it doesn't keep retrying
+      window.history.replaceState({}, document.title, window.location.origin);
     } finally {
       setAuthLoading(false);
       setIsProcessingLinkSignIn(false);
     }
+  };
+
+  const handleCloseConfirmEmailModal = () => {
+    setShowConfirmEmailModal(false);
+    window.history.replaceState({}, document.title, window.location.origin);
   };
 
   // Handle Passwordless Sign-In (Email Link)
@@ -756,6 +763,9 @@ const App: React.FC = () => {
             };
             setUserProfile(merged);
             localStorage.setItem(`profile_${user.uid}`, JSON.stringify(merged));
+          } else {
+            // Brand new profile for newly registered user (e.g. via Magic Link, Apple, etc.)
+            await saveProfileToFirestore(user.uid, initialProfile);
           }
         } catch (err) {
           console.warn("Background profile sync failed:", err);
@@ -2571,11 +2581,11 @@ const App: React.FC = () => {
 
       {showConfirmEmailModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowConfirmEmailModal(false)}></div>
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={handleCloseConfirmEmailModal}></div>
           <div className="flex min-h-full items-center justify-center p-4">
             <div className="relative bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 w-full max-w-md animate-in fade-in zoom-in duration-300">
               <button 
-                onClick={() => setShowConfirmEmailModal(false)} 
+                onClick={handleCloseConfirmEmailModal} 
                 className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors"
               >
                 <X className="w-5 h-5" />
