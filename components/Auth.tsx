@@ -8,7 +8,8 @@ import {
   signInWithEmailAndPassword, 
   sendPasswordResetEmail,
   updateProfile,
-  sendEmailVerification
+  sendEmailVerification,
+  sendSignInLinkToEmail
 } from 'firebase/auth';
 import axios from 'axios';
 import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, Inbox, RefreshCw, Smartphone } from 'lucide-react';
@@ -25,7 +26,7 @@ interface AuthProps {
   initialCountry?: string | null;
 }
 
-type AuthView = 'login' | 'signup' | 'forgot-password' | 'verify-email' | 'otp';
+type AuthView = 'login' | 'signup' | 'forgot-password' | 'verify-email' | 'otp' | 'magic-link' | 'magic-link-sent';
 
 const AppleIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 384 512" fill="currentColor">
@@ -147,6 +148,30 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to send reset email.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      setError("Please enter your email address.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const actionCodeSettings = {
+        url: window.location.origin,
+        handleCodeInApp: true,
+      };
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', email);
+      setView('magic-link-sent');
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to send magic link. Please check your network and try again.");
     } finally {
       setLoading(false);
     }
@@ -415,6 +440,86 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
     );
   }
 
+  if (view === 'magic-link-sent') {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div className="relative bg-white p-8 rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md text-center animate-in fade-in zoom-in duration-300">
+            <button onClick={onClose} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600 animate-bounce">
+              <Sparkles className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">Check your Email!</h2>
+            <p className="text-slate-500 mb-6 text-sm">
+              We&apos;ve sent a passwordless login link to <span className="font-bold text-slate-700">{email}</span>. Click the link in your email to log in instantly.
+            </p>
+            <button 
+              onClick={() => { setView('login'); }}
+              className="w-full py-3 bg-slate-950 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors"
+            >
+              Back to Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'magic-link') {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div className="relative bg-white p-8 rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md animate-in fade-in zoom-in duration-300">
+            <button onClick={onClose} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="mb-6 text-center">
+              <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600">
+                <Sparkles className="w-8 h-8" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-800">Passwordless Login</h2>
+              <p className="text-slate-500 mt-2 text-sm">Enter your email and we&apos;ll send you a magic link to sign in instantly without any password.</p>
+            </div>
+            <form onSubmit={handleSendMagicLink} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-slate-900"
+                  />
+                </div>
+              </div>
+              {error && <div className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg border border-red-100">{error}</div>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-lg shadow-indigo-600/20"
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Send Magic Link
+                  </>
+                )}
+              </button>
+              <button type="button" onClick={() => setView('login')} className="w-full text-sm font-semibold text-slate-500 hover:text-slate-700">Back to Login</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (view === 'forgot-password') {
     return (
       <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -668,11 +773,19 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
             </div>
 
             {view === 'login' && (
-              <div className="flex justify-end">
+              <div className="flex justify-between items-center text-xs">
+                <button 
+                  type="button" 
+                  onClick={() => { setView('magic-link'); setError(null); }}
+                  className="font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                >
+                  <Sparkles className="w-3 h-3 text-indigo-500" />
+                  Sign In Without Password
+                </button>
                 <button 
                   type="button" 
                   onClick={() => setView('forgot-password')}
-                  className="text-xs font-semibold text-primary-600 hover:text-primary-700"
+                  className="font-semibold text-primary-600 hover:text-primary-700"
                 >
                   Forgot Password?
                 </button>

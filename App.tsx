@@ -50,7 +50,7 @@ import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { auth } from "./firebaseConfig";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
 import type { User } from "firebase/auth";
 import {
   FileText,
@@ -617,6 +617,50 @@ const App: React.FC = () => {
       clearTimeout(timeoutId);
     };
   }, []);
+
+  // Handle Passwordless Sign-In (Email Link)
+  useEffect(() => {
+    const handleEmailLinkSignIn = async () => {
+      if (isSignInWithEmailLink(auth, window.location.href)) {
+        setAuthLoading(true);
+        let email = window.localStorage.getItem('emailForSignIn');
+        if (!email) {
+          email = window.prompt('Please confirm your email address to complete sign in:');
+        }
+        
+        if (email) {
+          try {
+            const result = await signInWithEmailLink(auth, email, window.location.href);
+            window.localStorage.removeItem('emailForSignIn');
+            
+            const currentUser = result.user;
+            setUser(currentUser);
+            
+            window.history.replaceState({}, document.title, window.location.origin);
+            
+            try {
+              sendNotification(
+                "Logged in successfully! 🎉",
+                "You have been signed in securely using your passwordless magic link.",
+                "Important Alerts",
+                currentUser.uid
+              );
+            } catch (notifErr) {
+              console.warn("Could not send notification:", notifErr);
+            }
+          } catch (error: any) {
+            console.error("Error signing in with email link:", error);
+            setError("Invalid or expired sign-in link. Please request a new magic link.");
+          } finally {
+            setAuthLoading(false);
+          }
+        } else {
+          setAuthLoading(false);
+        }
+      }
+    };
+    handleEmailLinkSignIn();
+  }, [sendNotification]);
 
   // Sync hasSeenTutorial state with localStorage
   useEffect(() => {
