@@ -8,9 +8,7 @@ import {
   signInWithEmailAndPassword, 
   sendPasswordResetEmail,
   updateProfile,
-  sendEmailVerification,
-  RecaptchaVerifier,
-  signInWithPhoneNumber
+  sendEmailVerification
 } from 'firebase/auth';
 import axios from 'axios';
 import { ArrowRight, Loader2, Mail, X, Github, Sparkles, Lock, Eye, EyeOff, KeyRound, User, School, GraduationCap, Phone, Inbox, RefreshCw, Smartphone } from 'lucide-react';
@@ -20,15 +18,6 @@ import { saveProfileToFirestore } from '../utils/firebaseUtils';
 
 import { validateAndParsePhone } from '../utils/phoneUtils';
 
-declare global {
-  interface Window {
-    recaptchaVerifier: any;
-    recaptchaWidgetId: any;
-    confirmationResult: any;
-    grecaptcha: any;
-  }
-}
-
 interface AuthProps {
   onSignUpSuccess?: (data?: Partial<UserProfile>) => void;
   onClose: () => void;
@@ -36,7 +25,7 @@ interface AuthProps {
   initialCountry?: string | null;
 }
 
-type AuthView = 'login' | 'signup' | 'forgot-password' | 'verify-email' | 'otp' | 'phone-login' | 'phone-otp';
+type AuthView = 'login' | 'signup' | 'forgot-password' | 'verify-email' | 'otp';
 
 const AppleIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 384 512" fill="currentColor">
@@ -57,17 +46,9 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
   const [school, setSchool] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  // Phone Login Fields
-  const [phoneForLogin, setPhoneForLogin] = useState('');
-  const [phoneOtp, setPhoneOtp] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<any>(null);
-  const [phoneLoading, setPhoneLoading] = useState(false);
-  const [loginCountryFlag, setLoginCountryFlag] = useState<string | null>(null);
-
   useEffect(() => {
-    if (initialCountry === 'IN') {
-      if (!phoneNumber) setPhoneNumber('+91 ');
-      if (!phoneForLogin) setPhoneForLogin('+91 ');
+    if (initialCountry === 'IN' && !phoneNumber) {
+      setPhoneNumber('+91 ');
     }
   }, [initialCountry]);
   const [otp, setOtp] = useState('');
@@ -89,99 +70,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
     } else {
       setCountryFlag(null);
       if (onCountryDetected) onCountryDetected(null);
-    }
-  };
-
-  const handleLoginPhoneChange = (val: string) => {
-    setPhoneForLogin(val);
-    if (val.length > 2) {
-      const result = validateAndParsePhone(val);
-      if (result.country) {
-        setLoginCountryFlag(result.country.flag);
-      } else {
-        setLoginCountryFlag(null);
-      }
-    } else {
-      setLoginCountryFlag(null);
-    }
-  };
-
-  const handleSendPhoneCode = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setPhoneLoading(true);
-    setError(null);
-
-    try {
-      // 1. Setup RecaptchaVerifier
-      let appVerifier = window.recaptchaVerifier;
-      if (!appVerifier) {
-        appVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          size: 'invisible',
-          callback: () => {
-            // Recaptcha solved
-          },
-          'expired-callback': () => {
-            // Expired
-          }
-        });
-        window.recaptchaVerifier = appVerifier;
-      }
-
-      // Render it to get widgetId
-      const widgetId = await appVerifier.render();
-      window.recaptchaWidgetId = widgetId;
-
-      // 2. Call signInWithPhoneNumber
-      const formattedPhone = phoneForLogin.trim();
-      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-      
-      window.confirmationResult = confirmation;
-      setConfirmationResult(confirmation);
-      setView('phone-otp');
-    } catch (err: any) {
-      console.error("Error signing in with phone:", err);
-      setError(err.message || "Failed to send SMS code. Please verify the phone number format (e.g., +11234567890) and try again.");
-      
-      // Reset reCAPTCHA on error
-      if (window.grecaptcha && window.recaptchaWidgetId !== undefined) {
-        window.grecaptcha.reset(window.recaptchaWidgetId);
-      } else if (window.recaptchaVerifier) {
-        try {
-          const widgetId = await window.recaptchaVerifier.render();
-          if (window.grecaptcha) {
-            window.grecaptcha.reset(widgetId);
-          }
-        } catch (resetErr) {
-          console.error("Failed to reset recaptcha:", resetErr);
-        }
-      }
-    } finally {
-      setPhoneLoading(false);
-    }
-  };
-
-  const handleVerifyPhoneCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phoneOtp) {
-      setError("Please enter the verification code.");
-      return;
-    }
-    setPhoneLoading(true);
-    setError(null);
-
-    try {
-      const activeConfirmationResult = confirmationResult || window.confirmationResult;
-      if (!activeConfirmationResult) {
-        throw new Error("No active verification session found. Please request a new code.");
-      }
-
-      await activeConfirmationResult.confirm(phoneOtp);
-      onClose();
-    } catch (err: any) {
-      console.error("Error confirming SMS code:", err);
-      setError(err.message || "Invalid verification code. Please check the code and try again.");
-    } finally {
-      setPhoneLoading(false);
     }
   };
 
@@ -448,144 +336,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
                  {resendStatus}
                </div>
             )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (view === 'phone-login') {
-    return (
-      <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
-        <div className="flex min-h-full items-center justify-center p-4">
-          <div className="relative bg-white p-8 rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md animate-in fade-in zoom-in duration-300">
-            <button onClick={onClose} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors z-10">
-              <X className="w-5 h-5" />
-            </button>
-            <div className="mb-6 text-center">
-              <div className="flex justify-center mb-4">
-                 <Logo className="w-20 h-20" iconOnly />
-              </div>
-              <h2 className="text-2xl font-bold text-slate-800 animate-pulse">Sign In with Phone</h2>
-              <p className="text-slate-500 mt-2 text-sm">Enter your phone number to receive a secure SMS verification code.</p>
-            </div>
-            
-            <form onSubmit={handleSendPhoneCode} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Phone Number</label>
-                <div className="relative">
-                  <div className="absolute left-3 top-3 w-5 h-5 flex items-center justify-center pointer-events-none">
-                    {loginCountryFlag ? (
-                      <span className="text-lg leading-none">{loginCountryFlag}</span>
-                    ) : (
-                      <Phone className="w-5 h-5 text-slate-400" />
-                    )}
-                  </div>
-                  <input
-                    type="tel"
-                    value={phoneForLogin}
-                    onChange={(e) => handleLoginPhoneChange(e.target.value)}
-                    placeholder="+91 9876543210"
-                    required
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-slate-900"
-                  />
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100 mt-2 mb-4 leading-relaxed">
-                By signing in with your phone number, you might receive an SMS message for verification. Standard message and data rates apply.
-              </p>
-
-              {error && <div className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg border border-red-100">{error}</div>}
-
-              {/* Invisible Recaptcha Container */}
-              <div id="recaptcha-container" className="flex justify-center my-2"></div>
-
-              <button
-                type="submit"
-                disabled={phoneLoading || !phoneForLogin}
-                className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-bold shadow-lg shadow-primary-500/25 flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5 disabled:opacity-70"
-              >
-                {phoneLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                  <>
-                    <Smartphone className="w-5 h-5" />
-                    Send Verification Code
-                    <ArrowRight className="w-5 h-5" />
-                  </>
-                )}
-              </button>
-
-              <button 
-                type="button" 
-                onClick={() => { setView('login'); setError(null); }} 
-                className="w-full text-sm font-semibold text-slate-500 hover:text-slate-700"
-              >
-                Back to Email Login
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (view === 'phone-otp') {
-    return (
-      <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
-        <div className="flex min-h-full items-center justify-center p-4">
-          <div className="relative bg-white p-8 rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md text-center animate-in fade-in zoom-in duration-300">
-            <button onClick={onClose} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-            <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600">
-              <Smartphone className="w-8 h-8" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Verify your Phone</h2>
-            <p className="text-slate-500 mb-6 text-sm">
-              We&apos;ve sent a 6-digit verification code to <span className="font-bold text-slate-700">{phoneForLogin}</span> via SMS.
-            </p>
-            
-            <form onSubmit={handleVerifyPhoneCode} className="space-y-4">
-              <div className="relative">
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={phoneOtp}
-                  onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="000000"
-                  className="w-full text-center tracking-[0.5em] text-2xl font-black py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition-all"
-                  required
-                />
-              </div>
-
-              {error && <div className="text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg border border-red-100">{error}</div>}
-
-              <button
-                type="submit"
-                disabled={phoneLoading || phoneOtp.length < 6}
-                className="w-full py-3.5 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all disabled:opacity-50"
-              >
-                {phoneLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify & Sign In"}
-              </button>
-
-              <button 
-                type="button"
-                onClick={handleSendPhoneCode}
-                className="w-full py-2 text-sm font-semibold text-primary-600 hover:text-primary-700 disabled:opacity-50"
-              >
-                Resend Code
-              </button>
-              
-              <button 
-                type="button" 
-                onClick={() => { setView('phone-login'); setError(null); }} 
-                className="w-full text-sm font-semibold text-slate-500 hover:text-slate-700"
-              >
-                Change Phone Number
-              </button>
-            </form>
           </div>
         </div>
       </div>
@@ -951,28 +701,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
               )}
             </button>
           </form>
-
-          {view === 'login' && (
-            <>
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-100"></div>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-slate-400 font-bold tracking-wider">Or</span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => { setView('phone-login'); setError(null); }}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all shadow-sm hover:scale-[1.01]"
-              >
-                <Smartphone className="w-5 h-5 text-primary-500 animate-pulse" />
-                Sign in with Phone Number
-              </button>
-            </>
-          )}
 
           <div className="mt-6 text-center">
             <p className="text-xs text-slate-400">
