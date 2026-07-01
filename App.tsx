@@ -79,6 +79,9 @@ import {
   Copy,
   Sun,
   Moon,
+  Mail,
+  X,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -170,6 +173,9 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showConfirmEmailModal, setShowConfirmEmailModal] = useState(false);
+  const [emailInputForMagicLink, setEmailInputForMagicLink] = useState("");
+  const [isProcessingLinkSignIn, setIsProcessingLinkSignIn] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showCompletionReminder, setShowCompletionReminder] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
@@ -618,44 +624,51 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Helper to complete passwordless sign-in
+  const completeEmailLinkSignIn = async (email: string) => {
+    setAuthLoading(true);
+    setIsProcessingLinkSignIn(true);
+    try {
+      const result = await signInWithEmailLink(auth, email, window.location.href);
+      window.localStorage.removeItem('emailForSignIn');
+      
+      const currentUser = result.user;
+      setUser(currentUser);
+      
+      // Clean up URL parameters so link doesn't trigger on reload
+      window.history.replaceState({}, document.title, window.location.origin);
+      
+      try {
+        sendNotification(
+          "Logged in successfully! 🎉",
+          "You have been signed in securely using your passwordless magic link.",
+          "Important Alerts",
+          currentUser.uid
+        );
+      } catch (notifErr) {
+        console.warn("Could not send notification:", notifErr);
+      }
+      setShowConfirmEmailModal(false);
+    } catch (error: any) {
+      console.error("Error signing in with email link:", error);
+      setError("Invalid or expired sign-in link, or incorrect confirmation email. Please request a new magic link.");
+    } finally {
+      setAuthLoading(false);
+      setIsProcessingLinkSignIn(false);
+    }
+  };
+
   // Handle Passwordless Sign-In (Email Link)
   useEffect(() => {
     const handleEmailLinkSignIn = async () => {
       if (isSignInWithEmailLink(auth, window.location.href)) {
-        setAuthLoading(true);
-        let email = window.localStorage.getItem('emailForSignIn');
+        const email = window.localStorage.getItem('emailForSignIn');
         if (!email) {
-          email = window.prompt('Please confirm your email address to complete sign in:');
-        }
-        
-        if (email) {
-          try {
-            const result = await signInWithEmailLink(auth, email, window.location.href);
-            window.localStorage.removeItem('emailForSignIn');
-            
-            const currentUser = result.user;
-            setUser(currentUser);
-            
-            window.history.replaceState({}, document.title, window.location.origin);
-            
-            try {
-              sendNotification(
-                "Logged in successfully! 🎉",
-                "You have been signed in securely using your passwordless magic link.",
-                "Important Alerts",
-                currentUser.uid
-              );
-            } catch (notifErr) {
-              console.warn("Could not send notification:", notifErr);
-            }
-          } catch (error: any) {
-            console.error("Error signing in with email link:", error);
-            setError("Invalid or expired sign-in link. Please request a new magic link.");
-          } finally {
-            setAuthLoading(false);
-          }
+          // If email is not in local storage (e.g. user opened link on a different device or in private mode)
+          setShowConfirmEmailModal(true);
         } else {
-          setAuthLoading(false);
+          // Direct login
+          await completeEmailLinkSignIn(email);
         }
       }
     };
@@ -2554,6 +2567,67 @@ const App: React.FC = () => {
           onSignUpSuccess={handleSignUpSuccess}
           onCountryDetected={setDetectedCountry}
         />
+      )}
+
+      {showConfirmEmailModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowConfirmEmailModal(false)}></div>
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 w-full max-w-md animate-in fade-in zoom-in duration-300">
+              <button 
+                onClick={() => setShowConfirmEmailModal(false)} 
+                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="mb-6 text-center">
+                <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/40 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600 dark:text-indigo-400">
+                  <Mail className="w-8 h-8 animate-pulse" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Confirm Your Email</h2>
+                <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm">
+                  To complete your secure passwordless sign-in, please confirm the email address where you received the login link.
+                </p>
+              </div>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (emailInputForMagicLink) {
+                    completeEmailLinkSignIn(emailInputForMagicLink);
+                  }
+                }} 
+                className="space-y-4"
+              >
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                    <input
+                      type="email"
+                      value={emailInputForMagicLink}
+                      onChange={(e) => setEmailInputForMagicLink(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={isProcessingLinkSignIn}
+                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-lg shadow-indigo-600/20"
+                >
+                  {isProcessingLinkSignIn ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Complete Sign In
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
 
       {showPremiumModal && (
