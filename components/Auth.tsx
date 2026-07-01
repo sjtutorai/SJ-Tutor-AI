@@ -171,7 +171,13 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
       setView('magic-link-sent');
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Failed to send magic link. Please check your network and try again.");
+      if (err.code === 'auth/operation-not-allowed') {
+        setError("Email Link (passwordless) sign-in is not enabled in your Firebase Console. To enable: Go to Firebase Console > Authentication > Sign-in method, click on Email/Password, enable the 'Email link (passwordless sign-in)' toggle, and save.");
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError("This domain is not authorized in your Firebase Console. Please add this app's URL to the 'Authorized domains' list in your Firebase Console under Authentication > Settings.");
+      } else {
+        setError(err.message || "Failed to send magic link. Please check your network and try again.");
+      }
     } finally {
       setLoading(false);
     }
