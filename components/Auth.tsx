@@ -73,8 +73,10 @@ const Auth: React.FC<AuthProps> = ({ onClose, onSignUpSuccess }) => {
     setResendStatus(null);
 
     try {
+      // Ensure url is a valid fully qualified path, using trailing slash for clean matching
+      const redirectUrl = window.location.origin + '/';
       const actionCodeSettings = {
-        url: window.location.origin,
+        url: redirectUrl,
         handleCodeInApp: true,
       };
 
@@ -87,13 +89,21 @@ const Auth: React.FC<AuthProps> = ({ onClose, onSignUpSuccess }) => {
       setResendTimer(60);
       setResendStatus("Magic Link Sent Successfully!");
     } catch (err: any) {
-      console.error("sendSignInLinkToEmail error:", err);
-      let friendlyError = "Failed to send Magic Link. Please check your connection and try again.";
-      if (err.code === 'auth/invalid-email') {
+      console.error("sendSignInLinkToEmail error details:", err);
+      let friendlyError = "Failed to send Magic Link. Please try again.";
+      
+      if (err.code === 'auth/unauthorized-domain') {
+        friendlyError = `This domain (${window.location.hostname}) is not authorized in your Firebase Project. Please go to your Firebase Console -> Authentication -> Settings -> Authorized Domains, and add "${window.location.hostname}" to the list of authorized domains.`;
+      } else if (err.code === 'auth/operation-not-allowed') {
+        friendlyError = "Email Link (Passwordless) authentication is not enabled in your Firebase Project. Please go to Firebase Console -> Authentication -> Sign-in method, edit 'Email/Password', enable it, and make sure the 'Email link (passwordless sign-in)' option is enabled/checked.";
+      } else if (err.code === 'auth/invalid-email') {
         friendlyError = "The email address is invalid. Please check and try again.";
       } else if (err.code === 'auth/network-request-failed') {
         friendlyError = "Unable to connect. Please check your internet connection.";
+      } else if (err.message) {
+        friendlyError = `${err.message} (Error code: ${err.code || 'unknown'})`;
       }
+      
       setError(friendlyError);
     } finally {
       setLoading(false);
