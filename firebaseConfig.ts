@@ -22,3 +22,8 @@ export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 export const githubProvider = new GithubAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
+
+export const actionCodeSettings = {
+  url: typeof window !== "undefined" ? window.location.origin : "https://sjtutorai.vercel.app",
+  handleCodeInApp: true,
+};

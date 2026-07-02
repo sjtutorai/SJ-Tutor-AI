@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { auth, googleProvider, githubProvider, appleProvider } from '../firebaseConfig';
+import { auth, googleProvider, githubProvider, appleProvider, actionCodeSettings } from '../firebaseConfig';
 import { 
   signInWithPopup, 
   getAdditionalUserInfo, 
@@ -175,10 +175,6 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
     setLoading(true);
     setError(null);
     try {
-      const actionCodeSettings = {
-        url: window.location.origin,
-        handleCodeInApp: true,
-      };
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
       window.localStorage.setItem('emailForSignIn', email);
       setMagicLinkTimer(60);
