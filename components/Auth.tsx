@@ -666,6 +666,15 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
                   GitHub
               </button>
             </div>
+
+            <button
+              onClick={() => { setView('magic-link'); setError(null); }}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 py-2.5 px-4 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-xl font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100/50 dark:hover:bg-indigo-950/40 transition-all shadow-sm text-sm mt-1"
+            >
+              <Sparkles className="w-5 h-5 text-indigo-500 shrink-0" />
+              Sign In / Up with Magic Link
+            </button>
           </div>
 
           <div className="relative mb-6">
