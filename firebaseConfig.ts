@@ -1,38 +1,71 @@
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
+  setPersistence,
+  browserLocalPersistence,
   GoogleAuthProvider,
   GithubAuthProvider,
   OAuthProvider,
   sendSignInLinkToEmail,
-  isSignInWithEmailLink,
   signInWithEmailLink,
+  isSignInWithEmailLink,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  updateProfile,
+  signOut,
 } from "firebase/auth";
 
 import {
   getFirestore,
   doc,
-  getDocFromServer,
+  getDoc,
+  setDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 
-import firebaseConfig from "./firebase-applet-config.json";
+// =============================
+// Firebase Configuration
+// =============================
 
+const firebaseConfig = {
+  apiKey: "AIzaSyAwnA96M3oFEF1o_Vrs9HhZxmHav8f-Gm8",
+  authDomain: "sj-tutorai.firebaseapp.com",
+  projectId: "sj-tutorai",
+  storageBucket: "sj-tutorai.firebasestorage.app",
+  messagingSenderId: "215292591396",
+  appId: "1:215292591396:web:4af74df6521eaa2a4c47b1"
+};
+
+// =============================
 // Initialize Firebase
+// =============================
+
 const app = initializeApp(firebaseConfig);
 
-// Firebase Services
 export const auth = getAuth(app);
-export const db = getFirestore(
-  app,
-  firebaseConfig.firestoreDatabaseId
-);
 
+setPersistence(auth, browserLocalPersistence);
+
+export const db = getFirestore(app);
+
+// =============================
 // Providers
+// =============================
+
 export const googleProvider = new GoogleAuthProvider();
+
+googleProvider.setCustomParameters({
+  prompt: "select_account",
+});
+
 export const githubProvider = new GithubAuthProvider();
+
 export const appleProvider = new OAuthProvider("apple.com");
 
-// Action Code Settings for Magic Link
+// =============================
+// Magic Link
+// =============================
+
 export const actionCodeSettings = {
   url:
     typeof window !== "undefined"
@@ -42,82 +75,101 @@ export const actionCodeSettings = {
   handleCodeInApp: true,
 };
 
-// ==============================
-// SEND MAGIC LINK
-// ==============================
 export async function sendMagicLink(email: string) {
-  try {
-    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+  await sendSignInLinkToEmail(auth, email, actionCodeSettings);
 
-    // Save email locally
-    localStorage.setItem("emailForSignIn", email);
-
-    return {
-      success: true,
-      message: "Magic link sent successfully.",
-    };
-  } catch (error: any) {
-    console.error(error);
-
-    return {
-      success: false,
-      message: error.message,
-    };
-  }
+  localStorage.setItem("emailForSignIn", email);
 }
 
-// ==============================
-// COMPLETE MAGIC LINK SIGN IN
-// ==============================
 export async function completeMagicLinkSignIn() {
   if (typeof window === "undefined") return null;
 
-  if (isSignInWithEmailLink(auth, window.location.href)) {
-    let email = window.localStorage.getItem("emailForSignIn");
+  if (!isSignInWithEmailLink(auth, window.location.href))
+    return null;
 
-    if (!email) {
-      email = window.prompt(
-        "Please confirm your email address."
-      ) || "";
-    }
+  let email = localStorage.getItem("emailForSignIn");
 
-    if (!email) return null;
-
-    try {
-      const result = await signInWithEmailLink(
-        auth,
-        email,
-        window.location.href
-      );
-
-      window.localStorage.removeItem("emailForSignIn");
-
-      return result.user;
-    } catch (error) {
-      console.error(error);
-      throw error;
-    }
+  if (!email) {
+    email = window.prompt("Enter your email") || "";
   }
 
-  return null;
+  const result = await signInWithEmailLink(
+    auth,
+    email,
+    window.location.href
+  );
+
+  localStorage.removeItem("emailForSignIn");
+
+  return result.user;
 }
 
-// ==============================
-// TEST FIRESTORE CONNECTION
-// ==============================
+// =============================
+// Firestore User
+// =============================
+
+export async function createUserDocument(user: any) {
+  const ref = doc(db, "users", user.uid);
+
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      uid: user.uid,
+      name: user.displayName || "",
+      email: user.email || "",
+      photoURL: user.photoURL || "",
+      phone: user.phoneNumber || "",
+      provider:
+        user.providerData[0]?.providerId ?? "password",
+      emailVerified: user.emailVerified,
+      credits: 100,
+      plan: "Free",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+}
+
+// =============================
+// Helpers
+// =============================
+
+export async function verifyEmail() {
+  if (auth.currentUser) {
+    await sendEmailVerification(auth.currentUser);
+  }
+}
+
+export async function resetPassword(email: string) {
+  await sendPasswordResetEmail(auth, email);
+}
+
+export async function updateUserName(name: string) {
+  if (auth.currentUser) {
+    await updateProfile(auth.currentUser, {
+      displayName: name,
+    });
+  }
+}
+
+export async function logout() {
+  await signOut(auth);
+}
+
+// =============================
+// Connection Test
+// =============================
+
 async function testConnection() {
   try {
-    await getDocFromServer(doc(db, "test", "connection"));
-  } catch (error: any) {
-    if (
-      error.message &&
-      error.message.includes("the client is offline")
-    ) {
-      console.error(
-        "Please check your Firebase configuration."
-      );
-    }
+    await getDoc(doc(db, "test", "connection"));
+    console.log("✅ Firebase Connected");
+  } catch (e) {
+    console.log("Firebase Ready");
   }
 }
 
 testConnection();
+
+export default app;
