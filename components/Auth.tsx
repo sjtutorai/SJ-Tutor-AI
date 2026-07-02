@@ -36,6 +36,7 @@ const Auth: React.FC<AuthProps> = ({ onClose, onSignUpSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkSent, setLinkSent] = useState(false);
+  const [showTroubleshoot, setShowTroubleshoot] = useState(false);
   
   // Resend Timer State
   const [resendTimer, setResendTimer] = useState(0);
@@ -187,9 +188,40 @@ const Auth: React.FC<AuthProps> = ({ onClose, onSignUpSuccess }) => {
                </div>
             )}
 
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              Didn&apos;t receive it? Check your spam folder or try resending.
-            </p>
+            {/* Comprehensive troubleshooting guide */}
+            <div className="mt-6 border-t border-slate-100 dark:border-slate-800 pt-4 text-left">
+              <button 
+                onClick={() => setShowTroubleshoot(!showTroubleshoot)}
+                className="w-full flex items-center justify-between text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline uppercase tracking-wider py-1"
+              >
+                <span>Not receiving the email? Troubleshooting Guide</span>
+                <span className="text-slate-400">{showTroubleshoot ? "▲" : "▼"}</span>
+              </button>
+              
+              {showTroubleshoot && (
+                <div className="mt-3 space-y-3.5 text-xs text-slate-500 dark:text-slate-400 animate-in slide-in-from-top-2 duration-200">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <p className="font-bold text-slate-700 dark:text-slate-300 mb-1">📬 1. Check Spam, Promotions or Junk Folders</p>
+                    <p>Firebase default verification emails are frequently filtered by Gmail, Yahoo, or Outlook due to shared sender reputation pools.</p>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <p className="font-bold text-slate-700 dark:text-slate-300 mb-1">🔑 2. Enable Email Link Provider in Firebase</p>
+                    <p>Confirm in <strong>Firebase Console &rarr; Authentication &rarr; Sign-in method</strong> that &quot;Email/Password&quot; is edit-enabled, and the &quot;Email link (passwordless sign-in)&quot; sub-switch is checked.</p>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <p className="font-bold text-slate-700 dark:text-slate-300 mb-1">🌐 3. Verify Authorized Domains</p>
+                    <p>The redirect domain (<strong>{window.location.hostname}</strong>) must be added in <strong>Firebase &rarr; Authentication &rarr; Settings &rarr; Authorized Domains</strong>, or the server will reject dispatching.</p>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <p className="font-bold text-slate-700 dark:text-slate-300 mb-1">📈 4. Quota Limits & Custom SMTP (Production)</p>
+                    <p>Firebase Spark plan limits verification emails to 100/day. For absolute email deliverability in production, configure a <strong>Custom SMTP Provider</strong> (e.g. SendGrid, Mailgun) under Firebase Settings.</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

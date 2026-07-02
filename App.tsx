@@ -646,7 +646,20 @@ const App: React.FC = () => {
     } catch (err: any) {
       console.error("Magic link completion error:", err);
       setMagicLinkStatus("error");
-      setMagicLinkError(err.message || "Failed to complete sign-in. The link may have expired or been used already.");
+      
+      let friendlyError = "Failed to complete sign-in. The link may have expired or been used already.";
+      if (err.code === 'auth/invalid-action-code') {
+        friendlyError = "The security link is invalid or has already been used. Please request a new Magic Link.";
+      } else if (err.code === 'auth/expired-action-code') {
+        friendlyError = "This Magic Link has expired. For security, please request a new link and use it within 15 minutes.";
+      } else if (err.code === 'auth/invalid-email') {
+        friendlyError = "The email address you entered does not match the recipient of this Magic Link. Please enter the correct email.";
+      } else if (err.code === 'auth/unauthorized-domain') {
+        friendlyError = `This domain (${window.location.hostname}) is not authorized for completing sign-in. Please authorize this domain in your Firebase Authentication Settings.`;
+      } else if (err.message) {
+        friendlyError = `${err.message} (Error code: ${err.code || 'unknown'})`;
+      }
+      setMagicLinkError(friendlyError);
     }
   };
 
