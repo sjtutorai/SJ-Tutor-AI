@@ -39,12 +39,12 @@ import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
 import {
   saveProfileToFirestore,
-  getProfileFromFirestore,
   saveHistoryItemToFirestore,
   syncHistoryWithFirestore,
   createSharedContent,
   getSharedContent,
   saveQuizScoreToLeaderboard,
+  ensureUserProfileExists,
 } from "./utils/firebaseUtils";
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
@@ -596,13 +596,23 @@ const App: React.FC = () => {
       auth,
       (currentUser) => {
         setUser(currentUser);
-        setAuthLoading(false);
         clearTimeout(timeoutId);
 
         if (!currentUser) {
           setIsNewUser(false);
           setUserProfile(initialProfileState);
           setMode(AppMode.DASHBOARD);
+          setAuthLoading(false);
+        } else {
+          ensureUserProfileExists(currentUser.uid, currentUser)
+            .then((fullProfile) => {
+              setUserProfile(fullProfile);
+              setAuthLoading(false);
+            })
+            .catch((err) => {
+              console.warn("ensureUserProfileExists error:", err);
+              setAuthLoading(false);
+            });
         }
       },
       (err) => {
@@ -665,21 +675,8 @@ const App: React.FC = () => {
       // Revalidate / Sync from Firestore in the background
       const loadProfileFromDb = async () => {
         try {
-          const firestoreProfile = await getProfileFromFirestore(user.uid);
-          let finalProfile = { ...initialProfile };
-
-          if (firestoreProfile) {
-            finalProfile = {
-              ...initialProfileState,
-              credits: 100,
-              ...cached,
-              ...firestoreProfile,
-              displayName: firestoreProfile.displayName || (cached && cached.displayName) || user.displayName || "",
-              photoURL: firestoreProfile.photoURL || (cached && cached.photoURL) || user.photoURL || "",
-            };
-            setUserProfile(finalProfile);
-            localStorage.setItem(`profile_${user.uid}`, JSON.stringify(finalProfile));
-          }
+          const finalProfile = await ensureUserProfileExists(user.uid, user);
+          setUserProfile(finalProfile);
 
           // Check profile completion on the final synced profile (once per hour to avoid spamming)
           const realCompletion = calculateProfileCompletion(finalProfile);

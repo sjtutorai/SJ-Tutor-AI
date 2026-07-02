@@ -4,31 +4,69 @@ import { UserProfile } from '../types';
 export const calculateProfileCompletion = (profile: UserProfile): number => {
   let completion = 0;
   
-  if (profile.displayName && profile.displayName.length >= 2) completion += 10;
-  if (profile.photoURL) completion += 15;
-  if (profile.dob) completion += 15;
-  if (profile.institution) completion += 10;
-  if (profile.grade) completion += 10;
-  if (profile.bio && profile.bio.length >= 5) completion += 15;
-  if (profile.phoneNumber) completion += 15;
-  if (profile.learningGoal) completion += 5;
-  if (profile.learningStyle) completion += 5;
-  
+  // 1. Name (6%)
+  if (profile.displayName && profile.displayName.trim().length >= 2) completion += 6;
+  // 2. Email (6%)
+  if (profile.email && profile.email.trim().length > 0) completion += 6;
+  // 3. DOB (6%)
+  if (profile.dob && profile.dob.trim().length > 0) completion += 6;
+  // 4. Gender (5%)
+  if (profile.gender && profile.gender.trim().length > 0) completion += 5;
+  // 5. Class (6%)
+  const classVal = profile.grade || '';
+  if (classVal && classVal.trim().length > 0) completion += 6;
+  // 6. Board (5%)
+  if (profile.board && profile.board.trim().length > 0) completion += 5;
+  // 7. School (6%)
+  if (profile.institution && profile.institution.trim().length > 0) completion += 6;
+  // 8. Phone (6%)
+  if (profile.phoneNumber && profile.phoneNumber.trim().length > 0) completion += 6;
+  // 9. Recovery Email (5%)
+  if (profile.recoveryEmail && profile.recoveryEmail.trim().length > 0) completion += 5;
+  // 10. Profile Photo (6%)
+  if (profile.photoURL && profile.photoURL.trim().length > 0) completion += 6;
+  // 11. Parent Details (5%)
+  if (profile.parentDetails && (typeof profile.parentDetails === 'string' ? profile.parentDetails.trim().length > 0 : Object.keys(profile.parentDetails).length > 0)) completion += 5;
+  // 12. Address (5%)
+  if (profile.address && profile.address.trim().length > 0) completion += 5;
+  // 13. Language (5%)
+  if (profile.language && profile.language.trim().length > 0) completion += 5;
+  // 14. Bio (6%)
+  if (profile.bio && profile.bio.trim().length >= 5) completion += 6;
+  // 15. Interest (6%)
+  const interestVal = profile.interest || profile.learningGoal;
+  if (interestVal && (typeof interestVal === 'string' ? interestVal.trim().length > 0 : (Array.isArray(interestVal) && interestVal.length > 0))) completion += 6;
+  // 16. Theme (6%)
+  if (profile.theme && profile.theme.trim().length > 0) completion += 6;
+  // 17. Notifications (5%)
+  if (profile.notifications && (typeof profile.notifications === 'object' ? Object.keys(profile.notifications).length > 0 : String(profile.notifications).length > 0)) completion += 5;
+  // 18. Security (5%)
+  if (profile.security && (typeof profile.security === 'object' ? Object.keys(profile.security).length > 0 : String(profile.security).length > 0)) completion += 5;
+
   return Math.min(100, completion);
 };
 
 export const getMissingProfileFields = (profile: UserProfile): string[] => {
   const missing: string[] = [];
   
-  if (!profile.displayName || profile.displayName.length < 2) missing.push("Full Name");
+  if (!profile.displayName || profile.displayName.trim().length < 2) missing.push("Full Name");
+  if (!profile.email || profile.email.trim().length === 0) missing.push("Email");
+  if (!profile.dob || profile.dob.trim().length === 0) missing.push("Date of Birth");
+  if (!profile.gender || profile.gender.trim().length === 0) missing.push("Gender");
+  if (!profile.grade || profile.grade.trim().length === 0) missing.push("Class/Grade");
+  if (!profile.board || profile.board.trim().length === 0) missing.push("Education Board");
+  if (!profile.institution || profile.institution.trim().length === 0) missing.push("School/Institution");
+  if (!profile.phoneNumber || profile.phoneNumber.trim().length === 0) missing.push("Phone Number");
+  if (!profile.recoveryEmail || profile.recoveryEmail.trim().length === 0) missing.push("Recovery Email");
   if (!profile.photoURL) missing.push("Profile Photo");
-  if (!profile.dob) missing.push("Date of Birth");
-  if (!profile.institution) missing.push("School/Institution");
-  if (!profile.grade) missing.push("Class/Grade");
-  if (!profile.bio || profile.bio.length < 5) missing.push("About Me");
-  if (!profile.phoneNumber) missing.push("Phone Number");
-  if (!profile.learningGoal) missing.push("Learning Goal");
-  if (!profile.learningStyle) missing.push("Learning Style");
+  if (!profile.parentDetails || (typeof profile.parentDetails === 'object' && Object.keys(profile.parentDetails).length === 0)) missing.push("Parent Details");
+  if (!profile.address || profile.address.trim().length === 0) missing.push("Address");
+  if (!profile.language || profile.language.trim().length === 0) missing.push("Preferred Language");
+  if (!profile.bio || profile.bio.trim().length < 5) missing.push("About Me (Bio)");
+  if (!profile.interest && !profile.learningGoal) missing.push("Interests/Learning Goal");
+  if (!profile.theme) missing.push("Theme Settings");
+  if (!profile.notifications) missing.push("Notifications Preference");
+  if (!profile.security) missing.push("Security/Privacy Configuration");
   
   return missing;
 };

@@ -83,6 +83,38 @@ export interface UserProfile {
   district?: string;
   claimedOffers?: number[];
   emblems?: string[];
+  uid?: string;
+  email?: string;
+  provider?: string;
+  createdAt?: number;
+  updatedAt?: number;
+  hasCompletedOnboarding?: boolean;
+  profileCompletion?: number;
+  gender?: string;
+  recoveryEmail?: string;
+  recoveryPhone?: string;
+  parentDetails?: any;
+  address?: string;
+  language?: string;
+  interest?: string | string[];
+  theme?: string;
+  notifications?: any;
+  security?: any;
+  lastLogin?: number;
+  lastSeen?: number;
+  deviceInfo?: any;
+  loginCount?: number;
+  studyStreak?: number;
+  coins?: number;
+  xp?: number;
+  achievements?: string[];
+  recentActivity?: any[];
+  notificationSettings?: any;
+  privacySettings?: any;
+  bookmarks?: string[];
+  savedNotes?: string[];
+  examHistory?: any[];
+  aiUsageHistory?: any[];
 }
 
 export interface UserSettings {
