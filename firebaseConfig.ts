@@ -23,6 +23,8 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
+import appletConfig from "./firebase-applet-config.json";
+
 // =============================
 // Firebase Configuration
 // =============================
@@ -33,7 +35,8 @@ const firebaseConfig = {
   projectId: "sj-tutorai",
   storageBucket: "sj-tutorai.firebasestorage.app",
   messagingSenderId: "215292591396",
-  appId: "1:215292591396:web:4af74df6521eaa2a4c47b1"
+  appId: "1:215292591396:web:4af74df6521eaa2a4c47b1",
+  firestoreDatabaseId: appletConfig.firestoreDatabaseId || "ai-studio-sjtutorai-5541322b-87aa-4ad1-8770-17db1cdb0e0f"
 };
 
 // =============================
@@ -46,7 +49,7 @@ export const auth = getAuth(app);
 
 setPersistence(auth, browserLocalPersistence);
 
-export const db = getFirestore(app);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
 
 // =============================
 // Providers
@@ -165,7 +168,7 @@ async function testConnection() {
   try {
     await getDoc(doc(db, "test", "connection"));
     console.log("✅ Firebase Connected");
-  } catch (e) {
+  } catch {
     console.log("Firebase Ready");
   }
 }
