@@ -662,34 +662,14 @@ const App: React.FC = () => {
       // Set user profile instantly to avoid blocking or lagging perceived speed!
       setUserProfile(initialProfile);
 
-      // Check profile completion to trigger alerts/notifications (once per hour to avoid spamming)
-      const cachedCompletion = calculateProfileCompletion(initialProfile);
-      const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
-      if (cachedCompletion < 100 && !isDismissedPrompt) {
-        setTimeout(() => {
-          setShowCompletionReminder(true);
-        }, 2000);
-
-        const profileNotifKey = `profile_notif_sent_${user.uid}`;
-        const lastSentProfileNotif = localStorage.getItem(profileNotifKey);
-        const oneHourMs = 60 * 60 * 1000;
-        if (!lastSentProfileNotif || now - parseInt(lastSentProfileNotif) > oneHourMs) {
-          sendNotification(
-            "Profile Incomplete 📋",
-            "Complete your learning profile details to unlock personalized recommendations, custom study tools, and claim 10 bonus credits!",
-            "Important Alerts",
-            user.uid
-          ).catch((e) => console.warn("Failed to send profile incomplete notification:", e));
-          localStorage.setItem(profileNotifKey, now.toString());
-        }
-      }
-
       // Revalidate / Sync from Firestore in the background
       const loadProfileFromDb = async () => {
         try {
           const firestoreProfile = await getProfileFromFirestore(user.uid);
+          let finalProfile = { ...initialProfile };
+
           if (firestoreProfile) {
-            const merged = {
+            finalProfile = {
               ...initialProfileState,
               credits: 100,
               ...cached,
@@ -697,11 +677,42 @@ const App: React.FC = () => {
               displayName: firestoreProfile.displayName || (cached && cached.displayName) || user.displayName || "",
               photoURL: firestoreProfile.photoURL || (cached && cached.photoURL) || user.photoURL || "",
             };
-            setUserProfile(merged);
-            localStorage.setItem(`profile_${user.uid}`, JSON.stringify(merged));
+            setUserProfile(finalProfile);
+            localStorage.setItem(`profile_${user.uid}`, JSON.stringify(finalProfile));
+          }
+
+          // Check profile completion on the final synced profile (once per hour to avoid spamming)
+          const realCompletion = calculateProfileCompletion(finalProfile);
+          const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
+          if (realCompletion < 100 && !isDismissedPrompt) {
+            setTimeout(() => {
+              setShowCompletionReminder(true);
+            }, 3000);
+
+            const profileNotifKey = `profile_notif_sent_${user.uid}`;
+            const lastSentProfileNotif = localStorage.getItem(profileNotifKey);
+            const oneHourMs = 60 * 60 * 1000;
+            if (!lastSentProfileNotif || now - parseInt(lastSentProfileNotif) > oneHourMs) {
+              sendNotification(
+                "Profile Incomplete 📋",
+                "Complete your learning profile details to unlock personalized recommendations, custom study tools, and claim 10 bonus credits!",
+                "Important Alerts",
+                user.uid
+              ).catch((e) => console.warn("Failed to send profile incomplete notification:", e));
+              localStorage.setItem(profileNotifKey, now.toString());
+            }
           }
         } catch (err) {
           console.warn("Background profile sync failed:", err);
+          
+          // Fallback if background sync fails completely
+          const realCompletion = calculateProfileCompletion(initialProfile);
+          const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
+          if (realCompletion < 100 && !isDismissedPrompt) {
+            setTimeout(() => {
+              setShowCompletionReminder(true);
+            }, 3000);
+          }
         }
       };
 
