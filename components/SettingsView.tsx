@@ -4,7 +4,7 @@ import { UserProfile, UserSettings, SJTUTOR_AVATAR } from '../types';
 import { SettingsService } from '../services/settingsService';
 import { calculateProfileCompletion } from '../utils/profileUtils';
 import { auth } from '../firebaseConfig';
-import { sendPasswordResetEmail, verifyBeforeUpdateEmail } from 'firebase/auth';
+import { verifyBeforeUpdateEmail } from 'firebase/auth';
 import { 
   User, BookOpen, Bot, MessageSquare, Bell, Moon, Lock, 
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, ChevronDown, ChevronUp,
@@ -63,23 +63,6 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     
     setShowSaveSuccess(true);
     setTimeout(() => setShowSaveSuccess(false), 3000);
-  };
-
-  const handlePasswordChange = async () => {
-    const user = auth.currentUser;
-    if (user && user.email) {
-       const confirmReset = window.confirm(`Send password reset email to ${user.email}?`);
-       if (confirmReset) {
-         try {
-           await sendPasswordResetEmail(auth, user.email);
-           alert("Password reset email sent! Please check your inbox to create a new password.");
-         } catch (e: any) {
-           alert("Error sending reset email: " + e.message);
-         }
-       }
-    } else {
-      alert("You need to be logged in to change your password.");
-    }
   };
 
   const handleEmailChange = async () => {
@@ -190,15 +173,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                </div>
-
-               <div className="p-4 flex justify-between items-center hover:bg-white dark:hover:bg-slate-700/50 cursor-pointer" onClick={handlePasswordChange}>
-                  <div>
-                    <p className="font-medium text-slate-700 dark:text-slate-200">Change Password</p>
-                    <p className="text-xs text-slate-400">Update your security credentials</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
-               </div>
-               
+                
                <div className="p-4 flex justify-between items-center hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer group" onClick={onLogout}>
                   <div>
                     <p className="font-medium text-red-600 group-hover:text-red-700">Log Out</p>
