@@ -491,7 +491,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
             <button
               onClick={() => handleProviderSignIn(googleProvider, 'Google')}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-3 py-2.5 px-4 bg-white border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm text-sm"
+              className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 transition-all shadow-sm text-sm"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                 <>
@@ -501,7 +501,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, onCountryDetected
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1c-4.7 0-8.53 3.53-9.4 8.2l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                   </svg>
-                  Google
+                  <span>{view === 'signup' ? 'Sign up with Google' : 'Sign in with Google'}</span>
                 </>
               )}
             </button>
