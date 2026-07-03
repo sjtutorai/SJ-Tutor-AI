@@ -91,11 +91,12 @@ export const createSharedContent = async (
   type: string,
   title: string,
   content: any,
-  ownerUid: string
+  ownerUid: string,
+  customId?: string
 ): Promise<string> => {
   try {
-    // Generate a unique, user-friendly Share ID
-    const shareId = Math.random().toString(36).substring(2, 8) + Math.random().toString(36).substring(2, 8);
+    // Generate a unique, user-friendly Share ID or use customId
+    const shareId = customId || (Math.random().toString(36).substring(2, 8) + Math.random().toString(36).substring(2, 8));
     const docRef = doc(db, "sharedContent", shareId);
     
     const sharedData = {

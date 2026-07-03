@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 
 const resolvedFilename = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
 const resolvedDirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(resolvedFilename);
@@ -40,6 +41,43 @@ app.use((err: any, req: express.Request, res: express.Response, _next: express.N
 
 // Vite middleware for development
 async function startServer() {
+  app.get("/quiz/:classSlug/:subjectSlug/:chapterSlug", async (req, res, next) => {
+    try {
+      const { classSlug, subjectSlug, chapterSlug } = req.params;
+      
+      const formatTitle = (s: string) => s.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      const chapterStr = formatTitle(chapterSlug);
+      const classStr = formatTitle(classSlug);
+      const subjectStr = formatTitle(subjectSlug);
+      
+      const title = `${chapterStr} Quiz | ${classStr} ${subjectStr} | SJ Tutor AI`;
+      const desc = `📚 Test your knowledge with this quiz on ${chapterStr} (Class ${classStr}, ${subjectStr}) in SJ Tutor AI. Challenge yourself now!`;
+      
+      const metaTags = `
+        <title>${title}</title>
+        <meta name="description" content="${desc}">
+        <meta property="og:title" content="📖 ${chapterStr} Quiz">
+        <meta property="og:description" content="${classStr} ${subjectStr} Practice with SJ Tutor AI">
+        <meta property="og:type" content="website">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="${title}">
+        <meta name="twitter:description" content="${desc}">
+        <link rel="canonical" href="https://sjtutorai.vercel.app/quiz/${classSlug}/${subjectSlug}/${chapterSlug}">
+      `;
+
+      if (process.env.NODE_ENV !== "production") {
+         next();
+      } else {
+         const indexPath = path.resolve(resolvedDirname, "dist", "index.html");
+         let html = await fs.promises.readFile(indexPath, 'utf-8');
+         html = html.replace('<title>SJ Tutor AI - Your AI Study Buddy</title>', metaTags);
+         res.send(html);
+      }
+    } catch (e) {
+      next(e);
+    }
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },

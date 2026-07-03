@@ -182,6 +182,13 @@ const App: React.FC = () => {
     if (path.startsWith("/share/")) {
       return path.substring(7); // After "/share/"
     }
+    if (path.startsWith("/quiz/")) {
+      // Convert /quiz/class-9/physics/motion to class-9_physics_motion
+      const segments = path.substring(6).split('/').filter(Boolean);
+      if (segments.length > 0) {
+        return "quiz_" + segments.join("_");
+      }
+    }
     const params = new URLSearchParams(window.location.search);
     return params.get("share");
   });
@@ -191,7 +198,10 @@ const App: React.FC = () => {
     shareId: string;
     title: string;
     type: string;
+    customUrl?: string;
   } | null>(null);
+
+  const [quizNotFoundError, setQuizNotFoundError] = useState(false);
 
   const [mode, setMode] = useState<AppMode>(() => {
     try {
@@ -455,9 +465,15 @@ const App: React.FC = () => {
             }));
           } else {
             console.error("Shared content not found or expired.");
+            if (shareId.startsWith("quiz_")) {
+              setQuizNotFoundError(true);
+            }
           }
         } catch (err) {
           console.error("Failed to fetch shared content", err);
+          if (shareId.startsWith("quiz_")) {
+            setQuizNotFoundError(true);
+          }
         } finally {
           setAuthLoading(false);
           // Clear any path or search parameters to reset URL back to base without refreshing the page
@@ -999,21 +1015,37 @@ const App: React.FC = () => {
     });
   };
 
-  const handleSharePublicLink = async (type: string, title: string, content: any) => {
+  const handleSharePublicLink = async (type: string, title: string, content: any, customId?: string, customUrl?: string, customMessage?: string) => {
     try {
       const uid = user ? user.uid : "guest";
-      const shareId = await createSharedContent(type, title, content, uid);
-      const shareLink = `${window.location.origin}/share/${shareId}`;
+      const shareId = await createSharedContent(type, title, content, uid, customId);
+      const shareLink = customUrl || `${window.location.origin}/share/${shareId}`;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: title || "SJ Tutor AI",
+            text: customMessage || `Check out this ${type} on SJ Tutor AI!`,
+            url: shareLink
+          });
+          return;
+        } catch (e) {
+          console.warn("Web share cancelled or failed");
+        }
+      }
+
       try {
         await navigator.clipboard.writeText(shareLink);
+        alert(type === 'quiz' ? "✅ Quiz link copied to clipboard!" : "Link copied to clipboard!");
       } catch {
         console.warn("Clipboard copy blocked or unsupported, user can copy from modal");
       }
       setShareSuccessModal({
         isOpen: true,
-        shareId,
+        shareId: shareId,
         title,
         type,
+        customUrl,
       });
     } catch (error) {
       console.error("Failed to share publicly:", error);
@@ -1807,6 +1839,31 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
+    if (quizNotFoundError) {
+      return (
+        <div className="max-w-3xl mx-auto mt-20 text-center animate-in fade-in zoom-in-95 duration-500">
+          <div className="bg-white dark:bg-slate-800 p-10 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
+            <div className="text-6xl mb-6 flex justify-center">
+              <span role="img" aria-label="sad">😢</span>
+            </div>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-4">Quiz Not Found</h2>
+            <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-md mx-auto">
+              The quiz you are looking for doesn't exist, has been removed, or the link is incorrect.
+            </p>
+            <button
+              onClick={() => {
+                setQuizNotFoundError(false);
+                setMode(AppMode.DASHBOARD);
+                window.history.pushState({}, document.title, "/");
+              }}
+              className="px-8 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold shadow-lg transition active:scale-95"
+            >
+              Return to Dashboard
+            </button>
+          </div>
+        </div>
+      );
+    }
     if (loading) return <LoadingState mode={mode} />;
 
     switch (mode) {
@@ -1943,7 +2000,18 @@ const App: React.FC = () => {
               isViewingShared={isViewingShared}
               onAddToMyList={handleAddSharedToMyList}
               isAddedToList={isAddedSharedContent}
-              onSharePublicLink={handleSharePublicLink}
+              onSharePublicLink={(type, title, content) => {
+                const sanitizeSlug = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'general';
+                const classSlug = sanitizeSlug(formData.gradeClass || "general");
+                const subjectSlug = sanitizeSlug(formData.subject || "general");
+                const chapterSlug = sanitizeSlug(formData.chapterName || "quiz");
+                
+                const customId = `quiz_${classSlug}_${subjectSlug}_${chapterSlug}`;
+                const customUrl = `${window.location.origin}/quiz/${classSlug}/${subjectSlug}/${chapterSlug}`;
+                const customMessage = `📚 Test your knowledge with this quiz on *${formData.chapterName || "various topics"}* (Class ${formData.gradeClass || "General"}, ${formData.subject || "General"}) in SJ Tutor AI. Challenge yourself now!`;
+
+                handleSharePublicLink(type, title, content, customId, customUrl, customMessage);
+              }}
             />
           );
         }
@@ -2300,37 +2368,6 @@ const App: React.FC = () => {
             })}
           </div>
 
-          <div className="p-3 border-t border-slate-100 dark:border-slate-800">
-            <button
-              onClick={async () => {
-                const shareUrl = window.location.origin;
-                const text = `Join me on SJ Tutor AI - The ultimate AI study companion! 🚀`;
-                if (navigator.share) {
-                  try {
-                    await navigator.share({
-                      title: "SJ Tutor AI",
-                      text: text,
-                      url: shareUrl,
-                    });
-                  } catch (e) {
-                    console.error("Share failed", e);
-                  }
-                } else {
-                  try {
-                    await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
-                    alert("App link copied to clipboard!");
-                  } catch (err) {
-                    console.error("Clipboard failed", err);
-                  }
-                }
-              }}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-primary-50 dark:hover:bg-slate-800 hover:text-primary-700 dark:hover:text-primary-400 transition-all font-medium text-sm group"
-            >
-              <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
-              Share SJ Tutor AI
-            </button>
-          </div>
-
           <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
             {user ? (
               <>
@@ -2448,34 +2485,6 @@ const App: React.FC = () => {
             >
               <Moon className="w-5 h-5 hidden dark:block" />
               <Sun className="w-5 h-5 block dark:hidden" />
-            </button>
-            <button
-              onClick={async () => {
-                const shareUrl = window.location.origin;
-                const text = `Join me on SJ Tutor AI - The ultimate AI study companion! 🚀`;
-                if (navigator.share) {
-                  try {
-                    await navigator.share({
-                      title: "SJ Tutor AI",
-                      text: text,
-                      url: shareUrl,
-                    });
-                  } catch (e) {
-                    console.error("Share failed", e);
-                  }
-                } else {
-                  try {
-                    await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
-                    alert("App link copied to clipboard!");
-                  } catch (err) {
-                    console.error("Clipboard failed", err);
-                  }
-                }
-              }}
-              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-              title="Share App"
-            >
-              <Share2 className="w-5 h-5" />
             </button>
             <div className="relative">
               <button
@@ -2705,7 +2714,7 @@ const App: React.FC = () => {
                 <input
                   type="text"
                   readOnly
-                  value={`${window.location.origin}/share/${shareSuccessModal.shareId}`}
+                  value={shareSuccessModal.customUrl || `${window.location.origin}/share/${shareSuccessModal.shareId}`}
                   className="bg-transparent text-[11px] text-slate-650 dark:text-slate-400 w-full focus:outline-none select-all font-mono"
                   onClick={(e) => (e.target as HTMLInputElement).select()}
                 />
@@ -2714,7 +2723,7 @@ const App: React.FC = () => {
               <div className="flex flex-col gap-2">
                 <button
                   onClick={async () => {
-                    const link = `${window.location.origin}/share/${shareSuccessModal.shareId}`;
+                    const link = shareSuccessModal.customUrl || `${window.location.origin}/share/${shareSuccessModal.shareId}`;
                     try {
                       await navigator.clipboard.writeText(link);
                       alert("Copied shareable link to clipboard!");
@@ -2730,7 +2739,7 @@ const App: React.FC = () => {
                 
                 <button
                   onClick={() => {
-                    window.open(`/share/${shareSuccessModal.shareId}`, "_blank");
+                    window.open(shareSuccessModal.customUrl || `/share/${shareSuccessModal.shareId}`, "_blank");
                   }}
                   className="py-3 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200/60 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 active:scale-95"
                 >
