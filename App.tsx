@@ -14,6 +14,7 @@ import InputForm from "./components/InputForm";
 import QRScanner from "./components/QRScanner";
 import ResultsView from "./components/ResultsView";
 import QuizView from "./components/QuizView";
+import QuizLeaderboardView from "./components/QuizLeaderboardView";
 import VoiceCommandSystem from "./components/VoiceCommandSystem";
 import TutorChat from "./components/TutorChat";
 import ProfileView from "./components/ProfileView";
@@ -39,18 +40,18 @@ import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
 import {
   saveProfileToFirestore,
+  getProfileFromFirestore,
   saveHistoryItemToFirestore,
   syncHistoryWithFirestore,
   createSharedContent,
   getSharedContent,
   saveQuizScoreToLeaderboard,
-  ensureUserProfileExists,
 } from "./utils/firebaseUtils";
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { auth } from "./firebaseConfig";
-import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import type { User } from "firebase/auth";
 import {
   FileText,
@@ -79,8 +80,6 @@ import {
   Copy,
   Sun,
   Moon,
-  Loader2,
-  ArrowRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -174,16 +173,6 @@ const App: React.FC = () => {
   const [showTutorial, setShowTutorial] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showCompletionReminder, setShowCompletionReminder] = useState(false);
-  
-  // Magic Link and Welcome State
-  const [magicLinkEmail, setMagicLinkEmail] = useState("");
-  const [magicLinkStatus, setMagicLinkStatus] = useState<"none" | "prompt-email" | "signing-in" | "success" | "error">("none");
-  const [magicLinkError, setMagicLinkError] = useState<string | null>(null);
-  const [loginNotification, setLoginNotification] = useState<{
-    type: "welcome" | "created";
-    visible: boolean;
-    displayName: string;
-  } | null>(null);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
     return localStorage.getItem("hasSeenTutorial") === "true";
@@ -595,86 +584,6 @@ const App: React.FC = () => {
     }
   }, [mode, userProfile.grade]);
 
-  // Play cheer welcome sound for returning users
-  const playWelcomeSound = () => {
-    try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      
-      osc.type = "sine";
-      // Pleasant educational chime chord (ascending notes)
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-      osc.frequency.exponentialRampToValueAtTime(659.25, ctx.currentTime + 0.12); // E5
-      osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.24); // G5
-      osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.36); // C6
-      
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + 0.6);
-      
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.6);
-    } catch (e) {
-      console.warn("Failed to play sound:", e);
-    }
-  };
-
-  const completeMagicLinkSignIn = async (emailToUse: string) => {
-    setMagicLinkStatus("signing-in");
-    setMagicLinkError(null);
-    try {
-      const result = await signInWithEmailLink(auth, emailToUse, window.location.href);
-      window.localStorage.removeItem("emailForSignIn");
-      setMagicLinkStatus("success");
-      
-      // Clear link from URL
-      window.history.replaceState({}, document.title, window.location.origin);
-      
-      // Determine if they are a new user
-      const additionalInfo = getAdditionalUserInfo(result);
-      const isNew = additionalInfo?.isNewUser || false;
-      
-      sessionStorage.setItem("just_signed_in_type", isNew ? "created" : "welcome");
-      
-      setTimeout(() => {
-        setMagicLinkStatus("none");
-      }, 1500);
-    } catch (err: any) {
-      console.error("Magic link completion error:", err);
-      setMagicLinkStatus("error");
-      
-      let friendlyError = "Failed to complete sign-in. The link may have expired or been used already.";
-      if (err.code === 'auth/invalid-action-code') {
-        friendlyError = "The security link is invalid or has already been used. Please request a new Magic Link.";
-      } else if (err.code === 'auth/expired-action-code') {
-        friendlyError = "This Magic Link has expired. For security, please request a new link and use it within 15 minutes.";
-      } else if (err.code === 'auth/invalid-email') {
-        friendlyError = "The email address you entered does not match the recipient of this Magic Link. Please enter the correct email.";
-      } else if (err.code === 'auth/unauthorized-domain') {
-        friendlyError = `This domain (${window.location.hostname}) is not authorized for completing sign-in. Please authorize this domain in your Firebase Authentication Settings.`;
-      } else if (err.message) {
-        friendlyError = `${err.message} (Error code: ${err.code || 'unknown'})`;
-      }
-      setMagicLinkError(friendlyError);
-    }
-  };
-
-  // Magic Link Detection on Mount
-  useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      const storedEmail = window.localStorage.getItem("emailForSignIn");
-      if (storedEmail) {
-        completeMagicLinkSignIn(storedEmail);
-      } else {
-        setMagicLinkStatus("prompt-email");
-      }
-    }
-  }, []);
-
   // Auth Listener
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -688,46 +597,13 @@ const App: React.FC = () => {
       auth,
       (currentUser) => {
         setUser(currentUser);
+        setAuthLoading(false);
         clearTimeout(timeoutId);
 
         if (!currentUser) {
           setIsNewUser(false);
           setUserProfile(initialProfileState);
           setMode(AppMode.DASHBOARD);
-          setAuthLoading(false);
-        } else {
-          ensureUserProfileExists(currentUser.uid, currentUser)
-            .then((fullProfile) => {
-              setUserProfile(fullProfile);
-              setAuthLoading(false);
-
-              // Check if we just signed in
-              const justSignedInType = sessionStorage.getItem("just_signed_in_type");
-              if (justSignedInType) {
-                sessionStorage.removeItem("just_signed_in_type");
-                const isNew = justSignedInType === "created";
-                
-                setLoginNotification({
-                  type: isNew ? "created" : "welcome",
-                  visible: true,
-                  displayName: fullProfile.displayName || "Scholar"
-                });
-
-                if (isNew) {
-                  // Launch Onboarding modal
-                  setTimeout(() => {
-                    setShowCompletionReminder(true);
-                  }, 2500);
-                } else {
-                  // Play pleasant welcome sound
-                  playWelcomeSound();
-                }
-              }
-            })
-            .catch((err) => {
-              console.warn("ensureUserProfileExists error:", err);
-              setAuthLoading(false);
-            });
         }
       },
       (err) => {
@@ -787,44 +663,46 @@ const App: React.FC = () => {
       // Set user profile instantly to avoid blocking or lagging perceived speed!
       setUserProfile(initialProfile);
 
+      // Check profile completion to trigger alerts/notifications (once per hour to avoid spamming)
+      const cachedCompletion = calculateProfileCompletion(initialProfile);
+      const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
+      if (cachedCompletion < 100 && !isDismissedPrompt) {
+        setTimeout(() => {
+          setShowCompletionReminder(true);
+        }, 2000);
+
+        const profileNotifKey = `profile_notif_sent_${user.uid}`;
+        const lastSentProfileNotif = localStorage.getItem(profileNotifKey);
+        const oneHourMs = 60 * 60 * 1000;
+        if (!lastSentProfileNotif || now - parseInt(lastSentProfileNotif) > oneHourMs) {
+          sendNotification(
+            "Profile Incomplete 📋",
+            "Complete your learning profile details to unlock personalized recommendations, custom study tools, and claim 10 bonus credits!",
+            "Important Alerts",
+            user.uid
+          ).catch((e) => console.warn("Failed to send profile incomplete notification:", e));
+          localStorage.setItem(profileNotifKey, now.toString());
+        }
+      }
+
       // Revalidate / Sync from Firestore in the background
       const loadProfileFromDb = async () => {
         try {
-          const finalProfile = await ensureUserProfileExists(user.uid, user);
-          setUserProfile(finalProfile);
-
-          // Check profile completion on the final synced profile (once per hour to avoid spamming)
-          const realCompletion = calculateProfileCompletion(finalProfile);
-          const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
-          if (realCompletion < 100 && !isDismissedPrompt) {
-            setTimeout(() => {
-              setShowCompletionReminder(true);
-            }, 3000);
-
-            const profileNotifKey = `profile_notif_sent_${user.uid}`;
-            const lastSentProfileNotif = localStorage.getItem(profileNotifKey);
-            const oneHourMs = 60 * 60 * 1000;
-            if (!lastSentProfileNotif || now - parseInt(lastSentProfileNotif) > oneHourMs) {
-              sendNotification(
-                "Profile Incomplete 📋",
-                "Complete your learning profile details to unlock personalized recommendations, custom study tools, and claim 10 bonus credits!",
-                "Important Alerts",
-                user.uid
-              ).catch((e) => console.warn("Failed to send profile incomplete notification:", e));
-              localStorage.setItem(profileNotifKey, now.toString());
-            }
+          const firestoreProfile = await getProfileFromFirestore(user.uid);
+          if (firestoreProfile) {
+            const merged = {
+              ...initialProfileState,
+              credits: 100,
+              ...cached,
+              ...firestoreProfile,
+              displayName: firestoreProfile.displayName || (cached && cached.displayName) || user.displayName || "",
+              photoURL: firestoreProfile.photoURL || (cached && cached.photoURL) || user.photoURL || "",
+            };
+            setUserProfile(merged);
+            localStorage.setItem(`profile_${user.uid}`, JSON.stringify(merged));
           }
         } catch (err) {
           console.warn("Background profile sync failed:", err);
-          
-          // Fallback if background sync fails completely
-          const realCompletion = calculateProfileCompletion(initialProfile);
-          const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
-          if (realCompletion < 100 && !isDismissedPrompt) {
-            setTimeout(() => {
-              setShowCompletionReminder(true);
-            }, 3000);
-          }
         }
       };
 
@@ -2058,6 +1936,7 @@ const App: React.FC = () => {
               <BrainCircuit className="w-5 h-5 group-hover:animate-pulse" />
               Generate Quiz
             </button>
+            <QuizLeaderboardView currentUserId={user?.uid || null} />
           </div>
         );
 
@@ -2110,7 +1989,6 @@ const App: React.FC = () => {
             <NotesView
               userId={user ? user.uid : null}
               onDeductCredit={deductCredit}
-              userProfile={userProfile}
             />
           </div>
         );
@@ -2232,7 +2110,7 @@ const App: React.FC = () => {
 
     if (hasSharedContent || isPublicPage) {
       return (
-        <div className="min-h-screen app-custom-bg font-sans text-slate-900 dark:text-slate-100">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-100">
           <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-500 shadow-sm flex-shrink-0 bg-white dark:bg-slate-800">
@@ -2298,7 +2176,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen app-custom-bg font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
@@ -2525,10 +2403,6 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <VoiceCommandSystem
-              onNavigate={(m) => setMode(m)}
-              currentMode={mode}
-            />
             <button
               onClick={handleThemeToggle}
               className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors hidden sm:block"
@@ -2645,6 +2519,11 @@ const App: React.FC = () => {
       <FloatingStreakWidget
         userProfile={userProfile}
         onProfileUpdate={handleProfileSave}
+      />
+
+      <VoiceCommandSystem
+        onNavigate={(m) => setMode(m)}
+        currentMode={mode}
       />
 
       <AnimatePresence>
@@ -2768,170 +2647,6 @@ const App: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {magicLinkStatus !== "none" && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-850 w-full max-w-md animate-in fade-in duration-300"
-          >
-            <div className="text-center">
-              <div className="flex justify-center mb-6">
-                <Logo className="w-16 h-16" iconOnly />
-              </div>
-
-              {magicLinkStatus === "signing-in" && (
-                <div className="space-y-4">
-                  <div className="relative flex justify-center">
-                    <Loader2 className="w-12 h-12 text-primary-600 animate-spin" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-950 dark:text-white">Completing Secure Sign-In</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    We are verifying your security credentials and loading your learning workspace.
-                  </p>
-                </div>
-              )}
-
-              {magicLinkStatus === "success" && (
-                <div className="space-y-4">
-                  <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-3xl animate-bounce">🎉</span>
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-950 dark:text-white">Sign-In Complete!</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Redirecting you to your dashboard workspace...
-                  </p>
-                </div>
-              )}
-
-              {magicLinkStatus === "prompt-email" && (
-                <div className="space-y-5 text-left">
-                  <div className="text-center">
-                    <h3 className="text-xl font-bold text-slate-950 dark:text-white mb-2">Cross-Device Sign-In</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      To log in securely, please enter the email address where you received the magic link.
-                    </p>
-                  </div>
-
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (magicLinkEmail) {
-                        completeMagicLinkSignIn(magicLinkEmail);
-                      }
-                    }}
-                    className="space-y-4 mt-4"
-                  >
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email Address</label>
-                      <input
-                        type="email"
-                        required
-                        value={magicLinkEmail}
-                        onChange={(e) => setMagicLinkEmail(e.target.value)}
-                        placeholder="you@example.com"
-                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-slate-950 dark:text-white"
-                      />
-                    </div>
-
-                    {magicLinkError && (
-                      <div className="p-3 bg-red-50 dark:bg-red-950/20 text-red-500 dark:text-red-400 border border-red-150 dark:border-red-900/50 rounded-xl text-xs flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        <p>{magicLinkError}</p>
-                      </div>
-                    )}
-
-                    <button
-                      type="submit"
-                      className="w-full py-3.5 bg-slate-950 dark:bg-slate-100 hover:bg-slate-850 dark:hover:bg-slate-200 text-white dark:text-slate-950 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2"
-                    >
-                      <span>Complete Sign-In</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={() => setMagicLinkStatus("none")}
-                      className="w-full text-center text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 mt-2"
-                    >
-                      Cancel
-                    </button>
-                  </form>
-                </div>
-              )}
-
-              {magicLinkStatus === "error" && (
-                <div className="space-y-4">
-                  <div className="w-12 h-12 bg-red-50 dark:bg-red-950/30 text-red-500 dark:text-red-400 rounded-full flex items-center justify-center mx-auto">
-                    <AlertCircle className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-950 dark:text-white">Verification Failed</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {magicLinkError || "The secure link is invalid, expired, or has already been used."}
-                  </p>
-                  <button
-                    onClick={() => {
-                      setMagicLinkStatus("none");
-                      setShowAuthModal(true);
-                    }}
-                    className="w-full mt-4 py-3 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold hover:bg-slate-800 transition-colors"
-                  >
-                    Back to Login
-                  </button>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {loginNotification && loginNotification.visible && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <motion.div
-            initial={{ scale: 0.9, y: 20, opacity: 0 }}
-            animate={{ scale: 1, y: 0, opacity: 1 }}
-            exit={{ scale: 0.9, y: 20, opacity: 0 }}
-            className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-800/80 text-center relative overflow-hidden animate-in fade-in duration-300"
-          >
-            <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-primary-500 to-primary-600"></div>
-            
-            {loginNotification.type === "welcome" ? (
-              <div className="space-y-4">
-                <span className="text-5xl block animate-bounce" role="img" aria-label="wave">👋</span>
-                <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">
-                  Welcome Back!
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Welcome back, <span className="font-extrabold text-primary-600 dark:text-primary-400">{loginNotification.displayName}</span>!<br/>
-                  We have restored your progress and previous study session perfectly. Let&apos;s excel together!
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <span className="text-5xl block animate-bounce" role="img" aria-label="success">🎉</span>
-                <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white">
-                  Account Created Successfully!
-                </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Welcome, <span className="font-extrabold text-primary-600 dark:text-primary-400">{loginNotification.displayName}</span>!<br/>
-                  Your account was created securely using Passwordless Email Magic Link. Let&apos;s personalize your learning journey!
-                </p>
-              </div>
-            )}
-            
-            <button
-              onClick={() => {
-                setLoginNotification(null);
-                setMode(AppMode.DASHBOARD);
-              }}
-              className="mt-6 w-full py-3.5 bg-slate-950 dark:bg-slate-100 hover:bg-slate-850 dark:hover:bg-slate-200 text-white dark:text-slate-950 rounded-2xl font-bold transition-all active:scale-95"
-            >
-              Let&apos;s Go
-            </button>
-          </motion.div>
-        </div>
-      )}
 
       {shareSuccessModal?.isOpen && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-xs animate-in fade-in duration-300">

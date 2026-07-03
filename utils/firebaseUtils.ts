@@ -1,8 +1,6 @@
 import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where } from "firebase/firestore";
-import { User } from "firebase/auth";
 import { db } from "../firebaseConfig";
 import { UserProfile, HistoryItem, LeaderboardEntry } from "../types";
-import { calculateProfileCompletion } from "./profileUtils";
 
 export const saveProfileToFirestore = async (uid: string, profile: Partial<UserProfile>) => {
   try {
@@ -289,106 +287,4 @@ export const getQuizLeaderboard = async (): Promise<LeaderboardEntry[]> => {
     return JSON.parse(localLeaderboardStr);
   }
 };
-
-export const ensureUserProfileExists = async (uid: string, currentUser: User, signupData?: Partial<UserProfile>): Promise<UserProfile> => {
-  const userDocRef = doc(db, "users", uid);
-  let existingProfile: any = null;
-  
-  try {
-    const docSnap = await getDoc(userDocRef);
-    if (docSnap.exists()) {
-      existingProfile = docSnap.data();
-    }
-  } catch (err) {
-    console.warn("Failed to fetch existing profile during ensureUserProfileExists:", err);
-  }
-
-  const defaultAvatar = "https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg";
-  const providerId = currentUser.providerData && currentUser.providerData[0] ? currentUser.providerData[0].providerId : "password";
-  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown Device';
-
-  const defaultProfile: any = {
-    uid: uid,
-    displayName: currentUser.displayName || signupData?.displayName || "Scholar",
-    email: currentUser.email || signupData?.email || "",
-    photoURL: currentUser.photoURL || signupData?.photoURL || defaultAvatar,
-    provider: providerId,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    hasCompletedOnboarding: signupData?.hasCompletedOnboarding ?? false,
-    profileCompletion: 5,
-    grade: signupData?.grade || "",
-    institution: signupData?.institution || "",
-    board: signupData?.board || "",
-    language: signupData?.language || "English",
-    phoneNumber: currentUser.phoneNumber || signupData?.phoneNumber || "",
-    parentDetails: signupData?.parentDetails || {},
-    settings: signupData?.settings || { appearance: { theme: 'Light' }, notifications: {}, learning: {} },
-    preferences: signupData?.preferences || {},
-    recoveryEmail: signupData?.recoveryEmail || "",
-    recoveryPhone: signupData?.recoveryPhone || "",
-    lastLogin: Date.now(),
-    lastSeen: Date.now(),
-    deviceInfo: userAgent,
-    loginCount: 1,
-    studyStreak: 0,
-    coins: 0,
-    xp: 0,
-    credits: signupData?.credits ?? 100,
-    planType: signupData?.planType || "Free",
-    achievements: [],
-    recentActivity: [],
-    notificationSettings: {},
-    privacySettings: {},
-    theme: signupData?.theme || "Light",
-    bookmarks: [],
-    savedNotes: [],
-    examHistory: [],
-    aiUsageHistory: [],
-    bio: signupData?.bio || "",
-  };
-
-  let mergedProfile: any = {};
-
-  if (!existingProfile) {
-    // New User profile initialization
-    mergedProfile = { ...defaultProfile };
-  } else {
-    // Returning User profile verification & backfilling missing fields
-    mergedProfile = { ...existingProfile };
-    
-    // Auto-create/backfill missing fields
-    Object.keys(defaultProfile).forEach((key) => {
-      if (mergedProfile[key] === undefined || mergedProfile[key] === null) {
-        mergedProfile[key] = defaultProfile[key];
-      }
-    });
-
-    // Update session metrics
-    mergedProfile.loginCount = (mergedProfile.loginCount || 0) + 1;
-    mergedProfile.lastLogin = Date.now();
-    mergedProfile.lastSeen = Date.now();
-    mergedProfile.updatedAt = Date.now();
-    mergedProfile.deviceInfo = userAgent;
-    
-    // Check provider alignment
-    if (!mergedProfile.provider || mergedProfile.provider === 'password') {
-      mergedProfile.provider = providerId;
-    }
-  }
-
-  // Calculate dynamic profile completion percentage
-  mergedProfile.profileCompletion = calculateProfileCompletion(mergedProfile);
-
-  // Write merged, complete state back to Firestore
-  try {
-    await setDoc(userDocRef, mergedProfile, { merge: true });
-    localStorage.setItem(`profile_${uid}`, JSON.stringify(mergedProfile));
-  } catch (error) {
-    console.error("Failed to write validated profile back to Firestore:", error);
-  }
-
-  return mergedProfile as UserProfile;
-};
-
 

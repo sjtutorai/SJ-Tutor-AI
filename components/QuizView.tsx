@@ -25,90 +25,12 @@ const QuizView: React.FC<QuizViewProps> = ({
   isAddedToList = false,
   onSharePublicLink
 }) => {
-  const [currentIndex, setCurrentIndex] = useState(() => {
-    if (existingScore !== undefined) return 0;
-    try {
-      const savedQuizStr = localStorage.getItem('sjtutor_active_quiz_questions');
-      const savedCurrentIndex = localStorage.getItem('sjtutor_active_quiz_current_index');
-      if (savedQuizStr && savedCurrentIndex !== null && JSON.stringify(questions) === savedQuizStr) {
-        return parseInt(savedCurrentIndex, 10);
-      }
-    } catch (e) {
-      console.warn("Failed to load saved quiz index", e);
-    }
-    return 0;
-  });
-
-  const [selectedOption, setSelectedOption] = useState<number | null>(() => {
-    if (existingScore !== undefined) return null;
-    try {
-      const savedQuizStr = localStorage.getItem('sjtutor_active_quiz_questions');
-      const savedSelectedOption = localStorage.getItem('sjtutor_active_quiz_selected_option');
-      if (savedQuizStr && savedSelectedOption !== null && JSON.stringify(questions) === savedQuizStr) {
-        return savedSelectedOption !== 'null' ? parseInt(savedSelectedOption, 10) : null;
-      }
-    } catch (e) {
-      console.warn("Failed to load saved quiz selection", e);
-    }
-    return null;
-  });
-
-  const [score, setScore] = useState(() => {
-    if (existingScore !== undefined) return existingScore;
-    try {
-      const savedQuizStr = localStorage.getItem('sjtutor_active_quiz_questions');
-      const savedScore = localStorage.getItem('sjtutor_active_quiz_score');
-      if (savedQuizStr && savedScore !== null && JSON.stringify(questions) === savedQuizStr) {
-        return parseInt(savedScore, 10);
-      }
-    } catch (e) {
-      console.warn("Failed to load saved quiz score", e);
-    }
-    return 0;
-  });
-
-  const [showResult, setShowResult] = useState(() => {
-    if (existingScore !== undefined) return false;
-    try {
-      const savedQuizStr = localStorage.getItem('sjtutor_active_quiz_questions');
-      const savedShowResult = localStorage.getItem('sjtutor_active_quiz_show_result');
-      if (savedQuizStr && savedShowResult !== null && JSON.stringify(questions) === savedQuizStr) {
-        return savedShowResult === 'true';
-      }
-    } catch (e) {
-      console.warn("Failed to load saved quiz result state", e);
-    }
-    return false;
-  });
-
-  const [quizCompleted, setQuizCompleted] = useState(() => {
-    if (existingScore !== undefined) return true;
-    try {
-      const savedQuizStr = localStorage.getItem('sjtutor_active_quiz_questions');
-      const savedCompleted = localStorage.getItem('sjtutor_active_quiz_completed');
-      if (savedQuizStr && savedCompleted !== null && JSON.stringify(questions) === savedQuizStr) {
-        return savedCompleted === 'true';
-      }
-    } catch (e) {
-      console.warn("Failed to load saved quiz completion state", e);
-    }
-    return false;
-  });
-
-  const [showResultModal, setShowResultModal] = useState(() => {
-    if (existingScore !== undefined) return true;
-    try {
-      const savedQuizStr = localStorage.getItem('sjtutor_active_quiz_questions');
-      const savedCompleted = localStorage.getItem('sjtutor_active_quiz_completed');
-      if (savedQuizStr && savedCompleted !== null && JSON.stringify(questions) === savedQuizStr) {
-        return savedCompleted === 'true';
-      }
-    } catch (e) {
-      console.warn("Failed to load saved quiz result modal state", e);
-    }
-    return false;
-  });
-
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [score, setScore] = useState(0);
+  const [showResult, setShowResult] = useState(false);
+  const [quizCompleted, setQuizCompleted] = useState(false);
+  const [showResultModal, setShowResultModal] = useState(false);
   const [localSaved, setLocalSaved] = useState(false);
 
   const handleSaveClick = () => {
@@ -120,37 +42,6 @@ const QuizView: React.FC<QuizViewProps> = ({
     }
   };
 
-  // Auto-save quiz progress
-  useEffect(() => {
-    if (existingScore !== undefined || questions.length === 0) return;
-
-    try {
-      localStorage.setItem('sjtutor_active_quiz_questions', JSON.stringify(questions));
-      localStorage.setItem('sjtutor_active_quiz_current_index', currentIndex.toString());
-      localStorage.setItem('sjtutor_active_quiz_score', score.toString());
-      localStorage.setItem('sjtutor_active_quiz_selected_option', selectedOption !== null ? selectedOption.toString() : 'null');
-      localStorage.setItem('sjtutor_active_quiz_show_result', showResult.toString());
-      localStorage.setItem('sjtutor_active_quiz_completed', quizCompleted.toString());
-    } catch (e) {
-      console.warn("Failed to autosave active quiz progress", e);
-    }
-  }, [questions, currentIndex, score, selectedOption, showResult, quizCompleted, existingScore]);
-
-  // Clean up active quiz state when resetting/retaking
-  const handleReset = () => {
-    try {
-      localStorage.removeItem('sjtutor_active_quiz_questions');
-      localStorage.removeItem('sjtutor_active_quiz_current_index');
-      localStorage.removeItem('sjtutor_active_quiz_score');
-      localStorage.removeItem('sjtutor_active_quiz_selected_option');
-      localStorage.removeItem('sjtutor_active_quiz_show_result');
-      localStorage.removeItem('sjtutor_active_quiz_completed');
-    } catch (e) {
-      console.warn("Failed to clear active quiz state", e);
-    }
-    onReset();
-  };
-
   // Initialize view if there's an existing score (viewing history)
   useEffect(() => {
     if (existingScore !== undefined) {
@@ -158,35 +49,6 @@ const QuizView: React.FC<QuizViewProps> = ({
       setQuizCompleted(true);
       setShowResultModal(true);
     } else {
-      // Check if there is a saved active quiz state matching these questions
-      try {
-        const savedQuizStr = localStorage.getItem('sjtutor_active_quiz_questions');
-        const savedCurrentIndex = localStorage.getItem('sjtutor_active_quiz_current_index');
-        const savedScore = localStorage.getItem('sjtutor_active_quiz_score');
-        const savedSelectedOption = localStorage.getItem('sjtutor_active_quiz_selected_option');
-        const savedShowResult = localStorage.getItem('sjtutor_active_quiz_show_result');
-        const savedCompleted = localStorage.getItem('sjtutor_active_quiz_completed');
-
-        if (savedQuizStr && JSON.stringify(questions) === savedQuizStr) {
-          if (savedCurrentIndex !== null) setCurrentIndex(parseInt(savedCurrentIndex, 10));
-          if (savedScore !== null) setScore(parseInt(savedScore, 10));
-          if (savedSelectedOption !== null && savedSelectedOption !== 'null') {
-            setSelectedOption(parseInt(savedSelectedOption, 10));
-          } else {
-            setSelectedOption(null);
-          }
-          if (savedShowResult !== null) setShowResult(savedShowResult === 'true');
-          if (savedCompleted !== null) {
-            const completed = savedCompleted === 'true';
-            setQuizCompleted(completed);
-            setShowResultModal(completed);
-          }
-          return;
-        }
-      } catch (e) {
-        console.warn("Failed to restore quiz state in useEffect", e);
-      }
-
       // Reset state for new quiz
       setCurrentIndex(0);
       setScore(0);
@@ -498,7 +360,7 @@ const QuizView: React.FC<QuizViewProps> = ({
 
                 <div className="flex justify-center mb-6">
                   <button
-                      onClick={handleReset}
+                      onClick={onReset}
                       className="flex items-center justify-center px-8 py-3.5 bg-slate-800 dark:bg-slate-700 hover:brightness-110 text-white rounded-xl font-bold transition-all active:scale-95 w-full shadow-sm"
                   >
                       <RefreshCw className="w-4 h-4 mr-2" />
@@ -603,7 +465,7 @@ const QuizView: React.FC<QuizViewProps> = ({
             </div>
             <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 text-center">
                <button
-                  onClick={handleReset}
+                  onClick={onReset}
                   className="px-8 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-600/20 hover:scale-105 active:scale-95 transition-all"
                 >
                   Ready for another challenge?

@@ -23,17 +23,17 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId);
+      allow write: if isOwner(userId) && isValidId(userId);
     }
 
     // Notifications subcollection
     match /users/{userId}/notifications/{notificationId} {
-      allow read, write: if isOwner(userId) && isValidId(notificationId);
+      allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(notificationId);
     }
 
     // History subcollection
     match /users/{userId}/history/{historyId} {
-      allow read, write: if isOwner(userId) && isValidId(historyId);
+      allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(historyId);
     }
 
     // Global notifications
@@ -45,14 +45,14 @@ service cloud.firestore {
     // Streaks collection (allow reading list/documents for Leaderboard, owner writes only)
     match /streaks/{userId} {
       allow read: if isSignedIn();
-      allow create, update: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidId(userId);
       allow delete: if false; // Streak data shouldn't be deleted by client
     }
 
     // Quiz leaderboard collection (allow reading list/documents for Leaderboard, owner writes only)
     match /quiz_leaderboard/{userId} {
       allow read: if isSignedIn();
-      allow create, update: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidId(userId);
       allow delete: if false;
     }
 
