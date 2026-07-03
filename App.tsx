@@ -50,7 +50,7 @@ import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { auth } from "./firebaseConfig";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo } from "firebase/auth";
 import type { User } from "firebase/auth";
 import {
   FileText,
@@ -166,7 +166,6 @@ const App: React.FC = () => {
   // Auth State
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [isNewUser, setIsNewUser] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -583,6 +582,39 @@ const App: React.FC = () => {
     }
   }, [mode, userProfile.grade]);
 
+  // Magic Link Login Processor
+  useEffect(() => {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      setAuthLoading(true);
+      let email = window.localStorage.getItem('emailForSignIn');
+      if (!email) {
+        email = window.prompt('Please provide your email for confirmation');
+      }
+      
+      if (email) {
+        signInWithEmailLink(auth, email, window.location.href)
+          .then(async (result) => {
+            window.localStorage.removeItem('emailForSignIn');
+            const additionalUserInfo = getAdditionalUserInfo(result);
+            if (additionalUserInfo?.isNewUser) {
+               setMode(AppMode.PROFILE);
+            }
+            // Clear URL of auth parameters
+            window.history.replaceState({}, document.title, window.location.pathname);
+          })
+          .catch((error) => {
+            console.error('Error signing in with email link', error);
+            alert("This sign-in link has expired or has already been used. Please request a new sign-in link.");
+          })
+          .finally(() => {
+             setAuthLoading(false);
+          });
+      } else {
+        setAuthLoading(false);
+      }
+    }
+  }, []);
+
   // Auth Listener
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -600,7 +632,6 @@ const App: React.FC = () => {
         clearTimeout(timeoutId);
 
         if (!currentUser) {
-          setIsNewUser(false);
           setUserProfile(initialProfileState);
           setMode(AppMode.DASHBOARD);
         }
@@ -699,6 +730,10 @@ const App: React.FC = () => {
             };
             setUserProfile(merged);
             localStorage.setItem(`profile_${user.uid}`, JSON.stringify(merged));
+            
+            if (!merged.hasCompletedOnboarding) {
+               setMode(AppMode.PROFILE);
+            }
           }
         } catch (err) {
           console.warn("Background profile sync failed:", err);
@@ -825,18 +860,16 @@ const App: React.FC = () => {
       localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
       await saveProfileToFirestore(user.uid, newProfile);
     }
-    if (isNewUser) {
-      setIsNewUser(false);
-      setShowAuthModal(false);
-      if (redirectDashboard) {
-        setMode(AppMode.DASHBOARD);
-      }
+    
+    // Automatically redirect to Dashboard after completing onboarding
+    if (newProfile.hasCompletedOnboarding && redirectDashboard) {
+       setMode(AppMode.DASHBOARD);
+       setShowAuthModal(false);
     }
   };
 
   const handleSignUpSuccess = async (initialData?: Partial<UserProfile>) => {
-    setIsNewUser(true);
-    const newProfile = { ...initialProfileState, ...initialData };
+    const newProfile = { ...initialProfileState, ...initialData, hasCompletedOnboarding: false };
     setUserProfile(newProfile);
 
     if (auth.currentUser) {
@@ -848,6 +881,7 @@ const App: React.FC = () => {
     }
 
     setShowAuthModal(false);
+    setMode(AppMode.PROFILE);
   };
 
   const handlePaymentSuccess = (
@@ -1999,6 +2033,7 @@ const App: React.FC = () => {
               profile={userProfile}
               email={user?.email || "Guest"}
               onSave={(p, r) => handleProfileSave(p, r)}
+              isOnboarding={!userProfile.hasCompletedOnboarding}
             />
           </div>
         );

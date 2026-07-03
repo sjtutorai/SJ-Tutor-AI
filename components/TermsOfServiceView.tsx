@@ -44,7 +44,7 @@ const TermsOfServiceView: React.FC = () => {
               <p>To access certain features of the service, you may be required to create an account. You agree to:</p>
               <ul className="list-disc pl-5 space-y-2 marker:text-primary-500">
                 <li>Provide accurate, current, and complete information.</li>
-                <li>Maintain the security of your password and accept all risks of unauthorized access to your account.</li>
+                <li>Maintain the security of your account and accept all risks of unauthorized access to your account.</li>
                 <li>Notify us immediately if you discover or suspect any security breaches related to the service.</li>
               </ul>
             </div>

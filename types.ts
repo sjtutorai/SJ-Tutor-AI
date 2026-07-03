@@ -83,6 +83,7 @@ export interface UserProfile {
   district?: string;
   claimedOffers?: number[];
   emblems?: string[];
+  hasCompletedOnboarding?: boolean;
 }
 
 export interface UserSettings {
