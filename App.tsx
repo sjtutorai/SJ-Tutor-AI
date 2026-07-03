@@ -17,7 +17,6 @@ import QuizView from "./components/QuizView";
 import VoiceCommandSystem from "./components/VoiceCommandSystem";
 import TutorChat from "./components/TutorChat";
 import ProfileView from "./components/ProfileView";
-import { OnboardingWizard } from "./components/OnboardingWizard";
 import Auth from "./components/Auth";
 import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
@@ -2275,28 +2274,6 @@ const App: React.FC = () => {
           />
         )}
       </div>
-    );
-  }
-
-  if (user && !userProfile.hasCompletedOnboarding) {
-    return (
-      <OnboardingWizard
-        profile={userProfile}
-        email={user.email}
-        onSave={(updatedProfile, redirect) => {
-          handleProfileSave(updatedProfile, redirect);
-          if (redirect) {
-            // Show premium welcome toast
-            sendNotification(
-              "Welcome to SJ Tutor AI! 🎉",
-              `Hello, ${updatedProfile.displayName}! Ready to continue your learning journey?`,
-              "System Updates",
-              user.uid
-            ).catch(err => console.warn(err));
-          }
-        }}
-        onLogout={handleLogout}
-      />
     );
   }
 
