@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { QuizQuestion } from '../types';
 import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Send, MessageCircle, Link, Share2, X, Trophy, Check, Copy, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ExportModal } from './ExportModal';
 
 interface QuizViewProps {
   questions: QuizQuestion[];
@@ -32,6 +33,7 @@ const QuizView: React.FC<QuizViewProps> = ({
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
   const [localSaved, setLocalSaved] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   const handleSaveClick = () => {
     if (onAddToMyList) {
@@ -229,98 +231,14 @@ const QuizView: React.FC<QuizViewProps> = ({
                       <span>{(isAddedToList || localSaved) ? "Saved" : "Save Score"}</span>
                     </button>
 
-                    {/* Download TXT Button */}
+                    {/* Unified Premium Export Button */}
                     <button
-                      onClick={() => {
-                        let printContent = `SJ TUTOR AI - INTERACTIVE QUIZ SHEET\n`;
-                        printContent += `------------------------------------\n\n`;
-                        questions.forEach((q, idx) => {
-                          printContent += `${idx + 1}. ${q.question}\n`;
-                          q.options.forEach((opt, optIdx) => {
-                            printContent += `   [${optIdx === q.correctAnswerIndex ? 'X' : ' '}] ${opt}\n`;
-                          });
-                          printContent += `   Explanation: ${q.explanation}\n\n`;
-                        });
-                        const element = document.createElement("a");
-                        const file = new Blob([printContent], { type: "text/plain;charset=utf-8" });
-                        element.href = URL.createObjectURL(file);
-                        element.download = `SJTutorAI-Quiz-${Date.now()}.txt`;
-                        document.body.appendChild(element);
-                        element.click();
-                        document.body.removeChild(element);
-                      }}
-                      className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-755 dark:text-slate-255 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-xs transition"
+                      onClick={() => setIsExportOpen(true)}
+                      className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-sm transition active:scale-95"
+                      title="Export quiz in any of 20 formats (PDF, Word, Excel, etc.)"
                     >
-                      <Download className="w-4 h-4 text-indigo-500" />
-                      <span>Download TXT</span>
-                    </button>
-
-                    {/* Download Word Button */}
-                    <button
-                      onClick={() => {
-                        let formattedContent = `
-                          <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-                            <head>
-                              <title>Interactive Quiz</title>
-                              <style>
-                                body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
-                                h1 { color: #1a202c; border-bottom: 2px solid #5a67d8; padding-bottom: 10px; font-size: 22px; }
-                                .question-block { margin-bottom: 25px; page-break-inside: avoid; }
-                                .question { font-weight: bold; color: #2d3748; margin-bottom: 8px; }
-                                .options { margin-left: 20px; margin-bottom: 8px; }
-                                .option { margin-bottom: 4px; }
-                                .correct { font-weight: bold; color: #38a169; }
-                                .explanation { font-style: italic; color: #718096; font-size: 13px; margin-top: 4px; }
-                                hr { border: none; border-top: 1px solid #e2e8f0; margin: 20px 0; }
-                              </style>
-                            </head>
-                            <body>
-                              <h1>Interactive Quiz - SJ Tutor AI</h1>
-                              <p>Generated on ${new Date().toLocaleDateString()}</p>
-                              <hr />
-                        `;
-
-                        questions.forEach((q, idx) => {
-                          formattedContent += `
-                            <div class="question-block">
-                              <div class="question">${idx + 1}. ${q.question}</div>
-                              <div class="options">
-                          `;
-                          q.options.forEach((opt, optIdx) => {
-                            const isCorrect = optIdx === q.correctAnswerIndex;
-                            formattedContent += `
-                              <div class="option">
-                                <span>[${isCorrect ? '✔' : ' '}]</span> ${opt}
-                                ${isCorrect ? ' <span class="correct">(Correct Answer)</span>' : ''}
-                              </div>
-                            `;
-                          });
-                          formattedContent += `
-                              </div>
-                              <div class="explanation"><strong>Explanation:</strong> ${q.explanation}</div>
-                            </div>
-                          `;
-                        });
-
-                        formattedContent += `
-                              <hr />
-                              <p style="font-size: 11px; text-align: center; color: #a0aec0;">Keep up the learning streak! Powered by SJ Tutor AI.</p>
-                            </body>
-                          </html>
-                        `;
-
-                        const element = document.createElement("a");
-                        const file = new Blob(['\ufeff' + formattedContent], { type: "application/msword;charset=utf-8" });
-                        element.href = URL.createObjectURL(file);
-                        element.download = `SJTutorAI-Quiz-${Date.now()}.doc`;
-                        document.body.appendChild(element);
-                        element.click();
-                        document.body.removeChild(element);
-                      }}
-                      className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-755 dark:text-slate-255 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-xs transition"
-                    >
-                      <Download className="w-4 h-4 text-blue-500" />
-                      <span>Download Word</span>
+                      <Download className="w-4 h-4 text-amber-500 animate-bounce" />
+                      <span>Export Quiz</span>
                     </button>
 
                     {/* Copy Button */}
@@ -547,6 +465,16 @@ const QuizView: React.FC<QuizViewProps> = ({
           )}
         </div>
       </div>
+      <ExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        contentType="quiz"
+        contentData={questions}
+        title="Interactive Quiz"
+        metadata={{
+          score: `${score}/${questions.length}`
+        }}
+      />
     </div>
   );
 };

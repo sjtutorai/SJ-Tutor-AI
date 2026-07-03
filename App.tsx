@@ -17,6 +17,7 @@ import QuizView from "./components/QuizView";
 import VoiceCommandSystem from "./components/VoiceCommandSystem";
 import TutorChat from "./components/TutorChat";
 import ProfileView from "./components/ProfileView";
+import { OnboardingWizard } from "./components/OnboardingWizard";
 import Auth from "./components/Auth";
 import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
@@ -1029,7 +1030,7 @@ const App: React.FC = () => {
             url: shareLink
           });
           return;
-        } catch (e) {
+        } catch {
           console.warn("Web share cancelled or failed");
         }
       }
@@ -1848,7 +1849,7 @@ const App: React.FC = () => {
             </div>
             <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-4">Quiz Not Found</h2>
             <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-md mx-auto">
-              The quiz you are looking for doesn't exist, has been removed, or the link is incorrect.
+              The quiz you are looking for doesn&apos;t exist, has been removed, or the link is incorrect.
             </p>
             <button
               onClick={() => {
@@ -2274,6 +2275,28 @@ const App: React.FC = () => {
           />
         )}
       </div>
+    );
+  }
+
+  if (user && !userProfile.hasCompletedOnboarding) {
+    return (
+      <OnboardingWizard
+        profile={userProfile}
+        email={user.email}
+        onSave={(updatedProfile, redirect) => {
+          handleProfileSave(updatedProfile, redirect);
+          if (redirect) {
+            // Show premium welcome toast
+            sendNotification(
+              "Welcome to SJ Tutor AI! 🎉",
+              `Hello, ${updatedProfile.displayName}! Ready to continue your learning journey?`,
+              "System Updates",
+              user.uid
+            ).catch(err => console.warn(err));
+          }
+        }}
+        onLogout={handleLogout}
+      />
     );
   }
 

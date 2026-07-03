@@ -3,10 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Loader2, Volume2, Square, ArrowLeft, Download, Share2, Facebook, Mail, MessageCircle, Link, RefreshCw, Check, Copy } from 'lucide-react';
-// @ts-expect-error - html2canvas missing types
-import html2canvas from 'html2canvas';
-// @ts-expect-error - jspdf missing types
-import { jsPDF } from 'jspdf';
+import { ExportModal } from './ExportModal';
 
 interface ResultsViewProps {
   content: string;
@@ -32,8 +29,8 @@ const ResultsView: React.FC<ResultsViewProps> = ({
   onSharePublicLink
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
   const [localSaved, setLocalSaved] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
@@ -118,12 +115,6 @@ const ResultsView: React.FC<ResultsViewProps> = ({
       setLocalSaved(true);
       setTimeout(() => setLocalSaved(false), 4000);
     }
-  };
-
-  const getFilename = (ext: string) => {
-    const cleanTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const cleanType = type.toLowerCase();
-    return `${cleanTitle}_${cleanType}.${ext}`;
   };
 
   const handleShare = async (platform?: string) => {
@@ -211,140 +202,6 @@ const ResultsView: React.FC<ResultsViewProps> = ({
     }
   };
 
-  const downloadPDF = async () => {
-    if (!contentRef.current) return;
-    setIsDownloading(true);
-    try {
-      const element = contentRef.current;
-      const clone = element.cloneNode(true) as HTMLElement;
-      
-      // A4 width in pixels at 96 DPI is approx 794px. We use 750 for content + margins.
-      const a4WidthPx = 750;
-
-      clone.style.position = 'absolute';
-      clone.style.left = '-9999px';
-      clone.style.top = '0';
-      clone.style.width = `${a4WidthPx}px`; 
-      clone.style.height = 'auto'; 
-      clone.style.overflow = 'visible';
-      clone.style.maxHeight = 'none';
-      clone.style.background = 'white';
-      clone.style.color = 'black'; // Force black text for PDF
-      clone.style.padding = '40px';
-      
-      const header = document.createElement('div');
-      header.innerHTML = `
-        <div style="margin-bottom: 30px; border-bottom: 2px solid #D4AF37; padding-bottom: 15px; font-family: sans-serif;">
-          <h1 style="margin: 0; color: #1a202c; font-size: 26px;">${title}</h1>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-            <span style="color: #B7950B; font-weight: bold; text-transform: uppercase; font-size: 12px;">${type}</span>
-            <span style="color: #718096; font-size: 12px;">SJ Tutor AI - Generated on ${new Date().toLocaleDateString()}</span>
-          </div>
-        </div>
-      `;
-      clone.insertBefore(header, clone.firstChild);
-      
-      document.body.appendChild(clone);
-
-      const canvas = await html2canvas(clone, { 
-        scale: 2, // High resolution
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        windowWidth: a4WidthPx + 100
-      });
-      
-      document.body.removeChild(clone);
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      
-      const widthRatio = pageWidth / canvas.width;
-      const canvasHeight = canvas.height * widthRatio;
-      
-      let heightLeft = canvasHeight;
-      let position = 0;
-
-      // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, pageWidth, canvasHeight);
-      heightLeft -= pageHeight;
-
-      // Add subsequent pages if content overflows
-      while (heightLeft > 0) {
-        position -= pageHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pageWidth, canvasHeight);
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save(getFilename('pdf'));
-    } catch (e) {
-      console.error("PDF download failed", e);
-      alert("Failed to generate PDF. Try downloading as Text or Word.");
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  const downloadMarkdown = () => {
-    try {
-      const heading = `# ${title}\nCategory: ${type}\nGenerated via SJ Tutor AI on ${new Date().toLocaleDateString()}\n\n---\n\n`;
-      const fileContent = heading + content;
-      const element = document.createElement("a");
-      const file = new Blob([fileContent], { type: 'text/markdown;charset=utf-8' });
-      element.href = URL.createObjectURL(file);
-      element.download = getFilename('md');
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
-    } catch (e) {
-      console.error("Markdown download failed", e);
-      alert("Failed to download Markdown file.");
-    }
-  };
-
-  const downloadWord = () => {
-    try {
-      const formattedContent = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-          <head>
-            <title>${title}</title>
-            <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
-              h1 { color: #1a202c; border-bottom: 2px solid #D4AF37; padding-bottom: 10px; font-size: 24px; }
-              h2 { color: #2d3748; margin-top: 20px; font-size: 18px; }
-              p, li { color: #333333; font-size: 14px; }
-              hr { border: none; border-top: 1px solid #e2e8f0; margin: 20px 0; }
-              .footer { font-size: 11px; color: #718096; margin-top: 30px; text-align: center; }
-            </style>
-          </head>
-          <body>
-            <h1>${title}</h1>
-            <p><strong>Resource Type:</strong> ${type}</p>
-            <p><strong>Generated on:</strong> ${new Date().toLocaleDateString()} by SJ Tutor AI</p>
-            <hr />
-            <div style="white-space: pre-wrap;">${content}</div>
-            <hr />
-            <p class="footer">Thank you for studying with SJ Tutor AI. Keep up the amazing streak!</p>
-          </body>
-        </html>
-      `;
-      const element = document.createElement("a");
-      const file = new Blob(['\ufeff' + formattedContent], { type: 'application/msword;charset=utf-8' });
-      element.href = URL.createObjectURL(file);
-      element.download = getFilename('doc');
-      document.body.appendChild(element);
-      element.click();
-      document.body.removeChild(element);
-    } catch (e) {
-      console.error("Word download failed", e);
-      alert("Failed to download Word document.");
-    }
-  };
-
   if (!content && !isLoading) return null;
 
   return (
@@ -385,35 +242,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({
                   <span>{(isAddedToList || localSaved) ? "Saved" : "Save"}</span>
                 </button>
 
-                {/* Download PDF Button */}
+                {/* Unified Premium Export Button */}
                 <button
-                  onClick={downloadPDF}
-                  disabled={isDownloading}
-                  className="px-3 py-1.5 bg-white hover:bg-red-50 hover:text-red-650 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50 shadow-xs"
-                  title="Download as PDF"
+                  onClick={() => setIsExportOpen(true)}
+                  className="px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 rounded-lg text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95"
+                  title="Export document in any of 20 formats (PDF, Word, Excel, etc.)"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download PDF</span>
-                </button>
-
-                {/* Download Word DOC Button */}
-                <button
-                  onClick={downloadWord}
-                  className="px-3 py-1.5 bg-white hover:bg-blue-50 hover:text-blue-655 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
-                  title="Download as Word"
-                >
-                  <Download className="w-3.5 h-3.5 text-blue-500" />
-                  <span>Word (.doc)</span>
-                </button>
-
-                {/* Download Markdown Button */}
-                <button
-                  onClick={downloadMarkdown}
-                  className="px-3 py-1.5 bg-white hover:bg-indigo-50 hover:text-indigo-655 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
-                  title="Download as Markdown"
-                >
-                  <Download className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Markdown (.md)</span>
+                  <Download className="w-3.5 h-3.5 text-amber-500 animate-bounce" />
+                  <span>Export Document</span>
                 </button>
 
                 {/* Copy Button */}
@@ -564,6 +400,16 @@ const ResultsView: React.FC<ResultsViewProps> = ({
             </div>
         </div>
       )}
+      <ExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        contentType={type?.toLowerCase().includes('summary') ? 'summary' : 'homework'}
+        contentData={content}
+        title={title}
+        metadata={{
+          query: title
+        }}
+      />
     </div>
   );
 };

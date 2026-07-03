@@ -5,12 +5,13 @@ import {
   Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, 
   StickyNote, Bell, Edit3, Loader2, Folder, 
   ChevronRight, Star, Tag, Book, Lightbulb, Languages,
-  CheckCircle2, Circle, Download, FileText
+  CheckCircle2, Circle, Download
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 import { SettingsService } from '../services/settingsService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { ExportModal } from './ExportModal';
 
 interface NotesViewProps {
   userId: string | null;
@@ -50,6 +51,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   const [examSubjects, setExamSubjects] = useState('');
   const [studyHours] = useState(4);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   // Load defaults from Settings
   useEffect(() => {
@@ -200,59 +202,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     } finally {
       setIsGeneratingNotes(false);
     }
-  };
-
-  const downloadNoteFile = (format: 'md' | 'doc' | 'txt') => {
-    if (!editingNote) return;
-    const title = editingNote.title || 'Untitled Note';
-    const content = editingNote.content || '';
-    const subject = editingNote.subject || 'General';
-    const chapter = editingNote.chapter || 'Notes';
-    
-    let fileContent = '';
-    let mimeType = 'text/plain;charset=utf-8';
-    let ext = 'txt';
-    
-    if (format === 'txt' || format === 'md') {
-      fileContent = `# ${title}\nSubject: ${subject} • ${chapter}\nDate: ${new Date(editingNote.date || Date.now()).toLocaleDateString()}\n\n---\n\n${content}`;
-      mimeType = format === 'md' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8';
-      ext = format;
-    } else if (format === 'doc') {
-      fileContent = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-          <head>
-            <meta charset="utf-8">
-            <title>${title}</title>
-            <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
-              h1 { color: #1a202c; border-bottom: 2px solid #D4AF37; padding-bottom: 15px; font-size: 24px; }
-              p, li { color: #333333; font-size: 14px; }
-              hr { border: none; border-top: 1px solid #e2e8f0; margin: 20px 0; }
-              .footer { font-size: 11px; color: #718096; margin-top: 30px; text-align: center; }
-            </style>
-          </head>
-          <body>
-            <h1>${title} Notes</h1>
-            <p><strong>Subject:</strong> ${subject} &bull; ${chapter}</p>
-            <p><strong>Date:</strong> ${new Date(editingNote.date || Date.now()).toLocaleDateString()}</p>
-            <hr />
-            <div style="white-space: pre-wrap;">${content}</div>
-            <hr />
-            <p class="footer">Thank you for studying with SJ Tutor AI. Keep up the amazing streak!</p>
-          </body>
-        </html>
-      `;
-      mimeType = 'application/msword;charset=utf-8';
-      ext = 'doc';
-    }
-    
-    const element = document.createElement("a");
-    const file = new Blob([format === 'doc' ? '\ufeff' + fileContent : fileContent], { type: mimeType });
-    element.href = URL.createObjectURL(file);
-    element.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}_notes.${ext}`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
   };
 
   const handleAiAction = async (task: 'summarize' | 'simplify' | 'mcq' | 'translate') => {
@@ -430,24 +379,14 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Download Word DOC Button */}
+                    {/* Unified Premium Export Button */}
                     <button 
-                      onClick={() => downloadNoteFile('doc')} 
-                      className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-slate-700 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
-                      title="Download Notes as MS Word Document"
+                      onClick={() => setIsExportOpen(true)} 
+                      className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-amber-500/10 transition active:scale-[0.98]"
+                      title="Export notes in any of 20 formats (PDF, Word, HTML, etc.)"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>Word</span>
-                    </button>
-
-                    {/* Download MD Button */}
-                    <button 
-                      onClick={() => downloadNoteFile('md')} 
-                      className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 dark:bg-slate-755 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
-                      title="Download Notes as Markdown"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>Markdown</span>
+                      <span>Export Note</span>
                     </button>
 
                     <button onClick={handleSaveNote} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20">
@@ -796,6 +735,20 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
               </div>
             )}
           </div>
+        )}
+        {editingNote && (
+          <ExportModal
+            isOpen={isExportOpen}
+            onClose={() => setIsExportOpen(false)}
+            contentType="notes"
+            contentData={editingNote}
+            title={editingNote.title || 'Untitled Note'}
+            metadata={{
+              subject: editingNote.subject,
+              chapter: editingNote.chapter,
+              date: editingNote.date
+            }}
+          />
         )}
       </div>
     </div>

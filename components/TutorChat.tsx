@@ -17,10 +17,12 @@ import {
   Bookmark, 
   X, 
   Trash2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Download
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { ExportModal } from './ExportModal';
 
 
 import { SettingsService } from '../services/settingsService';
@@ -162,6 +164,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   
   const messagesRef = useRef<ChatMessage[]>(messages);
   const [isSaved, setIsSaved] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [starredTimestamps, setStarredTimestamps] = useState<number[]>(() => {
     try {
@@ -430,6 +433,13 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               >
                 <Share2 className="w-3.5 h-3.5" />
               </button>
+              <button 
+                onClick={() => setIsExportOpen(true)} 
+                className="p-1 text-slate-400 hover:text-amber-500 rounded hover:bg-amber-50 transition-colors" 
+                title="Export & Download Chat Session in 20 formats"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
               <button
                 onClick={() => setShowBookmarks(!showBookmarks)}
                 className={`p-1 rounded-md transition-colors flex items-center gap-1 ${showBookmarks ? 'text-amber-650 bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-slate-50'}`}
@@ -688,6 +698,17 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           )}
         </div>
       )}
+      <ExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        contentType="tutor"
+        contentData={messages}
+        title="AI Tutor Chat Session"
+        metadata={{
+          subject: subject,
+          grade: grade
+        }}
+      />
     </div>
   );
 };
