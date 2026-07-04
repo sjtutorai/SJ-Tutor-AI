@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { auth, googleProvider, githubProvider, appleProvider, yahooProvider } from '../firebaseConfig';
 import { 
@@ -6,13 +5,16 @@ import {
   getAdditionalUserInfo,
   sendSignInLinkToEmail,
 } from 'firebase/auth';
-import { ArrowRight, Loader2, Mail, X, Github, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Loader2, Mail, X, Github, Sparkles, CheckCircle2, User } from 'lucide-react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
 
 interface AuthProps {
   onSignUpSuccess?: (data?: Partial<UserProfile>) => void;
   onClose: () => void;
+  onCountryDetected?: (country: string) => void;
+  initialCountry?: string | null;
+  initialMode?: 'signin' | 'signup';
 }
 
 const AppleIcon = ({ className }: { className?: string }) => (
@@ -27,7 +29,9 @@ const YahooIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
+const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'signin' }) => {
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>(initialMode);
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +56,10 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       const additionalUserInfo = getAdditionalUserInfo(result);
       
       if (additionalUserInfo?.isNewUser && onSignUpSuccess) {
-        onSignUpSuccess();
+        onSignUpSuccess({
+          displayName: result.user.displayName || '',
+          photoURL: result.user.photoURL || '',
+        });
       } else {
         onClose();
       }
@@ -74,6 +81,12 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
       setError("Email address is invalid.");
       return;
     }
+
+    if (authMode === 'signup' && !displayName.trim()) {
+      setError("Please enter your full name.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -85,6 +98,11 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
     try {
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
       window.localStorage.setItem('emailForSignIn', email);
+      if (authMode === 'signup') {
+        window.localStorage.setItem('displayNameForSignIn', displayName.trim());
+      } else {
+        window.localStorage.removeItem('displayNameForSignIn');
+      }
       setEmailSent(true);
       setResendTimer(60);
     } catch (err: any) {
@@ -166,14 +184,46 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
 
           <div className="mb-6 text-center">
             <div className="flex justify-center mb-4">
-               <Logo className="w-20 h-20" iconOnly />
+               <Logo className="w-16 h-16" iconOnly />
             </div>
             <h2 className="text-2xl font-bold tracking-tight text-slate-800">
-              Welcome Back 👋
+              {authMode === 'signin' ? 'Welcome Back 👋' : 'Create Your Account 🚀'}
             </h2>
             <p className="text-slate-500 mt-2 text-sm">
-              Continue your learning journey securely.
+              {authMode === 'signin' 
+                ? 'Continue your learning journey securely.' 
+                : 'Join SJ Tutor AI and start learning today.'}
             </p>
+          </div>
+
+          {/* Mode Tab Switcher */}
+          <div className="flex p-1 bg-slate-100 rounded-xl mb-6">
+            <button
+              onClick={() => {
+                setAuthMode('signin');
+                setError(null);
+              }}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                authMode === 'signin'
+                  ? 'bg-white text-slate-850 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => {
+                setAuthMode('signup');
+                setError(null);
+              }}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                authMode === 'signup'
+                  ? 'bg-white text-slate-855 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Sign Up / Register
+            </button>
           </div>
 
           <div className="flex flex-col gap-3 mb-6">
@@ -191,7 +241,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
                     <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
                     <path fill="none" d="M0 0h48v48H0z"/>
                   </svg>
-                  Continue with Google
+                  {authMode === 'signin' ? 'Continue with Google' : 'Sign Up with Google'}
                 </>
               )}
             </button>
@@ -204,7 +254,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                   <>
                     <YahooIcon className="w-5 h-5" />
-                    Continue with Yahoo
+                    {authMode === 'signin' ? 'Continue with Yahoo' : 'Sign Up with Yahoo'}
                   </>
                 )}
             </button>
@@ -217,7 +267,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
                 {loading ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : (
                   <>
                     <Github className="w-5 h-5" />
-                    Continue with GitHub
+                    {authMode === 'signin' ? 'Continue with GitHub' : 'Sign Up with GitHub'}
                   </>
                 )}
             </button>
@@ -230,7 +280,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
                 {loading ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : (
                   <>
                     <AppleIcon className="w-5 h-5" />
-                    Continue with Apple
+                    {authMode === 'signin' ? 'Continue with Apple' : 'Sign Up with Apple'}
                   </>
                 )}
             </button>
@@ -246,6 +296,23 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
           </div>
 
           <form onSubmit={handleEmailSignIn} className="space-y-4">
+            {authMode === 'signup' && (
+              <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                <label className="text-xs font-bold text-slate-600 ml-1">Full Name</label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-3.5 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="John Doe"
+                    required={authMode === 'signup'}
+                    className="w-full pl-11 pr-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-slate-900 font-medium placeholder-slate-400"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-600 ml-1">Email Address</label>
               <div className="relative">
@@ -276,17 +343,48 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose }) => {
               {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Sending secure link...
+                  {authMode === 'signin' ? 'Sending secure link...' : 'Registering account...'}
                 </>
               ) : (
                 <>
                   <Sparkles className="w-5 h-5" />
-                  Continue with Email
+                  {authMode === 'signin' ? 'Continue with Email' : 'Register with Email'}
                   <ArrowRight className="w-5 h-5" />
                 </>
               )}
             </button>
           </form>
+
+          {/* Bottom toggle link */}
+          <div className="mt-6 text-center text-xs text-slate-500 font-medium">
+            {authMode === 'signin' ? (
+              <p>
+                New to SJ Tutor AI?{' '}
+                <button
+                  onClick={() => {
+                    setAuthMode('signup');
+                    setError(null);
+                  }}
+                  className="text-primary-600 hover:text-primary-700 font-bold transition-colors underline"
+                >
+                  Create an account
+                </button>
+              </p>
+            ) : (
+              <p>
+                Already have an account?{' '}
+                <button
+                  onClick={() => {
+                    setAuthMode('signin');
+                    setError(null);
+                  }}
+                  className="text-primary-600 hover:text-primary-700 font-bold transition-colors underline"
+                >
+                  Sign in
+                </button>
+              </p>
+            )}
+          </div>
 
         </div>
       </div>

@@ -21,6 +21,8 @@ import Auth from "./components/Auth";
 import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
 import LoadingState from "./components/LoadingState";
+import SplashScreen from "./components/SplashScreen";
+import DashboardSkeleton from "./components/DashboardSkeleton";
 import NotesView from "./components/NotesView";
 import SettingsView from "./components/SettingsView";
 import AboutView from "./components/AboutView";
@@ -79,6 +81,8 @@ import {
   Copy,
   Sun,
   Moon,
+  Search,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -167,6 +171,12 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
+
+  const openAuthModal = (mode: 'signin' | 'signup' = 'signin') => {
+    setAuthModalMode(mode);
+    setShowAuthModal(true);
+  };
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -246,6 +256,8 @@ const App: React.FC = () => {
   }, [formData]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const [historySearchQuery, setHistorySearchQuery] = useState("");
 
   // Profile State
   const initialProfileState: UserProfile = {
@@ -613,7 +625,9 @@ const App: React.FC = () => {
             window.localStorage.removeItem('emailForSignIn');
             const additionalUserInfo = getAdditionalUserInfo(result);
             if (additionalUserInfo?.isNewUser) {
-               setMode(AppMode.PROFILE);
+               const storedDisplayName = window.localStorage.getItem('displayNameForSignIn') || '';
+               window.localStorage.removeItem('displayNameForSignIn');
+               handleSignUpSuccess({ displayName: storedDisplayName });
             }
             // Clear URL of auth parameters
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -1525,9 +1539,13 @@ const App: React.FC = () => {
     ];
 
     if (dashboardView !== "OVERVIEW") {
-      const filteredHistory = history.filter((h) => 
+      const baseFiltered = history.filter((h) => 
         h.type === dashboardView || 
         (dashboardView === AppMode.HOMEWORK && h.type === AppMode.ESSAY)
+      );
+      const filteredHistory = baseFiltered.filter((h) => 
+        h.title.toLowerCase().includes(historySearchQuery.toLowerCase()) ||
+        h.subtitle.toLowerCase().includes(historySearchQuery.toLowerCase())
       );
       const categoryLabel =
         dashboardCards.find((c) => c.id === dashboardView)?.label || "History";
@@ -1535,7 +1553,10 @@ const App: React.FC = () => {
       return (
         <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
           <button
-            onClick={() => setDashboardView("OVERVIEW")}
+            onClick={() => {
+              setDashboardView("OVERVIEW");
+              setHistorySearchQuery("");
+            }}
             className="flex items-center text-slate-500 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 mb-6 transition-all hover:-translate-x-1 group text-sm"
           >
             <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mr-2 border border-slate-100 dark:border-slate-700 group-hover:border-primary-200 transition-colors">
@@ -1544,12 +1565,43 @@ const App: React.FC = () => {
             <span className="font-medium">Back to Dashboard</span>
           </button>
 
-          <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-            <Clock className="w-6 h-6 text-primary-400" />
-            {categoryLabel} History
-          </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <Clock className="w-6 h-6 text-primary-400" />
+              {categoryLabel} History
+            </h3>
 
-          {filteredHistory.length === 0 ? (
+            {/* Premium Search Bar */}
+            {baseFiltered.length > 0 && (
+              <div className="relative w-full sm:max-w-xs group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary-500 transition-colors">
+                  <Search className="w-4 h-4" />
+                </div>
+                <input
+                  type="text"
+                  placeholder={`Search ${categoryLabel.toLowerCase()}...`}
+                  value={historySearchQuery}
+                  onChange={(e) => setHistorySearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-9 py-2 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700/60 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 text-xs font-semibold text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 transition-all outline-none"
+                />
+                <AnimatePresence>
+                  {historySearchQuery && (
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      onClick={() => setHistorySearchQuery("")}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      <X className="w-3.5 h-3.5 bg-slate-100 dark:bg-slate-700 rounded-full p-0.5" />
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
+
+          {baseFiltered.length === 0 ? (
             <div className="text-center py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 border-dashed animate-in zoom-in duration-500">
               <div className="w-16 h-16 bg-primary-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 dark:border-slate-600 p-1">
                 <Logo className="w-full h-full" iconOnly />
@@ -1582,6 +1634,19 @@ const App: React.FC = () => {
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create New {getSingularName(dashboardView as AppMode)}
+              </button>
+            </div>
+          ) : filteredHistory.length === 0 ? (
+            <div className="text-center py-16 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 p-8 animate-in fade-in zoom-in-95 duration-300">
+              <Search className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+              <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">
+                No history entries match &quot;{historySearchQuery}&quot;
+              </p>
+              <button
+                onClick={() => setHistorySearchQuery("")}
+                className="mt-3 text-xs text-primary-600 dark:text-primary-400 font-bold hover:underline"
+              >
+                Clear search filter
               </button>
             </div>
           ) : (
@@ -1646,6 +1711,10 @@ const App: React.FC = () => {
           )}
         </div>
       );
+    }
+
+    if (dashboardView === "OVERVIEW" && historyLoadedUid === "none") {
+      return <DashboardSkeleton />;
     }
 
     return (
@@ -2180,10 +2249,15 @@ const App: React.FC = () => {
             onClose={() => setShowAuthModal(false)}
             onSignUpSuccess={handleSignUpSuccess}
             onCountryDetected={setDetectedCountry}
+            initialMode={authModalMode}
           />
         )}
       </div>
     );
+  }
+
+  if (showSplash) {
+    return <SplashScreen onComplete={() => setShowSplash(false)} />;
   }
 
   if (authLoading) {
@@ -2222,12 +2296,20 @@ const App: React.FC = () => {
                 SJ Tutor AI
               </h1>
             </div>
-            <button
-              onClick={() => setShowAuthModal(true)}
-              className="px-4 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              Get Started
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => openAuthModal('signin')}
+                className="px-3 py-1.5 text-slate-600 dark:text-slate-300 text-xs font-bold hover:text-slate-950 dark:hover:text-white transition-colors"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => openAuthModal('signup')}
+                className="px-4 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                Sign Up
+              </button>
+            </div>
           </header>
           <main className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
             {isViewingShared && sharedContent ? (
@@ -2242,7 +2324,7 @@ const App: React.FC = () => {
                     ? `This interactive practice quiz contains ${sharedContent.content.length} tailored challenges on ${sharedContent.title}.`
                     : 'Personalized interactive study prep.'
                 }
-                onAuthenticate={() => setShowAuthModal(true)}
+                onAuthenticate={() => openAuthModal('signup')}
               />
             ) : (
               renderContent()
@@ -2253,6 +2335,7 @@ const App: React.FC = () => {
               onClose={() => setShowAuthModal(false)}
               onSignUpSuccess={handleSignUpSuccess}
               onCountryDetected={setDetectedCountry}
+              initialMode={authModalMode}
             />
           )}
         </div>
@@ -2262,7 +2345,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
         <LandingPage
-          onGetStarted={() => setShowAuthModal(true)}
+          onGetStarted={(mode) => openAuthModal(mode)}
           countryCode={detectedCountry}
         />
         {showAuthModal && (
@@ -2271,6 +2354,7 @@ const App: React.FC = () => {
             onSignUpSuccess={handleSignUpSuccess}
             onCountryDetected={setDetectedCountry}
             initialCountry={detectedCountry}
+            initialMode={authModalMode}
           />
         )}
       </div>
@@ -2553,6 +2637,7 @@ const App: React.FC = () => {
           onClose={() => setShowAuthModal(false)}
           onSignUpSuccess={handleSignUpSuccess}
           onCountryDetected={setDetectedCountry}
+          initialMode={authModalMode}
         />
       )}
 

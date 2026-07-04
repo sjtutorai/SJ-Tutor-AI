@@ -27,7 +27,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
 
 interface LandingPageProps {
-  onGetStarted: () => void;
+  onGetStarted: (mode?: 'signin' | 'signup') => void;
   countryCode?: string | null;
 }
 
@@ -354,8 +354,14 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           </div>
 
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => onGetStarted('signin')}
+              className="text-slate-300 hover:text-white transition-colors font-bold text-xs px-2 py-2"
+            >
+              Sign In
+            </button>
             <button 
-              onClick={onGetStarted}
+              onClick={() => onGetStarted('signup')}
               className="px-5 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 border border-blue-500/30 transition-all hover:scale-105 active:scale-95"
             >
               Start Learning Free
@@ -390,7 +396,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
             <div className="flex flex-col sm:flex-row gap-4">
               <button 
-                onClick={onGetStarted}
+                onClick={() => onGetStarted('signup')}
                 className="px-8 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-505 hover:to-purple-500 text-white rounded-2xl font-bold text-base shadow-2xl shadow-blue-500/30 border border-blue-400/40 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 group"
               >
                 <span>Start Learning Free</span>
@@ -1076,7 +1082,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 return (
                   <div 
                     key={i}
-                    onClick={onGetStarted}
+                    onClick={() => onGetStarted('signup')}
                     className={`group bg-slate-950/70 hover:bg-slate-900 border ${subj.border} p-6 rounded-2xl flex flex-col items-center justify-center space-y-4 cursor-pointer hover:scale-105 hover:shadow-[0_10px_35px_rgba(0,0,0,0.4)] transition-all duration-300 overflow-hidden relative`}
                   >
                     {/* Glowing highlight bubble behind */}
@@ -1282,7 +1288,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               </div>
 
               <button 
-                onClick={onGetStarted}
+                onClick={() => onGetStarted('signup')}
                 className="w-full mt-8 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-bold text-white transition-colors"
               >
                 Start Learning Free
@@ -1335,7 +1341,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               </div>
 
               <button 
-                onClick={onGetStarted}
+                onClick={() => onGetStarted('signup')}
                 className="w-full mt-8 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-505 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/35 border border-blue-400/40 transition-all hover:scale-[1.03]"
               >
                 Claim My Academic Pro Plan
@@ -1378,7 +1384,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               </div>
 
               <button 
-                onClick={onGetStarted}
+                onClick={() => onGetStarted('signup')}
                 className="w-full mt-8 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-bold text-white transition-colors"
               >
                 Contact Institution Partner
@@ -1405,7 +1411,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
               </p>
 
               <button 
-                onClick={onGetStarted}
+                onClick={() => onGetStarted('signup')}
                 className="px-10 py-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-505 hover:to-purple-500 text-white rounded-2xl font-bold text-lg shadow-2xl shadow-blue-500/30 border border-blue-400/40 transition-all hover:scale-105 inline-flex items-center gap-3 group"
               >
                 <span>Start Learning for Free</span>
@@ -1450,10 +1456,10 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <div className="space-y-4 text-left">
               <h4 className="text-xs font-bold text-white uppercase tracking-wider">Capabilities</h4>
               <ul className="space-y-2.5 text-xs text-slate-400">
-                <li><span className="cursor-pointer hover:text-blue-400" onClick={onGetStarted}>Instant Summarizer</span></li>
-                <li><span className="cursor-pointer hover:text-blue-400" onClick={onGetStarted}>Quiz Creator</span></li>
-                <li><span className="cursor-pointer hover:text-blue-400" onClick={onGetStarted}>Homework Solver</span></li>
-                <li><span className="cursor-pointer hover:text-blue-400" onClick={onGetStarted}>Streak Rewarder</span></li>
+                <li><span className="cursor-pointer hover:text-blue-400" onClick={() => onGetStarted('signup')}>Instant Summarizer</span></li>
+                <li><span className="cursor-pointer hover:text-blue-400" onClick={() => onGetStarted('signup')}>Quiz Creator</span></li>
+                <li><span className="cursor-pointer hover:text-blue-400" onClick={() => onGetStarted('signup')}>Homework Solver</span></li>
+                <li><span className="cursor-pointer hover:text-blue-400" onClick={() => onGetStarted('signup')}>Streak Rewarder</span></li>
               </ul>
             </div>
 

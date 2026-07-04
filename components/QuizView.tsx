@@ -1,9 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
 import { QuizQuestion } from '../types';
-import { CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, Send, MessageCircle, Link, Share2, X, Trophy, Check, Copy, Download } from 'lucide-react';
+import { 
+  CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, 
+  Send, MessageCircle, Link, Share2, X, Trophy, Check, 
+  Copy, Download, Timer, Sparkles, Award, ShieldAlert, Star
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ExportModal } from './ExportModal';
+import confetti from 'canvas-confetti';
 
 interface QuizViewProps {
   questions: QuizQuestion[];
@@ -15,6 +19,15 @@ interface QuizViewProps {
   isAddedToList?: boolean;
   onSharePublicLink?: (type: string, title: string, content: any) => void;
 }
+
+const LOADING_STEPS = [
+  "Loading Questions...",
+  "Preparing Timer...",
+  "Randomizing Questions...",
+  "Loading Images...",
+  "Setting Difficulty...",
+  "Almost Ready..."
+];
 
 const QuizView: React.FC<QuizViewProps> = ({ 
   questions, 
@@ -35,6 +48,15 @@ const QuizView: React.FC<QuizViewProps> = ({
   const [localSaved, setLocalSaved] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
 
+  // Loading screen states
+  const [quizLoading, setQuizLoading] = useState(existingScore === undefined);
+  const [loadingStepIdx, setLoadingStepIdx] = useState(0);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+
+  // Result screen counting states
+  const [countedScore, setCountedScore] = useState(0);
+  const [ringProgress, setRingProgress] = useState(0);
+
   const handleSaveClick = () => {
     if (onAddToMyList) {
       onAddToMyList();
@@ -44,200 +66,425 @@ const QuizView: React.FC<QuizViewProps> = ({
     }
   };
 
+  // 1. INTRO QUIZ LOADING SCREEN (ONLY IF NEW QUIZ)
+  useEffect(() => {
+    if (quizLoading) {
+      const duration = 2200;
+      const intervalTime = duration / LOADING_STEPS.length;
+
+      // Cycle textual loading messages
+      const stepInterval = setInterval(() => {
+        setLoadingStepIdx((prev) => (prev < LOADING_STEPS.length - 1 ? prev + 1 : prev));
+      }, intervalTime);
+
+      // Smooth progress count to 100%
+      const progressInterval = setInterval(() => {
+        setLoadingProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(progressInterval);
+            return 100;
+          }
+          return prev + 1.5;
+        });
+      }, 30);
+
+      const timeout = setTimeout(() => {
+        setQuizLoading(false);
+        clearInterval(stepInterval);
+        clearInterval(progressInterval);
+      }, duration);
+
+      return () => {
+        clearInterval(stepInterval);
+        clearInterval(progressProgressInterval);
+        clearTimeout(timeout);
+      };
+    }
+  }, [quizLoading]);
+
+  // Handle quiz loading interval ref fallback
+  const progressProgressInterval = undefined;
+
   // Initialize view if there's an existing score (viewing history)
   useEffect(() => {
     if (existingScore !== undefined) {
       setScore(existingScore);
       setQuizCompleted(true);
       setShowResultModal(true);
-    } else {
-      // Reset state for new quiz
-      setCurrentIndex(0);
-      setScore(0);
-      setQuizCompleted(false);
-      setShowResult(false);
-      setSelectedOption(null);
-      setShowResultModal(false);
     }
-  }, [existingScore, questions]);
+  }, [existingScore]);
+
+  // 2. RESULT COUNTING ANIMATION & CONFETTI
+  useEffect(() => {
+    if (showResultModal) {
+      const finalPercentage = Math.round((score / questions.length) * 100);
+      
+      // Reset counting values
+      setCountedScore(0);
+      setRingProgress(0);
+
+      // Animate numerical score count
+      let currentCount = 0;
+      const countDuration = 1200;
+      const stepTime = Math.max(Math.floor(countDuration / (score || 1)), 40);
+      
+      const countInterval = setInterval(() => {
+        if (score === 0) {
+          clearInterval(countInterval);
+          return;
+        }
+        currentCount += 1;
+        if (currentCount >= score) {
+          setCountedScore(score);
+          clearInterval(countInterval);
+        } else {
+          setCountedScore(currentCount);
+        }
+      }, stepTime);
+
+      // Animate SVG Ring Fill
+      const ringTimer = setTimeout(() => {
+        setRingProgress(finalPercentage);
+      }, 100);
+
+      // Trigger premium confetti explosion if score is >= 80%
+      if (finalPercentage >= 80) {
+        const confettiTimer = setTimeout(() => {
+          confetti({
+            particleCount: 150,
+            spread: 80,
+            origin: { y: 0.6 },
+            colors: ['#2563EB', '#7C3AED', '#06B6D4', '#10B981']
+          });
+        }, 400);
+        return () => {
+          clearInterval(countInterval);
+          clearTimeout(ringTimer);
+          clearTimeout(confettiTimer);
+        };
+      }
+
+      return () => {
+        clearInterval(countInterval);
+        clearTimeout(ringTimer);
+      };
+    }
+  }, [showResultModal, score, questions.length]);
 
   const currentQuestion = questions[currentIndex];
 
-  const handleOptionSelect = (index: number) => {
+  const handleOptionSelect = (optionIndex: number) => {
     if (showResult) return;
-    setSelectedOption(index);
-    setShowResult(true);
-    if (index === currentQuestion.correctAnswerIndex) {
-      setScore(s => s + 1);
-    }
+    setSelectedOption(optionIndex);
   };
 
   const handleNext = () => {
-    if (currentIndex < questions.length - 1) {
-      setCurrentIndex(prev => prev + 1);
+    if (!showResult) {
+      const isCorrect = selectedOption === currentQuestion.correctAnswerIndex;
+      if (isCorrect) {
+        setScore((prev) => prev + 1);
+      }
+      setShowResult(true);
+    } else {
       setSelectedOption(null);
       setShowResult(false);
-    } else {
-      setQuizCompleted(true);
-      setShowResultModal(true);
-      if (onComplete) {
-        onComplete(score);
-      }
-    }
-  };
-
-  const handleShare = async (platform: string) => {
-    try {
-      // 1. Save to backend to get a unique public ID
-      let shareId = '';
-      try {
-        const response = await fetch('/api/auth/share', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'QUIZ',
-            title: 'Quiz Challenge',
-            subtitle: `I scored ${score}/${questions.length} on this quiz!`,
-            content: questions
-          })
-        });
-
-        const contentType = response.headers.get("content-type");
-        if (response.ok && contentType && contentType.indexOf("application/json") !== -1) {
-          const data = await response.json();
-          shareId = data.id;
-        } else {
-          console.warn("Backend share endpoint failed or returned non-JSON. Falling back to local share.");
+      if (currentIndex < questions.length - 1) {
+        setCurrentIndex((prev) => prev + 1);
+      } else {
+        setQuizCompleted(true);
+        setShowResultModal(true);
+        if (onComplete) {
+          onComplete(score);
         }
-      } catch (e) {
-        console.warn("Backend sharing unavailable, falling back to local share", e);
       }
-
-      const shareUrl = shareId ? `${window.location.origin}?share=${shareId}` : window.location.origin;
-      const text = `I scored ${score}/${questions.length} on my SJ Tutor AI Quiz! 🎓`;
-      const shareTextWithLink = `${text}\nCheck it out here: ${shareUrl}`;
-      
-      let url = '';
-      switch(platform) {
-        case 'whatsapp':
-          url = `https://wa.me/?text=${encodeURIComponent(shareTextWithLink)}`;
-          break;
-        case 'facebook':
-          url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(text)}`;
-          break;
-        case 'telegram':
-            url = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`;
-            break;
-        case 'gmail':
-             url = `https://mail.google.com/mail/u/0/?view=cm&fs=1&su=${encodeURIComponent("My SJ Tutor AI Score")}&body=${encodeURIComponent(shareTextWithLink)}`;
-             break;
-        case 'email':
-          url = `mailto:?subject=My SJ Tutor AI Score&body=${encodeURIComponent(shareTextWithLink)}`;
-          break;
-        case 'instagram':
-            navigator.clipboard.writeText(shareTextWithLink);
-            alert("Score and link copied! Open Instagram to paste and share.");
-            url = 'https://instagram.com';
-            break;
-                case 'copy':
-                    if (navigator.share) {
-                      try {
-                        await navigator.share({
-                          title: 'My SJ Tutor AI Score',
-                          text: text,
-                          url: shareUrl,
-                        });
-                        return;
-                      } catch (err) {
-                        console.debug("Native share canceled or failed", err);
-                      }
-                    }
-            navigator.clipboard.writeText(shareUrl);
-            alert("Share link copied to clipboard!");
-            return;
-      }
-      
-      if (url) window.open(url, '_blank');
-    } catch (err: any) {
-      console.error(err);
-      alert('Sharing failed: ' + err.message);
     }
   };
 
+  const handleShare = (platform: string) => {
+    const text = `I scored ${score}/${questions.length} on my SJ Tutor AI Quiz! 🎓`;
+    const shareUrl = `${window.location.origin}?share=quiz`;
+    const shareTextWithLink = `${text}\nCheck it out here: ${shareUrl}`;
+    
+    let url = '';
+    switch(platform) {
+      case 'whatsapp':
+        url = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareTextWithLink)}`;
+        break;
+      case 'facebook':
+        url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(text)}`;
+        break;
+      case 'telegram':
+        url = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`;
+        break;
+      case 'copy':
+        navigator.clipboard.writeText(shareTextWithLink).then(() => {
+          alert('Share link copied to clipboard!');
+        });
+        return;
+    }
+    
+    if (url) {
+      window.open(url, '_blank');
+    }
+  };
+
+  // ==========================================
+  // RENDER: QUIZ INITIAL LOADING SCREEN
+  // ==========================================
+  if (quizLoading) {
+    const particles = Array.from({ length: 12 }).map((_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 3 + 1.5,
+    }));
+
+    return (
+      <div className="relative p-12 bg-gradient-to-tr from-slate-950 via-slate-900 to-blue-950 text-white rounded-[24px] border border-slate-800 shadow-2xl min-h-[480px] flex flex-col items-center justify-center overflow-hidden">
+        {/* Floating Background Particles */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {particles.map((p) => (
+            <motion.div
+              key={p.id}
+              animate={{ 
+                y: [`${p.y}%`, `${p.y - 15}%`],
+                opacity: [0, 0.4, 0]
+              }}
+              transition={{
+                duration: 5 + Math.random() * 3,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="absolute bg-blue-400 rounded-full"
+              style={{
+                left: `${p.x}%`,
+                width: `${p.size}px`,
+                height: `${p.size}px`,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Floating Timer Icon */}
+        <div className="relative mb-8 flex items-center justify-center">
+          <div className="absolute w-24 h-24 bg-blue-500/10 rounded-full blur-xl animate-pulse" />
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+            className="absolute w-20 h-20 rounded-full border border-dashed border-blue-400/40"
+          />
+          <motion.div
+            animate={{ scale: [1, 1.08, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="relative w-14 h-14 rounded-full bg-slate-900/90 border border-slate-800 flex items-center justify-center"
+          >
+            <Timer className="w-7 h-7 text-blue-400 animate-pulse" />
+          </motion.div>
+        </div>
+
+        {/* Dynamic loading textual indicator */}
+        <div className="h-6 mb-4 flex items-center justify-center z-10">
+          <AnimatePresence mode="wait">
+            <motion.h3
+              key={loadingStepIdx}
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -5 }}
+              transition={{ duration: 0.25 }}
+              className="text-lg font-bold text-slate-200 tracking-wide font-mono"
+            >
+              {LOADING_STEPS[loadingStepIdx]}
+            </motion.h3>
+          </AnimatePresence>
+        </div>
+
+        <p className="text-xs text-slate-400 max-w-xs text-center mb-8 z-10 leading-relaxed">
+          Calibrating grading metrics, timers, and randomized academic selections...
+        </p>
+
+        {/* Circular Loading Progress */}
+        <div className="relative w-20 h-20 flex items-center justify-center z-10">
+          <svg className="w-full h-full -rotate-90">
+            <circle
+              cx="40"
+              cy="40"
+              r="34"
+              className="stroke-slate-800/60 fill-none"
+              strokeWidth="4"
+            />
+            <motion.circle
+              cx="40"
+              cy="40"
+              r="34"
+              className="stroke-blue-500 fill-none"
+              strokeWidth="4"
+              strokeDasharray="213.52"
+              strokeDashoffset={213.52 - (213.52 * loadingProgress) / 100}
+              transition={{ ease: "linear" }}
+            />
+          </svg>
+          <span className="absolute text-sm font-bold text-slate-300 font-mono">{Math.round(loadingProgress)}%</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // RENDER: RESULTS COMPLETED OVERLAY / MODAL
+  // ==========================================
   const renderResultModal = () => {
     const percentage = Math.round((score / questions.length) * 100);
     let message = "Good effort!";
-    if (percentage >= 80) message = "Excellent work!";
-    else if (percentage >= 50) message = "Keep practicing!";
+    let BadgeIcon = Award;
+    let badgeColor = "from-indigo-400 to-indigo-600 shadow-indigo-500/20";
+    let badgeText = "Scholar Explorer";
+
+    if (percentage >= 90) {
+      message = "Academic Genius! Perfect score!";
+      BadgeIcon = Star;
+      badgeColor = "from-amber-400 to-amber-600 shadow-amber-500/20";
+      badgeText = "Summa Cum Laude";
+    } else if (percentage >= 80) {
+      message = "Excellent work! High honors!";
+      BadgeIcon = Trophy;
+      badgeColor = "from-blue-400 to-blue-600 shadow-blue-500/20";
+      badgeText = "Honor Roll Student";
+    } else if (percentage >= 50) {
+      message = "Keep practicing, you are getting there!";
+      BadgeIcon = CheckCircle;
+      badgeColor = "from-emerald-400 to-emerald-600 shadow-emerald-500/20";
+      badgeText = "Knowledge Achiever";
+    } else {
+      BadgeIcon = ShieldAlert;
+      badgeColor = "from-slate-400 to-slate-600 shadow-slate-500/20";
+      badgeText = "Determination Badge";
+    }
 
     return (
       <AnimatePresence>
         {showResultModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md">
             <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden max-w-lg w-full relative border border-white/10"
+              initial={{ opacity: 0, scale: 0.94, y: 30, filter: "blur(4px)" }}
+              animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, scale: 0.94, y: 30, filter: "blur(4px)" }}
+              transition={{ type: "spring", damping: 20, stiffness: 120 }}
+              className="bg-white dark:bg-slate-900 rounded-[28px] shadow-2xl overflow-hidden max-w-lg w-full relative border border-slate-100 dark:border-slate-800"
             >
               <button 
                 onClick={() => setShowResultModal(false)}
-                className="absolute top-4 right-4 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors z-20 text-slate-400"
+                className="absolute top-5 right-5 p-2 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-colors z-20 text-slate-400"
               >
                 <X className="w-5 h-5" />
               </button>
 
               <div className="p-8 text-center">
-                <div className="w-24 h-24 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl relative">
-                   <Trophy className="w-12 h-12 text-white" />
-                   <motion.div 
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.3, type: 'spring' }}
-                    className="absolute -right-2 -bottom-2 bg-emerald-500 text-white p-2 rounded-full border-4 border-white dark:border-slate-900"
-                   >
-                    <CheckCircle className="w-6 h-6" />
-                   </motion.div>
+                {/* 1. GORGEOUS POPPING BADGE & SCORE CIRCLE */}
+                <div className="relative w-36 h-36 mx-auto mb-6 flex items-center justify-center">
+                  {/* SVG Circular Fill Progress */}
+                  <svg className="absolute inset-0 w-full h-full -rotate-90">
+                    <circle
+                      cx="72"
+                      cy="72"
+                      r="64"
+                      className="stroke-slate-100 dark:stroke-slate-800 fill-none"
+                      strokeWidth="6"
+                    />
+                    <motion.circle
+                      cx="72"
+                      cy="72"
+                      r="64"
+                      className="stroke-primary-500 fill-none"
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                      initial={{ strokeDashoffset: 402.12 }}
+                      animate={{ strokeDashoffset: 402.12 - (402.12 * ringProgress) / 100 }}
+                      transition={{ duration: 1.5, ease: "easeOut" }}
+                      strokeDasharray="402.12"
+                    />
+                  </svg>
+
+                  {/* Popping Award/Trophy Badge */}
+                  <motion.div
+                    initial={{ scale: 0, rotate: -45 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", delay: 0.4, stiffness: 180, damping: 15 }}
+                    className={`relative w-24 h-24 bg-gradient-to-br ${badgeColor} rounded-full flex items-center justify-center shadow-lg z-10 text-white`}
+                  >
+                    <BadgeIcon className="w-11 h-11" />
+                    
+                    {/* Tiny glowing star badge decoration */}
+                    <motion.div 
+                      animate={{ scale: [1, 1.2, 1] }} 
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                      className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 p-1 rounded-full border-2 border-white dark:border-slate-900"
+                    >
+                      <Sparkles className="w-3 h-3 fill-current" />
+                    </motion.div>
+                  </motion.div>
                 </div>
 
-                <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">
+                {/* Badge title popup */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary-50 dark:bg-slate-800 text-primary-600 dark:text-primary-400 rounded-full text-xs font-black uppercase tracking-wider mb-3 border border-primary-100 dark:border-slate-700 shadow-sm"
+                >
+                  <Award className="w-3.5 h-3.5" />
+                  {badgeText}
+                </motion.div>
+
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">
                   Quiz Completed!
                 </h2>
-                <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium italic">&quot;{message}&quot;</p>
+                <p className="text-slate-500 dark:text-slate-400 mb-6 font-medium italic text-sm">&quot;{message}&quot;</p>
                 
-                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 mb-8 border border-slate-100 dark:border-slate-800">
-                  <div className="text-6xl font-black text-primary-600 mb-1 tracking-tighter">
-                    {score}<span className="text-2xl text-slate-300 dark:text-slate-600 font-normal">/{questions.length}</span>
+                {/* 2. SCORE BOX WITH COUNTING ANIMATION */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-5 mb-6 border border-slate-100 dark:border-slate-800"
+                >
+                  <div className="text-5xl font-black text-primary-600 dark:text-primary-400 mb-0.5 tracking-tighter">
+                    {countedScore}<span className="text-2xl text-slate-300 dark:text-slate-600 font-normal">/{questions.length}</span>
                   </div>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest font-bold">Your Score</p>
-                </div>
+                  <div className="flex justify-center gap-4 text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-1">
+                    <span>Score: {countedScore}</span>
+                    <span>•</span>
+                    <span>Accuracy: {percentage}%</span>
+                  </div>
+                </motion.div>
 
-                {/* Specific Action Buttons in Completion flow */}
-                <div className="space-y-3 mb-8 text-left">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Quiz Options & Actions</p>
-                  
+                {/* 3. BUTTONS ANIMATE UPWARD */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 }}
+                  className="space-y-4"
+                >
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {/* Save Button */}
                     <button
                       onClick={handleSaveClick}
                       disabled={isAddedToList || localSaved}
-                      className={`p-3 border rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-xs transition ${
+                      className={`p-3 border rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-xs transition ${
                         (isAddedToList || localSaved)
-                          ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50 text-emerald-600 dark:text-emerald-400 cursor-not-allowed'
-                          : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50 text-emerald-600 dark:text-emerald-400 cursor-not-allowed shadow-none'
+                          : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:scale-[1.02]'
                       }`}
                     >
-                      <Check className={`w-4 h-4 ${(isAddedToList || localSaved) ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} />
+                      <Check className={`w-4 h-4 ${(isAddedToList || localSaved) ? 'text-emerald-500' : 'text-slate-400'}`} />
                       <span>{(isAddedToList || localSaved) ? "Saved" : "Save Score"}</span>
                     </button>
 
-                    {/* Unified Premium Export Button */}
+                    {/* Premium Export Button */}
                     <button
                       onClick={() => setIsExportOpen(true)}
-                      className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-sm transition active:scale-95"
-                      title="Export quiz in any of 20 formats (PDF, Word, Excel, etc.)"
+                      className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-sm transition hover:scale-[1.02]"
                     >
-                      <Download className="w-4 h-4 text-amber-500 animate-bounce" />
+                      <Download className="w-4 h-4 text-amber-500" />
                       <span>Export Quiz</span>
                     </button>
 
@@ -259,36 +506,34 @@ const QuizView: React.FC<QuizViewProps> = ({
                           alert("Failed to copy quiz.");
                         }
                       }}
-                      className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-755 dark:text-slate-255 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-xs transition"
+                      className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-xs transition hover:scale-[1.02]"
                     >
                       <Copy className="w-4 h-4 text-slate-500" />
                       <span>Copy Quiz</span>
                     </button>
 
-                    {/* Share Public Link Button */}
+                    {/* Share Link Button */}
                     <button
                       onClick={() => onSharePublicLink && onSharePublicLink('quiz', questions[0]?.question ? `Quiz: ${questions[0].question.substring(0, 35)}...` : 'AI Quiz Challenge', questions)}
-                      className="p-3 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-sm transition hover:scale-[1.02] active:scale-95"
+                      className="p-3 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-sm transition hover:scale-[1.02]"
                     >
                       <Share2 className="w-4 h-4" />
                       <span>Share Link</span>
                     </button>
                   </div>
-                </div>
 
-                <div className="flex justify-center mb-6">
                   <button
-                      onClick={onReset}
-                      className="flex items-center justify-center px-8 py-3.5 bg-slate-800 dark:bg-slate-700 hover:brightness-110 text-white rounded-xl font-bold transition-all active:scale-95 w-full shadow-sm"
+                    onClick={onReset}
+                    className="flex items-center justify-center px-8 py-3.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-xl font-bold transition-all hover:scale-[1.01] active:scale-95 w-full shadow-sm"
                   >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Retake Another Quiz
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retake Another Quiz
                   </button>
-                </div>
 
-                <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
-                  <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] mb-4">Quick Share Score</p>
-                  <div className="flex justify-center gap-3">
+                  {/* Individual statistics sharing */}
+                  <div className="border-t border-slate-100 dark:border-slate-800 pt-5">
+                    <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Quick Share Score</p>
+                    <div className="flex justify-center gap-3">
                       {['whatsapp', 'facebook', 'telegram', 'copy'].map(plat => (
                         <button 
                           key={plat}
@@ -301,8 +546,9 @@ const QuizView: React.FC<QuizViewProps> = ({
                           {plat === 'copy' && <Link className="w-5 h-5" />}
                         </button>
                       ))}
+                    </div>
                   </div>
-                </div>
+                </motion.div>
               </div>
             </motion.div>
           </div>
@@ -340,61 +586,62 @@ const QuizView: React.FC<QuizViewProps> = ({
       
       {quizCompleted && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md border border-slate-200 dark:border-slate-800 overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
-                    <CheckCircle className="w-5 h-5 text-emerald-500" />
-                    Review Answers
-                </h3>
-                <button 
-                  onClick={() => setShowResultModal(true)}
-                  className="text-primary-600 font-bold text-sm hover:underline"
-                >
-                  View Final Score
-                </button>
-            </div>
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {questions.map((q, idx) => (
-                    <div key={idx} className="p-6">
-                        <p className="font-semibold text-slate-800 dark:text-slate-200 mb-4 flex gap-3">
-                            <span className="text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-sm">{idx + 1}</span>
-                            {q.question}
-                        </p>
-                        <div className="space-y-2 pl-8 mb-4">
-                            {q.options.map((opt, optIdx) => (
-                                <div 
-                                    key={optIdx} 
-                                    className={`px-4 py-3 rounded-xl border text-sm flex justify-between items-center transition-all ${
-                                        optIdx === q.correctAnswerIndex 
-                                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold' 
-                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400'
-                                    }`}
-                                >
-                                    <span>{opt}</span>
-                                    {optIdx === q.correctAnswerIndex && <CheckCircle className="w-4 h-4 text-emerald-500" />}
-                                </div>
-                            ))}
-                        </div>
-                        <div className="ml-8 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl text-sm text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-800 italic">
-                            <span className="font-bold text-slate-700 dark:text-slate-300 not-italic">Quick Tip: </span>
-                            {q.explanation}
-                        </div>
+          <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
+              <CheckCircle className="w-5 h-5 text-emerald-500" />
+              Review Answers
+            </h3>
+            <button 
+              onClick={() => setShowResultModal(true)}
+              className="text-primary-600 font-bold text-sm hover:underline"
+            >
+              View Final Score
+            </button>
+          </div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {questions.map((q, idx) => (
+              <div key={idx} className="p-6">
+                <p className="font-semibold text-slate-800 dark:text-slate-200 mb-4 flex gap-3 text-left">
+                  <span className="text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-sm">{idx + 1}</span>
+                  {q.question}
+                </p>
+                <div className="space-y-2 pl-8 mb-4">
+                  {q.options.map((opt, optIdx) => (
+                    <div 
+                      key={optIdx} 
+                      className={`px-4 py-3 rounded-xl border text-sm flex justify-between items-center transition-all ${
+                        optIdx === q.correctAnswerIndex 
+                          ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold' 
+                          : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      <span>{opt}</span>
+                      {optIdx === q.correctAnswerIndex && <CheckCircle className="w-4 h-4 text-emerald-500" />}
                     </div>
-                ))}
-            </div>
-            <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 text-center">
-               <button
-                  onClick={onReset}
-                  className="px-8 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-600/20 hover:scale-105 active:scale-95 transition-all"
-                >
-                  Ready for another challenge?
-                </button>
-            </div>
+                  ))}
+                </div>
+                <div className="ml-8 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl text-sm text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-800 italic text-left">
+                  <span className="font-bold text-slate-700 dark:text-slate-300 not-italic">Quick Tip: </span>
+                  {q.explanation}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 text-center">
+            <button
+              onClick={onReset}
+              className="px-8 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-600/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              Ready for another challenge?
+            </button>
+          </div>
         </div>
       )}
 
+      {/* Main Active Quiz Screen */}
       <div className={`bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden ${quizCompleted ? 'hidden' : 'block'}`}>
         {/* Progress Bar */}
-        <div className="w-full bg-slate-100 h-1.5">
+        <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5">
           <div 
             className="bg-primary-600 h-1.5 transition-all duration-300"
             style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
@@ -409,27 +656,27 @@ const QuizView: React.FC<QuizViewProps> = ({
             <span className="text-sm font-medium text-slate-500">Score: {score}</span>
           </div>
 
-          <h3 className="text-xl font-semibold text-slate-800 mb-6">
-            {currentQuestion.question}
+          <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-6 text-left">
+            {currentQuestion?.question}
           </h3>
 
           <div className="space-y-3">
-            {currentQuestion.options.map((option, idx) => {
-              let optionClass = "border-slate-200 hover:border-primary-300 hover:bg-slate-50";
+            {currentQuestion?.options.map((option, idx) => {
+              let optionClass = "border-slate-200 dark:border-slate-800 hover:border-primary-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300";
               let icon = null;
 
               if (showResult) {
                 if (idx === currentQuestion.correctAnswerIndex) {
-                  optionClass = "border-emerald-500 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-500";
+                  optionClass = "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 ring-1 ring-emerald-500";
                   icon = <CheckCircle className="w-5 h-5 text-emerald-600" />;
                 } else if (idx === selectedOption) {
-                  optionClass = "border-rose-500 bg-rose-50 text-rose-800 ring-1 ring-rose-500";
+                  optionClass = "border-rose-500 bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300 ring-1 ring-rose-500";
                   icon = <XCircle className="w-5 h-5 text-rose-600" />;
                 } else {
-                  optionClass = "border-slate-100 opacity-50";
+                  optionClass = "border-slate-100 dark:border-slate-800 opacity-50 text-slate-500";
                 }
               } else if (selectedOption === idx) {
-                 optionClass = "border-primary-500 bg-primary-50 ring-1 ring-primary-500";
+                optionClass = "border-primary-500 bg-primary-50 dark:bg-primary-950/20 ring-1 ring-primary-500 text-primary-700 dark:text-primary-300";
               }
 
               return (
@@ -437,7 +684,7 @@ const QuizView: React.FC<QuizViewProps> = ({
                   key={idx}
                   onClick={() => handleOptionSelect(idx)}
                   disabled={showResult}
-                  className={`w-full text-left p-4 rounded-lg border-2 transition-all flex justify-between items-center ${optionClass}`}
+                  className={`w-full text-left p-4 rounded-lg border-2 transition-all flex justify-between items-center hover:scale-[1.01] active:scale-[0.98] ${optionClass}`}
                 >
                   <span className="font-medium">{option}</span>
                   {icon}
@@ -447,15 +694,15 @@ const QuizView: React.FC<QuizViewProps> = ({
           </div>
 
           {showResult && (
-            <div className="mt-6 animate-in fade-in slide-in-from-top-2">
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
+            <div className="mt-6 animate-in fade-in slide-in-from-top-2 text-left">
+              <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-lg border border-slate-200 dark:border-slate-800 mb-6">
                 <span className="block text-xs font-bold text-slate-500 uppercase mb-1">Explanation</span>
-                <p className="text-slate-700">{currentQuestion.explanation}</p>
+                <p className="text-slate-700 dark:text-slate-300 text-sm">{currentQuestion.explanation}</p>
               </div>
               <div className="flex justify-end">
                 <button
                   onClick={handleNext}
-                  className="inline-flex items-center px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-primary-500/20"
+                  className="inline-flex items-center px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-all shadow-lg shadow-primary-500/20 hover:scale-102 active:scale-95"
                 >
                   {currentIndex === questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
                   <ArrowRight className="w-4 h-4 ml-2" />

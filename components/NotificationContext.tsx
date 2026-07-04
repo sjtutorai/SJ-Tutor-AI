@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { collection, query, addDoc, doc, updateDoc, limit, orderBy, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { User, onAuthStateChanged } from 'firebase/auth';
+import { motion, AnimatePresence } from 'motion/react';
+import { Sparkles, Flame, Trophy, Award, Bell, X } from 'lucide-react';
 
 export type NotificationCategory = 'New Features' | 'Daily Streak Reminders' | 'Quiz Updates' | 'Competition Announcements' | 'Important Alerts';
 
@@ -15,6 +17,13 @@ export interface NotificationItem {
   read: boolean;
 }
 
+export interface ActiveToast {
+  id: string;
+  title: string;
+  body: string;
+  category: string;
+}
+
 interface NotificationContextProps {
   notifications: NotificationItem[];
   unreadCount: number;
@@ -24,6 +33,7 @@ interface NotificationContextProps {
   markAllAsRead: () => Promise<void>;
   clearNotifications: () => Promise<void>;
   sendNotification: (title: string, body: string, category: NotificationCategory, targetUser: string) => Promise<boolean>;
+  triggerToast: (title: string, body: string, category?: string) => void;
   isAdminUser: boolean;
 }
 
@@ -74,6 +84,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
     'Notification' in window ? Notification.permission : 'denied'
   );
+
+  const [activeToasts, setActiveToasts] = useState<ActiveToast[]>([]);
+
+  const triggerToast = (title: string, body: string, category = 'Important Alerts') => {
+    const id = `toast-${Date.now()}-${Math.random()}`;
+    const newToast: ActiveToast = { id, title, body, category };
+    setActiveToasts((prev) => [...prev, newToast]);
+    setTimeout(() => {
+      setActiveToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4500);
+  };
+
+  const triggerToastRef = useRef<(title: string, body: string, category?: string) => void>(() => {});
+  
+  useEffect(() => {
+    triggerToastRef.current = triggerToast;
+  }, []);
 
   const seenNotificationIdsRef = useRef<Set<string>>(new Set());
 
@@ -170,6 +197,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           // and its timestamp is recent (e.g. not older than 1 hour, to prevent offline queue popups)
           if (Date.now() - notif.timestamp < 3600 * 1000) {
             triggerSystemNotification(`[${notif.category}] ${notif.title}`, notif.body);
+            triggerToastRef.current(notif.title, notif.body, notif.category);
           }
         }
         // Add to seen notifications set
@@ -451,10 +479,77 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         markAllAsRead,
         clearNotifications,
         sendNotification,
+        triggerToast,
         isAdminUser,
       }}
     >
       {children}
+
+      {/* FIXED TOAST NOTIFICATION OVERLAY (TOP-RIGHT) */}
+      <div className="fixed top-5 right-5 z-[99999] w-full max-w-sm flex flex-col gap-3 pointer-events-none px-4 sm:px-0">
+        <AnimatePresence>
+          {activeToasts.map((toast) => {
+            let Icon = Bell;
+            let iconColor = "text-primary-500 bg-primary-50 dark:bg-primary-950/40";
+            let borderGlow = "border-primary-100 dark:border-primary-900/40";
+            
+            if (toast.category?.includes("Streak")) {
+              Icon = Flame;
+              iconColor = "text-orange-500 bg-orange-50 dark:bg-orange-950/40";
+              borderGlow = "border-orange-100 dark:border-orange-900/40";
+            } else if (toast.category?.includes("Quiz")) {
+              Icon = Trophy;
+              iconColor = "text-blue-500 bg-blue-50 dark:bg-blue-950/40";
+              borderGlow = "border-blue-100 dark:border-blue-900/40";
+            } else if (toast.category?.includes("Competition") || toast.category?.includes("Olympiad")) {
+              Icon = Award;
+              iconColor = "text-amber-500 bg-amber-50 dark:bg-amber-950/40";
+              borderGlow = "border-amber-100 dark:border-amber-900/40";
+            } else if (toast.category?.includes("Features")) {
+              Icon = Sparkles;
+              iconColor = "text-purple-500 bg-purple-50 dark:bg-purple-950/40";
+              borderGlow = "border-purple-100 dark:border-purple-900/40";
+            }
+
+            return (
+              <motion.div
+                key={toast.id}
+                initial={{ opacity: 0, x: 120, scale: 0.9, filter: "blur(4px)" }}
+                animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, x: 100, scale: 0.9, filter: "blur(4px)" }}
+                transition={{ type: "spring", stiffness: 220, damping: 20 }}
+                className={`pointer-events-auto w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border ${borderGlow} p-4 shadow-xl flex gap-3.5 items-start relative overflow-hidden text-left`}
+              >
+                {/* Visual Accent Sparkle */}
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-primary-500 to-indigo-500" />
+
+                <div className={`p-2 rounded-xl flex-shrink-0 ${iconColor}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+
+                <div className="flex-1">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">
+                    {toast.category || "Alert"}
+                  </h4>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                    {toast.title}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                    {toast.body}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setActiveToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+                  className="p-1 text-slate-300 hover:text-slate-500 rounded-lg transition-colors flex-shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
     </NotificationContext.Provider>
   );
 };
