@@ -693,6 +693,18 @@ const QuizView: React.FC<QuizViewProps> = ({
             })}
           </div>
 
+          {selectedOption !== null && !showResult && (
+            <div className="mt-6 flex justify-end animate-in fade-in slide-in-from-top-2 text-left">
+              <button
+                onClick={handleNext}
+                className="inline-flex items-center px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-all shadow-lg shadow-primary-500/20 hover:scale-102 active:scale-95"
+              >
+                Check Answer
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </button>
+            </div>
+          )}
+
           {showResult && (
             <div className="mt-6 animate-in fade-in slide-in-from-top-2 text-left">
               <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-lg border border-slate-200 dark:border-slate-800 mb-6">
