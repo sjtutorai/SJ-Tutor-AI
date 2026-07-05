@@ -532,7 +532,7 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
         <div className="text-center">
           <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center justify-center gap-2">
             <Sparkles className="w-5 h-5 text-primary-500 animate-spin" style={{ animationDuration: "3s" }} />
-            Creating Comprehensive Study Notes
+            {mode === AppMode.SUMMARY ? "Generating Comprehensive Summary" : "Creating Comprehensive Study Notes"}
           </h3>
           <p className="text-xs text-slate-400 dark:text-slate-500 font-mono mt-1 mb-6 uppercase tracking-wider">
             {notesPhrases[activeStep]}

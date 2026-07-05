@@ -9,7 +9,6 @@ import {
   MicOff, 
   Sparkles, 
   AlertCircle, 
-  ExternalLink, 
   Share2, 
   Save, 
   Check, 
@@ -17,21 +16,30 @@ import {
   Bookmark, 
   X, 
   Trash2,
-  Image as ImageIcon,
-  Download
+  Download,
+  Copy,
+  Volume2,
+  VolumeX,
+  RotateCw,
+  Edit2,
+  ThumbsUp,
+  ThumbsDown,
+  Paperclip,
+  FileText,
+  StopCircle,
+  ArrowUpRight,
+  Info
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
-
-
 import { SettingsService } from '../services/settingsService';
+import { jsPDF } from 'jspdf';
 
 function getDynamicSampleQuestions(subject: string, grade: string): string[] {
   const normSubject = subject.toLowerCase().trim();
   const normGrade = grade.toLowerCase().trim();
 
-  // Mathematics
   if (normSubject.includes("math") || normSubject.includes("algebra") || normSubject.includes("geometry") || normSubject.includes("trig") || normSubject.includes("calculus") || normSubject.includes("arithmetic")) {
     if (normGrade.includes("10") || normGrade.includes("11") || normGrade.includes("12") || normGrade.includes("high")) {
       return [
@@ -52,7 +60,6 @@ function getDynamicSampleQuestions(subject: string, grade: string): string[] {
     }
   }
 
-  // Physics
   if (normSubject.includes("physics") || normSubject.includes("mechanics") || normSubject.includes("electricity") || normSubject.includes("light")) {
     return [
       `Explain Ohm's Law and the relationship between voltage, current, and resistance.`,
@@ -63,7 +70,6 @@ function getDynamicSampleQuestions(subject: string, grade: string): string[] {
     ];
   }
 
-  // Chemistry
   if (normSubject.includes("chemistry") || normSubject.includes("chemical") || normSubject.includes("acid")) {
     return [
       `What is the difference between ionic and covalent bonding?`,
@@ -74,7 +80,6 @@ function getDynamicSampleQuestions(subject: string, grade: string): string[] {
     ];
   }
 
-  // Biology
   if (normSubject.includes("biology") || normSubject.includes("bio") || normSubject.includes("botany") || normSubject.includes("zoology") || normSubject.includes("plant") || normSubject.includes("animal")) {
     return [
       `Explain the process of photosynthesis and its chemical equation.`,
@@ -85,7 +90,6 @@ function getDynamicSampleQuestions(subject: string, grade: string): string[] {
     ];
   }
 
-  // Social Science, History, Geography, Civics
   if (normSubject.includes("social") || normSubject.includes("history") || normSubject.includes("geography") || normSubject.includes("civics") || normSubject.includes("political") || normSubject.includes("economics") || normSubject.includes("sst")) {
     return [
       `What are the core features of the Indian Constitution?`,
@@ -96,7 +100,6 @@ function getDynamicSampleQuestions(subject: string, grade: string): string[] {
     ];
   }
 
-  // English or Languages
   if (normSubject.includes("english") || normSubject.includes("lang") || normSubject.includes("grammar") || normSubject.includes("literature") || normSubject.includes("writing")) {
     return [
       `Explain active and passive voice with clear practice examples.`,
@@ -107,7 +110,6 @@ function getDynamicSampleQuestions(subject: string, grade: string): string[] {
     ];
   }
 
-  // Computer Science or Coding
   if (normSubject.includes("computer") || normSubject.includes("coding") || normSubject.includes("programming") || normSubject.includes("python") || normSubject.includes("java") || normSubject.includes("html") || normSubject.includes("css") || normSubject.includes("javascript") || normSubject.includes("js")) {
     return [
       `What are the four pillars of Object-Oriented Programming (OOP)?`,
@@ -118,7 +120,6 @@ function getDynamicSampleQuestions(subject: string, grade: string): string[] {
     ];
   }
 
-  // Default general fallback based on the user's specific subject and grade
   const capSubject = subject.charAt(0).toUpperCase() + subject.slice(1);
   return [
     `What are the most important fundamental concepts in ${capSubject} for ${grade}?`,
@@ -129,12 +130,30 @@ function getDynamicSampleQuestions(subject: string, grade: string): string[] {
   ];
 }
 
+interface AttachedFile {
+  name: string;
+  type: string;
+  dataUrl: string;
+  textContent?: string;
+  size?: number;
+}
+
 interface TutorChatProps {
   onDeductCredit: (amount: number) => boolean;
   currentCredits: number;
   onSaveSession: (messages: ChatMessage[]) => void;
   initialMessages?: ChatMessage[];
   onSharePublicLink?: (type: string, title: string, content: any) => void;
+}
+
+// Extends standard ChatMessage with premium features
+interface ExtendedChatMessage extends ChatMessage {
+  id: string;
+  isStreaming?: boolean;
+  liked?: boolean;
+  disliked?: boolean;
+  suggestions?: string[];
+  thinkingStepsFinished?: boolean;
 }
 
 const TutorChat: React.FC<TutorChatProps> = (props) => {
@@ -151,18 +170,27 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     };
   }, []);
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    if (initialMessages) return initialMessages;
+  const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
+    if (initialMessages) {
+      return initialMessages.map((m, i) => ({
+        id: `msg-${i}-${Date.now()}`,
+        role: m.role,
+        text: m.text,
+        images: m.images,
+        timestamp: m.timestamp || Date.now()
+      }));
+    }
     return [
       {
+        id: `msg-welcome-${Date.now()}`,
         role: 'model',
-        text: `Hi there! I'm SJ Tutor AI. I've customized my answers for your **${grade} Grade ${subject}** studies. What are we studying today?`,
+        text: `Hi there! I'm **SJ Tutor AI**, your premium, intelligent learning companion. 🎓\n\nI have fully customized our lesson for your **${grade} Grade ${subject}** studies. What are we exploring today? Let's break it down step-by-step together!`,
         timestamp: Date.now()
       }
     ];
   });
   
-  const messagesRef = useRef<ChatMessage[]>(messages);
+  const messagesRef = useRef<ExtendedChatMessage[]>(messages);
   const [isSaved, setIsSaved] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
@@ -188,7 +216,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   // Auto-save on unmount
   useEffect(() => {
     return () => {
-      if (messagesRef.current.length > 1) { // Don't save if only welcome message
+      if (messagesRef.current.length > 1) { 
         onSaveSession(messagesRef.current);
       }
     };
@@ -209,24 +237,100 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Advanced states
+  const [thinkingStep, setThinkingStep] = useState<'thinking' | 'analyzing' | 'generating' | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  
+  const isGeneratingRef = useRef<boolean>(false);
+  const currentStreamIdRef = useRef<string | null>(null);
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [attachedImage, setAttachedImage] = useState<string | null>(null);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files[0]) {
+  // File Upload Handlers
+  const handleFilesSelected = (files: FileList | null) => {
+    if (!files) return;
+    Array.from(files).forEach(file => {
       const reader = new FileReader();
-      reader.onloadend = () => setAttachedImage(reader.result as string);
-      reader.readAsDataURL(files[0]);
-    }
+      const isImg = file.type.startsWith('image/');
+      const isPdf = file.type === 'application/pdf';
+      const isText = file.type.startsWith('text/') || 
+                     file.name.endsWith('.csv') || 
+                     file.name.endsWith('.json') || 
+                     file.name.endsWith('.js') || 
+                     file.name.endsWith('.ts') || 
+                     file.name.endsWith('.py') || 
+                     file.name.endsWith('.java') || 
+                     file.name.endsWith('.cpp') || 
+                     file.name.endsWith('.css') || 
+                     file.name.endsWith('.html');
+
+      if (isImg) {
+        reader.onloadend = () => {
+          setAttachedFiles(prev => [...prev, {
+            name: file.name,
+            type: file.type,
+            dataUrl: reader.result as string,
+            size: file.size
+          }]);
+        };
+        reader.readAsDataURL(file);
+      } else if (isPdf) {
+        reader.onloadend = () => {
+          setAttachedFiles(prev => [...prev, {
+            name: file.name,
+            type: file.type,
+            dataUrl: reader.result as string,
+            size: file.size
+          }]);
+        };
+        reader.readAsDataURL(file);
+      } else if (isText) {
+        reader.onloadend = () => {
+          setAttachedFiles(prev => [...prev, {
+            name: file.name,
+            type: file.type,
+            dataUrl: '',
+            textContent: reader.result as string,
+            size: file.size
+          }]);
+        };
+        reader.readAsText(file);
+      } else {
+        // Fallback for other files (read metadata)
+        setAttachedFiles(prev => [...prev, {
+          name: file.name,
+          type: file.type,
+          dataUrl: '',
+          textContent: `[Binary File ${file.name} - Size ${file.size} bytes]`,
+          size: file.size
+        }]);
+      }
+    });
   };
 
-  const removeImage = () => {
-    setAttachedImage(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  const removeFile = (index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Drag and Drop Zone
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    handleFilesSelected(e.dataTransfer.files);
   };
 
   const toggleStar = (timestamp: number) => {
@@ -243,15 +347,15 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     }
   };
 
-  // Scroll to bottom on new message
+  // Scroll to bottom on new message or during stream
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+  }, [messages, isTyping, thinkingStep]);
 
+  // Speech Recognition
   useEffect(() => {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!Recognition) return;
-
     if (!isListening) return;
 
     const rec = new Recognition();
@@ -270,13 +374,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       setIsListening(false);
       const errorType = err.error;
       if (errorType === 'not-allowed') {
-        alert("Microphone permission was denied or blocked. Since the application is running inside a preview iframe, the browser restricts microphone access. Please click the 'Open in New Tab' button in the top-right of your screen, then click 'Voice Input' there to grant microphone permissions!");
-      } else if (errorType === 'no-speech') {
-        alert("No speech was detected. Please try speaking clearly into your microphone.");
-      } else if (errorType === 'audio-capture') {
-        alert("No microphone was found on your device or audio capture failed.");
+        alert("Microphone access is restricted. Click the 'Open in New Tab' button on top of the screen to grant full browser microphone permissions!");
       } else {
-        alert(`Speech recognition issue: ${errorType || 'unknown error'}. Please try opening the app in a new tab for full permissions.`);
+        alert(`Voice detection issue: ${errorType || 'please try again'}.`);
       }
     };
 
@@ -294,8 +394,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     return () => {
       try {
         rec.stop();
-      } catch {
-        // Already stopped or not initialized
+      } catch (err) {
+        console.warn("Speech recognition stop error", err);
       }
     };
   }, [isListening]);
@@ -311,7 +411,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
   const handleShareChat = () => {
     if (messages.length === 0) {
-      alert("No messages to share yet. Start chatting!");
+      alert("No messages to share yet.");
       return;
     }
     if (props.onSharePublicLink) {
@@ -336,8 +436,22 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     setTimeout(() => setIsSaved(false), 2000);
   };
 
-  const sendMessageToAi = async (textToSend: string) => {
-    if (isTyping && !textToSend) return;
+  // STOP Generation
+  const handleStopGenerating = () => {
+    isGeneratingRef.current = false;
+    setIsTyping(false);
+    setThinkingStep(null);
+    setMessages(prev => prev.map(m => {
+      if (m.id === currentStreamIdRef.current) {
+        return { ...m, isStreaming: false };
+      }
+      return m;
+    }));
+  };
+
+  // CORE STREAM GENERATION LOGIC
+  const sendMessageToAi = async (textToSend: string, isRegeneratingMessageId?: string) => {
+    if (isGeneratingRef.current && !isRegeneratingMessageId) return;
     setError(null);
 
     // Credit Check
@@ -347,57 +461,128 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       return;
     }
 
-    const currentImage = attachedImage;
-    if (currentImage) removeImage(); // clear early
+    // Capture attached files
+    const activeFiles = [...attachedFiles];
+    setAttachedFiles([]); // clear upload array
 
-    const newMsg: ChatMessage = {
-      role: 'user',
-      text: textToSend,
-      images: currentImage ? [currentImage] : undefined,
-      timestamp: Date.now()
-    };
+    const userMessageId = `msg-user-${Date.now()}`;
+    const modelMessageId = isRegeneratingMessageId || `msg-model-${Date.now()}`;
+    currentStreamIdRef.current = modelMessageId;
 
-    setMessages(prev => [...prev, newMsg]);
+    if (!isRegeneratingMessageId) {
+      // Append user message
+      const imgUrls = activeFiles.filter(f => f.type.startsWith('image/')).map(f => f.dataUrl);
+      const newUserMsg: ExtendedChatMessage = {
+        id: userMessageId,
+        role: 'user',
+        text: textToSend,
+        images: imgUrls.length > 0 ? imgUrls : undefined,
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, newUserMsg]);
+    }
+
     setIsTyping(true);
+    isGeneratingRef.current = true;
 
-    try {
-      const responseText = await GeminiService.chatWithTutor(textToSend, messages, currentImage ? [currentImage] : []);
+    // STEP-BY-STEP STAGGERED THINKING STEP TRANSITIONS
+    setThinkingStep('thinking');
+    await new Promise(r => setTimeout(r, 1000));
+    if (!isGeneratingRef.current) return;
+
+    setThinkingStep('analyzing');
+    await new Promise(r => setTimeout(r, 1000));
+    if (!isGeneratingRef.current) return;
+
+    setThinkingStep('generating');
+    await new Promise(r => setTimeout(r, 800));
+    if (!isGeneratingRef.current) return;
+
+    // Hide thinking indicator once we initiate streaming
+    setThinkingStep(null);
+
+    // Initial placeholder model response
+    if (isRegeneratingMessageId) {
+      setMessages(prev => prev.map(m => {
+        if (m.id === isRegeneratingMessageId) {
+          return { ...m, text: '', isStreaming: true };
+        }
+        return m;
+      }));
+    } else {
       setMessages(prev => [...prev, {
+        id: modelMessageId,
         role: 'model',
-        text: responseText,
+        text: '',
+        isStreaming: true,
         timestamp: Date.now()
       }]);
-    } catch (err: any) {
-      console.error(err);
-      let errorText = "⚠️ Sorry, I encountered an issue fetching answers from Gemini. Please try again.";
-      const rawMsg = String(err?.message || err || '');
+    }
+
+    try {
+      // Prepare image base64 elements separately if needed
+      const imgDataList = activeFiles.filter(f => f.type.startsWith('image/')).map(f => f.dataUrl);
       
-      try {
-        if ("Notification" in window && Notification.permission === "granted") {
-          new Notification("AI Tutor Error", {
-            body: "Gemini connection lost. Please verify keys and connection.",
-            icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
-          });
+      // Get conversation history up to the current point
+      const activeHistory = isRegeneratingMessageId
+        ? messagesRef.current.filter(m => m.id !== isRegeneratingMessageId)
+        : messagesRef.current;
+
+      const stream = await GeminiService.chatWithTutorStream(textToSend, activeHistory, imgDataList, activeFiles);
+      
+      let accumulatedText = "";
+      for await (const chunk of stream) {
+        if (!isGeneratingRef.current) {
+          break; // User stopped generation
         }
-      } catch (e) {
-        console.warn("Autoscroll failed", e);
+        const chunkText = chunk.text || "";
+        accumulatedText += chunkText;
+
+        setMessages(prev => prev.map(m => {
+          if (m.id === modelMessageId) {
+            return { ...m, text: accumulatedText };
+          }
+          return m;
+        }));
       }
 
-      if (rawMsg.includes("Generative Language API has not been used") || rawMsg.includes("PERMISSION_DENIED")) {
-        setIsApiDisabled(true);
-        errorText = "API_DISABLED_BLOCK";
-      } else if (rawMsg.includes("API key not valid")) {
-        errorText = "⚠️ Config Error: The API Key provided is invalid.";
+      // Generation Complete: append custom smart suggestions
+      const smartSuggestions = generateSmartSuggestionsForTopic(textToSend, accumulatedText);
+      setMessages(prev => prev.map(m => {
+        if (m.id === modelMessageId) {
+          return { 
+            ...m, 
+            isStreaming: false, 
+            suggestions: smartSuggestions,
+            thinkingStepsFinished: true
+          };
+        }
+        return m;
+      }));
+
+    } catch (err: any) {
+      console.error("Streaming error:", err);
+      let errorText = "⚠️ Something went wrong with SJ Tutor AI. Please verify your connection or click Retry.";
+      const rawMsg = String(err?.message || err || '');
+
+      if (rawMsg.includes("API key not valid") || rawMsg.includes("API_KEY_MISSING")) {
+        errorText = "⚠️ Config Error: Please verify that you have configured a valid Gemini API Key in the Secrets panel.";
       }
-      
-      setMessages(prev => [...prev, { role: 'model', text: errorText, timestamp: Date.now() }]);
+
+      setMessages(prev => prev.map(m => {
+        if (m.id === modelMessageId) {
+          return { ...m, text: errorText, isStreaming: false };
+        }
+        return m;
+      }));
     } finally {
       setIsTyping(false);
+      isGeneratingRef.current = false;
     }
   };
 
   const handleSend = () => {
-    if ((!input.trim() && !attachedImage) || isTyping) return;
+    if ((!input.trim() && attachedFiles.length === 0) || isTyping) return;
     sendMessageToAi(input);
     setInput('');
   };
@@ -409,153 +594,443 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     }
   };
 
+  // Helper to generate dynamic context suggestions
+  const generateSmartSuggestionsForTopic = (query: string, reply: string): string[] => {
+    const q = query.toLowerCase();
+    const suggestions = ["Explain more", "Simplify this explanation", "Create Quiz", "Practice Questions"];
+    if (q.includes("math") || q.includes("formula") || reply.includes("=") || reply.includes("+")) {
+      suggestions.push("Show another example");
+    }
+    if (q.includes("code") || q.includes("program") || reply.includes("```")) {
+      suggestions.push("Optimize this code", "Explain line-by-line");
+    }
+    if (reply.length > 500) {
+      suggestions.push("Summarize in 3 bullet points");
+    }
+    return suggestions.slice(0, 4);
+  };
+
+  // Premium message action: Copy
+  const handleCopyMessage = (id: string, text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  // Premium message action: Download PDF
+  const handleDownloadPdf = (text: string) => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.setTextColor(15, 23, 42);
+    doc.text("SJ Tutor AI - Premium Study Notes", 14, 20);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()} | Subject: ${subject}`, 14, 26);
+    doc.line(14, 29, 196, 29);
+
+    doc.setFontSize(11);
+    doc.setTextColor(51, 65, 85);
+    const cleanText = text.replace(/[*#`~_]/g, ''); // strip markdown
+    const lines = doc.splitTextToSize(cleanText, 180);
+    
+    let y = 36;
+    lines.forEach((line: string) => {
+      if (y > 280) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.text(line, 14, y);
+      y += 6.5;
+    });
+
+    doc.save(`sjtutor_notes_${Date.now()}.pdf`);
+  };
+
+  // Premium message action: Download Markdown
+  const handleDownloadMarkdown = (text: string) => {
+    const blob = new Blob([text], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sjtutor_notes_${Date.now()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Premium message action: Read Aloud
+  const handleReadAloud = (id: string, text: string) => {
+    if (speakingId === id) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel(); // stop anything else first
+    const cleanText = text.replace(/[#*`~_()]/g, '').replace(/\[/g, '').replace(/\]/g, ''); // strip syntax
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    utterance.onend = () => {
+      setSpeakingId(null);
+    };
+    utterance.onerror = () => {
+      setSpeakingId(null);
+    };
+
+    speechUtteranceRef.current = utterance;
+    setSpeakingId(id);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Premium message action: Regenerate
+  const handleRegenerate = (id: string) => {
+    const originalUserIndex = messages.findIndex(m => m.id === id);
+    if (originalUserIndex === -1) return;
+    
+    // Find the latest user prompt preceding this response
+    let lastUserPrompt = "";
+    for (let i = originalUserIndex; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        lastUserPrompt = messages[i].text;
+        break;
+      }
+    }
+
+    if (!lastUserPrompt) return;
+    sendMessageToAi(lastUserPrompt, id);
+  };
+
+  // Premium message action: Toggle reactions
+  const handleReaction = (id: string, type: 'like' | 'dislike') => {
+    setMessages(prev => prev.map(m => {
+      if (m.id === id) {
+        if (type === 'like') {
+          return { ...m, liked: !m.liked, disliked: false };
+        } else {
+          return { ...m, disliked: !m.disliked, liked: false };
+        }
+      }
+      return m;
+    }));
+  };
+
+  // User Message Action: Edit Prompt
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+
+  const startEditingPrompt = (msg: ExtendedChatMessage) => {
+    setEditingMessageId(msg.id);
+    setEditingText(msg.text);
+  };
+
+  const handleSaveEditedPrompt = (id: string) => {
+    if (!editingText.trim()) return;
+    setEditingMessageId(null);
+
+    // Filter messages up to the edited one
+    const msgIndex = messages.findIndex(m => m.id === id);
+    if (msgIndex === -1) return;
+
+    // Update the message and slice the rest of the thread
+    const sliceHistory = messages.slice(0, msgIndex);
+    setMessages(sliceHistory);
+    sendMessageToAi(editingText);
+  };
+
+
+
   return (
-    <div className="h-[calc(100vh-140px)] flex bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
+    <div className="h-[calc(100vh-140px)] flex bg-slate-50 dark:bg-slate-950 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative font-sans">
+      
+      {/* Drag & Drop Overlay */}
+      {isDragOver && (
+        <div 
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          className="absolute inset-0 bg-primary-500/10 dark:bg-primary-500/5 backdrop-blur-md z-30 flex flex-col items-center justify-center border-4 border-dashed border-primary-500 rounded-2xl animate-in fade-in"
+        >
+          <Paperclip className="w-16 h-16 text-primary-600 animate-bounce mb-4" />
+          <h2 className="text-2xl font-black text-slate-800 dark:text-white">Drop your files here</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">Support Images, PDFs, and Study documents</p>
+        </div>
+      )}
+
       {/* Primary Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-full">
-        {/* Header Info */}
-        <div className="px-4 py-2 bg-white border-b border-slate-100 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SJ Tutor AI Session</span>
-            <div className="flex items-center gap-1">
-              <button 
-                onClick={handleSave} 
-                className={`p-1 rounded transition-colors flex items-center gap-1 ${isSaved ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 hover:text-primary-600 hover:bg-slate-100'}`} 
-                title="Save Chat Session"
-              >
-                {isSaved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
-                {isSaved && <span className="text-[9px] font-bold">Saved</span>}
-              </button>
-              <button 
-                onClick={handleShareChat} 
-                className="p-1 text-slate-400 hover:text-primary-600 rounded hover:bg-slate-100 transition-colors" 
-                title="Share Chat Transcript"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-              </button>
-              <button 
-                onClick={() => setIsExportOpen(true)} 
-                className="p-1 text-slate-400 hover:text-amber-500 rounded hover:bg-amber-50 transition-colors" 
-                title="Export & Download Chat Session in 20 formats"
-              >
-                <Download className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setShowBookmarks(!showBookmarks)}
-                className={`p-1 rounded-md transition-colors flex items-center gap-1 ${showBookmarks ? 'text-amber-650 bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-slate-50'}`}
-                title="Saved & Starred Messages"
-              >
-                <Star className={`w-3.5 h-3.5 ${showBookmarks ? 'fill-amber-400 text-amber-500' : ''}`} />
-                <span className="text-[10px] font-bold">Saved Msgs</span>
-              </button>
+      <div 
+        onDragOver={handleDragOver}
+        className="flex-1 flex flex-col min-w-0 h-full relative"
+      >
+        {/* Sleek Glassmorphic Header */}
+        <div className="px-6 py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 flex justify-between items-center z-10">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-tr from-primary-500 to-amber-500 rounded-xl text-white shadow-lg shadow-primary-500/25">
+              <Sparkles className="w-5 h-5 fill-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">SJ Tutor AI</span>
+                <span className="px-2 py-0.5 bg-primary-100 dark:bg-primary-950 text-primary-700 dark:text-primary-300 rounded-full text-[10px] font-bold">PRO</span>
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Interactive Tutor in {subject} ({grade})</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 text-[10px] font-bold">
-            <Sparkles className="w-2.5 h-2.5 fill-emerald-500 text-emerald-500 animate-pulse" />
-            Free Unlimited Access
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleSave} 
+              className={`p-2 rounded-xl transition-all flex items-center gap-1.5 ${isSaved ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20' : 'text-slate-500 dark:text-slate-400 hover:text-primary-600 hover:bg-slate-100 dark:hover:bg-slate-800'}`} 
+              title="Save Session"
+            >
+              {isSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+              {isSaved && <span className="text-xs font-black">Saved</span>}
+            </button>
+            <button 
+              onClick={handleShareChat} 
+              className="p-2 text-slate-500 dark:text-slate-400 hover:text-primary-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all" 
+              title="Share Session"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={() => setIsExportOpen(true)} 
+              className="p-2 text-slate-500 dark:text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20 rounded-xl transition-all" 
+              title="Export Lesson"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowBookmarks(!showBookmarks)}
+              className={`p-2 rounded-xl transition-all flex items-center gap-1.5 ${showBookmarks ? 'text-amber-600 bg-amber-50 dark:bg-amber-950/20' : 'text-slate-500 dark:text-slate-400 hover:text-amber-550 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+              title="Starred Lessons"
+            >
+              <Star className={`w-4 h-4 ${showBookmarks ? 'fill-amber-400 text-amber-500' : ''}`} />
+              <span className="text-xs font-black hidden md:inline">Bookmarks</span>
+            </button>
           </div>
         </div>
 
         {/* Message Thread */}
-        <div className="flex-grow overflow-y-auto p-4 space-y-5 custom-scrollbar bg-slate-50/10">
-          {messages.map((msg, idx) => {
+        <div className="flex-grow overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-50/40 dark:bg-slate-950/20">
+          {messages.map((msg) => {
             const isStarred = starredTimestamps.includes(msg.timestamp);
             return (
               <div
-                key={idx}
-                className={`flex gap-3 relative group ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                key={msg.id}
+                className={`flex gap-4 relative group ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
+                {/* AI Avatar */}
                 {msg.role === 'model' && (
-                  <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-100 flex-shrink-0">
+                  <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm">
                     <img src={SJTUTOR_AVATAR} alt="AI" className="w-full h-full object-cover" />
                   </div>
                 )}
                 
-                {/* Message Bubble + Bookmarking Actions */}
+                {/* Message Bubble Column */}
                 <div className="flex flex-col max-w-[85%] relative">
-                  <div
-                    className={`rounded-xl px-4 py-2.5 shadow-sm text-sm relative ${
-                      msg.role === 'user'
-                        ? 'bg-primary-600 text-white rounded-br-none'
-                        : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
-                    }`}
-                  >
-                    {msg.images && msg.images.map((img, i) => (
-                      <div key={i} className="mb-2">
-                        <img src={img} alt="Attached" className="max-w-xs rounded-lg shadow-sm border border-black/10" />
+                  
+                  {/* Inline Prompt Editor for user */}
+                  {editingMessageId === msg.id ? (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-lg flex flex-col gap-2 min-w-[300px]">
+                      <textarea
+                        value={editingText}
+                        onChange={(e) => setEditingText(e.target.value)}
+                        className="w-full text-sm outline-none bg-transparent resize-none text-slate-800 dark:text-white"
+                        rows={3}
+                      />
+                      <div className="flex justify-end gap-2 text-xs">
+                        <button onClick={() => setEditingMessageId(null)} className="px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 font-bold">Cancel</button>
+                        <button onClick={() => handleSaveEditedPrompt(msg.id)} className="px-3 py-1.5 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700">Save & Resubmit</button>
                       </div>
-                    ))}
-                    {msg.text === "API_DISABLED_BLOCK" ? (
-                      <div className="bg-red-50 border border-red-100 p-4 rounded-lg space-y-3">
-                        <div className="flex items-start gap-2 text-red-800">
-                          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-bold">API Not Enabled</p>
-                            <p className="text-xs text-red-600">The &quot;Generative Language API&quot; needs to be enabled in your Google Cloud project.</p>
+                    </div>
+                  ) : (
+                    <div
+                      className={`rounded-2xl px-5 py-3.5 shadow-sm text-[15px] leading-relaxed relative border ${
+                        msg.role === 'user'
+                          ? 'bg-primary-600 border-primary-600 text-white rounded-tr-none'
+                          : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800/80 text-slate-800 dark:text-slate-100 rounded-tl-none'
+                      }`}
+                    >
+                      {/* Attached images */}
+                      {msg.images && msg.images.map((img, i) => (
+                        <div key={i} className="mb-3 max-w-sm overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 shadow-md">
+                          <img src={img} alt="Attachment" className="w-full h-auto" />
+                        </div>
+                      ))}
+
+                      {/* Content rendering */}
+                      {msg.role === 'model' ? (
+                        <div className="markdown-body">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                          {msg.isStreaming && (
+                            <span className="inline-block w-1.5 h-4 bg-primary-500 animate-pulse ml-0.5 rounded-full" />
+                          )}
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                      )}
+
+                      {/* Floating actions and Reaction tags */}
+                      {msg.role === 'model' && !msg.isStreaming && (
+                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex flex-wrap justify-between items-center gap-2">
+                          {/* Left reaction actions */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleReaction(msg.id, 'like')}
+                              className={`p-1.5 rounded-lg transition-colors ${msg.liked ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850'}`}
+                              title="Like response"
+                            >
+                              <ThumbsUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleReaction(msg.id, 'dislike')}
+                              className={`p-1.5 rounded-lg transition-colors ${msg.disliked ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850'}`}
+                              title="Dislike response"
+                            >
+                              <ThumbsDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleCopyMessage(msg.id, msg.text)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850 transition-colors"
+                              title="Copy response"
+                            >
+                              {copiedId === msg.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              onClick={() => handleReadAloud(msg.id, msg.text)}
+                              className={`p-1.5 rounded-lg transition-colors ${speakingId === msg.id ? 'text-primary-600 bg-primary-50 dark:bg-primary-950/20 animate-pulse' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850'}`}
+                              title={speakingId === msg.id ? "Stop voice synthesis" : "Read Response Aloud"}
+                            >
+                              {speakingId === msg.id ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+
+                          {/* Right download & save actions */}
+                          <div className="flex items-center gap-1 text-slate-450">
+                            <button
+                              onClick={() => handleDownloadMarkdown(msg.text)}
+                              className="px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-850 text-[11px] font-bold border border-slate-200 dark:border-slate-800 rounded-lg flex items-center gap-1 transition"
+                            >
+                              Markdown
+                            </button>
+                            <button
+                              onClick={() => handleDownloadPdf(msg.text)}
+                              className="px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-850 text-[11px] font-bold border border-slate-200 dark:border-slate-800 rounded-lg flex items-center gap-1 transition"
+                            >
+                              PDF
+                            </button>
+                            <button
+                              onClick={() => handleRegenerate(msg.id)}
+                              className="p-1.5 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-400 hover:text-primary-600 rounded-lg transition"
+                              title="Regenerate this answer"
+                            >
+                              <RotateCw className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
-                        <a 
-                          href="https://console.developers.google.com/apis/api/generativelanguage.googleapis.com/overview"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 w-full py-2 bg-red-600 text-white text-xs font-bold rounded-md hover:bg-red-700 transition-colors shadow-sm"
+                      )}
+                    </div>
+                  )}
+
+                  {/* Suggestion tags block for student action queries */}
+                  {msg.suggestions && msg.suggestions.length > 0 && !msg.isStreaming && (
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {msg.suggestions.map((suggestion, sIdx) => (
+                        <button
+                          key={sIdx}
+                          onClick={() => sendMessageToAi(suggestion)}
+                          className="px-3 py-1 bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/20 text-xs font-bold text-slate-600 dark:text-slate-300 rounded-full transition shadow-xs flex items-center gap-1"
                         >
-                          Enable API Now
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    ) : msg.role === 'model' ? (
-                      <div className="markdown-body">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
-                      </div>
-                    ) : (
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                          <span>{suggestion}</span>
+                          <ArrowUpRight className="w-3 h-3 text-slate-400" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Message footer timestamp & user actions */}
+                  <div className="mt-1 flex items-center gap-2 self-end text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    
+                    {msg.role === 'user' && editingMessageId !== msg.id && (
+                      <button 
+                        onClick={() => startEditingPrompt(msg)}
+                        className="text-slate-400 hover:text-primary-600 flex items-center gap-0.5 ml-1"
+                        title="Edit prompt"
+                      >
+                        <Edit2 className="w-2.5 h-2.5" /> Edit
+                      </button>
+                    )}
+                    
+                    {msg.role === 'model' && (
+                      <button
+                        onClick={() => toggleStar(msg.timestamp)}
+                        className={`hover:scale-110 transition flex items-center gap-0.5 ml-1 ${isStarred ? 'text-amber-500 font-bold' : 'text-slate-400 hover:text-amber-500'}`}
+                      >
+                        <Star className={`w-3 h-3 ${isStarred ? 'fill-amber-400' : ''}`} />
+                        {isStarred ? "Starred" : "Star"}
+                      </button>
                     )}
                   </div>
 
-                  {/* Bookmark Star button hover trigger */}
-                  <div className="absolute top-1 -right-3 sm:-right-6 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-10 flex items-center">
-                    <button
-                      onClick={() => toggleStar(msg.timestamp)}
-                      className={`p-1 bg-white border rounded-full shadow-sm hover:scale-110 active:scale-95 transition-all ${
-                        isStarred ? 'text-amber-500 border-amber-200 bg-amber-50' : 'text-slate-400 hover:text-amber-500 border-slate-200'
-                      }`}
-                      title={isStarred ? "Remove Bookmark" : "Bookmark/Star message"}
-                    >
-                      <Star className={`w-3 h-3 ${isStarred ? 'fill-amber-400' : ''}`} />
-                    </button>
-                  </div>
                 </div>
 
+                {/* User Avatar */}
                 {msg.role === 'user' && (
-                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                    <UserIcon className="w-4 h-4 text-slate-500" />
+                  <div className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 shadow-xs border border-slate-300/60 dark:border-slate-700/60">
+                    <UserIcon className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                   </div>
                 )}
               </div>
             );
           })}
           
-          {isTyping && (
-             <div className="flex gap-3 justify-start items-center">
-                <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-100 flex-shrink-0">
-                  <img src={SJTUTOR_AVATAR} alt="AI" className="w-full h-full object-cover" />
+          {/* MULTI-STEP ANIMATED STAGGERED THINKING INDICATOR */}
+          {thinkingStep && (
+            <div className="flex gap-4 justify-start items-start">
+              <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm">
+                <img src={SJTUTOR_AVATAR} alt="AI" className="w-full h-full object-cover" />
+              </div>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm flex flex-col gap-3 min-w-[260px] animate-pulse">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 text-primary-500 animate-spin" />
+                  <span className="text-sm font-black text-slate-800 dark:text-white">SJ Tutor AI</span>
                 </div>
-                <div className="bg-white border border-slate-200 rounded-xl rounded-bl-none px-4 py-2.5 flex items-center">
-                  <Loader2 className="w-4 h-4 text-primary-400 animate-spin" />
+                
+                {/* Thinking steps sequence progress */}
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${thinkingStep === 'thinking' ? 'bg-primary-500 scale-125 animate-ping' : 'bg-emerald-500'}`} />
+                    <span className={`font-black ${thinkingStep === 'thinking' ? 'text-primary-600 dark:text-primary-400' : 'text-slate-450 dark:text-slate-500'}`}>Thinking...</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${thinkingStep === 'analyzing' ? 'bg-primary-500 scale-125 animate-ping' : thinkingStep === 'generating' ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-800'}`} />
+                    <span className={`font-black ${thinkingStep === 'analyzing' ? 'text-primary-600 dark:text-primary-400' : thinkingStep === 'generating' ? 'text-slate-450 dark:text-slate-500' : 'text-slate-300 dark:text-slate-700'}`}>Analyzing your question...</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${thinkingStep === 'generating' ? 'bg-primary-500 scale-125 animate-ping' : 'bg-slate-200 dark:bg-slate-800'}`} />
+                    <span className={`font-black ${thinkingStep === 'generating' ? 'text-primary-600 dark:text-primary-400' : 'text-slate-300 dark:text-slate-700'}`}>Generating the best answer...</span>
+                  </div>
                 </div>
-             </div>
+              </div>
+            </div>
           )}
-          
-          {messages.length === 1 && !isTyping && (
-            <div className="space-y-3 mt-4 ml-11">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recommended for {subject} studies ({grade}):</p>
-              <div className="flex flex-wrap gap-2">
+
+          {/* Fallback sample questions */}
+          {messages.length === 1 && !isTyping && !thinkingStep && (
+            <div className="space-y-4 mt-4 ml-12">
+              <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <Info className="w-3.5 h-3.5" />
+                <span>Recommended for your {subject} Syllabus ({grade})</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl">
                 {sampleQuestions.map((q, idx) => (
                   <button
                     key={idx}
                     onClick={() => sendMessageToAi(q)}
-                    className="text-left text-xs bg-white text-slate-600 px-3 py-2 rounded-lg border border-slate-200 hover:border-primary-400 hover:bg-primary-50 transition-all shadow-sm"
+                    className="text-left text-xs bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800/60 hover:border-primary-400 hover:bg-primary-50/50 dark:hover:bg-primary-950/20 hover:shadow-xs transition duration-200"
                   >
                     {q}
                   </button>
@@ -567,97 +1042,143 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Controls */}
-        <div className="p-3 bg-white border-t border-slate-100 flex flex-col gap-2">
-          {error && (
-            <div className="p-2 bg-red-50 border border-red-100 rounded-lg flex items-center gap-2 text-xs text-red-600 animate-in fade-in slide-in-from-bottom-2">
-              <AlertCircle className="w-3.5 h-3.5" />
-              {error}
+        {/* Input Control Console */}
+        <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-3">
+          
+          {/* Active file list */}
+          {attachedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 py-1">
+              {attachedFiles.map((file, fIdx) => (
+                <div 
+                  key={fIdx}
+                  className="flex items-center gap-2 bg-slate-50 dark:bg-slate-850 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 relative group animate-in slide-in-from-bottom-2 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-xs"
+                >
+                  {file.type.startsWith('image/') ? (
+                    <img src={file.dataUrl} alt="Attached" className="w-5 h-5 rounded object-cover" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-primary-500" />
+                  )}
+                  <span className="max-w-[150px] truncate">{file.name}</span>
+                  <button 
+                    onClick={() => removeFile(fIdx)}
+                    className="p-0.5 hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-400 hover:text-red-500 rounded-full transition"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
-          
-          {attachedImage && (
-            <div className="flex relative w-16 h-16 rounded overflow-hidden border border-slate-200">
-              <img src={attachedImage} alt="Preview" className="w-full h-full object-cover" />
+
+          {/* Floating error bar */}
+          {error && (
+            <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 rounded-xl flex items-center justify-between text-xs text-red-600 dark:text-red-400 animate-in fade-in slide-in-from-bottom-2 font-bold">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
               <button 
-                onClick={removeImage}
-                className="absolute top-0.5 right-0.5 bg-red-500 rounded-full text-white p-0.5 hover:bg-red-600"
+                onClick={() => {
+                  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+                  if (lastUser) sendMessageToAi(lastUser.text);
+                }}
+                className="px-2.5 py-1 bg-red-650 hover:bg-red-700 text-white rounded-lg transition"
               >
-                <X className="w-3 h-3" />
+                Retry
               </button>
             </div>
           )}
 
-          <div className="relative flex items-center gap-2">
+          <div className="relative flex items-center gap-3">
             <input 
               type="file" 
               ref={fileInputRef} 
-              onChange={handleImageChange} 
-              accept="image/*" 
+              onChange={(e) => handleFilesSelected(e.target.files)} 
+              multiple
               className="hidden" 
-              capture="environment"
             />
+            
+            {/* Attachment Button */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-2.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors"
-              title="Add Image"
+              className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-850 hover:border-slate-300 transition-colors shadow-xs"
+              title="Add PDF, Images, or Code"
+              disabled={isTyping || thinkingStep !== null}
             >
-              <ImageIcon className="w-4 h-4" />
+              <Paperclip className="w-4 h-4" />
             </button>
 
+            {/* Voice Input */}
             <button
               type="button"
               onClick={toggleVoiceInput}
-              className={`p-2.5 rounded-lg border border-slate-200 transition-colors ${isListening ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
-              title="Voice Input"
+              className={`p-3 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors shadow-xs ${isListening ? 'bg-red-50 dark:bg-red-950 text-red-500 border-red-200 animate-pulse' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-850'}`}
+              title="Voice Dictation"
+              disabled={isTyping || thinkingStep !== null}
             >
               {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </button>
+
+            {/* Input Text Box */}
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isListening ? "Listening..." : "Ask SJ Tutor AI anything..."}
-              className="w-full pl-3 pr-10 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-sm max-h-32 text-slate-900"
+              placeholder={isListening ? "Dictating your query..." : "Ask SJ Tutor AI about concepts, formulas, code, or tasks..."}
+              className="w-full pl-4 pr-12 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-[14px] max-h-32 text-slate-900 dark:text-white placeholder:text-slate-400"
               rows={1}
+              disabled={isTyping || thinkingStep !== null}
             />
-            <button
-              onClick={handleSend}
-              disabled={(!input.trim() && !attachedImage) || isTyping}
-              className="absolute right-1.5 p-1.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
+
+            {/* Stop Generation or Send button */}
+            {isGeneratingRef.current || thinkingStep !== null ? (
+              <button
+                onClick={handleStopGenerating}
+                className="absolute right-2 p-2 bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 rounded-lg transition-colors flex items-center justify-center"
+                title="Stop generation"
+              >
+                <StopCircle className="w-5 h-5" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={(!input.trim() && attachedFiles.length === 0) || isTyping}
+                className="absolute right-2 p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            )}
           </div>
-          <div className="mt-1 flex justify-between px-1">
-            <span className="text-[9px] text-emerald-500 font-bold">🎉 Active Campaign: Free Unlimited</span>
-            <span className="text-[9px] text-slate-400 font-bold uppercase">10 Days Left</span>
+          
+          <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider px-1">
+            <span>💻 Supports PDF, TXT, CSV, Code, Images</span>
+            <span className="text-primary-600 dark:text-primary-400">SJ Tutor AI Engine v3.5</span>
           </div>
+
         </div>
       </div>
 
-      {/* Bookmarks Overlay Sidebar */}
+      {/* Starred Bookmarks Drawer */}
       {showBookmarks && (
-        <div className="w-80 border-l border-slate-150 bg-slate-50/70 p-4 flex flex-col h-full flex-shrink-0 animate-in slide-in-from-right duration-250 z-20">
-          <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-3">
-            <div className="flex items-center gap-2 text-slate-700 font-bold text-sm">
+        <div className="w-80 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col h-full flex-shrink-0 animate-in slide-in-from-right duration-200 z-20 shadow-xl">
+          <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">
+            <div className="flex items-center gap-2 text-slate-800 dark:text-white font-black text-sm">
               <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
-              <span>Bookmarked ({starredTimestamps.length})</span>
+              <span>Bookmarks ({starredTimestamps.length})</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               {starredTimestamps.length > 0 && (
                 <button
                   onClick={clearAllBookmarks}
-                  className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded transition"
-                  title="Clear All Bookmarks"
+                  className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-400 hover:text-red-500 rounded-lg transition"
+                  title="Clear Bookmarks"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-4 h-4" />
                 </button>
               )}
               <button 
                 onClick={() => setShowBookmarks(false)} 
-                className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 transition"
-                title="Close Sidebar"
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -665,31 +1186,31 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           </div>
 
           {starredTimestamps.length === 0 ? (
-            <div className="text-center py-16 text-slate-450 space-y-3 px-3 flex-1 flex flex-col justify-center items-center">
-              <Bookmark className="w-10 h-10 text-slate-300" />
-              <p className="text-xs font-bold text-slate-500">No bookmarked messages</p>
-              <p className="text-[11px] text-slate-400">Hover or click messages and tap the star icon to save important content for later reference!</p>
+            <div className="text-center py-20 text-slate-400 space-y-3 px-4 flex-1 flex flex-col justify-center items-center">
+              <Bookmark className="w-12 h-12 text-slate-300 dark:text-slate-700" />
+              <p className="text-xs font-black text-slate-600 dark:text-slate-400">No bookmarks saved yet</p>
+              <p className="text-[11px] text-slate-400 leading-normal">Hover or select individual tutor response blocks, then click &quot;Star&quot; or &quot;Bookmark&quot; to save core revision notes!</p>
             </div>
           ) : (
-            <div className="space-y-3.5 overflow-y-auto flex-1 pr-1 custom-scrollbar">
-              {messages.filter(msg => starredTimestamps.includes(msg.timestamp)).map((msg, idx) => (
-                <div key={idx} className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs relative group flex flex-col gap-2">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-1 custom-scrollbar">
+              {messages.filter(msg => starredTimestamps.includes(msg.timestamp)).map((msg) => (
+                <div key={msg.id} className="bg-slate-50 dark:bg-slate-850 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800/80 shadow-xs relative flex flex-col gap-2">
                   <div className="flex justify-between items-center">
-                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${msg.role === 'user' ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-700'}`}>
+                    <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider ${msg.role === 'user' ? 'bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'}`}>
                       {msg.role === 'user' ? 'You' : 'AI Tutor'}
                     </span>
                     <button 
                       onClick={() => toggleStar(msg.timestamp)} 
-                      className="text-amber-500 hover:text-slate-400 transition"
+                      className="text-amber-500 hover:text-slate-450 transition"
                       title="Remove Bookmark"
                     >
-                      <Star className="w-3.5 h-3.5 fill-amber-400" />
+                      <Star className="w-4 h-4 fill-amber-400" />
                     </button>
                   </div>
-                  <div className="text-xs text-slate-700 max-h-40 overflow-y-auto leading-relaxed whitespace-pre-wrap select-text custom-scrollbar">
+                  <div className="text-xs text-slate-700 dark:text-slate-300 max-h-40 overflow-y-auto leading-relaxed whitespace-pre-wrap select-text custom-scrollbar">
                     {msg.text}
                   </div>
-                  <span className="text-[9px] text-slate-400 self-end font-medium">
+                  <span className="text-[9px] text-slate-400 self-end font-bold">
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
@@ -698,6 +1219,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           )}
         </div>
       )}
+
       <ExportModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}

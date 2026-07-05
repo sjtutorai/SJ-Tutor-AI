@@ -138,6 +138,26 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     setEditingNote(null);
   };
 
+  const handleDeleteNote = (noteId: string) => {
+    if (!window.confirm("Are you sure you want to delete this note?")) return;
+    const updatedNotes = notes.filter(n => n.id !== noteId);
+    setNotes(updatedNotes);
+    
+    // Check if we have any notes left in the currently selected subject
+    if (selectedSubject) {
+      const remainingInSubject = updatedNotes.filter(n => n.subject === selectedSubject).length;
+      if (remainingInSubject === 0) {
+        setSelectedSubject(null);
+        setViewMode('SUBJECTS');
+      } else {
+        setViewMode('LIST');
+      }
+    } else {
+      setViewMode('SUBJECTS');
+    }
+    setEditingNote(null);
+  };
+
   const handleGenerateAiNotesSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subjectInput || !languageInput || !chapterNameInput) {
@@ -341,7 +361,19 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                         }`}>
                           {note.template}
                         </div>
-                        <StatusIcon status={note.status} />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteNote(note.id);
+                            }}
+                            className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 rounded transition"
+                            title="Delete note"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <StatusIcon status={note.status} />
+                        </div>
                       </div>
                       <h4 className="font-bold text-slate-800 dark:text-white line-clamp-1 mb-2 group-hover:text-primary-600">{note.title}</h4>
                       <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-3 mb-4">{note.content.replace(/[#*]/g, '')}</p>
@@ -387,6 +419,14 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Export Note</span>
+                    </button>
+
+                    <button 
+                      onClick={() => editingNote.id && handleDeleteNote(editingNote.id)}
+                      className="p-2 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl transition active:scale-[0.98]"
+                      title="Delete Note"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
 
                     <button onClick={handleSaveNote} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20">

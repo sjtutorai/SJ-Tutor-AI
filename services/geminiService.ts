@@ -30,7 +30,7 @@ export const GeminiService = {
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
       config: {
         systemInstruction: `You are an AI study assistant. You must communicate and generate content strictly in ${language}.`
@@ -64,7 +64,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: prompt,
     });
 
@@ -148,7 +148,7 @@ Generate notes based on:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         systemInstruction,
@@ -178,7 +178,7 @@ Generate notes based on:
     `;
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
@@ -208,11 +208,11 @@ Generate notes based on:
       ${files.length > 0 ? `Files/Images Attached: I have attached ${files.length} file(s)/document(s)/image(s) of the homework/problem.` : "No files provided."}
       
       Requirements:
-      1. Carefully analyze ALL inputs (text, images, and documents).
-      2. If files are provided (such as PDFs, photos, DOCS, SHEETS, or TEXT files), extract the questions, data, or problems from them.
-      3. Provide a clear, step-by-step solution for all identified problems.
-      4. Explain the underlying concepts simply so the student can learn, not just copy.
-      5. THE ENTIRE RESPONSE MUST BE IN ${language.toUpperCase()}.
+      - Carefully analyze ALL inputs (text, images, and documents).
+      - If files are provided (such as PDFs, photos, DOCS, SHEETS, or TEXT files), extract the questions, data, or problems from them.
+      - Provide a clear, step-by-step solution for all identified problems.
+      - Explain the underlying concepts simply so the student can learn, not just copy.
+      - THE ENTIRE RESPONSE MUST BE IN ${language.toUpperCase()}.
       
       If the inputs are unclear or do not contain educational problems, politely ask the student for more details or clearer files.
     `;
@@ -228,7 +228,7 @@ Generate notes based on:
     });
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: {
         parts: contents
       },
@@ -264,7 +264,7 @@ Generate notes based on:
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -297,7 +297,7 @@ Generate notes based on:
     const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -338,7 +338,7 @@ Generate notes based on:
     
     const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -375,7 +375,7 @@ Generate notes based on:
     const ai = getAI();
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       config: { systemInstruction: systemInstruction }
     });
   },
@@ -401,7 +401,7 @@ Generate notes based on:
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: [...formattedHistory, { role: 'user', parts: currentParts }],
       config: { systemInstruction }
     });
@@ -409,12 +409,88 @@ Generate notes based on:
     return response.text || "";
   },
 
+  chatWithTutorStream: async (text: string, history: any[], imagesBase64: string[] = [], extraFiles: { name: string; type: string; dataUrl: string; textContent?: string }[] = []) => {
+    const ai = getAI();
+    const systemInstruction = `You are SJ Tutor AI, an advanced, highly intelligent, friendly, and motivational AI tutor and assistant.
+      
+Your mission:
+- Help students learn concepts deeply rather than just giving answers.
+- Explain math/science/coding/humanities step-by-step.
+- Show examples and real-life connections.
+- Keep your tone positive, encouraging, patient, curious, and professional.
+- Render beautiful Markdown with clear headings, subheadings, lists, code blocks with copy buttons, horizontal lines, tables, block quotes, and LaTeX math.
+- Never show robotic statements like "Here is your answer". Be engaging!
+
+${SettingsService.getTutorSystemInstruction()}
+`;
+
+    // Process chat history
+    const formattedHistory = history.map(msg => ({
+      role: msg.role === 'model' ? 'model' : 'user',
+      parts: msg.images ? [
+        ...msg.images.map((img: string) => {
+          const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+          const isPdf = img.startsWith('data:application/pdf');
+          const mime = isPdf ? 'application/pdf' : 'image/jpeg';
+          return {
+            inlineData: { mimeType: mime, data: cleanBase64 }
+          };
+        }),
+        { text: msg.text }
+      ] : [{ text: msg.text }]
+    }));
+
+    // Build the current prompt parts
+    const currentParts: any[] = [];
+
+    // Append context from attached files that were read as text (TXT, CSV, code, etc.)
+    let fileContext = '';
+    extraFiles.forEach(f => {
+      if (f.textContent) {
+        fileContext += `\n[Attached File: ${f.name}]\nType: ${f.type}\nContent:\n${f.textContent}\n`;
+      } else if (f.dataUrl.startsWith('data:application/pdf')) {
+        // Pass PDF native base64 inline to Gemini
+        const cleanBase = f.dataUrl.replace(/^data:application\/pdf;base64,/, "");
+        currentParts.push({
+          inlineData: { mimeType: 'application/pdf', data: cleanBase }
+        });
+      } else if (f.dataUrl.startsWith('data:image')) {
+        // Pass Image base64 inline
+        const cleanBase = f.dataUrl.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+        currentParts.push({
+          inlineData: { mimeType: 'image/jpeg', data: cleanBase }
+        });
+      }
+    });
+
+    let finalPrompt = text;
+    if (fileContext) {
+      finalPrompt = `${fileContext}\n\nUser Question:\n${text}`;
+    }
+
+    currentParts.push({ text: finalPrompt });
+
+    // Handle extra base64 images passed separately
+    imagesBase64.forEach(img => {
+      const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+      currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
+    });
+
+    const response = await ai.models.generateContentStream({
+      model: 'gemini-3.5-flash',
+      contents: [...formattedHistory, { role: 'user', parts: currentParts }],
+      config: { systemInstruction }
+    });
+
+    return response;
+  },
+
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
     const ai = getAI();
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.5-flash',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
