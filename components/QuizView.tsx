@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { QuizQuestion } from '../types';
 import { 
-  CheckCircle, XCircle, ArrowRight, RefreshCw, Facebook, 
+  CheckCircle, XCircle, ArrowRight, ArrowLeft, RefreshCw, Facebook, 
   Send, MessageCircle, Link, Share2, X, Trophy, Check, 
   Copy, Download, Timer, Sparkles, Award, ShieldAlert, Star
 } from 'lucide-react';
@@ -40,9 +40,8 @@ const QuizView: React.FC<QuizViewProps> = ({
   onSharePublicLink
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [userAnswers, setUserAnswers] = useState<(number | null)[]>(() => new Array(questions.length).fill(null));
   const [score, setScore] = useState(0);
-  const [showResult, setShowResult] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
   const [localSaved, setLocalSaved] = useState(false);
@@ -174,28 +173,25 @@ const QuizView: React.FC<QuizViewProps> = ({
   const currentQuestion = questions[currentIndex];
 
   const handleOptionSelect = (optionIndex: number) => {
-    if (showResult) return;
-    setSelectedOption(optionIndex);
+    if (quizCompleted) return;
+    const newAnswers = [...userAnswers];
+    newAnswers[currentIndex] = optionIndex;
+    setUserAnswers(newAnswers);
   };
 
   const handleNext = () => {
-    if (!showResult) {
-      const isCorrect = selectedOption === currentQuestion.correctAnswerIndex;
-      if (isCorrect) {
-        setScore((prev) => prev + 1);
-      }
-      setShowResult(true);
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex((prev) => prev + 1);
     } else {
-      setSelectedOption(null);
-      setShowResult(false);
-      if (currentIndex < questions.length - 1) {
-        setCurrentIndex((prev) => prev + 1);
-      } else {
-        setQuizCompleted(true);
-        setShowResultModal(true);
-        if (onComplete) {
-          onComplete(score);
-        }
+      // Evaluate all answers!
+      const finalScore = userAnswers.reduce((acc, ans, idx) => {
+        return ans === questions[idx].correctAnswerIndex ? acc + 1 : acc;
+      }, 0);
+      setScore(finalScore);
+      setQuizCompleted(true);
+      setShowResultModal(true);
+      if (onComplete) {
+        onComplete(finalScore);
       }
     }
   };
@@ -558,7 +554,7 @@ const QuizView: React.FC<QuizViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-300">
       {renderResultModal()}
 
       {isViewingShared && onAddToMyList && (
@@ -599,38 +595,74 @@ const QuizView: React.FC<QuizViewProps> = ({
             </button>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {questions.map((q, idx) => (
-              <div key={idx} className="p-6">
-                <p className="font-semibold text-slate-800 dark:text-slate-200 mb-4 flex gap-3 text-left">
-                  <span className="text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-sm">{idx + 1}</span>
-                  {q.question}
-                </p>
-                <div className="space-y-2 pl-8 mb-4">
-                  {q.options.map((opt, optIdx) => (
-                    <div 
-                      key={optIdx} 
-                      className={`px-4 py-3 rounded-xl border text-sm flex justify-between items-center transition-all ${
-                        optIdx === q.correctAnswerIndex 
-                          ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold' 
-                          : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400'
-                      }`}
-                    >
-                      <span>{opt}</span>
-                      {optIdx === q.correctAnswerIndex && <CheckCircle className="w-4 h-4 text-emerald-500" />}
+            {questions.map((q, idx) => {
+              const userAnswer = userAnswers[idx];
+              const isCorrect = userAnswer === q.correctAnswerIndex;
+              const isSkipped = userAnswer === null;
+
+              return (
+                <div key={idx} className="p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200 flex gap-3 text-left">
+                      <span className="text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-sm">{idx + 1}</span>
+                      {q.question}
+                    </p>
+                    
+                    <div>
+                      {isSkipped ? (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400 rounded-full text-xs font-black">
+                          Skipped
+                        </span>
+                      ) : isCorrect ? (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 rounded-full text-xs font-black">
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                          Correct
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 text-rose-750 dark:text-rose-400 rounded-full text-xs font-black">
+                          <XCircle className="w-3.5 h-3.5 text-rose-500" />
+                          Incorrect
+                        </span>
+                      )}
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="space-y-2 pl-8 mb-4">
+                    {q.options.map((opt, optIdx) => {
+                      let optionStyle = "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400";
+                      let indicatorIcon = null;
+
+                      if (optIdx === q.correctAnswerIndex) {
+                        optionStyle = "bg-emerald-50/70 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-bold";
+                        indicatorIcon = <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />;
+                      } else if (optIdx === userAnswer) {
+                        optionStyle = "bg-rose-50/70 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-350 font-bold";
+                        indicatorIcon = <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />;
+                      }
+
+                      return (
+                        <div 
+                          key={optIdx} 
+                          className={`px-4 py-3 rounded-xl border text-sm flex justify-between items-center transition-all ${optionStyle}`}
+                        >
+                          <span>{opt}</span>
+                          {indicatorIcon}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="ml-8 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl text-sm text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-800 italic text-left">
+                    <span className="font-bold text-slate-700 dark:text-slate-300 not-italic">Quick Tip: </span>
+                    {q.explanation}
+                  </div>
                 </div>
-                <div className="ml-8 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-xl text-sm text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-800 italic text-left">
-                  <span className="font-bold text-slate-700 dark:text-slate-300 not-italic">Quick Tip: </span>
-                  {q.explanation}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 text-center">
             <button
               onClick={onReset}
-              className="px-8 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-600/20 hover:scale-105 active:scale-95 transition-all"
+              className="px-8 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-600/20 hover:scale-105 active:scale-95 transition-all cursor-pointer"
             >
               Ready for another challenge?
             </button>
@@ -653,7 +685,11 @@ const QuizView: React.FC<QuizViewProps> = ({
             <span className="text-xs font-bold text-primary-600 uppercase tracking-wider bg-primary-50 px-2 py-1 rounded">
               Question {currentIndex + 1} of {questions.length}
             </span>
-            <span className="text-sm font-medium text-slate-500">Score: {score}</span>
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
+              <span>{userAnswers.filter(a => a !== null).length} Answered</span>
+              <span>•</span>
+              <span>{userAnswers.filter((a, i) => a === null && i < currentIndex).length} Skipped</span>
+            </div>
           </div>
 
           <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-6 text-left">
@@ -662,66 +698,61 @@ const QuizView: React.FC<QuizViewProps> = ({
 
           <div className="space-y-3">
             {currentQuestion?.options.map((option, idx) => {
+              const isSelected = userAnswers[currentIndex] === idx;
               let optionClass = "border-slate-200 dark:border-slate-800 hover:border-primary-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300";
-              let icon = null;
-
-              if (showResult) {
-                if (idx === currentQuestion.correctAnswerIndex) {
-                  optionClass = "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 ring-1 ring-emerald-500";
-                  icon = <CheckCircle className="w-5 h-5 text-emerald-600" />;
-                } else if (idx === selectedOption) {
-                  optionClass = "border-rose-500 bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300 ring-1 ring-rose-500";
-                  icon = <XCircle className="w-5 h-5 text-rose-600" />;
-                } else {
-                  optionClass = "border-slate-100 dark:border-slate-800 opacity-50 text-slate-500";
-                }
-              } else if (selectedOption === idx) {
-                optionClass = "border-primary-500 bg-primary-50 dark:bg-primary-950/20 ring-1 ring-primary-500 text-primary-700 dark:text-primary-300";
+              
+              if (isSelected) {
+                optionClass = "border-primary-500 bg-primary-50 dark:bg-primary-950/20 ring-1 ring-primary-500 text-primary-700 dark:text-primary-300 font-semibold";
               }
 
               return (
                 <button
                   key={idx}
                   onClick={() => handleOptionSelect(idx)}
-                  disabled={showResult}
-                  className={`w-full text-left p-4 rounded-lg border-2 transition-all flex justify-between items-center hover:scale-[1.01] active:scale-[0.98] ${optionClass}`}
+                  className={`w-full text-left p-4 rounded-lg border-2 transition-all flex justify-between items-center hover:scale-[1.01] active:scale-[0.98] cursor-pointer ${optionClass}`}
                 >
                   <span className="font-medium">{option}</span>
-                  {icon}
+                  {isSelected && <CheckCircle className="w-5 h-5 text-primary-500" />}
                 </button>
               );
             })}
           </div>
 
-          {selectedOption !== null && !showResult && (
-            <div className="mt-6 flex justify-end animate-in fade-in slide-in-from-top-2 text-left">
+          <div className="mt-8 flex justify-between items-center gap-4 border-t border-slate-100 dark:border-slate-800 pt-6">
+            {/* Back Button */}
+            {currentIndex > 0 ? (
               <button
-                onClick={handleNext}
-                className="inline-flex items-center px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-all shadow-lg shadow-primary-500/20 hover:scale-102 active:scale-95"
+                onClick={() => setCurrentIndex((prev) => prev - 1)}
+                className="inline-flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-250 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs transition cursor-pointer"
               >
-                Check Answer
-                <ArrowRight className="w-4 h-4 ml-2" />
+                <ArrowLeft className="w-4 h-4 mr-1.5" />
+                Previous
               </button>
-            </div>
-          )}
+            ) : (
+              <div /> // spacer
+            )}
 
-          {showResult && (
-            <div className="mt-6 animate-in fade-in slide-in-from-top-2 text-left">
-              <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-lg border border-slate-200 dark:border-slate-800 mb-6">
-                <span className="block text-xs font-bold text-slate-500 uppercase mb-1">Explanation</span>
-                <p className="text-slate-700 dark:text-slate-300 text-sm">{currentQuestion.explanation}</p>
-              </div>
-              <div className="flex justify-end">
+            {/* Next or Skip Button */}
+            <div className="flex items-center gap-3">
+              {userAnswers[currentIndex] === null ? (
                 <button
                   onClick={handleNext}
-                  className="inline-flex items-center px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-all shadow-lg shadow-primary-500/20 hover:scale-102 active:scale-95"
+                  className="inline-flex items-center px-5 py-2.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400 rounded-xl font-bold text-xs transition cursor-pointer"
                 >
-                  {currentIndex === questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                  Skip Question
+                  <ArrowRight className="w-4 h-4 ml-1.5" />
                 </button>
-              </div>
+              ) : (
+                <button
+                  onClick={handleNext}
+                  className="inline-flex items-center px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs transition shadow-md shadow-primary-500/10 hover:scale-102 active:scale-95 cursor-pointer"
+                >
+                  {currentIndex === questions.length - 1 ? 'Finish & Evaluate' : 'Next Question'}
+                  <ArrowRight className="w-4 h-4 ml-1.5" />
+                </button>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
       <ExportModal

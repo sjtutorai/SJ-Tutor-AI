@@ -2148,6 +2148,10 @@ const App: React.FC = () => {
                   (h) => h.id === currentHistoryId && h.type === AppMode.TUTOR,
                 )?.content?.messages
               }
+              recentSessions={history.filter((h) => h.type === AppMode.TUTOR)}
+              activeSessionId={currentHistoryId}
+              onSelectSession={(id) => setCurrentHistoryId(id)}
+              onCreateQuiz={() => setMode(AppMode.QUIZ)}
             />
           </div>
         );
