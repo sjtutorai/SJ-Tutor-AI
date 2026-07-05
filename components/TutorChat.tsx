@@ -239,6 +239,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const initialInputRef = useRef('');
   const [error, setError] = useState<string | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   // Advanced states
   const [thinkingStep, setThinkingStep] = useState<'thinking' | 'analyzing' | 'generating' | null>(null);
@@ -413,9 +414,11 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       setIsListening(false);
       const errorType = err.error;
       if (errorType === 'not-allowed') {
-        alert("Microphone access is restricted. Click the 'Open in New Tab' button on top of the screen to grant full browser microphone permissions!");
+        setVoiceError("Microphone access is restricted inside the preview window. Click the 'Open in New Tab' button on top of the screen to grant microphone permissions!");
+      } else if (errorType === 'no-speech') {
+        console.log("No speech detected.");
       } else {
-        alert(`Voice detection issue: ${errorType || 'please try again'}.`);
+        setVoiceError(`Voice detection issue: ${errorType || 'please try again'}.`);
       }
     };
 
@@ -428,6 +431,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     } catch (e) {
       console.error("Speech recognition start failed:", e);
       setIsListening(false);
+      setVoiceError("Could not start speech recognition in this browser.");
     }
 
     return () => {
@@ -442,9 +446,10 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   const toggleVoiceInput = () => {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!Recognition) {
-      alert("Speech recognition is not supported in this browser. Try Google Chrome.");
+      setVoiceError("Speech recognition is not supported in this browser. Please try Google Chrome or Microsoft Edge.");
       return;
     }
+    setVoiceError(null); // Clear previous voice error when toggling
     if (!isListening) {
       initialInputRef.current = input;
       setInterimTranscript('');
@@ -707,25 +712,42 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   // Premium message action: Read Aloud
   const handleReadAloud = (id: string, text: string) => {
     if (speakingId === id) {
-      window.speechSynthesis.cancel();
+      try {
+        if (window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+        }
+      } catch (err) {
+        console.warn("Speech synthesis cancel failed:", err);
+      }
       setSpeakingId(null);
       return;
     }
 
-    window.speechSynthesis.cancel(); // stop anything else first
-    const cleanText = text.replace(/[#*`~_()]/g, '').replace(/\[/g, '').replace(/\]/g, ''); // strip syntax
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    
-    utterance.onend = () => {
-      setSpeakingId(null);
-    };
-    utterance.onerror = () => {
-      setSpeakingId(null);
-    };
+    try {
+      if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+        setVoiceError("Text-to-speech (Listen) is not fully supported in this browser context.");
+        return;
+      }
+      window.speechSynthesis.cancel(); // stop anything else first
+      const cleanText = text.replace(/[#*`~_()]/g, '').replace(/\[/g, '').replace(/\]/g, ''); // strip syntax
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      
+      utterance.onend = () => {
+        setSpeakingId(null);
+      };
+      utterance.onerror = (e) => {
+        console.warn("Speech synthesis error:", e);
+        setSpeakingId(null);
+      };
 
-    speechUtteranceRef.current = utterance;
-    setSpeakingId(id);
-    window.speechSynthesis.speak(utterance);
+      speechUtteranceRef.current = utterance;
+      setSpeakingId(id);
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.error("Speech synthesis failed to start:", e);
+      setSpeakingId(null);
+      setVoiceError("Text-to-speech could not start in this browser context.");
+    }
   };
 
   // Premium message action: Regenerate
@@ -1127,6 +1149,22 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                 className="px-2.5 py-1 bg-red-650 hover:bg-red-700 text-white rounded-lg transition"
               >
                 Retry
+              </button>
+            </div>
+          )}
+
+          {/* Floating voice error bar */}
+          {voiceError && (
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900 rounded-xl flex items-center justify-between text-xs text-rose-600 dark:text-rose-400 animate-in fade-in slide-in-from-bottom-2 font-bold">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-500" />
+                <span>{voiceError}</span>
+              </div>
+              <button 
+                onClick={() => setVoiceError(null)}
+                className="px-2.5 py-1 bg-rose-650 hover:bg-rose-700 text-white rounded-lg transition"
+              >
+                Dismiss
               </button>
             </div>
           )}
