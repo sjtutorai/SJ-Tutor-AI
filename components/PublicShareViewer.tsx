@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { formatLaTeXToUnicode } from "../utils/exportUtils";
 
 interface PublicShareViewerProps {
   shareId: string;
@@ -243,7 +244,7 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
       const textToRender = typeof rawData === "string" ? rawData : (rawData.content || rawData.summary || "");
       return (
         <div className="markdown-body text-slate-855 dark:text-slate-200 leading-relaxed text-sm md:text-base space-y-4">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{textToRender}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{formatLaTeXToUnicode(textToRender)}</ReactMarkdown>
         </div>
       );
     }
@@ -254,17 +255,17 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
           {rawData.query && (
             <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 mb-4">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Homework Problem</span>
-              <p className="text-sm font-semibold italic text-slate-700 dark:text-slate-300">&ldquo;{rawData.query}&rdquo;</p>
+              <p className="text-sm font-semibold italic text-slate-700 dark:text-slate-300">&ldquo;{formatLaTeXToUnicode(rawData.query)}&rdquo;</p>
             </div>
           )}
           {rawData.solution && (
             <div className="markdown-body space-y-4">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{rawData.solution}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{formatLaTeXToUnicode(rawData.solution)}</ReactMarkdown>
             </div>
           )}
           {rawData.content && typeof rawData.content === "string" && (
             <div className="markdown-body space-y-4">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{rawData.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{formatLaTeXToUnicode(rawData.content)}</ReactMarkdown>
             </div>
           )}
         </div>
@@ -291,11 +292,11 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
                   key={qIdx} 
                   className="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm"
                 >
-                  <p className="font-bold text-slate-850 dark:text-white mb-4 flex items-start gap-2.5">
+                  <p className="font-bold text-slate-855 dark:text-white mb-4 flex items-start gap-2.5">
                     <span className="w-6 h-6 rounded-full bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 text-xs text-slate-500 font-semibold flex items-center justify-center flex-shrink-0 mt-0.5">
                       {qIdx + 1}
                     </span>
-                    <span className="text-sm md:text-base">{q.question}</span>
+                    <span className="text-sm md:text-base">{formatLaTeXToUnicode(q.question)}</span>
                   </p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
@@ -323,7 +324,7 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
                           className={`w-full py-3 px-4 rounded-xl border text-left text-sm transition-all focus:outline-none flex items-center gap-2.5 ${optionStyle}`}
                         >
                           <span className="text-xs font-bold text-slate-400">{String.fromCharCode(65 + optIdx)}.</span>
-                          <span>{opt}</span>
+                          <span>{formatLaTeXToUnicode(opt)}</span>
                         </button>
                       );
                     })}
@@ -340,7 +341,7 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
                       </div>
                       <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400 flex items-start gap-1.5 leading-relaxed">
                         <Lightbulb className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                        <span>{q.explanation}</span>
+                        <span>{formatLaTeXToUnicode(q.explanation)}</span>
                       </p>
                     </div>
                   )}

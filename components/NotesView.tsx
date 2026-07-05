@@ -12,6 +12,7 @@ import { SettingsService } from '../services/settingsService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
+import { formatLaTeXToUnicode } from '../utils/exportUtils';
 
 interface NotesViewProps {
   userId: string | null;
@@ -422,7 +423,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                   {/* Live Preview */}
                   <div className="flex-1 p-6 overflow-y-auto bg-white/50 dark:bg-slate-900/20 custom-scrollbar">
                      <div className="prose prose-sm dark:prose-invert max-w-none markdown-body">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{editingNote.content || '*No content yet*'}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{formatLaTeXToUnicode(editingNote.content || '*No content yet*')}</ReactMarkdown>
                      </div>
                   </div>
                 </div>

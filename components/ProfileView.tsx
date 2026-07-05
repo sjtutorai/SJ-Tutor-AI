@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { formatLaTeXToUnicode } from '../utils/exportUtils';
 import { GeminiService } from '../services/geminiService';
 import { UserProfile } from '../types';
 import { 
@@ -815,7 +816,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
               {analysisResult ? (
                 <div className="space-y-4 animate-in fade-in duration-500">
                   <div className="prose prose-sm dark:prose-invert max-w-none bg-white dark:bg-slate-900/50 rounded-xl p-6 border border-slate-100 dark:border-slate-800 shadow-inner overflow-y-auto max-h-[400px] custom-scrollbar markdown-body text-slate-800 dark:text-slate-200 leading-relaxed">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{analysisResult}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{formatLaTeXToUnicode(analysisResult)}</ReactMarkdown>
                   </div>
                   <div className="flex justify-end">
                     <button 

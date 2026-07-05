@@ -31,6 +31,270 @@ const formatDate = (ts?: number): string => {
   });
 };
 
+const SUPERSCRIPT_MAP: Record<string, string> = {
+  '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+  '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', 'n': 'ⁿ', 'i': 'ⁱ'
+};
+
+const SUBSCRIPT_MAP: Record<string, string> = {
+  '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
+  '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎', 'a': 'ₐ', 'e': 'ₑ', 'o': 'ₒ', 'x': 'ₓ', 'h': 'ₕ',
+  'k': 'ₖ', 'l': 'ₗ', 'm': 'ₘ', 'n': 'ₙ', 'p': 'ₚ', 's': 'ₛ', 't': 'ₜ'
+};
+
+export const toUnicodeSuperscript = (str: string): string => {
+  return str.split('').map(char => SUPERSCRIPT_MAP[char] || char).join('');
+};
+
+export const toUnicodeSubscript = (str: string): string => {
+  return str.split('').map(char => SUBSCRIPT_MAP[char] || char).join('');
+};
+
+export const formatLaTeXToUnicode = (text: string): string => {
+  if (!text) return '';
+  let processed = text;
+
+  // 1. Triple superscript/subscript with \text{...}
+  processed = processed.replace(/\^\{([^}]+)\}_\{([^}]+)\}\\text\{([^}]+)\}/g, (_, sup, sub, txt) => {
+    return toUnicodeSuperscript(sup) + toUnicodeSubscript(sub) + txt;
+  });
+  processed = processed.replace(/\^\{([^}]+)\}_\{([^}]+)\}([A-Za-z])/g, (_, sup, sub, char) => {
+    return toUnicodeSuperscript(sup) + toUnicodeSubscript(sub) + char;
+  });
+
+  processed = processed.replace(/_\{([^}]+)\}\^\{([^}]+)\}\\text\{([^}]+)\}/g, (_, sub, sup, txt) => {
+    return toUnicodeSubscript(sub) + toUnicodeSuperscript(sup) + txt;
+  });
+  processed = processed.replace(/_\{([^}]+)\}\^\{([^}]+)\}([A-Za-z])/g, (_, sub, sup, char) => {
+    return toUnicodeSubscript(sub) + toUnicodeSuperscript(sup) + char;
+  });
+
+  // 2. Simple superscript/subscript with curly braces
+  processed = processed.replace(/\^\{([^}]+)\}/g, (_, sup) => toUnicodeSuperscript(sup));
+  processed = processed.replace(/_\{([^}]+)\}/g, (_, sub) => toUnicodeSubscript(sub));
+
+  // 3. Simple single-char superscript/subscript
+  processed = processed.replace(/([A-Za-z0-9])\^([0-9a-zA-Z+-])/g, (_, char, sup) => char + toUnicodeSuperscript(sup));
+  processed = processed.replace(/([A-Za-z0-9])_([0-9a-zA-Z+-])/g, (_, char, sub) => char + toUnicodeSubscript(sub));
+
+  // 4. Clean up remaining \text{} and $ signs
+  processed = processed.replace(/\\text\{([^}]+)\}/g, '$1');
+  processed = processed.replace(/\$([^$]+)\$/g, '$1');
+
+  return processed;
+};
+
+export const formatLaTeX = (text: string): string => {
+  if (!text) return '';
+  let processed = text;
+  
+  // 1. Double superscript/subscript with \text{...} or letters
+  processed = processed.replace(/\^\{([^}]+)\}_\{([^}]+)\}\\text\{([^}]+)\}/g, '<sup>$1</sup><sub>$2</sub>$3');
+  processed = processed.replace(/\^\{([^}]+)\}_\{([^}]+)\}([A-Za-z])/g, '<sup>$1</sup><sub>$2</sub>$3');
+  
+  processed = processed.replace(/_\{([^}]+)\}\^\{([^}]+)\}\\text\{([^}]+)\}/g, '<sub>$1</sub><sup>$2</sup>$3');
+  processed = processed.replace(/_\{([^}]+)\}\^\{([^}]+)\}([A-Za-z])/g, '<sub>$1</sub><sup>$2</sup>$3');
+
+  // 2. Simple superscript/subscript with curly braces
+  processed = processed.replace(/\^\{([^}]+)\}/g, '<sup>$1</sup>');
+  processed = processed.replace(/_\{([^}]+)\}/g, '<sub>$1</sub>');
+
+  // 3. Simple superscript/subscript single characters
+  processed = processed.replace(/([A-Za-z0-9])\^([0-9a-zA-Z+-])/g, '$1<sup>$2</sup>');
+  processed = processed.replace(/([A-Za-z0-9])_([0-9a-zA-Z+-])/g, '$1<sub>$2</sub>');
+
+  // 4. Remove \text{...} wrappers
+  processed = processed.replace(/\\text\{([^}]+)\}/g, '$1');
+
+  // 5. Remove math block / inline dollar signs
+  processed = processed.replace(/\$([^$]+)\$/g, '$1');
+
+  return processed;
+};
+
+export const markdownToHtml = (md: string): string => {
+  if (!md) return '';
+  
+  // Format LaTeX in the markdown to HTML!
+  let html = formatLaTeX(md);
+
+  // Split into lines
+  const lines = html.split('\n');
+  let inList = false;
+  let inOrderedList = false;
+  let inBlockquote = false;
+  const resultLines: string[] = [];
+
+  const closePendingTags = () => {
+    if (inList) {
+      resultLines.push('</ul>');
+      inList = false;
+    }
+    if (inOrderedList) {
+      resultLines.push('</ol>');
+      inOrderedList = false;
+    }
+    if (inBlockquote) {
+      resultLines.push('</blockquote>');
+      inBlockquote = false;
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+
+    if (line === '') {
+      closePendingTags();
+      resultLines.push('<br/>');
+      continue;
+    }
+
+    // Headers
+    if (line.startsWith('# ')) {
+      closePendingTags();
+      resultLines.push(`<h1 class="text-2xl font-black text-slate-900 mt-6 mb-3 border-b pb-2 border-slate-100">${line.substring(2)}</h1>`);
+      continue;
+    }
+    if (line.startsWith('## ')) {
+      closePendingTags();
+      resultLines.push(`<h2 class="text-xl font-bold text-primary-600 mt-5 mb-2">${line.substring(3)}</h2>`);
+      continue;
+    }
+    if (line.startsWith('### ')) {
+      closePendingTags();
+      resultLines.push(`<h3 class="text-lg font-bold text-slate-800 mt-4 mb-2">${line.substring(4)}</h3>`);
+      continue;
+    }
+
+    // Horizontal Rule
+    if (line === '---' || line === '***' || line === '___') {
+      closePendingTags();
+      resultLines.push('<hr class="my-6 border-slate-200" />');
+      continue;
+    }
+
+    // Blockquote
+    if (line.startsWith('> ')) {
+      if (!inBlockquote) {
+        closePendingTags();
+        resultLines.push('<blockquote class="border-l-4 border-primary-500 bg-slate-50 p-4 italic text-slate-600 my-4 rounded-r-lg">');
+        inBlockquote = true;
+      }
+      const content = line.substring(2)
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-slate-100 text-rose-600 rounded text-xs">$1</code>');
+      resultLines.push(`<p class="my-1">${content}</p>`);
+      continue;
+    }
+
+    // Unordered List Items
+    const listMatch = line.match(/^([*-])\s+(.*)/);
+    if (listMatch) {
+      if (!inList) {
+        closePendingTags();
+        resultLines.push('<ul class="list-disc pl-6 space-y-1.5 my-3 text-slate-700">');
+        inList = true;
+      }
+      const content = listMatch[2]
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-slate-100 text-rose-600 rounded text-xs">$1</code>');
+      resultLines.push(`<li>${content}</li>`);
+      continue;
+    }
+
+    // Ordered List Items
+    const oListMatch = line.match(/^([0-9]+)\.\s+(.*)/);
+    if (oListMatch) {
+      if (!inOrderedList) {
+        closePendingTags();
+        resultLines.push('<ol class="list-decimal pl-6 space-y-1.5 my-3 text-slate-700">');
+        inOrderedList = true;
+      }
+      const content = oListMatch[2]
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-slate-100 text-rose-600 rounded text-xs">$1</code>');
+      resultLines.push(`<li>${content}</li>`);
+      continue;
+    }
+
+    // Normal paragraph line
+    closePendingTags();
+    
+    const formattedLine = line
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-slate-100 text-rose-600 rounded text-xs">$1</code>');
+
+    resultLines.push(`<p class="my-2 text-slate-700 leading-relaxed">${formattedLine}</p>`);
+  }
+
+  closePendingTags();
+
+  return resultLines.join('\n');
+};
+
+export const stripMarkdownAndFormat = (md: string): string => {
+  if (!md) return '';
+  
+  // Format LaTeX in the markdown to Unicode!
+  let text = formatLaTeXToUnicode(md);
+
+  // Process line-by-line
+  const lines = text.split('\n');
+  const result: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+
+    if (line === '') {
+      result.push('');
+      continue;
+    }
+
+    // Headers
+    if (line.startsWith('# ')) {
+      result.push(`=== ${line.substring(2).toUpperCase()} ===`);
+      continue;
+    }
+    if (line.startsWith('## ')) {
+      result.push(`--- ${line.substring(3)} ---`);
+      continue;
+    }
+    if (line.startsWith('### ')) {
+      result.push(`> ${line.substring(4)}`);
+      continue;
+    }
+
+    // List items
+    const listMatch = line.match(/^([*-])\s+(.*)/);
+    if (listMatch) {
+      result.push(`  • ${listMatch[2]}`);
+      continue;
+    }
+
+    const oListMatch = line.match(/^([0-9]+)\.\s+(.*)/);
+    if (oListMatch) {
+      result.push(`  ${oListMatch[1]}. ${oListMatch[2]}`);
+      continue;
+    }
+
+    // Normal line - strip bold/italic markup
+    const cleaned = line
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/`([^`]+)`/g, '$1');
+
+    result.push(cleaned);
+  }
+
+  return result.join('\n');
+};
+
 /**
  * Generates and triggers the download for any of the 20 requested formats.
  */
@@ -56,28 +320,28 @@ export const exportContent = async (
     mimeType = 'text/plain;charset=utf-8';
     if (type === 'notes') {
       const note = data as Partial<NoteItem>;
-      contentStr = `=== STUDY NOTES: ${note.title || title} ===\nSubject: ${note.subject || subject} | Chapter: ${note.chapter || chapter}\nDate: ${dateStr}\n\n${note.content || ''}`;
+      contentStr = `=== STUDY NOTES: ${note.title || title} ===\nSubject: ${note.subject || subject} | Chapter: ${note.chapter || chapter}\nDate: ${dateStr}\n\n${stripMarkdownAndFormat(note.content || '')}`;
     } else if (type === 'quiz') {
       const questions = data as QuizQuestion[];
       contentStr = `=== INTERACTIVE QUIZ: ${title} ===\nSubject: ${subject} | Grade: ${grade}\nDate: ${dateStr}\nScore achieved: ${meta.score || 'N/A'}\n\n`;
       questions.forEach((q, i) => {
-        contentStr += `Q${i + 1}. ${q.question}\n`;
+        contentStr += `Q${i + 1}. ${formatLaTeXToUnicode(q.question)}\n`;
         q.options.forEach((opt, idx) => {
-          contentStr += `  [${idx === q.correctAnswerIndex ? 'X' : ' '}] ${String.fromCharCode(65 + idx)}. ${opt}\n`;
+          contentStr += `  [${idx === q.correctAnswerIndex ? 'X' : ' '}] ${String.fromCharCode(65 + idx)}. ${formatLaTeXToUnicode(opt)}\n`;
         });
-        contentStr += `Explanation: ${q.explanation}\n\n`;
+        contentStr += `Explanation: ${formatLaTeXToUnicode(q.explanation)}\n\n`;
       });
     } else if (type === 'summary') {
-      contentStr = `=== TOPIC SUMMARY: ${title} ===\nSubject: ${subject} | Grade: ${grade}\nDate: ${dateStr}\n\n${String(data)}`;
+      contentStr = `=== TOPIC SUMMARY: ${title} ===\nSubject: ${subject} | Grade: ${grade}\nDate: ${dateStr}\n\n${stripMarkdownAndFormat(String(data))}`;
     } else if (type === 'homework') {
-      contentStr = `=== HOMEWORK ANSWER: ${title} ===\nSubject: ${subject} | Grade: ${grade}\nDate: ${dateStr}\nQuestion/Query: ${meta.query || 'N/A'}\n\n=== Solution ===\n${String(data)}`;
+      contentStr = `=== HOMEWORK ANSWER: ${title} ===\nSubject: ${subject} | Grade: ${grade}\nDate: ${dateStr}\nQuestion/Query: ${meta.query || 'N/A'}\n\n=== Solution ===\n${stripMarkdownAndFormat(String(data))}`;
     } else if (type === 'tutor') {
       const msgs = data as ChatMessage[];
       contentStr = `=== AI TUTOR CHAT TRANSCIPT: ${title} ===\nSubject: ${subject} | Date: ${dateStr}\n\n`;
       msgs.forEach(m => {
         const roleName = m.role === 'user' ? 'Student' : 'AI Tutor';
         const msgDate = formatDate(m.timestamp);
-        contentStr += `[${msgDate}] ${roleName}:\n${m.text}\n\n`;
+        contentStr += `[${msgDate}] ${roleName}:\n${stripMarkdownAndFormat(m.text)}\n\n`;
       });
     }
   }
@@ -87,28 +351,28 @@ export const exportContent = async (
     mimeType = 'text/markdown;charset=utf-8';
     if (type === 'notes') {
       const note = data as Partial<NoteItem>;
-      contentStr = `---\ntitle: ${note.title || title}\nsubject: ${note.subject || subject}\nchapter: ${note.chapter || chapter}\ndate: ${dateStr}\n---\n\n# ${note.title || title}\n\n${note.content || ''}`;
+      contentStr = `---\ntitle: ${note.title || title}\nsubject: ${note.subject || subject}\nchapter: ${note.chapter || chapter}\ndate: ${dateStr}\n---\n\n# ${note.title || title}\n\n${formatLaTeXToUnicode(note.content || '')}`;
     } else if (type === 'quiz') {
       const questions = data as QuizQuestion[];
       contentStr = `# Quiz Challenge: ${title}\n**Subject:** ${subject} | **Grade:** ${grade} | **Date:** ${dateStr}\n**Score:** ${meta.score || 'Not taken yet'}\n\n---\n\n`;
       questions.forEach((q, i) => {
-        contentStr += `### Q${i + 1}. ${q.question}\n\n`;
+        contentStr += `### Q${i + 1}. ${formatLaTeXToUnicode(q.question)}\n\n`;
         q.options.forEach((opt, idx) => {
           const check = idx === q.correctAnswerIndex ? ' - [x]' : ' - [ ]';
-          contentStr += `${check} **${String.fromCharCode(65 + idx)}.** ${opt}\n`;
+          contentStr += `${check} **${String.fromCharCode(65 + idx)}.** ${formatLaTeXToUnicode(opt)}\n`;
         });
-        contentStr += `\n> **Explanation:** ${q.explanation}\n\n---\n\n`;
+        contentStr += `\n> **Explanation:** ${formatLaTeXToUnicode(q.explanation)}\n\n---\n\n`;
       });
     } else if (type === 'summary') {
-      contentStr = `# Topic Summary: ${title}\n**Subject:** ${subject} | **Grade:** ${grade} | **Date:** ${dateStr}\n\n---\n\n${String(data)}`;
+      contentStr = `# Topic Summary: ${title}\n**Subject:** ${subject} | **Grade:** ${grade} | **Date:** ${dateStr}\n\n---\n\n${formatLaTeXToUnicode(String(data))}`;
     } else if (type === 'homework') {
-      contentStr = `# Homework Solution: ${title}\n**Subject:** ${subject} | **Grade:** ${grade} | **Date:** ${dateStr}\n\n### Query:\n> ${meta.query || 'N/A'}\n\n---\n\n### Solution:\n${String(data)}`;
+      contentStr = `# Homework Solution: ${title}\n**Subject:** ${subject} | **Grade:** ${grade} | **Date:** ${dateStr}\n\n### Query:\n> ${meta.query || 'N/A'}\n\n---\n\n### Solution:\n${formatLaTeXToUnicode(String(data))}`;
     } else if (type === 'tutor') {
       const msgs = data as ChatMessage[];
       contentStr = `# AI Tutor Session: ${title}\n**Subject:** ${subject} | **Date:** ${dateStr}\n\n---\n\n`;
       msgs.forEach(m => {
         const isUser = m.role === 'user';
-        contentStr += `### ${isUser ? '👤 Student' : '🤖 AI Tutor'} *(${formatDate(m.timestamp)})*\n\n${m.text}\n\n---\n\n`;
+        contentStr += `### ${isUser ? '👤 Student' : '🤖 AI Tutor'} *(${formatDate(m.timestamp)})*\n\n${formatLaTeXToUnicode(m.text)}\n\n---\n\n`;
       });
     }
   }
@@ -133,7 +397,7 @@ export const exportContent = async (
               <span>📅 Date: ${dateStr}</span>
             </div>
           </div>
-          <div class="prose max-w-none text-slate-700 leading-relaxed space-y-4 whitespace-pre-wrap">${note.content || ''}</div>
+          <div class="prose max-w-none text-slate-700 leading-relaxed space-y-4">${markdownToHtml(note.content || '')}</div>
         </div>
       `;
     } else if (type === 'quiz') {
@@ -146,16 +410,16 @@ export const exportContent = async (
           optionsHtml += `
             <div class="flex items-start gap-3 p-3 rounded-lg border ${isCorrect ? 'bg-emerald-50 border-emerald-200 text-emerald-900 font-semibold' : 'bg-slate-50 border-slate-200 text-slate-700'}">
               <span class="font-bold uppercase w-6 h-6 flex items-center justify-center rounded-full ${isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-300 text-slate-700'}">${String.fromCharCode(65 + idx)}</span>
-              <span>${opt}</span>
+              <span>${formatLaTeX(opt)}</span>
             </div>
           `;
         });
         questionsHtml += `
           <div class="bg-white p-6 rounded-xl border border-slate-100 shadow-sm space-y-4">
-            <h3 class="font-bold text-slate-800 text-base">Q${i + 1}. ${q.question}</h3>
+            <h3 class="font-bold text-slate-800 text-base">Q${i + 1}. ${formatLaTeX(q.question)}</h3>
             <div class="grid gap-2">${optionsHtml}</div>
             <div class="mt-3 p-3 bg-amber-50/50 border border-amber-100 rounded-lg text-xs text-slate-600">
-              <strong>Explanation:</strong> ${q.explanation}
+              <strong>Explanation:</strong> ${formatLaTeX(q.explanation)}
             </div>
           </div>
         `;
@@ -190,7 +454,7 @@ export const exportContent = async (
               <span>📅 Date: ${dateStr}</span>
             </div>
           </div>
-          <div class="prose max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap">${String(data)}</div>
+          <div class="prose max-w-none text-slate-700 leading-relaxed space-y-4">${markdownToHtml(String(data))}</div>
         </div>
       `;
     } else if (type === 'homework') {
@@ -213,7 +477,7 @@ export const exportContent = async (
           </div>
           <div class="bg-white p-8 rounded-2xl shadow-md border border-slate-100">
             <h4 class="text-xs font-black text-slate-400 uppercase tracking-wider mb-4">Detailed Solution:</h4>
-            <div class="prose max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap">${String(data)}</div>
+            <div class="prose max-w-none text-slate-700 leading-relaxed space-y-4">${markdownToHtml(String(data))}</div>
           </div>
         </div>
       `;
@@ -226,7 +490,7 @@ export const exportContent = async (
           <div class="flex ${isUser ? 'justify-end' : 'justify-start'}">
             <div class="max-w-[80%] rounded-2xl p-4 shadow-sm ${isUser ? 'bg-amber-500 text-white rounded-br-none' : 'bg-white border border-slate-100 text-slate-800 rounded-bl-none'}">
               <span class="text-[9px] block font-extrabold uppercase mb-1 ${isUser ? 'text-amber-100' : 'text-slate-400'}">${isUser ? 'Student' : 'AI Tutor'}</span>
-              <p class="text-sm leading-relaxed whitespace-pre-wrap">${m.text}</p>
+              <div class="text-sm leading-relaxed space-y-2">${markdownToHtml(m.text)}</div>
               <span class="text-[8px] block text-right mt-1.5 ${isUser ? 'text-amber-100' : 'text-slate-400'}">${formatDate(m.timestamp)}</span>
             </div>
           </div>
@@ -282,7 +546,7 @@ export const exportContent = async (
         <p><strong>Subject:</strong> ${note.subject || subject} &bull; <strong>Chapter:</strong> ${note.chapter || chapter}</p>
         <p><strong>Date Generated:</strong> ${dateStr}</p>
         <hr />
-        <div style="white-space: pre-wrap; font-family: Calibri, sans-serif;">${note.content || ''}</div>
+        <div style="font-family: Calibri, sans-serif;">${markdownToHtml(note.content || '')}</div>
       `;
     } else if (type === 'quiz') {
       const questions = data as QuizQuestion[];
@@ -291,12 +555,12 @@ export const exportContent = async (
         let optList = '';
         q.options.forEach((opt, idx) => {
           const isCorrect = idx === q.correctAnswerIndex;
-          optList += `<li>[${isCorrect ? 'X' : ' '}] ${opt}</li>`;
+          optList += `<li>[${isCorrect ? 'X' : ' '}] ${formatLaTeX(opt)}</li>`;
         });
         questionsMarkup += `
-          <h3>Q${i + 1}. ${q.question}</h3>
+          <h3>Q${i + 1}. ${formatLaTeX(q.question)}</h3>
           <ul>${optList}</ul>
-          <p><em>Explanation:</em> ${q.explanation}</p>
+          <p><em>Explanation:</em> ${formatLaTeX(q.explanation)}</p>
           <br/>
         `;
       });
@@ -313,7 +577,7 @@ export const exportContent = async (
         <p><strong>Subject:</strong> ${subject} &bull; <strong>Grade:</strong> ${grade}</p>
         <p><strong>Date:</strong> ${dateStr}</p>
         <hr />
-        <div style="white-space: pre-wrap;">${String(data)}</div>
+        <div>${markdownToHtml(String(data))}</div>
       `;
     } else if (type === 'homework') {
       bodyHtml = `
@@ -324,14 +588,14 @@ export const exportContent = async (
         <p><strong>Query Asked:</strong> <em>"${meta.query || 'N/A'}"</em></p>
         <hr />
         <h2>Solution</h2>
-        <div style="white-space: pre-wrap;">${String(data)}</div>
+        <div>${markdownToHtml(String(data))}</div>
       `;
     } else if (type === 'tutor') {
       const msgs = data as ChatMessage[];
       let dialogue = '';
       msgs.forEach(m => {
         const isUser = m.role === 'user';
-        dialogue += `<p><strong>[${isUser ? 'Student' : 'AI Tutor'}] (${formatDate(m.timestamp)}):</strong><br/>${m.text}</p><br/>`;
+        dialogue += `<p><strong>[${isUser ? 'Student' : 'AI Tutor'}] (${formatDate(m.timestamp)}):</strong><br/>${markdownToHtml(m.text)}</p><br/>`;
       });
       bodyHtml = `
         <h1>AI Tutor Chat Transcript</h1>
@@ -372,20 +636,20 @@ export const exportContent = async (
     let plainContent = '';
     
     if (type === 'notes') {
-      plainContent = String((data as Partial<NoteItem>).content || '');
+      plainContent = stripMarkdownAndFormat((data as Partial<NoteItem>).content || '');
     } else if (type === 'quiz') {
       (data as QuizQuestion[]).forEach((q, i) => {
-        plainContent += `Q${i+1}: ${q.question}\\line `;
+        plainContent += `Q${i+1}: ${stripMarkdownAndFormat(q.question)}\\line `;
         q.options.forEach((opt, idx) => {
-          plainContent += `  [${idx === q.correctAnswerIndex ? 'X' : ' '}] ${String.fromCharCode(65+idx)}. ${opt}\\line `;
+          plainContent += `  [${idx === q.correctAnswerIndex ? 'X' : ' '}] ${String.fromCharCode(65+idx)}. ${stripMarkdownAndFormat(opt)}\\line `;
         });
-        plainContent += `Explanation: ${q.explanation}\\line\\line `;
+        plainContent += `Explanation: ${stripMarkdownAndFormat(q.explanation)}\\line\\line `;
       });
     } else if (type === 'summary' || type === 'homework') {
-      plainContent = String(data);
+      plainContent = stripMarkdownAndFormat(String(data));
     } else if (type === 'tutor') {
       (data as ChatMessage[]).forEach(m => {
-        plainContent += `[${m.role === 'user' ? 'Student' : 'AI Tutor'}]: ${m.text}\\line\\line `;
+        plainContent += `[${m.role === 'user' ? 'Student' : 'AI Tutor'}]: ${stripMarkdownAndFormat(m.text)}\\line\\line `;
       });
     }
 
@@ -829,27 +1093,27 @@ export const exportContent = async (
       let textToPrint = '';
       if (type === 'notes') {
         const note = data as Partial<NoteItem>;
-        textToPrint = `STUDY NOTES: ${note.title || title}\n\nSubject: ${note.subject || subject}\nChapter: ${note.chapter || chapter}\nDate: ${dateStr}\n\n\n${note.content || ''}`;
+        textToPrint = `STUDY NOTES: ${note.title || title}\n\nSubject: ${note.subject || subject}\nChapter: ${note.chapter || chapter}\nDate: ${dateStr}\n\n\n${stripMarkdownAndFormat(note.content || '')}`;
       } else if (type === 'quiz') {
         const questions = data as QuizQuestion[];
         textToPrint = `QUIZ CHALLENGE: ${title}\n\nSubject: ${subject}\nGrade: ${grade}\nDate: ${dateStr}\nScore achieved: ${meta.score || 'N/A'}\n\n\n`;
         questions.forEach((q, i) => {
-          textToPrint += `Q${i + 1}. ${q.question}\n`;
+          textToPrint += `Q${i + 1}. ${formatLaTeXToUnicode(q.question)}\n`;
           q.options.forEach((opt, idx) => {
-            textToPrint += `  [${idx === q.correctAnswerIndex ? 'X' : ' '}] ${String.fromCharCode(65 + idx)}. ${opt}\n`;
+            textToPrint += `  [${idx === q.correctAnswerIndex ? 'X' : ' '}] ${String.fromCharCode(65 + idx)}. ${formatLaTeXToUnicode(opt)}\n`;
           });
-          textToPrint += `\nExplanation: ${q.explanation}\n\n---\n\n`;
+          textToPrint += `\nExplanation: ${formatLaTeXToUnicode(q.explanation)}\n\n---\n\n`;
         });
       } else if (type === 'summary') {
-        textToPrint = `TOPIC SUMMARY: ${title}\n\nSubject: ${subject}\nGrade: ${grade}\nDate: ${dateStr}\n\n\n${String(data)}`;
+        textToPrint = `TOPIC SUMMARY: ${title}\n\nSubject: ${subject}\nGrade: ${grade}\nDate: ${dateStr}\n\n\n${stripMarkdownAndFormat(String(data))}`;
       } else if (type === 'homework') {
-        textToPrint = `HOMEWORK SOLUTION: ${title}\n\nSubject: ${subject}\nGrade: ${grade}\nDate: ${dateStr}\nQuery Asked: "${meta.query || 'N/A'}"\n\n\n=== Solution ===\n${String(data)}`;
+        textToPrint = `HOMEWORK SOLUTION: ${title}\n\nSubject: ${subject}\nGrade: ${grade}\nDate: ${dateStr}\nQuery Asked: "${meta.query || 'N/A'}"\n\n\n=== Solution ===\n${stripMarkdownAndFormat(String(data))}`;
       } else if (type === 'tutor') {
         const msgs = data as ChatMessage[];
         textToPrint = `AI TUTOR TRANSCRIPT: ${title}\n\nSubject: ${subject}\nDate: ${dateStr}\n\n\n`;
         msgs.forEach(m => {
           const roleName = m.role === 'user' ? 'Student' : 'AI Tutor';
-          textToPrint += `[${formatDate(m.timestamp)}] ${roleName}:\n${m.text}\n\n`;
+          textToPrint += `[${formatDate(m.timestamp)}] ${roleName}:\n${stripMarkdownAndFormat(m.text)}\n\n`;
         });
       }
 

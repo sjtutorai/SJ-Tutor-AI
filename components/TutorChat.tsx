@@ -37,6 +37,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
+import { formatLaTeXToUnicode } from '../utils/exportUtils';
 import { SettingsService } from '../services/settingsService';
 import { jsPDF } from 'jspdf';
 
@@ -1045,7 +1046,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                       {/* Content rendering */}
                       {msg.role === 'model' ? (
                         <div className="markdown-body">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{formatLaTeXToUnicode(msg.text)}</ReactMarkdown>
                           {msg.isStreaming && (
                             <span className="inline-block w-1.5 h-4 bg-primary-500 animate-pulse ml-0.5 rounded-full" />
                           )}
