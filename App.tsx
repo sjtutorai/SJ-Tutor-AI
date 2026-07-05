@@ -2420,57 +2420,68 @@ const App: React.FC = () => {
       )}
 
       <aside
-        className={`fixed lg:sticky top-0 left-0 z-50 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out ${isSidebarOpen ? "w-64 translate-x-0" : "w-0 -translate-x-full lg:-translate-x-full lg:border-r-0 overflow-hidden"} shadow-2xl lg:shadow-none`}
+        className={`fixed lg:sticky top-0 left-0 z-50 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out ${
+          isSidebarOpen 
+            ? "w-64 translate-x-0" 
+            : "w-0 -translate-x-full lg:translate-x-0 lg:w-20 overflow-hidden"
+        } shadow-2xl lg:shadow-none`}
       >
-        <div className="h-full flex flex-col w-64">
+        <div className={`h-full flex flex-col transition-all duration-300 ${isSidebarOpen ? "w-64" : "w-64 lg:w-20"}`}>
           <div
+            onClick={() => {
+              if (!isSidebarOpen) {
+                setIsSidebarOpen(true);
+                return;
+              }
+              setMode(AppMode.DASHBOARD);
+              setDashboardView("OVERVIEW");
+              setSummaryContent("");
+              setHomeworkContent("");
+              setHomeworkFiles([]);
+              setQuizData(null);
+              setExistingQuizScore(undefined);
+              setCurrentHistoryId(null);
+              setError(null);
+              const settings = SettingsService.getSettings();
+              setFormData({
+                ...INITIAL_FORM_DATA,
+                language:
+                  settings.learning.language || INITIAL_FORM_DATA.language,
+                gradeClass: userProfile.grade || INITIAL_FORM_DATA.gradeClass,
+              });
+              if (window.innerWidth < 1024) setIsSidebarOpen(false);
+            }}
             className="p-5 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            title={!isSidebarOpen ? "Expand Sidebar" : undefined}
           >
-            <div className="flex items-center justify-between gap-3">
-              <div 
-                className="flex items-center gap-3 flex-1 overflow-hidden"
-                onClick={() => {
-                  setMode(AppMode.DASHBOARD);
-                  setDashboardView("OVERVIEW");
-                  setSummaryContent("");
-                  setHomeworkContent("");
-                  setHomeworkFiles([]);
-                  setQuizData(null);
-                  setExistingQuizScore(undefined);
-                  setCurrentHistoryId(null);
-                  setError(null);
-                  const settings = SettingsService.getSettings();
-                  setFormData({
-                    ...INITIAL_FORM_DATA,
-                    language:
-                      settings.learning.language || INITIAL_FORM_DATA.language,
-                    gradeClass: userProfile.grade || INITIAL_FORM_DATA.gradeClass,
-                  });
-                  if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                }}
-              >
+            <div className={`flex items-center gap-3 ${isSidebarOpen ? "justify-between" : "justify-center"}`}>
+              <div className="flex items-center gap-3 overflow-hidden">
                 <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0 bg-white dark:bg-slate-800">
                   <Logo className="w-full h-full" iconOnly />
                 </div>
-                <div className="truncate">
-                  <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
-                    SJ Tutor AI
-                  </h1>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider truncate">
-                    AI Study Buddy
-                  </p>
-                </div>
+                {isSidebarOpen && (
+                  <div className="truncate animate-in fade-in duration-300">
+                    <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                      SJ Tutor AI
+                    </h1>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider truncate">
+                      AI Study Buddy
+                    </p>
+                  </div>
+                )}
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsSidebarOpen(false);
-                }}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 transition-all flex-shrink-0"
-                title="Collapse Sidebar"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
+              {isSidebarOpen && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsSidebarOpen(false);
+                  }}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 transition-all flex-shrink-0"
+                  title="Collapse Sidebar"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -2493,17 +2504,22 @@ const App: React.FC = () => {
                       navigateToMode(item.id);
                     }
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group text-sm ${
+                  className={`w-full flex items-center rounded-lg transition-all duration-200 group text-sm ${
+                    isSidebarOpen 
+                      ? "px-3 py-2.5 gap-3 justify-start" 
+                      : "p-2.5 justify-center"
+                  } ${
                     isActive
                       ? "bg-primary-50 dark:bg-slate-800 text-primary-700 dark:text-primary-400 font-semibold shadow-sm"
                       : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                   }`}
+                  title={!isSidebarOpen ? item.label : undefined}
                 >
                   <Icon
-                    className={`w-4 h-4 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
+                    className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
                   />
-                  {item.label}
-                  {!user &&
+                  {isSidebarOpen && <span>{item.label}</span>}
+                  {isSidebarOpen && !user &&
                     item.id !== AppMode.DASHBOARD &&
                     item.id !== AppMode.ABOUT && (
                       <div className="ml-auto">
@@ -2515,12 +2531,15 @@ const App: React.FC = () => {
             })}
           </div>
 
-          <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+          <div className={`p-3 border-t border-slate-100 dark:border-slate-800 space-y-2 flex flex-col ${isSidebarOpen ? "" : "items-center"}`}>
             {user ? (
               <>
                 <button
                   onClick={() => setMode(AppMode.PROFILE)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mode === AppMode.PROFILE ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                  className={`w-full flex items-center rounded-lg transition-all ${
+                    isSidebarOpen ? "px-3 py-2 gap-2 justify-start" : "p-1.5 justify-center"
+                  } ${mode === AppMode.PROFILE ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                  title={!isSidebarOpen ? (userProfile.displayName || "Profile") : undefined}
                 >
                   <div className="relative w-8 h-8 flex-shrink-0">
                     <svg className="absolute inset-x-[-2px] inset-y-[-2px] w-[calc(100%+4px)] h-[calc(100%+4px)] -rotate-90">
@@ -2565,39 +2584,54 @@ const App: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex-1 text-left overflow-hidden">
-                    <p className="text-xs font-medium truncate text-slate-800 dark:text-white">
-                      {userProfile.displayName || "Scholar"}
-                    </p>
-                    <p className="text-xs text-slate-400 truncate">
-                      {user.email}
-                    </p>
-                  </div>
+                  {isSidebarOpen && (
+                    <div className="flex-1 text-left overflow-hidden">
+                      <p className="text-xs font-medium truncate text-slate-800 dark:text-white">
+                        {userProfile.displayName || "Scholar"}
+                      </p>
+                      <p className="text-xs text-slate-400 truncate">
+                        {user.email}
+                      </p>
+                    </div>
+                  )}
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  className={`w-full flex items-center justify-center rounded-lg transition-colors font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 ${
+                    isSidebarOpen ? "px-3 py-2 gap-2 text-xs" : "p-2.5"
+                  }`}
+                  title={!isSidebarOpen ? "Sign Out" : undefined}
                 >
-                  <LogOut className="w-3.5 h-3.5" />
-                  Sign Out
+                  <LogOut className="w-4 h-4 flex-shrink-0" />
+                  {isSidebarOpen && <span>Sign Out</span>}
                 </button>
               </>
             ) : (
               <button
                 onClick={() => setShowAuthModal(true)}
-                className="w-full py-2.5 bg-slate-900 dark:bg-slate-700 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors text-sm"
+                className={`w-full bg-slate-900 dark:bg-slate-700 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors flex items-center justify-center ${
+                  isSidebarOpen ? "py-2.5 text-sm" : "p-2.5"
+                }`}
+                title={!isSidebarOpen ? "Sign In" : undefined}
               >
-                Sign In
+                {isSidebarOpen ? (
+                  <span>Sign In</span>
+                ) : (
+                  <UserIcon className="w-5 h-5 flex-shrink-0" />
+                )}
               </button>
             )}
 
             {user && (
               <button
                 onClick={() => setShowPremiumModal(true)}
-                className="w-full py-2 bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
+                className={`w-full flex items-center justify-center rounded-lg font-bold bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 transition-all ${
+                  isSidebarOpen ? "py-2 gap-1.5 text-xs shadow-sm" : "p-2.5 shadow-none"
+                }`}
+                title={!isSidebarOpen ? "Upgrade Plan" : undefined}
               >
-                <Crown className="w-3.5 h-3.5" />
-                Upgrade Plan
+                <Crown className="w-4 h-4 flex-shrink-0" />
+                {isSidebarOpen && <span>Upgrade Plan</span>}
               </button>
             )}
           </div>
