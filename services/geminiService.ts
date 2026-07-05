@@ -511,5 +511,41 @@ ${SettingsService.getTutorSystemInstruction()}
     });
     if (response.text) return JSON.parse(response.text.trim());
     throw new Error("Failed to analyze image");
+  },
+
+  analyzeProfile: async (profile: any, email: string | null) => {
+    const ai = getAI();
+    const systemInstruction = "You are SJ Tutor AI, an expert academic advisor, performance analyst, and study strategist. Analyze the student's profile and generate a highly personalized, structured academic analysis and roadmap.";
+    
+    const prompt = `
+Please analyze the following student's academic profile and provide:
+1. **Academic Strength & Goal Assessment**: Assess their background, bio, and main learning goal.
+2. **Customized Study Track**: Recommend study techniques and methods specifically aligned with their preferred learning style (${profile.learningStyle || 'Visual'}).
+3. **Step-by-Step Strategic Roadmap**: Practical, actionable milestones for them to achieve their primary learning goal: "${profile.learningGoal || 'General academic improvement'}".
+4. **Board Exam Recommendations**: Specific board preparation strategies suitable for Class ${profile.grade || '10th'} under the ${profile.board || 'CBSE'} syllabus.
+
+Student Profile Details:
+- **Full Name**: ${profile.displayName || 'Scholar'}
+- **Email**: ${email || 'Not provided'}
+- **Class / Grade**: ${profile.grade || 'Not specified'}
+- **School Board**: ${profile.board || 'Not specified'}
+- **Institution / School**: ${profile.institution || 'Not specified'}
+- **Location**: ${profile.district || 'Not specified'}, ${profile.state || 'Not specified'}
+- **Learning Style**: ${profile.learningStyle || 'Visual'}
+- **Learning Goal**: ${profile.learningGoal || 'General academic improvement'}
+- **About Me (Bio)**: ${profile.bio || 'Not provided'}
+
+Response Format Requirements:
+- Write in clean, beautiful, and inspiring Markdown formatting with headings and lists.
+- Be encouraging, detailed, and highly practical.
+`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: prompt,
+      config: { systemInstruction }
+    });
+
+    return response.text;
   }
 };
