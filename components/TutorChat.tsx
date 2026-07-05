@@ -235,6 +235,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const initialInputRef = useRef('');
   const [error, setError] = useState<string | null>(null);
 
   // Advanced states
@@ -352,21 +355,57 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping, thinkingStep]);
 
-  // Speech Recognition
+  // Helper to format duration in MM:SS
+  const formatDuration = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Recording Duration Stopwatch Timer
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isListening) {
+      setRecordingDuration(0);
+      timer = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      setRecordingDuration(0);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isListening]);
+
+  // Premium Speech Recognition with Live Accumulation and Interim Results
   useEffect(() => {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!Recognition) return;
     if (!isListening) return;
 
     const rec = new Recognition();
-    rec.continuous = false;
-    rec.interimResults = false;
+    rec.continuous = true;
+    rec.interimResults = true;
     rec.lang = 'en-US';
 
     rec.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript;
-      setInput(prev => prev + (prev ? ' ' : '') + transcript);
-      setIsListening(false);
+      let sessionFinal = '';
+      let sessionInterim = '';
+      for (let i = 0; i < e.results.length; ++i) {
+        if (e.results[i].isFinal) {
+          sessionFinal += e.results[i][0].transcript;
+        } else {
+          sessionInterim += e.results[i][0].transcript;
+        }
+      }
+
+      setInput(() => {
+        const base = initialInputRef.current.trim();
+        const finalTrimmed = sessionFinal.trim();
+        return base ? base + ' ' + finalTrimmed : finalTrimmed;
+      });
+      setInterimTranscript(sessionInterim);
     };
 
     rec.onerror = (err: any) => {
@@ -405,6 +444,10 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     if (!Recognition) {
       alert("Speech recognition is not supported in this browser. Try Google Chrome.");
       return;
+    }
+    if (!isListening) {
+      initialInputRef.current = input;
+      setInterimTranscript('');
     }
     setIsListening(!isListening);
   };
@@ -1069,7 +1112,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               ))}
             </div>
           )}
-
           {/* Floating error bar */}
           {error && (
             <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 rounded-xl flex items-center justify-between text-xs text-red-600 dark:text-red-400 animate-in fade-in slide-in-from-bottom-2 font-bold">
@@ -1086,6 +1128,61 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               >
                 Retry
               </button>
+            </div>
+          )}
+
+          {/* Voice-to-Text Recording Panel */}
+          {isListening && (
+            <div className="flex flex-col gap-1.5 p-3.5 bg-rose-50/50 dark:bg-rose-950/10 border border-rose-100 dark:border-rose-900/60 rounded-xl animate-in slide-in-from-bottom-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                  </span>
+                  <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Voice Dictation Active
+                  </span>
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 font-mono ml-1">
+                    {formatDuration(recordingDuration)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setInput(initialInputRef.current);
+                      setIsListening(false);
+                      setInterimTranscript('');
+                    }}
+                    className="text-[11px] font-bold text-slate-500 hover:text-red-500 transition px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsListening(false);
+                      setInterimTranscript('');
+                    }}
+                    className="text-[11px] font-black text-rose-650 dark:text-rose-450 hover:text-rose-700 transition px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xs"
+                  >
+                    Done Recording
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 mt-1.5">
+                {/* Audio voice waves animation */}
+                <div className="flex items-end gap-1 h-3.5 w-10 flex-shrink-0">
+                  <span className="w-1 bg-rose-500 rounded-full animate-pulse h-2"></span>
+                  <span className="w-1 bg-rose-600 rounded-full animate-pulse h-3.5" style={{ animationDelay: '0.1s' }}></span>
+                  <span className="w-1 bg-rose-500 rounded-full animate-pulse h-2.5" style={{ animationDelay: '0.2s' }}></span>
+                  <span className="w-1 bg-rose-400 rounded-full animate-pulse h-1.5" style={{ animationDelay: '0.3s' }}></span>
+                </div>
+                
+                <div className="text-xs text-slate-650 dark:text-slate-405 leading-relaxed font-semibold italic truncate flex-1">
+                  {interimTranscript ? `"${interimTranscript}"` : "Go ahead, speak your question clearly..."}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1107,16 +1204,27 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             >
               <Paperclip className="w-4 h-4" />
             </button>
-
+ 
             {/* Voice Input */}
             <button
               type="button"
               onClick={toggleVoiceInput}
-              className={`p-3 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors shadow-xs ${isListening ? 'bg-red-50 dark:bg-red-950 text-red-500 border-red-200 animate-pulse' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-850'}`}
-              title="Voice Dictation"
+              className={`p-3 rounded-xl border transition-all duration-200 shadow-xs relative ${
+                isListening 
+                  ? 'bg-rose-550 border-rose-550 text-white hover:bg-rose-600 shadow-md shadow-rose-550/20' 
+                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-850'
+              }`}
+              title={isListening ? "Stop Voice Recording" : "Voice Recording (Dictation)"}
               disabled={isTyping || thinkingStep !== null}
             >
-              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              {isListening ? (
+                <>
+                  <span className="absolute -inset-0.5 bg-rose-500/30 rounded-xl animate-ping opacity-60"></span>
+                  <MicOff className="w-4 h-4 relative z-10" />
+                </>
+              ) : (
+                <Mic className="w-4 h-4" />
+              )}
             </button>
 
             {/* Input Text Box */}
