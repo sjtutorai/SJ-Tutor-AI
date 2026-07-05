@@ -289,3 +289,15 @@ export const getQuizLeaderboard = async (): Promise<LeaderboardEntry[]> => {
   }
 };
 
+export const deleteHistoryItemFromFirestore = async (uid: string, itemId: string): Promise<boolean> => {
+  if (!uid || uid === "guest") return true;
+  try {
+    const docRef = doc(db, "users", uid, "history", itemId);
+    await deleteDoc(docRef);
+    return true;
+  } catch (error) {
+    console.warn("Error deleting history item from Firestore:", error);
+    return false;
+  }
+};
+

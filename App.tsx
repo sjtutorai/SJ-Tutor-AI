@@ -47,6 +47,7 @@ import {
   createSharedContent,
   getSharedContent,
   saveQuizScoreToLeaderboard,
+  deleteHistoryItemFromFirestore,
 } from "./utils/firebaseUtils";
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
@@ -62,6 +63,7 @@ import {
   AlertCircle,
   Menu,
   ChevronRight,
+  ChevronLeft,
   LayoutDashboard,
   ArrowLeft,
   Calendar,
@@ -83,6 +85,7 @@ import {
   Moon,
   Search,
   X,
+  Trash2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -255,7 +258,25 @@ const App: React.FC = () => {
     }
   }, [formData]);
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sjtutor_sidebar_open');
+      if (saved !== null) {
+        return saved === 'true';
+      }
+    } catch (e) {
+      console.warn("Could not read sidebar open state", e);
+    }
+    return typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('sjtutor_sidebar_open', String(isSidebarOpen));
+    } catch (e) {
+      console.warn("Could not write sidebar open state", e);
+    }
+  }, [isSidebarOpen]);
   const [showSplash, setShowSplash] = useState(true);
   const [historySearchQuery, setHistorySearchQuery] = useState("");
 
@@ -870,16 +891,6 @@ const App: React.FC = () => {
     if (historyLoadedUid !== currentUid) return;
     localStorage.setItem(`history_${currentUid}`, JSON.stringify(history));
   }, [history, user, historyLoadedUid]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setIsSidebarOpen(false);
-      }
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
 
   const handleProfileSave = async (
     newProfile: UserProfile,
@@ -1701,6 +1712,23 @@ const App: React.FC = () => {
                     >
                       <Share2 className="w-4 h-4" />
                     </button>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!window.confirm("Are you sure you want to delete this study history item?")) return;
+                        const updatedHistory = history.filter(h => h.id !== item.id);
+                        setHistory(updatedHistory);
+                        const currentUid = user ? user.uid : "guest";
+                        localStorage.setItem(`history_${currentUid}`, JSON.stringify(updatedHistory));
+                        if (user) {
+                          await deleteHistoryItemFromFirestore(user.uid, item.id);
+                        }
+                      }}
+                      className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-50 hover:text-rose-600"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                     <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
                       <Eye className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                     </div>
@@ -1868,6 +1896,23 @@ const App: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!window.confirm("Are you sure you want to delete this study history item?")) return;
+                        const updatedHistory = history.filter(h => h.id !== item.id);
+                        setHistory(updatedHistory);
+                        const currentUid = user ? user.uid : "guest";
+                        localStorage.setItem(`history_${currentUid}`, JSON.stringify(updatedHistory));
+                        if (user) {
+                          await deleteHistoryItemFromFirestore(user.uid, item.id);
+                        }
+                      }}
+                      className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 rounded-lg transition opacity-0 group-hover:opacity-100"
+                      title="Delete study history item"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                     <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center border border-slate-100 dark:border-slate-700 shadow-sm opacity-60 group-hover:opacity-100 group-hover:text-amber-600 transition-all">
                       <ChevronRight className="w-4 h-4" />
                     </div>
@@ -2375,43 +2420,57 @@ const App: React.FC = () => {
       )}
 
       <aside
-        className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} shadow-2xl lg:shadow-none`}
+        className={`fixed lg:sticky top-0 left-0 z-50 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out ${isSidebarOpen ? "w-64 translate-x-0" : "w-0 -translate-x-full lg:-translate-x-full lg:border-r-0 overflow-hidden"} shadow-2xl lg:shadow-none`}
       >
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col w-64">
           <div
             className="p-5 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            onClick={() => {
-              setMode(AppMode.DASHBOARD);
-              setDashboardView("OVERVIEW");
-              setSummaryContent("");
-              setHomeworkContent("");
-              setHomeworkFiles([]);
-              setQuizData(null);
-              setExistingQuizScore(undefined);
-              setCurrentHistoryId(null);
-              setError(null);
-              const settings = SettingsService.getSettings();
-              setFormData({
-                ...INITIAL_FORM_DATA,
-                language:
-                  settings.learning.language || INITIAL_FORM_DATA.language,
-                gradeClass: userProfile.grade || INITIAL_FORM_DATA.gradeClass,
-              });
-              if (window.innerWidth < 1024) setIsSidebarOpen(false);
-            }}
           >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0 bg-white dark:bg-slate-800">
-                <Logo className="w-full h-full" iconOnly />
+            <div className="flex items-center justify-between gap-3">
+              <div 
+                className="flex items-center gap-3 flex-1 overflow-hidden"
+                onClick={() => {
+                  setMode(AppMode.DASHBOARD);
+                  setDashboardView("OVERVIEW");
+                  setSummaryContent("");
+                  setHomeworkContent("");
+                  setHomeworkFiles([]);
+                  setQuizData(null);
+                  setExistingQuizScore(undefined);
+                  setCurrentHistoryId(null);
+                  setError(null);
+                  const settings = SettingsService.getSettings();
+                  setFormData({
+                    ...INITIAL_FORM_DATA,
+                    language:
+                      settings.learning.language || INITIAL_FORM_DATA.language,
+                    gradeClass: userProfile.grade || INITIAL_FORM_DATA.gradeClass,
+                  });
+                  if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                }}
+              >
+                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0 bg-white dark:bg-slate-800">
+                  <Logo className="w-full h-full" iconOnly />
+                </div>
+                <div className="truncate">
+                  <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                    SJ Tutor AI
+                  </h1>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider truncate">
+                    AI Study Buddy
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
-                  SJ Tutor AI
-                </h1>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">
-                  AI Study Buddy
-                </p>
-              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsSidebarOpen(false);
+                }}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 transition-all flex-shrink-0"
+                title="Collapse Sidebar"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
             </div>
           </div>
 
@@ -2550,7 +2609,8 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-1.5 -ml-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              className={`${isSidebarOpen ? "lg:hidden" : "block"} p-1.5 -ml-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all`}
+              title="Open Sidebar"
             >
               <Menu className="w-5 h-5" />
             </button>
