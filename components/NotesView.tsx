@@ -13,7 +13,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
 import { formatLaTeXToUnicode } from '../utils/exportUtils';
-import { useNotifications } from './NotificationContext';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useRef } from 'react';

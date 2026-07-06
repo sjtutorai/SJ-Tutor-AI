@@ -56,18 +56,55 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Shared content collection - zero-trust dynamic permissions
-    match /sharedContent/{shareId} {
-      allow read: if resource == null || resource.data.isPublic == true;
-      allow create: if isValidId(shareId) && (
-        (isSignedIn() && request.resource.data.ownerUid == request.auth.uid) ||
-        (request.resource.data.ownerUid == "guest")
+    // Groups collection
+    match /groups/{groupId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.privacy == 'public' || isOwner(resource.data.ownerId) || request.auth.uid in resource.data.members || request.auth.uid in resource.data.admins);
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        isOwner(resource.data.ownerId) || 
+        request.auth.uid in resource.data.admins || 
+        (resource.data.privacy == 'public' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberCount'])) // For joining public groups
       );
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid && isValidId(shareId);
-      allow update: if isValidId(shareId) && (
-        (isSignedIn() && resource.data.ownerUid == request.auth.uid) ||
-        (resource.data.isPublic == true && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'likes', 'sharesCount', 'lastViewedAt']))
-      );
+      allow delete: if isSignedIn() && isOwner(resource.data.ownerId);
+
+      // Group Messages subcollection
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/groups/$(groupId)).data.privacy == 'public' || 
+          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members ||
+          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins ||
+          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId)
+        );
+        allow create: if isSignedIn() && (
+          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members ||
+          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins ||
+          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId)
+        );
+      }
+      
+      // Group Invites subcollection
+      match /invites/{inviteId} {
+        allow read: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId) ||
+          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins ||
+          resource.data.email == request.auth.token.email
+        );
+        allow create: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId) ||
+          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins
+        );
+        allow update, delete: if isSignedIn() && (
+          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId) ||
+          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins ||
+          resource.data.email == request.auth.token.email
+        );
+      }
+    }
+    
+    // User Group Invites index
+    match /user_invites/{inviteId} {
+      allow read, write: if isSignedIn() && resource.data.email == request.auth.token.email;
+      allow create: if isSignedIn(); // allow admins/owners to create
     }
   }
 }

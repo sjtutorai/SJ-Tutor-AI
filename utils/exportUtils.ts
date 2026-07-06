@@ -116,7 +116,7 @@ export const markdownToHtml = (md: string): string => {
   if (!md) return '';
   
   // Format LaTeX in the markdown to HTML!
-  let html = formatLaTeX(md);
+  const html = formatLaTeX(md);
 
   // Split into lines
   const lines = html.split('\n');
@@ -241,7 +241,7 @@ export const stripMarkdownAndFormat = (md: string): string => {
   if (!md) return '';
   
   // Format LaTeX in the markdown to Unicode!
-  let text = formatLaTeXToUnicode(md);
+  const text = formatLaTeXToUnicode(md);
 
   // Process line-by-line
   const lines = text.split('\n');

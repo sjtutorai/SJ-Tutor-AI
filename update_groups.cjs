@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, addDoc, serverTimestamp, orderBy, getDocs, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, where, increment } from 'firebase/firestore';
+const fs = require('fs');
+
+const code = `import React, { useState, useEffect } from 'react';
+import { collection, query, onSnapshot, addDoc, serverTimestamp, orderBy, getDocs, doc, setDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Users, Plus, Search, MessageSquare, Settings, Info, Shield, ChevronLeft, LogOut, UserPlus, Trash2, } from 'lucide-react';
+import { Users, Plus, Search, MessageSquare, Settings, Info, Shield, Hash, Image as ImageIcon, ChevronLeft, MoreVertical, LogOut, UserPlus, Trash2, Edit2, Check, X } from 'lucide-react';
 import { User } from 'firebase/auth';
+import { useNotifications } from './NotificationContext';
 
 export const GroupsView = ({ user }: { user: User | null }) => {
-  const [activeTab, setActiveTab] = useState<'my_groups' | 'discover' | 'invites'>('my_groups');
-  const [invites, setInvites] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'my_groups' | 'discover'>('my_groups');
   const [groups, setGroups] = useState<any[]>([]);
   const [myGroups, setMyGroups] = useState<any[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -19,7 +21,10 @@ export const GroupsView = ({ user }: { user: User | null }) => {
     const q = query(collection(db, 'groups'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
       const allGroups = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Discover: Public groups (could filter out user's own if wanted, but fine to show)
       setGroups(allGroups.filter(g => g.privacy === 'public'));
+      
+      // My Groups: Owner, Admin, or Member
       setMyGroups(allGroups.filter(g => 
         g.ownerId === user.uid || 
         (g.members && g.members.includes(user.uid)) || 
@@ -30,17 +35,7 @@ export const GroupsView = ({ user }: { user: User | null }) => {
       console.error(err);
       setLoading(false);
     });
-    
-    // Fetch user invites
-    let unsubInvites = () => {};
-    if (user.email) {
-      const qInvites = query(collection(db, 'user_invites'), where('email', '==', user.email.toLowerCase()), where('status', '==', 'pending'));
-      unsubInvites = onSnapshot(qInvites, (snap) => {
-        setInvites(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      });
-    }
-
-    return () => { unsub(); unsubInvites(); };
+    return unsub;
   }, [user]);
 
   if (!user) {
@@ -65,7 +60,7 @@ export const GroupsView = ({ user }: { user: User | null }) => {
       const groupRef = doc(db, 'groups', group.id);
       await updateDoc(groupRef, {
         members: arrayUnion(user.uid),
-        memberCount: increment(1)
+        memberCount: (group.memberCount || 1) + 1
       });
       setSelectedGroup(group);
     } catch (err) {
@@ -74,34 +69,7 @@ export const GroupsView = ({ user }: { user: User | null }) => {
     }
   };
 
-
-  const handleAcceptInvite = async (invite: any) => {
-    try {
-      // Add user to group
-      const groupRef = doc(db, 'groups', invite.groupId);
-      await updateDoc(groupRef, {
-        members: arrayUnion(user.uid)
-      });
-      // Delete invite or mark accepted
-      await deleteDoc(doc(db, 'user_invites', invite.id));
-      alert('Joined group!');
-    } catch (e) {
-      console.error(e);
-      alert('Failed to accept invite.');
-    }
-  };
-
-  const handleDeclineInvite = async (invite: any) => {
-    try {
-      await deleteDoc(doc(db, 'user_invites', invite.id));
-    } catch (e) {
-      console.error(e);
-      alert('Failed to decline invite.');
-    }
-  };
-
   const displayedGroups = (activeTab === 'my_groups' ? myGroups : groups).filter(g => 
- 
     g.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
     g.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -123,28 +91,20 @@ export const GroupsView = ({ user }: { user: User | null }) => {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mb-6">
-        
         <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full sm:w-fit">
           <button
             onClick={() => setActiveTab('my_groups')}
-            className={`flex-1 sm:flex-none px-5 py-2 rounded-lg font-semibold text-sm transition-all ${activeTab === 'my_groups' ? 'bg-white dark:bg-slate-700 text-primary-700 dark:text-primary-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
+            className={\`flex-1 sm:flex-none px-5 py-2 rounded-lg font-semibold text-sm transition-all \${activeTab === 'my_groups' ? 'bg-white dark:bg-slate-700 text-primary-700 dark:text-primary-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}\`}
           >
             My Groups
           </button>
           <button
             onClick={() => setActiveTab('discover')}
-            className={`flex-1 sm:flex-none px-5 py-2 rounded-lg font-semibold text-sm transition-all ${activeTab === 'discover' ? 'bg-white dark:bg-slate-700 text-primary-700 dark:text-primary-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
+            className={\`flex-1 sm:flex-none px-5 py-2 rounded-lg font-semibold text-sm transition-all \${activeTab === 'discover' ? 'bg-white dark:bg-slate-700 text-primary-700 dark:text-primary-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}\`}
           >
             Discover
           </button>
-          <button
-            onClick={() => setActiveTab('invites')}
-            className={`flex-1 sm:flex-none px-5 py-2 rounded-lg font-semibold text-sm transition-all ${activeTab === 'invites' ? 'bg-white dark:bg-slate-700 text-primary-700 dark:text-primary-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
-          >
-            Invites
-          </button>
         </div>
-
         
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -158,29 +118,11 @@ export const GroupsView = ({ user }: { user: User | null }) => {
         </div>
       </div>
 
-
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
-      ) : activeTab === 'invites' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {invites.map(invite => (
-            <div key={invite.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{invite.groupName}</h3>
-               <p className="text-sm text-slate-500 mb-4">Invited by {invite.invitedByName}</p>
-               <div className="flex gap-2">
-                 <button onClick={() => handleAcceptInvite(invite)} className="flex-1 py-2 bg-primary-600 text-white rounded-lg font-bold">Accept</button>
-                 <button onClick={() => handleDeclineInvite(invite)} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg font-bold">Decline</button>
-               </div>
-            </div>
-          ))}
-          {invites.length === 0 && (
-             <div className="col-span-full py-16 text-center text-slate-500">No pending invitations.</div>
-          )}
-        </div>
       ) : (
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {displayedGroups.map(group => {
             const isMember = group.ownerId === user.uid || (group.members && group.members.includes(user.uid)) || (group.admins && group.admins.includes(user.uid));
@@ -188,7 +130,7 @@ export const GroupsView = ({ user }: { user: User | null }) => {
               <div 
                 key={group.id} 
                 onClick={() => isMember ? setSelectedGroup(group) : undefined}
-                className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 transition-all duration-300 relative overflow-hidden group ${isMember ? 'cursor-pointer hover:shadow-xl hover:-translate-y-1' : ''}`}
+                className={\`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 transition-all duration-300 relative overflow-hidden group \${isMember ? 'cursor-pointer hover:shadow-xl hover:-translate-y-1' : ''}\`}
               >
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                   <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-1 rounded-md text-xs font-semibold">
@@ -419,9 +361,9 @@ const GroupChat = ({ group, user, onBack }: { group: any, user: User, onBack: ()
           const isMine = msg.senderId === user.uid;
           const showName = !isMine && (i === 0 || messages[i-1].senderId !== msg.senderId);
           return (
-            <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+            <div key={msg.id} className={\`flex flex-col \${isMine ? 'items-end' : 'items-start'}\`}>
               {showName && <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 ml-1">{msg.senderName}</span>}
-              <div className={`max-w-[75%] rounded-2xl px-4 py-2 ${isMine ? 'bg-primary-600 text-white rounded-br-sm shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-bl-sm shadow-sm'}`}>
+              <div className={\`max-w-[75%] rounded-2xl px-4 py-2 \${isMine ? 'bg-primary-600 text-white rounded-br-sm shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-bl-sm shadow-sm'}\`}>
                 <p className="text-[15px] whitespace-pre-wrap leading-relaxed">{msg.text}</p>
               </div>
             </div>
@@ -483,39 +425,6 @@ const GroupSettings = ({ group, user, onBack, onExitGroup }: { group: any, user:
       alert("Failed to save settings.");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleTransferOwnership = async () => {
-    if (!isOwner) return;
-    const email = prompt("Enter the email of the user to transfer ownership to:");
-    if (!email) return;
-    
-    try {
-      const q = query(collection(db, 'users'), where('email', '==', email.trim().toLowerCase()));
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        alert("User not found.");
-        return;
-      }
-      const newOwnerId = snap.docs[0].id;
-      
-      if (!group.members?.includes(newOwnerId)) {
-        alert("The user must be a member of the group first.");
-        return;
-      }
-      
-      if (confirm(`Are you sure you want to transfer ownership to ${email}?`)) {
-        const groupRef = doc(db, 'groups', group.id);
-        await updateDoc(groupRef, {
-          ownerId: newOwnerId,
-          admins: arrayUnion(newOwnerId)
-        });
-        alert("Ownership transferred.");
-      }
-    } catch (e) {
-      console.error(e);
-      alert("Failed to transfer ownership.");
     }
   };
 
@@ -678,18 +587,6 @@ const GroupSettings = ({ group, user, onBack, onExitGroup }: { group: any, user:
               
               {isOwner && (
                 <button 
-                  onClick={handleTransferOwnership}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900/50 rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 font-semibold transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <LogOut className="w-5 h-5" />
-                    Transfer Ownership
-                  </span>
-                </button>
-              )}
-              
-              {isOwner && (
-                <button 
                   onClick={handleDeleteGroup}
                   className="w-full flex items-center justify-between px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors"
                 >
@@ -719,6 +616,7 @@ const GroupSettings = ({ group, user, onBack, onExitGroup }: { group: any, user:
 const InviteModal = ({ group, user, onClose }: { group: any, user: User, onClose: () => void }) => {
   const [email, setEmail] = useState('');
   const [sending, setSending] = useState(false);
+  const { sendNotification } = useNotifications();
 
   const handleInvite = async () => {
     if (!email.trim() || !email.includes('@')) {
@@ -728,45 +626,16 @@ const InviteModal = ({ group, user, onClose }: { group: any, user: User, onClose
     
     setSending(true);
     try {
-      const emailLower = email.trim().toLowerCase();
-      // Try to find the user by email
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', emailLower));
-      const snap = await getDocs(q);
-      
-      let invitedUid = '';
-      if (!snap.empty) {
-        invitedUid = snap.docs[0].id;
-      }
-      
-      // Create an invite in the user_invites collection
-      const inviteData = {
-        email: emailLower,
+      // Create an invite in the group's invites subcollection
+      await addDoc(collection(db, 'groups', group.id, 'invites'), {
+        email: email.trim(),
         invitedBy: user.uid,
         invitedByName: user.displayName || 'Someone',
-        groupId: group.id,
-        groupName: group.name,
         createdAt: serverTimestamp(),
         status: 'pending'
-      };
+      });
       
-      await addDoc(collection(db, 'user_invites'), inviteData);
-      
-      if (invitedUid) {
-        // Add a notification for that user
-        await addDoc(collection(db, 'users', invitedUid, 'notifications'), {
-          type: 'group_invite',
-          title: 'Group Invitation',
-          message: `${user.displayName || 'Someone'} invited you to join ${group.name}`,
-          groupId: group.id,
-          groupName: group.name,
-          read: false,
-          createdAt: serverTimestamp(),
-          link: '/groups'
-        });
-      }
-      
-      alert(`Invitation sent to ${email}`);
+      alert(\`Invitation sent to \${email}\`);
       onClose();
     } catch (e) {
       console.error(e);
@@ -775,8 +644,6 @@ const InviteModal = ({ group, user, onClose }: { group: any, user: User, onClose
       setSending(false);
     }
   };
-
-
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -814,3 +681,6 @@ const InviteModal = ({ group, user, onClose }: { group: any, user: User, onClose
     </div>
   );
 };
+`
+
+fs.writeFileSync('components/GroupsView.tsx', code);
