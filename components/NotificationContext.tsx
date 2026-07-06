@@ -15,6 +15,7 @@ export interface NotificationItem {
   category: NotificationCategory;
   timestamp: number;
   read: boolean;
+  triggerDeviceId?: string;
 }
 
 export interface ActiveToast {
@@ -194,8 +195,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       combined.forEach((notif) => {
         if (!notif.read && !seenNotificationIdsRef.current.has(notif.id)) {
           // If it's a new unread notification that we haven't seen since the app opened/loaded
-          // and its timestamp is recent (e.g. not older than 1 hour, to prevent offline queue popups)
-          if (Date.now() - notif.timestamp < 3600 * 1000) {
+          // AND it was NOT triggered by this very device
+          const isFromThisDevice = notif.triggerDeviceId === deviceIdRef.current;
+          if (!isFromThisDevice && Date.now() - notif.timestamp < 3600 * 1000) {
             triggerSystemNotification(`[${notif.category}] ${notif.title}`, notif.body);
             triggerToastRef.current(notif.title, notif.body, notif.category);
           }
@@ -225,6 +227,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               category: (data.category || 'Important Alerts') as NotificationCategory,
               timestamp: data.timestamp || Date.now(),
               read: data.read || false,
+              triggerDeviceId: data.triggerDeviceId,
             });
           });
           currentDirect = items;
@@ -430,14 +433,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       body,
       category,
       timestamp,
-      read: false
+      read: false,
+      triggerDeviceId: deviceIdRef.current
     };
 
-    // 1. Emit instant system notification to the current admin/user if they qualify
-    const shouldSystemShow = targetUser === 'all' || (currentUser && targetUser === currentUser.uid);
-    if (shouldSystemShow) {
-      triggerSystemNotification(`[${category}] ${title}`, body);
-    }
+    // 1. Emit instant system notification locally? No, we will let Firestore trigger it if we want.
+    // Actually, we SHOULD trigger it locally if we want the local user to see it. 
+    // BUT the requirement is: "Notifications should be sent to every registered device EXCEPT the one that triggered the action."
+    // So we completely skip triggering locally!
 
     // 2. Try adding to Firestore
     try {

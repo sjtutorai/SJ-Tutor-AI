@@ -4,7 +4,6 @@ import { UserProfile } from '../types';
 import Logo from './Logo';
 import { Download, Share2, ShieldCheck, User, Sparkles } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-// @ts-expect-error - html2canvas missing types
 import html2canvas from 'html2canvas';
 
 interface IdCardViewProps {

@@ -146,7 +146,7 @@ interface AttachedFile {
 interface TutorChatProps {
   onDeductCredit: (amount: number) => boolean;
   currentCredits: number;
-  onSaveSession: (messages: ChatMessage[]) => void;
+  onSaveSession: (messages: ChatMessage[], generatedTitle?: string) => void;
   initialMessages?: ChatMessage[];
   onSharePublicLink?: (type: string, title: string, content: any) => void;
   recentSessions?: any[];
@@ -189,7 +189,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
   const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
     if (initialMessages) {
-      return initialMessages.map((m, i) => ({
+      return initialMessages.map((m: any, i) => ({
         id: m.id || `msg-${i}-${Date.now()}`,
         role: m.role,
         text: m.text,
@@ -216,8 +216,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   useEffect(() => {
     if (activeSessionId !== loadedSessionId) {
       setLoadedSessionId(activeSessionId);
+      chatTitleRef.current = undefined;
       if (initialMessages && initialMessages.length > 0) {
-        setMessages(initialMessages.map((m, i) => ({
+        setMessages(initialMessages.map((m: any, i) => ({
           id: m.id || `msg-${i}-${Date.now()}`,
           role: m.role,
           text: m.text,
@@ -238,6 +239,24 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       setShowResumePrompt(false);
     }
   }, [activeSessionId, initialMessages, loadedSessionId, grade, subject]);
+
+  // Real-time sync from other devices
+  useEffect(() => {
+    if (initialMessages && initialMessages.length > messages.length) {
+      // Remote device added messages.
+      // Make sure we only append them if we are not actively generating
+      if (!isGeneratingRef.current) {
+        setMessages(initialMessages.map((m: any, i) => ({
+          id: m.id || `msg-${i}-${Date.now()}`,
+          role: m.role,
+          text: m.text,
+          images: m.images,
+          timestamp: m.timestamp || Date.now(),
+          suggestions: m.suggestions
+        })));
+      }
+    }
+  }, [initialMessages]);
 
   const messagesRef = useRef<ExtendedChatMessage[]>(messages);
   const [isSaved, setIsSaved] = useState(false);
@@ -262,11 +281,35 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     localStorage.setItem('sjtutor_starred_messages', JSON.stringify(starredTimestamps));
   }, [starredTimestamps]);
 
+  const onSaveSessionRef = useRef(onSaveSession);
+  const chatTitleRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    onSaveSessionRef.current = onSaveSession;
+  }, [onSaveSession]);
+
+  // Title generation logic
+  useEffect(() => {
+    if (messages.length >= 3 && !chatTitleRef.current) {
+      // 1 initial greeting + 1 user + 1 ai = 3 messages, good time to generate title
+      const userHasTyped = messages.some(m => m.role === 'user');
+      if (userHasTyped) {
+        chatTitleRef.current = 'Generating...'; // Prevent duplicate calls
+        GeminiService.generateConversationTitle(messages).then(title => {
+          chatTitleRef.current = title;
+          onSaveSessionRef.current(messagesRef.current, title);
+        }).catch(() => {
+          chatTitleRef.current = undefined;
+        });
+      }
+    }
+  }, [messages.length]);
+
   // Auto-save on unmount
   useEffect(() => {
     return () => {
       if (messagesRef.current.length > 1) { 
-        onSaveSession(messagesRef.current);
+        onSaveSessionRef.current(messagesRef.current, chatTitleRef.current);
       }
     };
   }, []);
@@ -275,7 +318,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   useEffect(() => {
     const interval = setInterval(() => {
       if (messagesRef.current.length > 1) {
-        onSaveSession(messagesRef.current);
+        onSaveSessionRef.current(messagesRef.current, chatTitleRef.current);
       }
     }, 30000);
     return () => clearInterval(interval);
@@ -528,7 +571,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   };
 
   const handleSave = () => {
-    onSaveSession(messages);
+    onSaveSessionRef.current(messages, chatTitleRef.current);
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
   };

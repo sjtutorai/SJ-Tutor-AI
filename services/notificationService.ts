@@ -127,6 +127,7 @@ export class NotificationService {
             body,
             icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
             badge: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+            // @ts-expect-error missing vibrate type in lib
             vibrate: [200, 100, 200],
             data: { category }
           });

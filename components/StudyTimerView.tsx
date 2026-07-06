@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, RotateCcw, Clock, CheckCircle2, Coffee, Zap, AlertTriangle, Sparkles } from 'lucide-react';
+import { UserProfile } from '../types';
 
 const PRESETS = [
   { label: 'Pomodoro', minutes: 25, icon: Zap },

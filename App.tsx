@@ -32,6 +32,7 @@ import StudyTimerView from "./components/StudyTimerView";
 import PrivacyPolicyView from "./components/PrivacyPolicyView";
 import TermsOfServiceView from "./components/TermsOfServiceView";
 import NotificationsView from "./components/NotificationsView";
+import { GroupsView } from "./components/GroupsView";
 import { useNotifications } from "./components/NotificationContext";
 import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
@@ -53,6 +54,8 @@ import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { auth } from "./firebaseConfig";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "./firebaseConfig";
 import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo } from "firebase/auth";
 import type { User } from "firebase/auth";
 import {
@@ -86,6 +89,7 @@ import {
   Search,
   X,
   Trash2,
+  Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -872,17 +876,32 @@ const App: React.FC = () => {
 
     loadAndSyncHistory();
 
-    // Setup 30-seconds sync timer to seamlessly match history across devices
-    let syncInterval: NodeJS.Timeout | null = null;
+    // Setup real-time listener for multi-device sync
+    let unsubscribe: (() => void) | null = null;
     if (user) {
-      syncInterval = setInterval(() => {
-        loadAndSyncHistory();
-      }, 30000);
+      const colRef = collection(db, "users", user.uid, "history");
+      unsubscribe = onSnapshot(colRef, (snapshot) => {
+        if (!active) return;
+        const firestoreItems: HistoryItem[] = [];
+        snapshot.forEach((doc) => {
+          firestoreItems.push(doc.data() as HistoryItem);
+        });
+        firestoreItems.sort((a, b) => b.timestamp - a.timestamp);
+        
+        // Merge with local changes?
+        // Since onSnapshot will fire for local writes instantly (latency compensation),
+        // we can safely just use the snapshot data directly to overwrite state, 
+        // effectively syncing all devices in real-time.
+        setHistory(firestoreItems);
+        localStorage.setItem(`history_${user.uid}`, JSON.stringify(firestoreItems));
+      }, (error) => {
+        console.warn("Real-time history sync error:", error);
+      });
     }
 
     return () => {
       active = false;
-      if (syncInterval) clearInterval(syncInterval);
+      if (unsubscribe) unsubscribe();
     };
   }, [user]);
 
@@ -1010,12 +1029,12 @@ const App: React.FC = () => {
     return true;
   };
 
-  const addToHistory = (type: AppMode, content: any) => {
+  const addToHistory = (type: AppMode, content: any, customTitle?: string) => {
     const newId = Date.now().toString();
     const newItem: HistoryItem = {
       id: newId,
       type,
-      title: formData.chapterName || "Untitled Chapter",
+      title: customTitle || formData.chapterName || "Untitled Chapter",
       subtitle: `${formData.gradeClass} • ${formData.subject}`,
       timestamp: Date.now(),
       content,
@@ -1445,6 +1464,7 @@ const App: React.FC = () => {
     { id: AppMode.QUIZ, label: "Quiz Creator", icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
+    { id: AppMode.GROUPS, label: "Study Groups", icon: Users },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
@@ -2161,7 +2181,7 @@ const App: React.FC = () => {
               onDeductCredit={deductCredit}
               currentCredits={userProfile.credits}
               onSharePublicLink={handleSharePublicLink}
-              onSaveSession={(msgs) => {
+              onSaveSession={(msgs, generatedTitle) => {
                 if (msgs.length > 1) {
                   const tutorItemContent = {
                     messages: msgs,
@@ -2173,6 +2193,9 @@ const App: React.FC = () => {
                   );
                   if (existing) {
                     const updatedItem = { ...existing, content: tutorItemContent };
+                    if (generatedTitle && (!existing.title || existing.title === "Untitled Chapter" || existing.title === "New Chat" || existing.title === "AI Tutor Session")) {
+                      updatedItem.title = generatedTitle;
+                    }
                     setHistory((prev) =>
                       prev.map((h) =>
                         h.id === existing.id
@@ -2184,7 +2207,7 @@ const App: React.FC = () => {
                       saveHistoryItemToFirestore(user.uid, updatedItem);
                     }
                   } else {
-                    addToHistory(AppMode.TUTOR, tutorItemContent);
+                    addToHistory(AppMode.TUTOR, tutorItemContent, generatedTitle);
                   }
                 }
               }}
@@ -2234,6 +2257,13 @@ const App: React.FC = () => {
               onOpenPremium={() => setShowPremiumModal(true)}
               onNavigateToLegal={(legalMode) => setMode(legalMode as any)}
             />
+          </div>
+        );
+
+      case AppMode.GROUPS:
+        return (
+          <div className="h-full">
+            <GroupsView user={user} />
           </div>
         );
 
@@ -2423,10 +2453,10 @@ const App: React.FC = () => {
         className={`fixed lg:sticky top-0 left-0 z-50 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out ${
           isSidebarOpen 
             ? "w-64 translate-x-0" 
-            : "w-0 -translate-x-full lg:translate-x-0 lg:w-20 overflow-hidden"
+            : "w-20 translate-x-0 overflow-hidden"
         } shadow-2xl lg:shadow-none`}
       >
-        <div className={`h-full flex flex-col transition-all duration-300 ${isSidebarOpen ? "w-64" : "w-64 lg:w-20"}`}>
+        <div className={`h-full flex flex-col transition-all duration-300 ${isSidebarOpen ? "w-64" : "w-20"}`}>
           <div
             onClick={() => {
               if (!isSidebarOpen) {
@@ -2642,9 +2672,9 @@ const App: React.FC = () => {
         <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsSidebarOpen(true)}
-              className={`${isSidebarOpen ? "lg:hidden" : "block"} p-1.5 -ml-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all`}
-              title="Open Sidebar"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-1.5 -ml-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+              title="Toggle Sidebar"
             >
               <Menu className="w-5 h-5" />
             </button>

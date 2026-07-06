@@ -547,5 +547,36 @@ Response Format Requirements:
     });
 
     return response.text;
+  },
+
+  generateConversationTitle: async (messages: any[]): Promise<string> => {
+    try {
+      const ai = getAI();
+      const textMessages = messages
+        .filter(m => m.role === 'user' || m.role === 'model')
+        .slice(0, 5) // Use first 5 messages for context
+        .map(m => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.text}`)
+        .join('\n');
+        
+      const prompt = `Analyze the following brief conversation between a student and an AI Tutor, and generate a concise summarizing title.
+      Requirements:
+      - The title must be between 4 and 8 words.
+      - Do not use generic words like "Tutor Session", "Lesson", "Help", or "Chat".
+      - Focus on the specific academic topic or subject discussed.
+      - Return ONLY the clean, plain title without quotes, prefixes, or markdown.
+
+      CONVERSATION TRANSCRIPT:
+      ${textMessages}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt
+      });
+
+      return (response.text || "").trim().replace(/^["']|["']$/g, '');
+    } catch (e) {
+      console.warn("Failed to generate custom title:", e);
+      return "Tutor Lesson Segment";
+    }
   }
 };
