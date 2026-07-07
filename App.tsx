@@ -2453,10 +2453,10 @@ const App: React.FC = () => {
         className={`fixed lg:sticky top-0 left-0 z-50 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out ${
           isSidebarOpen 
             ? "w-64 translate-x-0" 
-            : "w-20 translate-x-0 overflow-hidden"
+            : "w-64 -translate-x-full lg:w-20 lg:translate-x-0 lg:overflow-hidden"
         } shadow-2xl lg:shadow-none`}
       >
-        <div className={`h-full flex flex-col transition-all duration-300 ${isSidebarOpen ? "w-64" : "w-20"}`}>
+        <div className={`h-full flex flex-col transition-all duration-300 ${isSidebarOpen ? "w-64" : "w-64 lg:w-20"}`}>
           <div
             onClick={() => {
               if (!isSidebarOpen) {
@@ -2532,6 +2532,7 @@ const App: React.FC = () => {
                       setIsSidebarOpen(false);
                     } else {
                       navigateToMode(item.id);
+                      if (window.innerWidth < 1024) setIsSidebarOpen(false);
                     }
                   }}
                   className={`w-full flex items-center rounded-lg transition-all duration-200 group text-sm ${
@@ -2565,7 +2566,10 @@ const App: React.FC = () => {
             {user ? (
               <>
                 <button
-                  onClick={() => setMode(AppMode.PROFILE)}
+                  onClick={() => {
+                    setMode(AppMode.PROFILE);
+                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                  }}
                   className={`w-full flex items-center rounded-lg transition-all ${
                     isSidebarOpen ? "px-3 py-2 gap-2 justify-start" : "p-1.5 justify-center"
                   } ${mode === AppMode.PROFILE ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
@@ -2626,7 +2630,10 @@ const App: React.FC = () => {
                   )}
                 </button>
                 <button
-                  onClick={handleLogout}
+                  onClick={() => {
+                    handleLogout();
+                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                  }}
                   className={`w-full flex items-center justify-center rounded-lg transition-colors font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 ${
                     isSidebarOpen ? "px-3 py-2 gap-2 text-xs" : "p-2.5"
                   }`}
@@ -2638,7 +2645,10 @@ const App: React.FC = () => {
               </>
             ) : (
               <button
-                onClick={() => setShowAuthModal(true)}
+                onClick={() => {
+                  setShowAuthModal(true);
+                  if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                }}
                 className={`w-full bg-slate-900 dark:bg-slate-700 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors flex items-center justify-center ${
                   isSidebarOpen ? "py-2.5 text-sm" : "p-2.5"
                 }`}
@@ -2654,7 +2664,10 @@ const App: React.FC = () => {
 
             {user && (
               <button
-                onClick={() => setShowPremiumModal(true)}
+                onClick={() => {
+                  setShowPremiumModal(true);
+                  if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                }}
                 className={`w-full flex items-center justify-center rounded-lg font-bold bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 transition-all ${
                   isSidebarOpen ? "py-2 gap-1.5 text-xs shadow-sm" : "p-2.5 shadow-none"
                 }`}
