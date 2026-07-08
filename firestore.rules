@@ -58,12 +58,12 @@ service cloud.firestore {
 
     // Groups collection
     match /groups/{groupId} {
-      allow read: if isSignedIn() && (resource == null || resource.data.privacy == 'public' || isOwner(resource.data.ownerId) || request.auth.uid in resource.data.members || request.auth.uid in resource.data.admins);
+      allow read: if isSignedIn() && (resource == null || resource.data.privacy == 'public' || resource.data.visibility == 'public' || isOwner(resource.data.ownerId) || request.auth.uid in resource.data.members || request.auth.uid in resource.data.admins);
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (
         isOwner(resource.data.ownerId) || 
         request.auth.uid in resource.data.admins || 
-        (resource.data.privacy == 'public' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberCount'])) // For joining public groups
+        ((resource.data.privacy == 'public' || resource.data.visibility == 'public') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberCount'])) // For joining public groups
       );
       allow delete: if isSignedIn() && isOwner(resource.data.ownerId);
 
@@ -71,6 +71,7 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if isSignedIn() && (
           get(/databases/$(database)/documents/groups/$(groupId)).data.privacy == 'public' || 
+          get(/databases/$(database)/documents/groups/$(groupId)).data.visibility == 'public' || 
           request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members ||
           request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins ||
           isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId)
@@ -103,8 +104,9 @@ service cloud.firestore {
     
     // User Group Invites index
     match /user_invites/{inviteId} {
-      allow read, write: if isSignedIn() && resource.data.email == request.auth.token.email;
-      allow create: if isSignedIn(); // allow admins/owners to create
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (resource == null || resource.data.email == request.auth.token.email || resource.data.invitedBy == request.auth.uid);
+      allow update, delete: if isSignedIn() && (resource.data.email == request.auth.token.email || resource.data.invitedBy == request.auth.uid);
     }
   }
 }

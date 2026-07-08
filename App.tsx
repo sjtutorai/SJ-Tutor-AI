@@ -54,7 +54,7 @@ import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { auth } from "./firebaseConfig";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo } from "firebase/auth";
 import type { User } from "firebase/auth";
@@ -179,6 +179,28 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
+  const [pendingGroupsInvitesCount, setPendingGroupsInvitesCount] = useState(0);
+
+  useEffect(() => {
+    if (!user || !user.email) {
+      setPendingGroupsInvitesCount(0);
+      return;
+    }
+
+    const q = query(
+      collection(db, "user_invites"),
+      where("email", "==", user.email.trim().toLowerCase()),
+      where("status", "==", "pending")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPendingGroupsInvitesCount(snapshot.size);
+    }, (err) => {
+      console.error("Error listening to user invites for badge:", err);
+    });
+
+    return unsubscribe;
+  }, [user]);
 
   const openAuthModal = (mode: 'signin' | 'signup' = 'signin') => {
     setAuthModalMode(mode);
@@ -2546,10 +2568,20 @@ const App: React.FC = () => {
                   }`}
                   title={!isSidebarOpen ? item.label : undefined}
                 >
-                  <Icon
-                    className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
-                  />
+                  <div className="relative">
+                    <Icon
+                      className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
+                    />
+                    {!isSidebarOpen && item.id === AppMode.GROUPS && pendingGroupsInvitesCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 flex h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
+                    )}
+                  </div>
                   {isSidebarOpen && <span>{item.label}</span>}
+                  {isSidebarOpen && item.id === AppMode.GROUPS && pendingGroupsInvitesCount > 0 && (
+                    <span className="ml-auto bg-red-500 text-white rounded-full text-[10px] font-black px-1.5 py-0.5 animate-pulse shrink-0">
+                      {pendingGroupsInvitesCount}
+                    </span>
+                  )}
                   {isSidebarOpen && !user &&
                     item.id !== AppMode.DASHBOARD &&
                     item.id !== AppMode.ABOUT && (

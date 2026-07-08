@@ -80,6 +80,7 @@ const SEED_NOTIFICATIONS: NotificationItem[] = [
 ];
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const deviceIdRef = useRef<string>('dev-' + Math.random().toString(36).substring(2, 9));
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
