@@ -3,10 +3,11 @@ import { QuizQuestion } from '../types';
 import { 
   CheckCircle, XCircle, ArrowRight, ArrowLeft, RefreshCw, Facebook, 
   Send, MessageCircle, Link, Share2, X, Trophy, Check, 
-  Copy, Download, Timer, Sparkles, Award, ShieldAlert, Star
+  Copy, Download, Timer, Sparkles, Award, ShieldAlert, Star, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ExportModal } from './ExportModal';
+import { useNotifications } from './NotificationContext';
 import confetti from 'canvas-confetti';
 
 interface QuizViewProps {
@@ -18,6 +19,7 @@ interface QuizViewProps {
   onAddToMyList?: () => void;
   isAddedToList?: boolean;
   onSharePublicLink?: (type: string, title: string, content: any) => void;
+  onSaveACLScore?: (score: number) => Promise<boolean>;
 }
 
 const LOADING_STEPS = [
@@ -37,7 +39,8 @@ const QuizView: React.FC<QuizViewProps> = ({
   isViewingShared = false,
   onAddToMyList,
   isAddedToList = false,
-  onSharePublicLink
+  onSharePublicLink,
+  onSaveACLScore
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>(() => new Array(questions.length).fill(null));
@@ -56,12 +59,54 @@ const QuizView: React.FC<QuizViewProps> = ({
   const [countedScore, setCountedScore] = useState(0);
   const [ringProgress, setRingProgress] = useState(0);
 
-  const handleSaveClick = () => {
+  // Save ACL Score states
+  const [isSavingScore, setIsSavingScore] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const { triggerToast } = useNotifications();
+
+  const handleSaveClick = async () => {
     if (onAddToMyList) {
       onAddToMyList();
-    } else {
-      setLocalSaved(true);
-      setTimeout(() => setLocalSaved(false), 4000);
+      return;
+    }
+
+    if (isSavingScore || localSaved || saveSuccess) return;
+
+    if (typeof score !== 'number' || score < 0 || score > questions.length) {
+      const errMsg = "Invalid quiz score data. Could not validate.";
+      setSaveError(errMsg);
+      triggerToast("Error Saving Score", errMsg, "Important Alerts");
+      return;
+    }
+
+    setIsSavingScore(true);
+    setSaveError(null);
+
+    try {
+      if (onSaveACLScore) {
+        const ok = await onSaveACLScore(score);
+        if (ok) {
+          setSaveSuccess(true);
+          setLocalSaved(true);
+          triggerToast("ACL Score Saved! 🏆", `Your score of ${score}/${questions.length} was securely synced.`, "Quiz Updates");
+        } else {
+          throw new Error("Persistence error occurred.");
+        }
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        setLocalSaved(true);
+        setSaveSuccess(true);
+        triggerToast("ACL Score Saved (Local)", `Your score of ${score}/${questions.length} is saved locally.`, "Quiz Updates");
+      }
+    } catch (err: any) {
+      console.error("Save score error:", err);
+      const errMsg = err?.message || "Failed to save score. Please try again.";
+      setSaveError(errMsg);
+      triggerToast("Save Failed ⚠️", errMsg, "Important Alerts");
+    } finally {
+      setIsSavingScore(false);
     }
   };
 
@@ -461,18 +506,30 @@ const QuizView: React.FC<QuizViewProps> = ({
                   className="space-y-4"
                 >
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {/* Save Button */}
+                    {/* Save ACL Score Button */}
                     <button
                       onClick={handleSaveClick}
-                      disabled={isAddedToList || localSaved}
+                      disabled={isAddedToList || localSaved || isSavingScore}
                       className={`p-3 border rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-xs transition ${
                         (isAddedToList || localSaved)
                           ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50 text-emerald-600 dark:text-emerald-400 cursor-not-allowed shadow-none'
+                          : isSavingScore
+                          ? 'bg-slate-50 dark:bg-slate-800 text-slate-400 cursor-wait'
                           : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:scale-[1.02]'
                       }`}
                     >
-                      <Check className={`w-4 h-4 ${(isAddedToList || localSaved) ? 'text-emerald-500' : 'text-slate-400'}`} />
-                      <span>{(isAddedToList || localSaved) ? "Saved" : "Save Score"}</span>
+                      {isSavingScore ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
+                      ) : (
+                        <Check className={`w-4 h-4 ${(isAddedToList || localSaved) ? 'text-emerald-500' : 'text-slate-400'}`} />
+                      )}
+                      <span>
+                        {isSavingScore 
+                          ? "Saving..." 
+                          : (isAddedToList || localSaved) 
+                          ? "Saved" 
+                          : "Save ACL Score"}
+                      </span>
                     </button>
 
                     {/* Premium Export Button */}
@@ -517,6 +574,12 @@ const QuizView: React.FC<QuizViewProps> = ({
                       <span>Share Link</span>
                     </button>
                   </div>
+
+                  {saveError && (
+                    <p className="text-[11px] font-black text-red-500 text-center animate-bounce">
+                      ⚠️ {saveError}
+                    </p>
+                  )}
 
                   <button
                     onClick={onReset}

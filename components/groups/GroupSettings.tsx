@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, increment } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { User } from 'firebase/auth';
-import { ArrowLeft, Save, Trash2, Shield, UserMinus, LogOut, Award } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Shield, UserMinus, LogOut, Award, Share2 } from 'lucide-react';
 import { GroupModel } from './types';
+import { useNotifications } from '../NotificationContext';
 
 interface GroupSettingsProps {
   user: User;
@@ -36,6 +37,35 @@ export const GroupSettings: React.FC<GroupSettingsProps> = ({
 
   const [membersInfo, setMembersInfo] = useState<MemberInfo[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
+
+  const { triggerToast } = useNotifications();
+
+  const handleShareGroup = async () => {
+    const shareLink = `${window.location.origin}/?joinGroup=${group.id}`;
+    const shareTitle = `Join my Study Group: ${group.name}`;
+    const shareText = `Hey! Join our study group "${group.name}" on SJ Tutor AI to study and chat together. 📚✨`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareLink,
+        });
+        triggerToast("Shared successfully!", `Invited friends to join ${group.name}.`, "Quiz Updates");
+      } catch (err) {
+        console.warn("Web Share failed or cancelled:", err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareLink);
+        triggerToast("Group link copied!", "Share it with your friends to join.", "Quiz Updates");
+      } catch (err) {
+        console.error("Clipboard copy failed:", err);
+        alert("Failed to copy link. Please manually copy this URL: " + shareLink);
+      }
+    }
+  };
 
   const isOwner = group.ownerId === user.uid;
   const isAdmin = group.admins?.includes(user.uid) || isOwner;
@@ -434,6 +464,14 @@ export const GroupSettings: React.FC<GroupSettingsProps> = ({
             </h3>
 
             <div className="space-y-3">
+              <button
+                onClick={handleShareGroup}
+                className="w-full flex items-center justify-center gap-2 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/20 text-primary-600 dark:text-primary-400 border border-primary-200/50 dark:border-primary-900/30 rounded-xl py-3 text-sm font-black transition-all mb-1"
+              >
+                <Share2 className="w-4 h-4" />
+                Share Group Link
+              </button>
+
               {!isOwner && (
                 <button
                   onClick={handleLeaveGroup}

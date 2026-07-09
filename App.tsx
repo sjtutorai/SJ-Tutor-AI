@@ -242,6 +242,21 @@ const App: React.FC = () => {
 
   const [quizNotFoundError, setQuizNotFoundError] = useState(false);
 
+  const [initialGroupId, setInitialGroupId] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("joinGroup") || params.get("group");
+  });
+
+  useEffect(() => {
+    if (initialGroupId) {
+      setMode(AppMode.GROUPS);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("joinGroup");
+      url.searchParams.delete("group");
+      window.history.replaceState({}, document.title, url.pathname + url.search);
+    }
+  }, [initialGroupId]);
+
   const [mode, setMode] = useState<AppMode>(() => {
     try {
       return (localStorage.getItem('sjtutor_autosave_mode') as AppMode) || AppMode.DASHBOARD;
@@ -1202,6 +1217,74 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSaveACLScore = async (score: number): Promise<boolean> => {
+    if (typeof score !== 'number' || score < 0) {
+      throw new Error("Invalid score. Score must be a positive number.");
+    }
+
+    const userUid = user?.uid || "guest";
+    const userDispName = userProfile.displayName || "Guest Learner";
+    const userPhoto = userProfile.photoURL || "";
+
+    // 1. Optimistic update for local history state
+    let updatedItem: any = null;
+    if (currentHistoryId) {
+      const historyItem = history.find((item) => item.id === currentHistoryId);
+      if (historyItem) {
+        updatedItem = { ...historyItem, score };
+        setHistory((prev) =>
+          prev.map((item) =>
+            item.id === currentHistoryId ? updatedItem : item
+          )
+        );
+      }
+    }
+
+    // 2. Define the exact Firestore write tasks
+    const doFirestoreWrite = async () => {
+      // Save to leaderboard
+      const leaderboardOk = await saveQuizScoreToLeaderboard(userUid, userDispName, userPhoto, score);
+      if (!leaderboardOk) {
+        throw new Error("Could not update the Academic Challenge Leaderboard. Please check your connection.");
+      }
+
+      // Save history item if authenticated
+      if (user && updatedItem) {
+        const historyOk = await saveHistoryItemToFirestore(user.uid, updatedItem);
+        if (!historyOk) {
+          throw new Error("Failed to sync score with your learning history.");
+        }
+      }
+      return true;
+    };
+
+    // 3. Helper to retry with backoff on temporary offline or transient errors
+    const retryWithBackoff = async <T,>(
+      fn: () => Promise<T>,
+      retries = 3,
+      delay = 1000
+    ): Promise<T> => {
+      try {
+        return await fn();
+      } catch (err: any) {
+        const isOffline = !navigator.onLine || (err && err.message && err.message.toLowerCase().includes("offline"));
+        if (retries <= 0 || !isOffline) throw err;
+        console.warn(`Firestore save failed, retrying in ${delay}ms... (${retries} attempts left)`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return retryWithBackoff(fn, retries - 1, delay * 2);
+      }
+    };
+
+    // 4. Try executing with retries
+    try {
+      await retryWithBackoff(doFirestoreWrite, 3, 1000);
+      return true;
+    } catch (error: any) {
+      console.error("Failed to save ACL Score:", error);
+      throw error;
+    }
+  };
+
   const calculateCost = (
     targetMode: AppMode,
     data: StudyRequestData,
@@ -2152,6 +2235,7 @@ const App: React.FC = () => {
                 setSharedContent(null);
               }}
               onComplete={handleQuizComplete}
+              onSaveACLScore={handleSaveACLScore}
               existingScore={existingQuizScore}
               isViewingShared={isViewingShared}
               onAddToMyList={handleAddSharedToMyList}
@@ -2285,7 +2369,11 @@ const App: React.FC = () => {
       case AppMode.GROUPS:
         return (
           <div className="h-full">
-            <GroupsView user={user} />
+            <GroupsView 
+              user={user} 
+              initialGroupId={initialGroupId}
+              onClearInitialGroupId={() => setInitialGroupId(null)}
+            />
           </div>
         );
 

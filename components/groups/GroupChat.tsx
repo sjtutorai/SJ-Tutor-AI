@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { User } from 'firebase/auth';
-import { MessageSquare, ArrowLeft, Send, Settings, Users } from 'lucide-react';
+import { MessageSquare, ArrowLeft, Send, Settings, Users, Share2 } from 'lucide-react';
 import { GroupModel, GroupMessageModel } from './types';
+import { useNotifications } from '../NotificationContext';
 
 interface GroupChatProps {
   user: User;
@@ -16,6 +17,34 @@ export const GroupChat: React.FC<GroupChatProps> = ({ user, group, onBack, onOpe
   const [messages, setMessages] = useState<GroupMessageModel[]>([]);
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { triggerToast } = useNotifications();
+
+  const handleShareGroup = async () => {
+    const shareLink = `${window.location.origin}/?joinGroup=${group.id}`;
+    const shareTitle = `Join my Study Group: ${group.name}`;
+    const shareText = `Hey! Join our study group "${group.name}" on SJ Tutor AI to study and chat together. 📚✨`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareLink,
+        });
+        triggerToast("Shared successfully!", `Invited friends to join ${group.name}.`, "Quiz Updates");
+      } catch (err) {
+        console.warn("Web Share failed or cancelled:", err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareLink);
+        triggerToast("Group link copied!", "Share it with your friends to join.", "Quiz Updates");
+      } catch (err) {
+        console.error("Clipboard copy failed:", err);
+        alert("Failed to copy link. Please manually copy this URL: " + shareLink);
+      }
+    }
+  };
 
   // Subscribe to real-time messages
   useEffect(() => {
@@ -160,13 +189,23 @@ export const GroupChat: React.FC<GroupChatProps> = ({ user, group, onBack, onOpe
           </div>
         </div>
 
-        <button
-          onClick={onOpenSettings}
-          className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-all border border-slate-200/40 dark:border-slate-700"
-          title="Group settings"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleShareGroup}
+            className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-all border border-slate-200/40 dark:border-slate-700 flex items-center justify-center"
+            title="Share Group Link"
+          >
+            <Share2 className="w-5 h-5 text-primary-500" />
+          </button>
+
+          <button
+            onClick={onOpenSettings}
+            className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-all border border-slate-200/40 dark:border-slate-700 flex items-center justify-center"
+            title="Group settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Message List */}
