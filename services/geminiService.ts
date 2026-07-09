@@ -30,7 +30,7 @@ export const GeminiService = {
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
       config: {
         systemInstruction: `You are an AI study assistant. You must communicate and generate content strictly in ${language}.`
@@ -64,7 +64,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
     });
 
@@ -148,7 +148,7 @@ Generate notes based on:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         systemInstruction,
@@ -178,7 +178,7 @@ Generate notes based on:
     `;
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
@@ -228,7 +228,7 @@ Generate notes based on:
     });
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: {
         parts: contents
       },
@@ -264,7 +264,7 @@ Generate notes based on:
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -297,7 +297,7 @@ Generate notes based on:
     const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -338,7 +338,7 @@ Generate notes based on:
     
     const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -375,7 +375,7 @@ Generate notes based on:
     const ai = getAI();
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       config: { systemInstruction: systemInstruction }
     });
   },
@@ -401,7 +401,7 @@ Generate notes based on:
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: [...formattedHistory, { role: 'user', parts: currentParts }],
       config: { systemInstruction }
     });
@@ -425,7 +425,7 @@ ${SettingsService.getTutorSystemInstruction()}
 `;
 
     // Process chat history
-    const formattedHistory = history.map(msg => ({
+    const rawFormattedHistory = history.map(msg => ({
       role: msg.role === 'model' ? 'model' : 'user',
       parts: msg.images ? [
         ...msg.images.map((img: string) => {
@@ -436,9 +436,19 @@ ${SettingsService.getTutorSystemInstruction()}
             inlineData: { mimeType: mime, data: cleanBase64 }
           };
         }),
-        { text: msg.text }
-      ] : [{ text: msg.text }]
-    }));
+        ...(msg.text ? [{ text: msg.text }] : [])
+      ] : (msg.text ? [{ text: msg.text }] : [])
+    })).filter(msg => msg.parts.length > 0);
+
+    const formattedHistory: any[] = [];
+    for (const msg of rawFormattedHistory) {
+      const last = formattedHistory[formattedHistory.length - 1];
+      if (last && last.role === msg.role) {
+        last.parts.push(...msg.parts);
+      } else {
+        formattedHistory.push({ role: msg.role, parts: [...msg.parts] });
+      }
+    }
 
     // Build the current prompt parts
     const currentParts: any[] = [];
@@ -476,9 +486,18 @@ ${SettingsService.getTutorSystemInstruction()}
       currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
     });
 
+    const finalContents = [...formattedHistory];
+    const lastContent = finalContents[finalContents.length - 1];
+    
+    if (lastContent && lastContent.role === 'user') {
+      lastContent.parts.push(...currentParts);
+    } else {
+      finalContents.push({ role: 'user', parts: currentParts });
+    }
+
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3.5-flash',
-      contents: [...formattedHistory, { role: 'user', parts: currentParts }],
+      model: 'gemini-2.5-flash',
+      contents: finalContents,
       config: { systemInstruction }
     });
 
@@ -490,7 +509,7 @@ ${SettingsService.getTutorSystemInstruction()}
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
@@ -541,7 +560,7 @@ Response Format Requirements:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       contents: prompt,
       config: { systemInstruction }
     });
@@ -569,7 +588,7 @@ Response Format Requirements:
       ${textMessages}`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt
       });
 

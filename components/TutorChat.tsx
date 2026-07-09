@@ -686,6 +686,16 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         }));
       }
 
+      if (isGeneratingRef.current && !accumulatedText.trim()) {
+         accumulatedText = "⚠️ I'm sorry, my response was blocked or returned empty. Please try asking in a different way.";
+         setMessages(prev => prev.map(m => {
+          if (m.id === modelMessageId) {
+            return { ...m, text: accumulatedText };
+          }
+          return m;
+        }));
+      }
+
       // Generation Complete: append custom smart suggestions
       const smartSuggestions = generateSmartSuggestionsForTopic(textToSend, accumulatedText);
       setMessages(prev => prev.map(m => {
