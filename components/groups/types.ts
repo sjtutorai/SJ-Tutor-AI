@@ -1,16 +1,18 @@
 export interface GroupModel {
   id: string;
   name: string;
-  description: string;
-  privacy: 'public' | 'private';
+  subject: string;
+  description?: string; // Legacy
+  privacy?: 'public' | 'private'; // Legacy
   visibility: 'public' | 'private';
+  status: 'active' | 'inactive';
+  isActive?: boolean; // Legacy
   category: string;
   ownerId: string;
   ownerName: string;
   memberCount: number;
   members: string[];
   admins: string[];
-  isActive: boolean;
   createdAt: any;
 }
 

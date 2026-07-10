@@ -25,16 +25,18 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ user, onClos
     try {
       const docRef = await addDoc(collection(db, 'groups'), {
         name: name.trim(),
-        description: description.trim(),
-        privacy: privacy,
-        visibility: privacy, // Sync both fields for compatibility and security rules
+        subject: description.trim(),
+        description: description.trim(), // Legacy
+        privacy: privacy, // Legacy
+        visibility: privacy,
+        status: 'active',
+        isActive: true, // Legacy
         category: category,
         ownerId: user.uid,
         ownerName: user.displayName || 'User',
         memberCount: 1,
         members: [user.uid],
         admins: [],
-        isActive: true, // Crucial for discovery query
         createdAt: serverTimestamp(),
       });
 

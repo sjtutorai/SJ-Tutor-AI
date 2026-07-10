@@ -54,19 +54,34 @@ export const GroupsView: React.FC<{
     return unsubscribe;
   }, [user]);
 
+  const [joinLinkError, setJoinLinkError] = useState<string | null>(null);
+
   // Handle checking and loading the initialGroupId share link
   useEffect(() => {
     if (!initialGroupId || !user) return;
 
+    let isMounted = true;
+    let timeoutId: any;
+
     const checkAndJoinGroup = async () => {
       setCheckingJoinGroup(true);
+      setJoinLinkError(null);
+      
       try {
+        // Implement 10-second timeout
         const groupRef = doc(db, 'groups', initialGroupId);
-        const groupSnap = await getDoc(groupRef);
+        
+        const fetchPromise = getDoc(groupRef);
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('TIMEOUT')), 10000);
+        });
+        
+        const groupSnap = (await Promise.race([fetchPromise, timeoutPromise])) as any;
 
-        if (!groupSnap.exists() || !groupSnap.data().isActive) {
-          alert('This study group does not exist, has been deleted, or is currently inactive.');
-          if (onClearInitialGroupId) onClearInitialGroupId();
+        if (!isMounted) return;
+
+        if (!groupSnap.exists() || (groupSnap.data().status !== 'active' && !groupSnap.data().isActive)) {
+          setJoinLinkError('This study group does not exist, has been deleted, or is currently inactive.');
           return;
         }
 
@@ -77,23 +92,32 @@ export const GroupsView: React.FC<{
 
         const isMember = groupData.members?.includes(user.uid);
         if (isMember) {
-          // Already a member, go straight to chat!
           setSelectedGroup(groupData);
           if (onClearInitialGroupId) onClearInitialGroupId();
         } else {
-          // Show the join confirmation prompt
           setJoiningGroup(groupData);
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (!isMounted) return;
         console.error('Error checking join group link:', err);
-        alert('Failed to load group information. Please try again.');
-        if (onClearInitialGroupId) onClearInitialGroupId();
+        if (err.message === 'TIMEOUT') {
+           setJoinLinkError('Request timed out. Please check your connection and try again.');
+        } else {
+           setJoinLinkError('Failed to load group information. Please try again.');
+        }
       } finally {
-        setCheckingJoinGroup(false);
+        if (isMounted) {
+          setCheckingJoinGroup(false);
+        }
       }
     };
 
     checkAndJoinGroup();
+
+    return () => {
+      isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [initialGroupId, user]);
 
   const handleConfirmJoin = async () => {
@@ -352,12 +376,51 @@ export const GroupsView: React.FC<{
         </div>
       )}
 
-      {/* Checking join link spinner */}
-      {checkingJoinGroup && (
+      {/* Checking join link spinner or error */}
+      {(checkingJoinGroup || joinLinkError) && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-3">
-            <RefreshCw className="w-8 h-8 text-primary-500 animate-spin" />
-            <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Loading group invite details...</span>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-4 max-w-sm text-center">
+            {checkingJoinGroup ? (
+              <>
+                <RefreshCw className="w-8 h-8 text-primary-500 animate-spin" />
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Loading group invite details...</span>
+              </>
+            ) : (
+              <>
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full">
+                  <AlertCircle className="w-8 h-8" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Invite Error</h3>
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{joinLinkError}</span>
+                <div className="flex gap-3 mt-2 w-full">
+                  <button
+                    onClick={() => {
+                      setJoinLinkError(null);
+                      if (onClearInitialGroupId) onClearInitialGroupId();
+                    }}
+                    className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => {
+                      // Trigger a retry by clearing error and re-running the effect?
+                      // Actually just clearing it and manually calling logic would be better,
+                      // but changing initialGroupId slightly or just unsetting/setting it works.
+                      // Or we can just let them close it and try the link again.
+                      // For a true retry button, we need the fetch function outside or retrigger state.
+                      setJoinLinkError(null);
+                      setCheckingJoinGroup(true);
+                      // Since we can't easily re-trigger useEffect without changing deps, we'll just reload page as a simple retry
+                      window.location.reload();
+                    }}
+                    className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-xl font-bold text-xs hover:bg-primary-700 transition-all"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
