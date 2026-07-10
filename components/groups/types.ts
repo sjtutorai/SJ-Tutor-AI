@@ -1,18 +1,18 @@
 export interface GroupModel {
   id: string;
   name: string;
-  subject: string;
-  description?: string; // Legacy
-  privacy?: 'public' | 'private'; // Legacy
+  description: string;
+  privacy: 'public' | 'private';
   visibility: 'public' | 'private';
-  status: 'active' | 'inactive';
-  isActive?: boolean; // Legacy
   category: string;
+  subject?: string;
   ownerId: string;
   ownerName: string;
   memberCount: number;
   members: string[];
   admins: string[];
+  isActive: boolean;
+  status?: 'active' | 'inactive';
   createdAt: any;
 }
 
@@ -22,6 +22,11 @@ export interface GroupMessageModel {
   senderId: string;
   senderName: string;
   createdAt: any;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'document' | 'audio';
+  mediaName?: string;
+  readBy?: string[];
+  clientMsgId?: string;
 }
 
 export interface GroupInviteModel {
@@ -34,4 +39,6 @@ export interface GroupInviteModel {
   status: 'pending' | 'accepted' | 'declined' | 'cancelled';
   receiverUid?: string | null;
   createdAt: any;
+  expiresAt?: any;
 }
+

@@ -681,22 +681,34 @@ const App: React.FC = () => {
         email = window.prompt('Please provide your email for confirmation');
       }
       
-      if (email) {
-        signInWithEmailLink(auth, email, window.location.href)
+      const cleanEmail = email?.trim();
+      if (cleanEmail) {
+        signInWithEmailLink(auth, cleanEmail, window.location.href)
           .then(async (result) => {
             window.localStorage.removeItem('emailForSignIn');
             const additionalUserInfo = getAdditionalUserInfo(result);
             if (additionalUserInfo?.isNewUser) {
                const storedDisplayName = window.localStorage.getItem('displayNameForSignIn') || '';
                window.localStorage.removeItem('displayNameForSignIn');
-               handleSignUpSuccess({ displayName: storedDisplayName });
+               await handleSignUpSuccess({ displayName: storedDisplayName });
             }
+            
+            // Send successful login notification
+            if (result.user?.uid) {
+              sendNotification(
+                "Welcome to SJ Tutor AI! 👋",
+                "You have successfully authenticated via Magic Link. Start learning now!",
+                "General",
+                result.user.uid
+              ).catch((e) => console.warn("Failed to send login notification:", e));
+            }
+
             // Clear URL of auth parameters
             window.history.replaceState({}, document.title, window.location.pathname);
           })
           .catch((error) => {
             console.error('Error signing in with email link', error);
-            alert("This sign-in link has expired or has already been used. Please request a new sign-in link.");
+            alert("This sign-in link has expired, has already been used, or is invalid. Please request a new sign-in link from the auth screen.");
           })
           .finally(() => {
              setAuthLoading(false);

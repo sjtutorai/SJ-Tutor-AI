@@ -30,15 +30,11 @@ export const MyGroups: React.FC<MyGroupsProps> = ({
 
     const unsubscribe = onSnapshot(
       q,
-      async (snapshot) => {
-        const fetched = snapshot.docs.map((d) => {
-          const data = d.data();
-          return {
-            id: d.id,
-            ...data,
-            subject: data.subject || data.description || 'No subject'
-          };
-        }) as GroupModel[];
+      (snapshot) => {
+        const fetched = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })) as GroupModel[];
 
         // Sort by newest created
         fetched.sort((a, b) => {
@@ -49,41 +45,6 @@ export const MyGroups: React.FC<MyGroupsProps> = ({
 
         setJoinedGroups(fetched);
         setLoading(false);
-
-        // Transparent migration for owned groups
-        for (const d of snapshot.docs) {
-          const data = d.data();
-          if (data.ownerId !== user.uid) continue; // Only owners migrate
-          
-          let needsUpdate = false;
-          let updates: any = {};
-          if (!data.subject && data.description) {
-            updates.subject = data.description;
-            needsUpdate = true;
-          }
-          if (data.privacy !== undefined && data.privacy !== 'public' && data.privacy !== 'private') {
-            updates.privacy = 'private'; 
-          }
-          if (!data.visibility && data.privacy) {
-            updates.visibility = data.privacy;
-            needsUpdate = true;
-          }
-          if (data.isActive !== undefined && !data.status) {
-            updates.status = data.isActive ? 'active' : 'inactive';
-            needsUpdate = true;
-          }
-          
-          if (needsUpdate) {
-            try {
-              // use updateDoc dynamically to avoid circular dependencies if needed
-              // doc, updateDoc are imported above
-              const { updateDoc: update, doc: getDocRef } = await import('firebase/firestore');
-              await update(getDocRef(db, 'groups', d.id), updates);
-            } catch (e) {
-              console.warn("Could not auto-migrate owned group doc", e);
-            }
-          }
-        }
       },
       (error) => {
         console.error('Error fetching joined groups:', error);
@@ -100,7 +61,7 @@ export const MyGroups: React.FC<MyGroupsProps> = ({
     return joinedGroups.filter(
       (g) =>
         g.name?.toLowerCase().includes(qLower) ||
-        g.subject?.toLowerCase().includes(qLower)
+        g.description?.toLowerCase().includes(qLower)
     );
   }, [joinedGroups, searchQuery]);
 
@@ -174,7 +135,7 @@ export const MyGroups: React.FC<MyGroupsProps> = ({
                     {group.name}
                   </h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mt-2 h-10 leading-relaxed">
-                    {group.subject || 'No description provided.'}
+                    {group.description || 'No description provided.'}
                   </p>
                 </div>
 

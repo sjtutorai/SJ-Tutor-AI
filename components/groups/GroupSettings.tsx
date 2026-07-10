@@ -29,8 +29,8 @@ export const GroupSettings: React.FC<GroupSettingsProps> = ({
   onLeaveGroupSuccess,
 }) => {
   const [name, setName] = useState(group.name);
-  const [description, setDescription] = useState(group.subject || group.description || '');
-  const [privacy, setPrivacy] = useState<'public' | 'private'>(group.visibility || group.privacy || 'public');
+  const [description, setDescription] = useState(group.description || '');
+  const [privacy, setPrivacy] = useState<'public' | 'private'>(group.privacy || 'public');
   const [category, setCategory] = useState(group.category || 'Study');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -119,10 +119,9 @@ export const GroupSettings: React.FC<GroupSettingsProps> = ({
       const groupRef = doc(db, 'groups', group.id);
       const updates = {
         name: name.trim(),
-        subject: description.trim(),
-        description: description.trim(), // Legacy
-        privacy: privacy, // Legacy
-        visibility: privacy,
+        description: description.trim(),
+        privacy: privacy,
+        visibility: privacy, // Keep in sync for compatibility
         category: category,
       };
 

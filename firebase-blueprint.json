@@ -140,7 +140,12 @@
         "text": { "type": "string" },
         "senderId": { "type": "string" },
         "senderName": { "type": "string" },
-        "createdAt": { "type": "number" }
+        "createdAt": { "type": "number" },
+        "mediaUrl": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["image", "video", "document", "audio"] },
+        "mediaName": { "type": "string" },
+        "readBy": { "type": "array" },
+        "clientMsgId": { "type": "string" }
       },
       "required": ["text", "senderId", "senderName"]
     },
@@ -156,7 +161,8 @@
         "groupName": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "accepted", "declined", "cancelled"] },
         "receiverUid": { "type": "string" },
-        "createdAt": { "type": "number" }
+        "createdAt": { "type": "number" },
+        "expiresAt": { "type": "number" }
       },
       "required": ["email", "invitedBy", "groupId", "groupName", "status"]
     }

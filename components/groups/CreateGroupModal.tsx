@@ -25,19 +25,27 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ user, onClos
     try {
       const docRef = await addDoc(collection(db, 'groups'), {
         name: name.trim(),
-        subject: description.trim(),
-        description: description.trim(), // Legacy
-        privacy: privacy, // Legacy
-        visibility: privacy,
-        status: 'active',
-        isActive: true, // Legacy
+        description: description.trim(),
+        privacy: privacy,
+        visibility: privacy, // Sync both fields for compatibility and security rules
         category: category,
+        subject: category, // Sync with subject field for required schema compatibility
         ownerId: user.uid,
         ownerName: user.displayName || 'User',
         memberCount: 1,
         members: [user.uid],
         admins: [],
+        isActive: true, // Crucial for discovery query
+        status: 'active', // Required schema property
         createdAt: serverTimestamp(),
+      });
+
+      // Send initial system message
+      await addDoc(collection(db, 'groups', docRef.id, 'messages'), {
+        text: `Study group "${name.trim()}" created by ${user.displayName || 'User'}. Welcome to your collaborative learning space! 🎓`,
+        senderId: 'system',
+        senderName: 'System',
+        createdAt: Date.now()
       });
 
       if (onSuccess) {

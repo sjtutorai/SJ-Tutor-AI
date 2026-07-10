@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, onSnapshot, doc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { User } from 'firebase/auth';
-import { Users, Filter } from 'lucide-react';
+import { Users, Filter, AlertCircle } from 'lucide-react';
 import { GroupModel } from './types';
+import { handleFirestoreError, OperationType } from '../../utils/firebaseUtils';
 
 interface DiscoverGroupsProps {
   user: User;
@@ -20,65 +21,49 @@ export const DiscoverGroups: React.FC<DiscoverGroupsProps> = ({
 }) => {
   const [groups, setGroups] = useState<GroupModel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [joiningGroupId, setJoiningGroupId] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState(6);
   const [sortBy, setSortBy] = useState<'newest' | 'members'>('newest');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
 
   useEffect(() => {
+    setLoading(true);
+    setErrorMsg(null);
     // Query public, active groups using real-time listener
     const q = query(
       collection(db, 'groups'),
-      where('visibility', '==', 'public'),
-      where('status', '==', 'active')
+      where('privacy', '==', 'public'),
+      where('isActive', '==', true)
     );
 
     const unsubscribe = onSnapshot(
       q,
-      async (snapshot) => {
+      (snapshot) => {
         const fetched = snapshot.docs.map((d) => {
           const data = d.data();
           return {
             id: d.id,
             ...data,
-            subject: data.subject || data.description || 'No subject',
+            // Backwards compatibility field mapping
+            visibility: data.visibility || data.privacy || 'public',
+            status: data.status || (data.isActive ? 'active' : 'inactive'),
+            subject: data.subject || data.category || 'General',
           };
         }) as GroupModel[];
 
         setGroups(fetched);
         setLoading(false);
-
-        // Perform transparent migration of required fields safely for owned groups
-        for (const d of snapshot.docs) {
-          const data = d.data();
-          if (data.ownerId !== user.uid) continue; // Only owners can migrate their own groups to avoid security rule blocking
-          
-          let needsUpdate = false;
-          let updates: any = {};
-          if (!data.subject && data.description) {
-            updates.subject = data.description;
-            needsUpdate = true;
-          }
-          if (data.privacy !== undefined && !data.visibility) {
-            updates.visibility = data.privacy;
-            needsUpdate = true;
-          }
-          if (data.isActive !== undefined && !data.status) {
-            updates.status = data.isActive ? 'active' : 'inactive';
-            needsUpdate = true;
-          }
-          
-          if (needsUpdate) {
-            try {
-              await updateDoc(doc(db, 'groups', d.id), updates);
-            } catch (e) {
-              console.warn("Could not auto-migrate group doc", e);
-            }
-          }
-        }
       },
       (error) => {
         console.error('Error fetching discover groups:', error);
+        setErrorMsg('Failed to subscribe to study groups. Please check your credentials or rules.');
         setLoading(false);
+        try {
+          handleFirestoreError(error, OperationType.LIST, 'groups');
+        } catch {
+          // Suppress rethrow to prevent breaking app, but it was logged
+        }
       }
     );
 
@@ -102,7 +87,7 @@ export const DiscoverGroups: React.FC<DiscoverGroupsProps> = ({
       result = result.filter(
         (g) =>
           g.name?.toLowerCase().includes(qLower) ||
-          g.subject?.toLowerCase().includes(qLower)
+          g.description?.toLowerCase().includes(qLower)
       );
     }
 
@@ -136,12 +121,24 @@ export const DiscoverGroups: React.FC<DiscoverGroupsProps> = ({
 
   const handleJoin = async (group: GroupModel, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (joiningGroupId) return; // Prevent concurrent requests/multiple clicks
+    setJoiningGroupId(group.id);
     try {
       const groupRef = doc(db, 'groups', group.id);
       await updateDoc(groupRef, {
         members: arrayUnion(user.uid),
         memberCount: increment(1),
       });
+
+      // Send join system message
+      const { addDoc } = await import('firebase/firestore');
+      await addDoc(collection(db, 'groups', group.id, 'messages'), {
+        text: `${user.displayName || 'A student'} has joined the study group! Welcome! 👋`,
+        senderId: 'system',
+        senderName: 'System',
+        createdAt: Date.now()
+      });
+
       // Invoke callback
       onJoinGroup({
         ...group,
@@ -150,9 +147,39 @@ export const DiscoverGroups: React.FC<DiscoverGroupsProps> = ({
       });
     } catch (err) {
       console.error('Error joining group:', err);
-      alert('Failed to join group. Please try again.');
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, `groups/${group.id}`);
+      } catch {
+        // Already logged in handleFirestoreError
+      }
+      alert('Failed to join group. Please check security rules or try again.');
+    } finally {
+      setJoiningGroupId(null);
     }
   };
+
+  if (errorMsg) {
+    return (
+      <div className="p-8 text-center bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 rounded-3xl space-y-4 max-w-md mx-auto">
+        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center mx-auto">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <h3 className="text-lg font-black text-slate-900 dark:text-white">Connection Error</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{errorMsg}</p>
+        <button
+          onClick={() => {
+            setErrorMsg(null);
+            setLoading(true);
+            // Quick force reload by re-triggering state
+            window.location.reload();
+          }}
+          className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md"
+        >
+          Retry Connection
+        </button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -243,7 +270,7 @@ export const DiscoverGroups: React.FC<DiscoverGroupsProps> = ({
                     {group.name}
                   </h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mt-2 h-10 leading-relaxed">
-                    {group.subject || 'No description provided.'}
+                    {group.description || 'No description provided.'}
                   </p>
                 </div>
 
@@ -254,9 +281,10 @@ export const DiscoverGroups: React.FC<DiscoverGroupsProps> = ({
                   </div>
                   <button
                     onClick={(e) => handleJoin(group, e)}
-                    className="text-xs font-bold bg-primary-50 text-primary-600 hover:bg-primary-100 dark:bg-primary-950/40 dark:text-primary-400 dark:hover:bg-primary-950/80 px-4 py-2 rounded-xl transition-all shadow-sm"
+                    disabled={joiningGroupId !== null}
+                    className="text-xs font-bold bg-primary-50 text-primary-600 hover:bg-primary-100 dark:bg-primary-950/40 dark:text-primary-400 dark:hover:bg-primary-950/80 px-4 py-2 rounded-xl transition-all shadow-sm disabled:opacity-50"
                   >
-                    Join Group
+                    {joiningGroupId === group.id ? 'Joining...' : 'Join Group'}
                   </button>
                 </div>
               </div>

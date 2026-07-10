@@ -96,21 +96,7 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
     };
 
     try {
-      const response = await fetch('/api/auth/magic-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          continueUrl: window.location.href,
-        })
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to send magic link');
-      }
-
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
       window.localStorage.setItem('emailForSignIn', email);
       if (authMode === 'signup') {
         window.localStorage.setItem('displayNameForSignIn', displayName.trim());
@@ -121,14 +107,12 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
       setResendTimer(60);
     } catch (err: any) {
       console.error(err);
-      if (err.message && err.message.includes('Server email configuration is missing')) {
-         setError("Authentication server is not fully configured for emails. Please try signing in with Google or GitHub.");
-      } else if (err.code === 'auth/invalid-email' || (err.message && err.message.toLowerCase().includes('invalid email'))) {
+      if (err.code === 'auth/invalid-email') {
          setError("Email address is invalid.");
       } else if (err.code === 'auth/too-many-requests') {
          setError("Too many requests. Please wait a few minutes.");
       } else {
-         setError(err.message || "We couldn't send the sign-in link. Please try again.");
+         setError("We couldn't send the sign-in link. Please try again.");
       }
     } finally {
       setLoading(false);

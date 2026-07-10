@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, doc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { User } from 'firebase/auth';
-import { Mail, Check, X, Bell } from 'lucide-react';
+import { Mail, Check, X, Bell, AlertCircle, RefreshCw } from 'lucide-react';
 import { GroupInviteModel } from './types';
+import { handleFirestoreError, OperationType } from '../../utils/firebaseUtils';
 
 interface InviteListProps {
   user: User;
@@ -13,9 +14,21 @@ interface InviteListProps {
 export const InviteList: React.FC<InviteListProps> = ({ user, onAcceptSuccess }) => {
   const [invites, setInvites] = useState<GroupInviteModel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [processingInviteId, setProcessingInviteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user.email) return;
+
+    setLoading(true);
+    setErrorMsg(null);
+
+    // Timeout helper after 10000ms (10 seconds)
+    const timer = setTimeout(() => {
+      setLoading(false);
+      setErrorMsg('The connection timed out while querying invites. Please click below to retry.');
+    }, 10000);
 
     // Fetch pending invites sent to user's email
     const q = query(
@@ -27,38 +40,110 @@ export const InviteList: React.FC<InviteListProps> = ({ user, onAcceptSuccess })
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const fetched = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        })) as GroupInviteModel[];
+        clearTimeout(timer);
+        const fetched = snapshot.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            ...data,
+            expiresAt: data.expiresAt || null,
+          };
+        }) as GroupInviteModel[];
 
         setInvites(fetched);
         setLoading(false);
       },
       (error) => {
+        clearTimeout(timer);
         console.error('Error fetching group invites:', error);
+        setErrorMsg('Failed to subscribe to invitations. Please check security rules.');
         setLoading(false);
+        try {
+          handleFirestoreError(error, OperationType.LIST, 'user_invites');
+        } catch {
+          // Logged
+        }
       }
     );
 
-    return unsubscribe;
-  }, [user.email]);
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [user.email, retryCount]);
 
   const handleAction = async (invite: GroupInviteModel, action: 'accepted' | 'declined') => {
+    if (processingInviteId) return; // Prevent concurrent modifications
+    setProcessingInviteId(invite.id);
+    setErrorMsg(null);
+
     try {
-      // 1. Update the invitation record status in Firestore
+      // 1. Verify if invitation is expired (e.g. check invite.expiresAt or older than 7 days)
+      const createdAtMs = invite.createdAt?.toMillis ? invite.createdAt.toMillis() : (typeof invite.createdAt === 'number' ? invite.createdAt : Date.now());
+      const expiryTime = invite.expiresAt || (createdAtMs + 7 * 24 * 60 * 60 * 1000);
+      
+      if (expiryTime < Date.now()) {
+        alert('This invitation has expired.');
+        // Quietly clean up/decline expired invite so it doesn't hang in the UI
+        const inviteRef = doc(db, 'user_invites', invite.id);
+        await updateDoc(inviteRef, { status: 'declined' });
+        return;
+      }
+
+      // 2. Fetch the corresponding group to validate membership, existence, and status
+      const { getDoc } = await import('firebase/firestore');
+      const groupRef = doc(db, 'groups', invite.groupId);
+      const groupSnap = await getDoc(groupRef);
+
+      if (!groupSnap.exists()) {
+        alert('This study group no longer exists or was deleted.');
+        const inviteRef = doc(db, 'user_invites', invite.id);
+        await updateDoc(inviteRef, { status: 'cancelled' });
+        return;
+      }
+
+      const groupData = groupSnap.data();
+      const isGroupActive = groupData.isActive !== false && groupData.status !== 'inactive';
+      if (!isGroupActive) {
+        alert('This study group is currently inactive or archived.');
+        const inviteRef = doc(db, 'user_invites', invite.id);
+        await updateDoc(inviteRef, { status: 'cancelled' });
+        return;
+      }
+
+      const members = groupData.members || [];
+      if (members.includes(user.uid)) {
+        alert('You are already a member of this study group.');
+        // Resolve invite automatically
+        const inviteRef = doc(db, 'user_invites', invite.id);
+        await updateDoc(inviteRef, { status: 'accepted', receiverUid: user.uid });
+        if (onAcceptSuccess) {
+          onAcceptSuccess(invite.groupId);
+        }
+        return;
+      }
+
+      // 3. Update invitation record status in Firestore
       const inviteRef = doc(db, 'user_invites', invite.id);
       await updateDoc(inviteRef, {
         status: action,
         receiverUid: user.uid,
       });
 
-      // 2. If accepted, add user to group members
+      // 4. If accepted, add user to group members
       if (action === 'accepted') {
-        const groupRef = doc(db, 'groups', invite.groupId);
         await updateDoc(groupRef, {
           members: arrayUnion(user.uid),
           memberCount: increment(1),
+        });
+
+        // Send join system message
+        const { addDoc } = await import('firebase/firestore');
+        await addDoc(collection(db, 'groups', invite.groupId, 'messages'), {
+          text: `${user.displayName || 'A student'} has joined the study group! Welcome! 👋`,
+          senderId: 'system',
+          senderName: 'System',
+          createdAt: Date.now()
         });
 
         if (onAcceptSuccess) {
@@ -67,9 +152,37 @@ export const InviteList: React.FC<InviteListProps> = ({ user, onAcceptSuccess })
       }
     } catch (err) {
       console.error(`Error performing ${action} action:`, err);
-      alert('An error occurred. Please try again.');
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, `user_invites/${invite.id}`);
+      } catch {
+        // Logged
+      }
+      alert('An error occurred while processing invitation. Please try again.');
+    } finally {
+      setProcessingInviteId(null);
     }
   };
+
+  if (errorMsg) {
+    return (
+      <div className="p-8 text-center bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 rounded-3xl space-y-4 max-w-md mx-auto text-left">
+        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center mx-auto">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <h3 className="text-lg font-black text-slate-900 dark:text-white text-center">Query Timeout</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed text-center">{errorMsg}</p>
+        <div className="text-center">
+          <button
+            onClick={() => setRetryCount((prev) => prev + 1)}
+            className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-md"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Retry Invite Query
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -119,17 +232,23 @@ export const InviteList: React.FC<InviteListProps> = ({ user, onAcceptSuccess })
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => handleAction(invite, 'declined')}
-                  className="p-2 bg-slate-50 hover:bg-red-50 hover:text-red-600 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:hover:bg-red-950/40 dark:hover:text-red-400 rounded-xl transition-all shadow-sm border border-slate-100 dark:border-slate-700"
+                  disabled={processingInviteId !== null}
+                  className="p-2 bg-slate-50 hover:bg-red-50 hover:text-red-600 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:hover:bg-red-950/40 dark:hover:text-red-400 rounded-xl transition-all shadow-sm border border-slate-100 dark:border-slate-700 disabled:opacity-50"
                   title="Decline invitation"
                 >
                   <X className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => handleAction(invite, 'accepted')}
-                  className="p-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-all shadow-md shadow-primary-600/10"
+                  disabled={processingInviteId !== null}
+                  className="p-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl transition-all shadow-md shadow-primary-600/10 disabled:opacity-50 flex items-center justify-center min-w-[38px] min-h-[38px]"
                   title="Accept invitation"
                 >
-                  <Check className="w-5 h-5" />
+                  {processingInviteId === invite.id ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Check className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>

@@ -2,8 +2,6 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import axios from "axios";
 import { v4 as uuidv4 } from 'uuid';
-import nodemailer from "nodemailer";
-import { adminAuth } from "../firebaseAdmin";
 
 const router = express.Router();
 
@@ -35,6 +33,7 @@ router.post("/send-otp", async (req, res) => {
     const otp = generateOTP();
     const otpHash = await bcrypt.hash(otp, 10);
 
+    // Use memory store exclusively now
     memoryStore.set(phone, {
       otpHash,
       expiresAt: Date.now() + 5 * 60 * 1000,
@@ -42,9 +41,10 @@ router.post("/send-otp", async (req, res) => {
       verified: false
     });
 
+    // Send SMS via Termii (NO Sender ID)
     await axios.post("https://api.ng.termii.com/api/sms/send", {
-      to: phone.replace(/\+/g, ""), 
-      from: "N-Alert",
+      to: phone.replace(/\+/g, ""), // Termii often expects digits only
+      from: "N-Alert",                 // default system sender
       sms: `Your SJ Tutor AI OTP is ${otp}. Valid for 5 minutes.`,
       type: "plain",
       channel: "generic",
@@ -90,78 +90,12 @@ router.post("/verify-otp", async (req, res) => {
   }
 });
 
-/* MAGIC LINK (Email Delivery) */
-router.post("/magic-link", async (req, res) => {
-  console.log("Magic Link request received");
-  try {
-    const { email, continueUrl } = req.body;
-    console.log("User email:", email);
-    
-    if (!email || !continueUrl) {
-      return res.status(400).json({ success: false, message: "Email and continueUrl are required", code: "auth/invalid-request" });
-    }
-
-    // Verify SMTP env vars
-    if (!process.env.SMTP_HOST || !process.env.SMTP_PORT || !process.env.SMTP_USER || !process.env.SMTP_PASS || !process.env.EMAIL_FROM) {
-      console.error("Missing SMTP Configuration in environment variables.");
-      return res.status(500).json({ success: false, message: "Server email configuration is missing", code: "auth/server-config-error" });
-    }
-
-    console.log("Generating Firebase sign-in link...");
-    const actionCodeSettings = {
-      url: continueUrl,
-      handleCodeInApp: true,
-    };
-    
-    const signInLink = await adminAuth.generateSignInWithEmailLink(email, actionCodeSettings);
-    console.log("Magic Link generated successfully");
-
-    // Development only: console.log("Generated Magic Link:", signInLink);
-
-    console.log("Calling email provider...");
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT),
-      secure: Number(process.env.SMTP_PORT) === 465, 
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-
-    const mailOptions = {
-      from: process.env.EMAIL_FROM,
-      to: email,
-      subject: "Sign in to SJ Tutor AI",
-      html: `
-        <div style="font-family: sans-serif; max-w: 600px; margin: auto; padding: 20px; text-align: center; border: 1px solid #eee; border-radius: 10px;">
-          <h2>Welcome to SJ Tutor AI!</h2>
-          <p>Click the secure link below to sign in to your account.</p>
-          <a href="${signInLink}" style="display: inline-block; padding: 12px 24px; margin: 20px 0; background-color: #3b82f6; color: white; text-decoration: none; font-weight: bold; border-radius: 6px;">Sign In Now</a>
-          <p style="font-size: 12px; color: #888;">If you did not request this email, you can safely ignore it.</p>
-        </div>
-      `
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully");
-    console.log("Accepted recipients:", info.accepted);
-    console.log("SMTP response:", info.response);
-    console.log("Magic Link flow completed");
-
-    res.json({ success: true, message: "Sign-in link sent to your email address" });
-  } catch (error: any) {
-    console.error("Error in magic link flow:", error.message || error);
-    res.status(500).json({ success: false, message: "Failed to send magic link", code: error.code || "auth/internal-error", details: error.message });
-  }
-});
-
 /* SHARE CONTENT */
 router.post("/share", async (req, res) => {
   console.log(`[SHARE] Request received. Type: ${req.body.type}, Title: ${req.body.title}`);
   try {
     const { type, title, subtitle, content } = req.body;
-    const id = uuidv4().slice(0, 8);
+    const id = uuidv4().slice(0, 8); // Short ID
 
     sharedContentStore.set(id, {
       id,

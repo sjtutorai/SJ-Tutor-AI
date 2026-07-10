@@ -2,14 +2,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Default deny rule
+    // 1. Default deny net-wide catch-all rule
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Helper functions
+    // --- Core Helper Functions ---
     function isSignedIn() {
       return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
     }
 
     function isOwner(userId) {
@@ -20,93 +24,266 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // Users collection
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- standalone Validation Blueprints ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['credits']) &&
+             data.credits is number &&
+             (!data.keys().contains('displayName') || (data.displayName is string && data.displayName.size() <= 128)) &&
+             (!data.keys().contains('phoneNumber') || (data.phoneNumber is string && data.phoneNumber.size() <= 30)) &&
+             (!data.keys().contains('institution') || (data.institution is string && data.institution.size() <= 150)) &&
+             (!data.keys().contains('grade') || (data.grade is string && data.grade.size() <= 50)) &&
+             (!data.keys().contains('board') || (data.board is string && data.board.size() <= 50)) &&
+             (!data.keys().contains('bio') || (data.bio is string && data.bio.size() <= 1000)) &&
+             (!data.keys().contains('photoURL') || (data.photoURL is string && data.photoURL.size() <= 1000)) &&
+             (!data.keys().contains('learningGoal') || (data.learningGoal is string && data.learningGoal.size() <= 500)) &&
+             (!data.keys().contains('learningStyle') || (data.learningStyle is string && data.learningStyle.size() <= 50)) &&
+             (!data.keys().contains('planType') || (data.planType is string && data.planType.size() <= 50)) &&
+             (!data.keys().contains('claimedOffers') || data.claimedOffers is list);
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['title', 'body', 'timestamp', 'read']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.body is string && data.body.size() <= 1000 &&
+             data.timestamp is number &&
+             data.read is bool;
+    }
+
+    function isValidHistory(data) {
+      return data.keys().hasAll(['id', 'type', 'title', 'timestamp']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.type is string && data.type.size() <= 50 &&
+             data.title is string && data.title.size() <= 250 &&
+             data.timestamp is number;
+    }
+
+    function isValidStreak(data) {
+      return data.keys().hasAll(['uid', 'currentStreak', 'highestStreak', 'lastActivityDate', 'streakHistory', 'updatedAt']) &&
+             data.uid is string && data.uid.size() <= 128 &&
+             data.currentStreak is number &&
+             data.highestStreak is number &&
+             data.lastActivityDate is string &&
+             data.streakHistory is list && data.streakHistory.size() <= 365 &&
+             data.updatedAt is number;
+    }
+
+    function isValidQuizLeaderboard(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'totalScore', 'quizzesCompleted', 'highestScore', 'lastActive']) &&
+             data.uid is string && data.uid.size() <= 128 &&
+             data.displayName is string && data.displayName.size() <= 128 &&
+             data.totalScore is number &&
+             data.quizzesCompleted is number &&
+             data.highestScore is number &&
+             data.lastActive is number;
+    }
+
+    function isValidSharedContent(data) {
+      return data.keys().hasAll(['shareId', 'type', 'title', 'content', 'ownerUid', 'createdAt', 'views', 'likes', 'isPublic']) &&
+             data.shareId is string && data.shareId.size() <= 128 &&
+             data.type is string && data.type.size() <= 128 &&
+             data.title is string && data.title.size() <= 250 &&
+             data.ownerUid is string && data.ownerUid.size() <= 128 &&
+             data.createdAt is number &&
+             data.views is number &&
+             data.likes is number &&
+             data.isPublic is bool;
+    }
+
+    function isValidGroup(data) {
+      return data.keys().hasAll(['name', 'privacy', 'ownerId', 'members', 'isActive']) &&
+             data.name is string && data.name.size() <= 100 &&
+             (data.privacy == 'public' || data.privacy == 'private') &&
+             data.ownerId is string && data.ownerId.size() <= 128 &&
+             data.members is list && data.members.size() <= 500 &&
+             data.isActive is bool &&
+             (!data.keys().contains('status') || (data.status is string && data.status.size() <= 30)) &&
+             (!data.keys().contains('category') || (data.category is string && data.category.size() <= 100)) &&
+             (!data.keys().contains('subject') || (data.subject is string && data.subject.size() <= 100)) &&
+             (!data.keys().contains('visibility') || (data.visibility is string && data.visibility.size() <= 30)) &&
+             (!data.keys().contains('memberCount') || data.memberCount is number);
+    }
+
+    function isValidGroupMessage(data) {
+      return data.keys().hasAll(['text', 'senderId', 'senderName']) &&
+             data.text is string && data.text.size() <= 5000000 && // Up to ~5MB for rich attachments Base64 encoding
+             data.senderId is string && data.senderId.size() <= 128 &&
+             data.senderName is string && data.senderName.size() <= 128 &&
+             (!data.keys().contains('createdAt') || data.createdAt is number || data.createdAt == request.time) &&
+             (!data.keys().contains('mediaUrl') || (data.mediaUrl is string && data.mediaUrl.size() <= 6000000)) &&
+             (!data.keys().contains('mediaType') || (data.mediaType == 'image' || data.mediaType == 'video' || data.mediaType == 'audio' || data.mediaType == 'document')) &&
+             (!data.keys().contains('mediaName') || (data.mediaName is string && data.mediaName.size() <= 250)) &&
+             (!data.keys().contains('readBy') || (data.readBy is list && data.readBy.size() <= 500)) &&
+             (!data.keys().contains('clientMsgId') || (data.clientMsgId is string && data.clientMsgId.size() <= 128));
+    }
+
+    function isValidUserGroupInvite(data) {
+      return data.keys().hasAll(['email', 'invitedBy', 'groupId', 'groupName', 'status']) &&
+             data.email is string && data.email.size() <= 200 &&
+             data.invitedBy is string && data.invitedBy.size() <= 128 &&
+             data.groupId is string && data.groupId.size() <= 128 &&
+             data.groupName is string && data.groupName.size() <= 128 &&
+             (data.status == 'pending' || data.status == 'accepted' || data.status == 'declined' || data.status == 'cancelled') &&
+             (!data.keys().contains('receiverUid') || (data.receiverUid is string && data.receiverUid.size() <= 128)) &&
+             (!data.keys().contains('invitedByName') || (data.invitedByName is string && data.invitedByName.size() <= 128)) &&
+             (!data.keys().contains('createdAt') || data.createdAt is number) &&
+             (!data.keys().contains('expiresAt') || data.expiresAt is number);
+    }
+
+    // --- State Transition Helpers ---
+    function isJoinAction(existingData, incomingData, userId) {
+      return incomingData.diff(existingData).affectedKeys().hasOnly(['members', 'memberCount']) &&
+             incomingData.members.size() == existingData.members.size() + 1 &&
+             incomingData.members.hasAll(existingData.members) &&
+             incomingData.members.hasAll([userId]) &&
+             incomingData.memberCount == existingData.memberCount + 1;
+    }
+
+    function isReadReceiptAction(existingData, incomingData, userId) {
+      return incomingData.diff(existingData).affectedKeys().hasOnly(['readBy']) &&
+             incomingData.readBy.size() == existingData.readBy.size() + 1 &&
+             incomingData.readBy.hasAll(existingData.readBy) &&
+             incomingData.readBy.hasAll([userId]);
+    }
+
+    function isInviteResponseAction(existingData, incomingData, userId) {
+      return existingData.status == 'pending' &&
+             incomingData.diff(existingData).affectedKeys().hasOnly(['status', 'receiverUid']) &&
+             (incomingData.status == 'accepted' || incomingData.status == 'declined') &&
+             incomingData.receiverUid == userId;
+    }
+
+    function isInviteCancelAction(existingData, incomingData) {
+      return existingData.status == 'pending' &&
+             incomingData.diff(existingData).affectedKeys().hasOnly(['status']) &&
+             incomingData.status == 'cancelled';
+    }
+
+
+    // --- Collections matching ---
+
+    // 1. Users collection
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isOwner(userId) && isValidId(userId);
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && resource.data.credits >= 0; // Forced secure query constraints
+      allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().credits == 100; // Strictly enforce baseline entry credits
+      allow update: if isOwner(userId) && isValidUser(incoming()) && (
+        // Prevent users from arbitrarily fabricating credits or changing premium plan type
+        (!incoming().diff(existing()).affectedKeys().hasAny(['credits', 'planType']) || 
+         (incoming().credits == existing().credits && incoming().planType == existing().planType))
+      );
+      allow delete: if false; // User accounts are durable
+
+      // 2. Notifications subcollection (Private PII isolation)
+      match /notifications/{notificationId} {
+        allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(notificationId) && (request.method != 'write' || isValidNotification(incoming()));
+      }
+
+      // 3. History subcollection
+      match /history/{historyId} {
+        allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(historyId) && (request.method != 'write' || isValidHistory(incoming()));
+      }
     }
 
-    // Notifications subcollection
-    match /users/{userId}/notifications/{notificationId} {
-      allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(notificationId);
-    }
-
-    // History subcollection
-    match /users/{userId}/history/{historyId} {
-      allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(historyId);
-    }
-
-    // Global notifications
+    // 4. Global broadcast notifications
     match /global_notifications/{notificationId} {
       allow read: if isSignedIn();
-      allow write: if false; // System only
+      allow write: if false; // Read-only for standard users
     }
 
-    // Streaks collection (allow reading list/documents for Leaderboard, owner writes only)
+    // 5. User daily streaks progress
     match /streaks/{userId} {
-      allow read: if isSignedIn();
-      allow create, update: if isOwner(userId) && isValidId(userId);
-      allow delete: if false; // Streak data shouldn't be deleted by client
-    }
-
-    // Quiz leaderboard collection (allow reading list/documents for Leaderboard, owner writes only)
-    match /quiz_leaderboard/{userId} {
-      allow read: if isSignedIn();
-      allow create, update: if isOwner(userId) && isValidId(userId);
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isOwner(userId) && isValidId(userId) && isValidStreak(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidStreak(incoming());
       allow delete: if false;
     }
 
-    // Groups collection
-    match /groups/{groupId} {
-      allow read: if isSignedIn() && (resource == null || resource.data.privacy == 'public' || resource.data.visibility == 'public' || isOwner(resource.data.ownerId) || request.auth.uid in resource.data.members || request.auth.uid in resource.data.admins);
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (
-        isOwner(resource.data.ownerId) || 
-        request.auth.uid in resource.data.admins || 
-        ((resource.data.privacy == 'public' || resource.data.visibility == 'public') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberCount'])) // For joining public groups
-      );
-      allow delete: if isSignedIn() && isOwner(resource.data.ownerId);
+    // 6. Leaderboards progress summaries
+    match /quiz_leaderboard/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isOwner(userId) && isValidId(userId) && isValidQuizLeaderboard(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidQuizLeaderboard(incoming());
+      allow delete: if false;
+    }
 
-      // Group Messages subcollection
+    // 7. Shared course content
+    match /sharedContent/{shareId} {
+      allow get: if resource == null || resource.data.isPublic == true || resource.data.ownerUid == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.isPublic == true;
+      allow create: if isSignedIn() && isValidId(shareId) && isValidSharedContent(incoming()) && incoming().ownerUid == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(shareId) && isValidSharedContent(incoming()) && (
+        isOwner(existing().ownerUid) || 
+        incoming().diff(existing()).affectedKeys().hasOnly(['views', 'likes', 'sharesCount', 'lastViewedAt']) // Social action updates
+      );
+      allow delete: if isSignedIn() && isValidId(shareId) && isOwner(existing().ownerUid);
+    }
+
+    // 8. Collaborative Study Groups (ABAC and Master Gate Rules)
+    match /groups/{groupId} {
+      allow get: if isSignedIn() && isValidId(groupId) && (
+        resource.data.privacy == 'public' || 
+        resource.data.visibility == 'public' || 
+        resource.data.ownerId == request.auth.uid || 
+        request.auth.uid in resource.data.members
+      );
+      allow list: if isSignedIn() && (
+        resource.data.privacy == 'public' || 
+        resource.data.visibility == 'public' || 
+        resource.data.ownerId == request.auth.uid || 
+        request.auth.uid in resource.data.members
+      );
+      allow create: if isSignedIn() && isValidId(groupId) && isValidGroup(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(groupId) && isValidGroup(incoming()) && (
+        isOwner(existing().ownerId) || 
+        ((existing().privacy == 'public' || existing().visibility == 'public') && isJoinAction(existing(), incoming(), request.auth.uid))
+      );
+      allow delete: if isSignedIn() && isValidId(groupId) && isOwner(existing().ownerId);
+
+      // 9. Discussion subcollection
       match /messages/{messageId} {
-        allow read: if isSignedIn() && (
+        allow read: if isSignedIn() && isValidId(messageId) && (
           get(/databases/$(database)/documents/groups/$(groupId)).data.privacy == 'public' || 
-          get(/databases/$(database)/documents/groups/$(groupId)).data.visibility == 'public' || 
           request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members ||
-          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins ||
-          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId)
+          get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
         );
-        allow create: if isSignedIn() && (
+        allow create: if isSignedIn() && isValidId(messageId) && isValidGroupMessage(incoming()) && (
           request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members ||
-          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins ||
-          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId)
+          get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
+        ) && incoming().senderId == request.auth.uid;
+        
+        allow update: if isSignedIn() && isValidId(messageId) && isValidGroupMessage(incoming()) && (
+          isReadReceiptAction(existing(), incoming(), request.auth.uid)
         );
-      }
-      
-      // Group Invites subcollection
-      match /invites/{inviteId} {
-        allow read: if isSignedIn() && (
-          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId) ||
-          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins ||
-          resource.data.email == request.auth.token.email
-        );
-        allow create: if isSignedIn() && (
-          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId) ||
-          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins
-        );
-        allow update, delete: if isSignedIn() && (
-          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId) ||
-          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins ||
-          resource.data.email == request.auth.token.email
-        );
+        allow delete: if false; // Immutable message history
       }
     }
-    
-    // User Group Invites index
+
+    // 10. Index of invitations sent to users
     match /user_invites/{inviteId} {
-      allow create: if isSignedIn();
-      allow read: if isSignedIn() && (resource == null || resource.data.email == request.auth.token.email || resource.data.invitedBy == request.auth.uid);
-      allow update, delete: if isSignedIn() && (resource.data.email == request.auth.token.email || resource.data.invitedBy == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(inviteId) && isValidUserGroupInvite(incoming()) && incoming().invitedBy == request.auth.uid;
+      allow get: if isSignedIn() && isValidId(inviteId) && (
+        resource.data.invitedBy == request.auth.uid || 
+        (request.auth.token.email != null && resource.data.email.lower() == request.auth.token.email.lower())
+      );
+      allow list: if isSignedIn() && (
+        resource.data.invitedBy == request.auth.uid || 
+        (request.auth.token.email != null && resource.data.email.lower() == request.auth.token.email.lower())
+      );
+      allow update: if isSignedIn() && isValidId(inviteId) && isValidUserGroupInvite(incoming()) && (
+        (request.auth.token.email != null && resource.data.email.lower() == request.auth.token.email.lower() && isInviteResponseAction(existing(), incoming(), request.auth.uid)) ||
+        (existing().invitedBy == request.auth.uid && isInviteCancelAction(existing(), incoming()))
+      );
+      allow delete: if isSignedIn() && isValidId(inviteId) && existing().invitedBy == request.auth.uid;
     }
   }
 }
