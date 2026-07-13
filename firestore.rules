@@ -108,7 +108,11 @@ service cloud.firestore {
              (!data.keys().contains('category') || (data.category is string && data.category.size() <= 100)) &&
              (!data.keys().contains('subject') || (data.subject is string && data.subject.size() <= 100)) &&
              (!data.keys().contains('visibility') || (data.visibility is string && data.visibility.size() <= 30)) &&
-             (!data.keys().contains('memberCount') || data.memberCount is number);
+             (!data.keys().contains('memberCount') || data.memberCount is number) &&
+             (!data.keys().contains('qrVersion') || data.qrVersion is number) &&
+             (!data.keys().contains('groupJoinLink') || (data.groupJoinLink is string && data.groupJoinLink.size() <= 1000)) &&
+             (!data.keys().contains('qrData') || (data.qrData is string && data.qrData.size() <= 2000)) &&
+             (!data.keys().contains('qrGeneratedAt') || data.qrGeneratedAt is number);
     }
 
     function isValidGroupMessage(data) {
@@ -245,6 +249,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidId(groupId) && isValidGroup(incoming()) && incoming().ownerId == request.auth.uid;
       allow update: if isSignedIn() && isValidId(groupId) && isValidGroup(incoming()) && (
         isOwner(existing().ownerId) || 
+        ('admins' in existing() && request.auth.uid in existing().admins) ||
         ((existing().privacy == 'public' || existing().visibility == 'public') && isJoinAction(existing(), incoming(), request.auth.uid))
       );
       allow delete: if isSignedIn() && isValidId(groupId) && isOwner(existing().ownerId);
@@ -259,12 +264,33 @@ service cloud.firestore {
         allow create: if isSignedIn() && isValidId(messageId) && isValidGroupMessage(incoming()) && (
           request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members ||
           get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
-        ) && incoming().senderId == request.auth.uid;
+        ) && (incoming().senderId == request.auth.uid || incoming().senderId == 'system');
         
         allow update: if isSignedIn() && isValidId(messageId) && isValidGroupMessage(incoming()) && (
           isReadReceiptAction(existing(), incoming(), request.auth.uid)
         );
         allow delete: if false; // Immutable message history
+      }
+
+      // 11. Request-to-Join for Private Groups
+      match /join_requests/{requestId} {
+        allow read: if isSignedIn() && isValidId(requestId) && (
+          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId) ||
+          ('admins' in get(/databases/$(database)/documents/groups/$(groupId)).data && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins) ||
+          requestId == request.auth.uid
+        );
+        allow create: if isSignedIn() && isValidId(requestId) && requestId == request.auth.uid &&
+                      !(request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members) &&
+                      get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId != request.auth.uid;
+        allow update: if isSignedIn() && isValidId(requestId) && (
+          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId) ||
+          ('admins' in get(/databases/$(database)/documents/groups/$(groupId)).data && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins)
+        );
+        allow delete: if isSignedIn() && isValidId(requestId) && (
+          requestId == request.auth.uid ||
+          isOwner(get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId) ||
+          ('admins' in get(/databases/$(database)/documents/groups/$(groupId)).data && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.admins)
+        );
       }
     }
 

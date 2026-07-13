@@ -674,6 +674,56 @@ const App: React.FC = () => {
 
   // Magic Link Login Processor
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const loginToken = urlParams.get('loginToken');
+
+    if (loginToken) {
+      setAuthLoading(true);
+      
+      const verifyToken = async () => {
+        try {
+          const { signInWithCustomToken } = await import('firebase/auth');
+          const response = await fetch('/api/auth/verify-magic-link', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ token: loginToken }),
+          });
+
+          if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.message || 'Failed to verify magic link');
+          }
+
+          const data = await response.json();
+          const { customToken, user: serverUser } = data;
+
+          // Sign in with the Custom Token
+          const result = await signInWithCustomToken(auth, customToken);
+          
+          sendNotification(
+            "Welcome to SJ Tutor AI! 👋",
+            `You have successfully authenticated via Magic Link. Welcome back, ${serverUser.displayName || 'student'}!`,
+            "General",
+            result.user.uid
+          ).catch((e) => console.warn("Failed to send login notification:", e));
+
+          // Clear URL of auth parameters
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch (error: any) {
+          console.error('Error signing in with custom magic link token:', error);
+          alert(error.message || 'Verification failed. The link may have expired or been used.');
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } finally {
+          setAuthLoading(false);
+        }
+      };
+
+      verifyToken();
+      return;
+    }
+
     if (isSignInWithEmailLink(auth, window.location.href)) {
       setAuthLoading(true);
       let email = window.localStorage.getItem('emailForSignIn');

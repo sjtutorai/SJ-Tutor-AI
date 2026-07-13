@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, increment } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, getDoc, arrayUnion, arrayRemove, increment, collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { User } from 'firebase/auth';
-import { ArrowLeft, Save, Trash2, Shield, UserMinus, LogOut, Award, Share2 } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Shield, UserMinus, LogOut, Award, Share2, QrCode, Check, X } from 'lucide-react';
 import { GroupModel } from './types';
 import { useNotifications } from '../NotificationContext';
+import { GroupQRCard } from './GroupQRCard';
 
 interface GroupSettingsProps {
   user: User;
@@ -37,6 +38,8 @@ export const GroupSettings: React.FC<GroupSettingsProps> = ({
 
   const [membersInfo, setMembersInfo] = useState<MemberInfo[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
+  const [joinRequests, setJoinRequests] = useState<any[]>([]);
+  const [showQRCard, setShowQRCard] = useState(false);
 
   const { triggerToast } = useNotifications();
 
@@ -69,6 +72,83 @@ export const GroupSettings: React.FC<GroupSettingsProps> = ({
 
   const isOwner = group.ownerId === user.uid;
   const isAdmin = group.admins?.includes(user.uid) || isOwner;
+
+  // Listen to pending join requests for private groups
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const q = query(
+      collection(db, 'groups', group.id, 'join_requests'),
+      where('status', '==', 'pending')
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const reqs = snapshot.docs.map(doc => ({
+          requestId: doc.id,
+          ...doc.data()
+        }));
+        setJoinRequests(reqs);
+      },
+      (error) => {
+        console.error('Error listening to join requests:', error);
+      }
+    );
+
+    return unsubscribe;
+  }, [group.id, isAdmin]);
+
+  const handleApproveRequest = async (requestId: string, requesterName: string) => {
+    try {
+      const groupRef = doc(db, 'groups', group.id);
+      
+      // 1. Add requested uid to members list, increment memberCount
+      await updateDoc(groupRef, {
+        members: arrayUnion(requestId),
+        memberCount: increment(1)
+      });
+
+      // 2. Remove the join request document
+      const reqRef = doc(db, 'groups', group.id, 'join_requests', requestId);
+      await deleteDoc(reqRef);
+
+      // 3. Send system message in group messages
+      const messagesRef = collection(db, 'groups', group.id, 'messages');
+      await addDoc(messagesRef, {
+        text: `${requesterName} was approved to join by ${user.displayName || 'Admin'}! Welcome! 🎉`,
+        senderId: 'system',
+        senderName: 'System',
+        createdAt: Date.now()
+      });
+
+      // 4. Update parent state
+      const updatedMembers = [...(group.members || []), requestId];
+      onUpdateGroup({ 
+        ...group, 
+        members: updatedMembers,
+        memberCount: (group.memberCount || 0) + 1 
+      });
+
+      triggerToast("Approved! ✅", `${requesterName} is now a member of the group.`, "New Features");
+      alert(`${requesterName} has been approved to join the group!`);
+    } catch (err) {
+      console.error('Approve request failed:', err);
+      alert('Failed to approve request. Please check permissions.');
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string, requesterName: string) => {
+    try {
+      const reqRef = doc(db, 'groups', group.id, 'join_requests', requestId);
+      await deleteDoc(reqRef);
+      triggerToast("Rejected", `Request from ${requesterName} was declined.`, "Quiz Updates");
+      alert(`Request from ${requesterName} has been declined.`);
+    } catch (err) {
+      console.error('Reject request failed:', err);
+      alert('Failed to reject request. Please try again.');
+    }
+  };
 
   // Fetch profiles of members to render their human-readable display names and details
   useEffect(() => {
@@ -362,6 +442,43 @@ export const GroupSettings: React.FC<GroupSettingsProps> = ({
             </form>
           </div>
 
+          {/* Pending Join Requests (Private Groups only, for admins) */}
+          {isAdmin && group.privacy === 'private' && joinRequests.length > 0 && (
+            <div className="bg-amber-50/40 dark:bg-amber-950/10 rounded-3xl border border-amber-200/40 dark:border-amber-900/20 p-6 shadow-sm mb-6">
+              <h3 className="font-black text-amber-850 dark:text-amber-400 mb-4 flex items-center gap-2">
+                ⏳ Pending Join Requests ({joinRequests.length})
+              </h3>
+              <div className="divide-y divide-amber-100 dark:divide-amber-900/30">
+                {joinRequests.map((req) => (
+                  <div key={req.requestId} className="py-3.5 flex items-center justify-between gap-4 text-left">
+                    <div>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">
+                        {req.displayName}
+                      </span>
+                      {req.email && (
+                        <span className="text-[10px] font-semibold text-slate-400 block mt-0.5">{req.email}</span>
+                      )}
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => handleApproveRequest(req.requestId, req.displayName)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all flex items-center gap-1 shadow-md shadow-emerald-600/10"
+                      >
+                        <Check className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button
+                        onClick={() => handleRejectRequest(req.requestId, req.displayName)}
+                        className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs transition-all flex items-center gap-1"
+                      >
+                        <X className="w-3.5 h-3.5" /> Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Members List */}
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
             <h3 className="font-black text-slate-900 dark:text-white mb-4 flex items-center gap-2">
@@ -465,6 +582,14 @@ export const GroupSettings: React.FC<GroupSettingsProps> = ({
 
             <div className="space-y-3">
               <button
+                onClick={() => setShowQRCard(true)}
+                className="w-full flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/30 rounded-xl py-3 text-sm font-black transition-all mb-1 animate-pulse"
+              >
+                <QrCode className="w-4 h-4" />
+                Show Group QR Card
+              </button>
+
+              <button
                 onClick={handleShareGroup}
                 className="w-full flex items-center justify-center gap-2 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/20 text-primary-600 dark:text-primary-400 border border-primary-200/50 dark:border-primary-900/30 rounded-xl py-3 text-sm font-black transition-all mb-1"
               >
@@ -496,6 +621,15 @@ export const GroupSettings: React.FC<GroupSettingsProps> = ({
           </div>
         </div>
       </div>
+
+      {showQRCard && (
+        <GroupQRCard
+          user={user}
+          group={group}
+          onClose={() => setShowQRCard(false)}
+          onUpdateGroup={(updated) => onUpdateGroup(updated)}
+        />
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { User } from 'firebase/auth';
 import { X, Sparkles } from 'lucide-react';
@@ -23,7 +23,19 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ user, onClos
 
     setSubmitting(true);
     try {
-      const docRef = await addDoc(collection(db, 'groups'), {
+      const groupColRef = collection(db, 'groups');
+      const newGroupRef = doc(groupColRef);
+      const groupId = newGroupRef.id;
+      const joinLink = `${window.location.origin}/?joinGroup=${groupId}`;
+      const initialQrData = JSON.stringify({
+        type: 'group_join',
+        groupId: groupId,
+        version: 1,
+        link: joinLink
+      });
+
+      await setDoc(newGroupRef, {
+        id: groupId,
         name: name.trim(),
         description: description.trim(),
         privacy: privacy,
@@ -34,14 +46,19 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ user, onClos
         ownerName: user.displayName || 'User',
         memberCount: 1,
         members: [user.uid],
-        admins: [],
+        admins: [user.uid], // Automatically add creator as admin
         isActive: true, // Crucial for discovery query
         status: 'active', // Required schema property
         createdAt: serverTimestamp(),
+        qrVersion: 1,
+        groupJoinLink: joinLink,
+        qrData: initialQrData,
+        qrGeneratedAt: Date.now()
       });
 
       // Send initial system message
-      await addDoc(collection(db, 'groups', docRef.id, 'messages'), {
+      const messagesColRef = collection(db, 'groups', groupId, 'messages');
+      await addDoc(messagesColRef, {
         text: `Study group "${name.trim()}" created by ${user.displayName || 'User'}. Welcome to your collaborative learning space! 🎓`,
         senderId: 'system',
         senderName: 'System',
@@ -49,7 +66,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ user, onClos
       });
 
       if (onSuccess) {
-        onSuccess(docRef.id);
+        onSuccess(groupId);
       }
       onClose();
     } catch (err) {

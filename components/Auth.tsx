@@ -3,7 +3,6 @@ import { auth, googleProvider, githubProvider, appleProvider, yahooProvider } fr
 import { 
   signInWithPopup, 
   getAdditionalUserInfo,
-  sendSignInLinkToEmail,
 } from 'firebase/auth';
 import { ArrowRight, Loader2, Mail, X, Github, Sparkles, CheckCircle2, User } from 'lucide-react';
 import { UserProfile } from '../types';
@@ -90,30 +89,28 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
     setLoading(true);
     setError(null);
 
-    const actionCodeSettings = {
-      url: window.location.href, // Redirect back to current URL
-      handleCodeInApp: true,
-    };
-
     try {
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', email);
-      if (authMode === 'signup') {
-        window.localStorage.setItem('displayNameForSignIn', displayName.trim());
-      } else {
-        window.localStorage.removeItem('displayNameForSignIn');
+      const response = await fetch('/api/auth/send-magic-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          displayName: authMode === 'signup' ? displayName.trim() : null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to send magic link");
       }
+
       setEmailSent(true);
       setResendTimer(60);
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/invalid-email') {
-         setError("Email address is invalid.");
-      } else if (err.code === 'auth/too-many-requests') {
-         setError("Too many requests. Please wait a few minutes.");
-      } else {
-         setError("We couldn't send the sign-in link. Please try again.");
-      }
+      setError(err.message || "We couldn't send the sign-in link. Please try again.");
     } finally {
       setLoading(false);
     }
