@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface QRScannerProps {
   onClose: () => void;
-  onScanGroup?: (groupId: string, version?: number) => void;
 }
 
 interface ScannedUser {
@@ -18,7 +17,7 @@ interface ScannedUser {
   phone?: string;
 }
 
-export const QRScanner: React.FC<QRScannerProps> = ({ onClose, onScanGroup }) => {
+const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   const [scannedData, setScannedData] = useState<ScannedUser | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
@@ -34,39 +33,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onClose, onScanGroup }) =>
           try {
             console.log("Scanned QR Text:", decodedText);
             const trimmed = decodedText.trim();
-
-            // 1. Check if it's a JSON Group Join shape
-            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-              try {
-                const parsed = JSON.parse(trimmed);
-                if (parsed.type === 'group_join' && parsed.groupId) {
-                  if (onScanGroup) {
-                    onScanGroup(parsed.groupId, parsed.version);
-                    onClose();
-                    return;
-                  }
-                }
-              } catch {
-                // Not a group QR, fallback to student ID check
-              }
-            }
-
-            // 2. Check if it's a URL Group Join link
-            if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-              try {
-                const url = new URL(trimmed);
-                const joinGroup = url.searchParams.get('joinGroup') || url.searchParams.get('group');
-                if (joinGroup && onScanGroup) {
-                  onScanGroup(joinGroup);
-                  onClose();
-                  return;
-                }
-              } catch {
-                // Fallback
-              }
-            }
-
-            // Handle student ID JSON format
+            // Handle JSON format
             let data: ScannedUser;
             if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
               const parsed = JSON.parse(trimmed);

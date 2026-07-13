@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { User } from 'firebase/auth';
-import { MessageSquare, ArrowLeft, Send, Settings, Users, Share2, Paperclip, FileText, CheckCheck, Check, Loader2, QrCode } from 'lucide-react';
+import { MessageSquare, ArrowLeft, Send, Settings, Users, Share2, Paperclip, FileText, CheckCheck, Check, Loader2 } from 'lucide-react';
 import { GroupModel, GroupMessageModel } from './types';
 import { useNotifications } from '../NotificationContext';
-import { GroupQRCard } from './GroupQRCard';
 
 interface GroupChatProps {
   user: User;
@@ -18,15 +17,9 @@ export const GroupChat: React.FC<GroupChatProps> = ({ user, group, onBack, onOpe
   const [messages, setMessages] = useState<GroupMessageModel[]>([]);
   const [inputText, setInputText] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [showQRCard, setShowQRCard] = useState(false);
-  const [localGroup, setLocalGroup] = useState<GroupModel>(group);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { triggerToast } = useNotifications();
-
-  useEffect(() => {
-    setLocalGroup(group);
-  }, [group]);
 
   const handleShareGroup = async () => {
     const shareLink = `${window.location.origin}/?joinGroup=${group.id}`;
@@ -312,14 +305,6 @@ export const GroupChat: React.FC<GroupChatProps> = ({ user, group, onBack, onOpe
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowQRCard(true)}
-            className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-all border border-slate-200/40 dark:border-slate-700 flex items-center justify-center"
-            title="Show Group QR Card"
-          >
-            <QrCode className="w-5 h-5 text-indigo-500 animate-pulse" />
-          </button>
-
-          <button
             onClick={handleShareGroup}
             className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-all border border-slate-200/40 dark:border-slate-700 flex items-center justify-center"
             title="Share Group Link"
@@ -514,15 +499,6 @@ export const GroupChat: React.FC<GroupChatProps> = ({ user, group, onBack, onOpe
           </button>
         </div>
       </form>
-
-      {showQRCard && (
-        <GroupQRCard
-          user={user}
-          group={localGroup}
-          onClose={() => setShowQRCard(false)}
-          onUpdateGroup={(updated) => setLocalGroup(updated)}
-        />
-      )}
     </div>
   );
 };

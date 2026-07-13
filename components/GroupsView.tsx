@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { User } from 'firebase/auth';
-import { Plus, Search, Users, RefreshCw, Camera } from 'lucide-react';
+import { Plus, Search, Users, RefreshCw } from 'lucide-react';
 import { MyGroups } from './groups/MyGroups';
 import { DiscoverGroups } from './groups/DiscoverGroups';
 import { InviteList } from './groups/InviteList';
@@ -11,7 +11,6 @@ import { GroupChat } from './groups/GroupChat';
 import { GroupSettings } from './groups/GroupSettings';
 import { GroupModel } from './groups/types';
 import { useNotifications } from './NotificationContext';
-import { QRScanner } from './QRScanner';
 
 export const GroupsView: React.FC<{ 
   user: User | null;
@@ -29,7 +28,6 @@ export const GroupsView: React.FC<{
   const [joiningGroup, setJoiningGroup] = useState<GroupModel | null>(null);
   const [checkingJoinGroup, setCheckingJoinGroup] = useState(false);
   const [joiningLoading, setJoiningLoading] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
 
   const { triggerToast } = useNotifications();
 
@@ -56,55 +54,46 @@ export const GroupsView: React.FC<{
     return unsubscribe;
   }, [user]);
 
-  // Unified Handler for checking group and triggering join flow
-  const handleCheckAndJoinGroup = async (groupId: string, scannedVersion?: number) => {
-    setCheckingJoinGroup(true);
-    try {
-      const groupRef = doc(db, 'groups', groupId);
-      const groupSnap = await getDoc(groupRef);
-
-      if (!groupSnap.exists() || groupSnap.data().isActive === false || groupSnap.data().status === 'inactive') {
-        alert('This study group does not exist, has been deleted, or is currently inactive.');
-        if (onClearInitialGroupId) onClearInitialGroupId();
-        return;
-      }
-
-      const groupData = {
-        id: groupSnap.id,
-        ...groupSnap.data()
-      } as GroupModel;
-
-      // Validate QR code version
-      if (scannedVersion !== undefined && groupData.qrVersion !== undefined) {
-        if (scannedVersion < groupData.qrVersion) {
-          alert('This QR Code version has been invalidated by the group administrator. Please obtain the latest QR code card.');
-          if (onClearInitialGroupId) onClearInitialGroupId();
-          return;
-        }
-      }
-
-      const isMember = groupData.members?.includes(user!.uid);
-      if (isMember) {
-        // Already a member, go straight to chat!
-        setSelectedGroup(groupData);
-        if (onClearInitialGroupId) onClearInitialGroupId();
-      } else {
-        // Show the join confirmation prompt
-        setJoiningGroup(groupData);
-      }
-    } catch (err) {
-      console.error('Error checking join group:', err);
-      alert('Failed to load group information. Please try again.');
-      if (onClearInitialGroupId) onClearInitialGroupId();
-    } finally {
-      setCheckingJoinGroup(false);
-    }
-  };
-
   // Handle checking and loading the initialGroupId share link
   useEffect(() => {
     if (!initialGroupId || !user) return;
-    handleCheckAndJoinGroup(initialGroupId);
+
+    const checkAndJoinGroup = async () => {
+      setCheckingJoinGroup(true);
+      try {
+        const groupRef = doc(db, 'groups', initialGroupId);
+        const groupSnap = await getDoc(groupRef);
+
+        if (!groupSnap.exists() || groupSnap.data().isActive === false || groupSnap.data().status === 'inactive') {
+          alert('This study group does not exist, has been deleted, or is currently inactive.');
+          if (onClearInitialGroupId) onClearInitialGroupId();
+          return;
+        }
+
+        const groupData = {
+          id: groupSnap.id,
+          ...groupSnap.data()
+        } as GroupModel;
+
+        const isMember = groupData.members?.includes(user.uid);
+        if (isMember) {
+          // Already a member, go straight to chat!
+          setSelectedGroup(groupData);
+          if (onClearInitialGroupId) onClearInitialGroupId();
+        } else {
+          // Show the join confirmation prompt
+          setJoiningGroup(groupData);
+        }
+      } catch (err) {
+        console.error('Error checking join group link:', err);
+        alert('Failed to load group information. Please try again.');
+        if (onClearInitialGroupId) onClearInitialGroupId();
+      } finally {
+        setCheckingJoinGroup(false);
+      }
+    };
+
+    checkAndJoinGroup();
   }, [initialGroupId, user]);
 
   const handleConfirmJoin = async () => {
@@ -112,33 +101,8 @@ export const GroupsView: React.FC<{
 
     setJoiningLoading(true);
     try {
-      const isPrivate = joiningGroup.privacy === 'private';
-
-      if (isPrivate) {
-        // Submit Request-to-Join for Private Groups
-        const { setDoc, doc } = await import('firebase/firestore');
-        const reqRef = doc(db, 'groups', joiningGroup.id, 'join_requests', user.uid);
-        
-        await setDoc(reqRef, {
-          id: user.uid,
-          groupId: joiningGroup.id,
-          groupName: joiningGroup.name,
-          uid: user.uid,
-          displayName: user.displayName || 'Anonymous Student',
-          email: user.email || '',
-          status: 'pending',
-          createdAt: Date.now()
-        });
-
-        triggerToast("Request Sent! ⏳", `Your request to join ${joiningGroup.name} has been submitted to group admins.`, "Quiz Updates");
-        alert(`Your request to join the private study group "${joiningGroup.name}" has been sent! A group administrator must approve your request before you can participate.`);
-        setJoiningGroup(null);
-        if (onClearInitialGroupId) onClearInitialGroupId();
-        return;
-      }
-
-      // Public Group Direct Join
       const groupRef = doc(db, 'groups', joiningGroup.id);
+      
       const { arrayUnion, increment, updateDoc, addDoc, collection } = await import('firebase/firestore');
       await updateDoc(groupRef, {
         members: arrayUnion(user.uid),
@@ -164,7 +128,7 @@ export const GroupsView: React.FC<{
       setJoiningGroup(null);
       if (onClearInitialGroupId) onClearInitialGroupId();
     } catch (err) {
-      console.error('Error joining group:', err);
+      console.error('Error joining group from share link:', err);
       alert('Failed to join group. Please try again.');
     } finally {
       setJoiningLoading(false);
@@ -218,22 +182,13 @@ export const GroupsView: React.FC<{
           <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Study Groups</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Connect, study, and chat with peers.</p>
         </div>
-        <div className="flex gap-3 shrink-0 w-full md:w-auto">
-          <button
-            onClick={() => setShowScanner(true)}
-            className="flex-1 md:flex-none border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
-          >
-            <Camera className="w-5 h-5 text-primary-500" />
-            Scan QR
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex-1 md:flex-none bg-primary-600 hover:bg-primary-700 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-primary-600/20 flex items-center justify-center gap-2 shrink-0"
-          >
-            <Plus className="w-5 h-5" />
-            Create Group
-          </button>
-        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-primary-600/20 flex items-center gap-2 shrink-0"
+        >
+          <Plus className="w-5 h-5" />
+          Create Group
+        </button>
       </div>
 
       {/* Tabs & Search Controls */}
@@ -413,17 +368,6 @@ export const GroupsView: React.FC<{
             <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Loading group invite details...</span>
           </div>
         </div>
-      )}
-
-      {/* QR Code Scanner Modal */}
-      {showScanner && (
-        <QRScanner 
-          onClose={() => setShowScanner(false)}
-          onScanGroup={(groupId, version) => {
-            handleCheckAndJoinGroup(groupId, version);
-            setShowScanner(false);
-          }}
-        />
       )}
     </div>
   );
