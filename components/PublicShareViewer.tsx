@@ -19,11 +19,105 @@ import {
   Check,
   AlertTriangle,
   Lightbulb,
-  Award
+  Award,
+  Layers
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { formatLaTeXToUnicode } from "../utils/exportUtils";
+
+const backfaceHidden: React.CSSProperties = {
+  backfaceVisibility: 'hidden',
+  WebkitBackfaceVisibility: 'hidden',
+};
+
+const FlashcardsViewer: React.FC<{ cards: any[] }> = ({ cards }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+
+  if (!cards || cards.length === 0) {
+    return (
+      <div className="text-center py-8 text-slate-500">
+        No flashcards found in this resource.
+      </div>
+    );
+  }
+
+  const currentCard = cards[currentIndex];
+  const question = currentCard.question || currentCard.front || "Empty Question";
+  const answer = currentCard.answer || currentCard.back || "Empty Answer";
+
+  return (
+    <div className="space-y-6 max-w-md mx-auto py-4">
+      <div className="flex items-center justify-between text-xs text-slate-400 font-bold uppercase tracking-wider">
+        <span>Flashcard Practice</span>
+        <span>{currentIndex + 1} of {cards.length}</span>
+      </div>
+
+      {/* 3D Flip Card */}
+      <div 
+        onClick={() => setFlipped(!flipped)}
+        className="w-full h-64 cursor-pointer relative perspective-1000 group"
+      >
+        <div className={`w-full h-full relative duration-500 transform-style-3d ${flipped ? "rotate-y-180" : ""}`}>
+          {/* Front Side */}
+          <div 
+            style={backfaceHidden}
+            className="absolute inset-0 w-full h-full bg-gradient-to-br from-amber-500/10 to-transparent border border-slate-200 dark:border-slate-800 rounded-3xl p-6 flex flex-col items-center justify-center text-center shadow-md"
+          >
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Question</span>
+            <p className="text-lg font-bold text-slate-900 dark:text-white leading-snug">
+              {formatLaTeXToUnicode(question)}
+            </p>
+            <span className="text-[10px] font-bold text-amber-500 mt-6 uppercase tracking-wider group-hover:underline">Click to Reveal Answer</span>
+          </div>
+
+          {/* Back Side */}
+          <div 
+            style={backfaceHidden}
+            className="absolute inset-0 w-full h-full rotate-y-180 bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col items-center justify-center text-center shadow-md"
+          >
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Answer</span>
+            <p className="text-base font-medium text-slate-200 leading-relaxed">
+              {formatLaTeXToUnicode(answer)}
+            </p>
+            <span className="text-[10px] font-bold text-slate-500 mt-6 uppercase tracking-wider">Click to see Question</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center justify-between gap-4">
+        <button
+          disabled={currentIndex === 0}
+          onClick={() => {
+            setFlipped(false);
+            setCurrentIndex(prev => prev - 1);
+          }}
+          className="px-4 py-2 text-xs font-bold bg-slate-100 dark:bg-slate-850 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <button
+          onClick={() => setFlipped(!flipped)}
+          className="px-5 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl"
+        >
+          Flip Card
+        </button>
+        <button
+          disabled={currentIndex === cards.length - 1}
+          onClick={() => {
+            setFlipped(false);
+            setCurrentIndex(prev => prev + 1);
+          }}
+          className="px-4 py-2 text-xs font-bold bg-slate-100 dark:bg-slate-850 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-50"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+};
 
 interface PublicShareViewerProps {
   shareId: string;
@@ -34,6 +128,8 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
   shareId,
   onGoToApp
 }) => {
+  const actualShareId = shareId.includes("/") ? (shareId.split("/").pop() || shareId) : shareId;
+
   const [content, setContent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [hasLiked, setHasLiked] = useState(false);
@@ -65,12 +161,12 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
     const loadSharedData = async () => {
       setLoading(true);
       try {
-        let data = await getSharedContent(shareId);
+        let data = await getSharedContent(actualShareId);
         
         // Fallback to Express backend if not found in Firestore
         if (!data) {
           try {
-            const response = await fetch(`/api/auth/share/${shareId}`);
+            const response = await fetch(`/api/auth/share/${actualShareId}`);
             if (response.ok) {
               const resData = await response.json();
               if (resData.success && resData.data) {
@@ -89,7 +185,7 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
           
           // Increment view count on load (asynchronously if Firebase supports it)
           try {
-            await incrementViewCount(shareId);
+            await incrementViewCount(actualShareId);
           } catch (e) {
             console.warn("Could not increment view count", e);
           }
@@ -101,17 +197,17 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
       }
     };
     
-    if (shareId) {
+    if (actualShareId) {
       loadSharedData();
     }
-  }, [shareId]);
+  }, [actualShareId]);
 
   const handleLike = async () => {
     if (hasLiked) return;
     try {
       setHasLiked(true);
       setLikesCount(prev => prev + 1);
-      await incrementLikeCount(shareId);
+      await incrementLikeCount(actualShareId);
     } catch (e) {
       console.warn(e);
     }
@@ -134,7 +230,7 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
       
       // Update share analytics
       setSharesCount(prev => prev + 1);
-      await incrementShareCount(shareId);
+      await incrementShareCount(actualShareId);
     } catch (e) {
       console.warn("Share cancelled or failed", e);
     }
@@ -170,6 +266,17 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
         return <BookOpen className="w-5 h-5 text-emerald-500" />;
       case "tutor":
         return <MessageSquare className="w-5 h-5 text-indigo-500" />;
+      case "flashcards":
+        return <Layers className="w-5 h-5 text-pink-500" />;
+      case "note":
+      case "notes":
+        return <BookOpen className="w-5 h-5 text-sky-500" />;
+      case "mindmap":
+        return <Sparkles className="w-5 h-5 text-violet-500" />;
+      case "project":
+      case "presentation":
+      case "question-paper":
+        return <Award className="w-5 h-5 text-purple-500" />;
       default:
         return <FileText className="w-5 h-5 text-indigo-500" />;
     }
@@ -185,6 +292,17 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
         return "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30";
       case "tutor":
         return "bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30";
+      case "flashcards":
+        return "bg-pink-50 dark:bg-pink-950/20 text-pink-600 dark:text-pink-400 border border-pink-100 dark:border-pink-900/30";
+      case "note":
+      case "notes":
+        return "bg-sky-50 dark:bg-sky-950/20 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-900/30";
+      case "mindmap":
+        return "bg-violet-50 dark:bg-violet-950/20 text-violet-600 dark:text-violet-400 border border-violet-100 dark:border-violet-900/30";
+      case "project":
+      case "presentation":
+      case "question-paper":
+        return "bg-purple-50 dark:bg-purple-950/20 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-900/30";
       default:
         return "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-800";
     }
@@ -200,6 +318,19 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
         return "AI Homework Help";
       case "tutor":
         return "Tutor Chat Transcript";
+      case "flashcards":
+        return "Interactive Flashcards";
+      case "note":
+      case "notes":
+        return "Shared Study Note";
+      case "mindmap":
+        return "Concept Mind Map";
+      case "project":
+        return "Academic Research Project";
+      case "presentation":
+        return "Presentation Slides Pack";
+      case "question-paper":
+        return "Sample Question Paper";
       default:
         return "Shared Study Resource";
     }
@@ -410,6 +541,11 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
           </div>
         </div>
       );
+    }
+
+    if (typeLower === "flashcards") {
+      const cards = rawData.cards || rawData || [];
+      return <FlashcardsViewer cards={cards} />;
     }
 
     return null;

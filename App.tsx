@@ -32,7 +32,6 @@ import StudyTimerView from "./components/StudyTimerView";
 import PrivacyPolicyView from "./components/PrivacyPolicyView";
 import TermsOfServiceView from "./components/TermsOfServiceView";
 import NotificationsView from "./components/NotificationsView";
-import { GroupsView } from "./components/GroupsView";
 import { useNotifications } from "./components/NotificationContext";
 import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
@@ -40,6 +39,9 @@ import { useStreak } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
 import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
+import { StudentPublicProfile } from "./components/StudentPublicProfile";
+import { StudyCollectionViewer } from "./components/StudyCollectionViewer";
+import { CertificateViewer } from "./components/CertificateViewer";
 import {
   saveProfileToFirestore,
   getProfileFromFirestore,
@@ -54,7 +56,7 @@ import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { auth } from "./firebaseConfig";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo } from "firebase/auth";
 import type { User } from "firebase/auth";
@@ -89,7 +91,6 @@ import {
   Search,
   X,
   Trash2,
-  Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -179,28 +180,6 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
-  const [pendingGroupsInvitesCount, setPendingGroupsInvitesCount] = useState(0);
-
-  useEffect(() => {
-    if (!user || !user.email) {
-      setPendingGroupsInvitesCount(0);
-      return;
-    }
-
-    const q = query(
-      collection(db, "user_invites"),
-      where("email", "==", user.email.trim().toLowerCase()),
-      where("status", "==", "pending")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPendingGroupsInvitesCount(snapshot.size);
-    }, (err) => {
-      console.error("Error listening to user invites for badge:", err);
-    });
-
-    return unsubscribe;
-  }, [user]);
 
   const openAuthModal = (mode: 'signin' | 'signup' = 'signin') => {
     setAuthModalMode(mode);
@@ -232,6 +211,30 @@ const App: React.FC = () => {
     return params.get("share");
   });
 
+  const [publicStudentUsername, setPublicStudentUsername] = useState<string | null>(() => {
+    const path = window.location.pathname;
+    if (path.startsWith("/student/")) {
+      return path.substring(9); // After "/student/"
+    }
+    return null;
+  });
+
+  const [publicCollectionSlug, setPublicCollectionSlug] = useState<string | null>(() => {
+    const path = window.location.pathname;
+    if (path.startsWith("/collection/")) {
+      return path.substring(12); // After "/collection/"
+    }
+    return null;
+  });
+
+  const [publicCertificateId, setPublicCertificateId] = useState<string | null>(() => {
+    const path = window.location.pathname;
+    if (path.startsWith("/certificate/")) {
+      return path.substring(13); // After "/certificate/"
+    }
+    return null;
+  });
+
   const [shareSuccessModal, setShareSuccessModal] = useState<{
     isOpen: boolean;
     shareId: string;
@@ -241,21 +244,6 @@ const App: React.FC = () => {
   } | null>(null);
 
   const [quizNotFoundError, setQuizNotFoundError] = useState(false);
-
-  const [initialGroupId, setInitialGroupId] = useState<string | null>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("joinGroup") || params.get("group");
-  });
-
-  useEffect(() => {
-    if (initialGroupId) {
-      setMode(AppMode.GROUPS);
-      const url = new URL(window.location.href);
-      url.searchParams.delete("joinGroup");
-      url.searchParams.delete("group");
-      window.history.replaceState({}, document.title, url.pathname + url.search);
-    }
-  }, [initialGroupId]);
 
   const [mode, setMode] = useState<AppMode>(() => {
     try {
@@ -834,10 +822,6 @@ const App: React.FC = () => {
             };
             setUserProfile(merged);
             localStorage.setItem(`profile_${user.uid}`, JSON.stringify(merged));
-            
-            if (!merged.hasCompletedOnboarding) {
-               setMode(AppMode.PROFILE);
-            }
           }
         } catch (err) {
           console.warn("Background profile sync failed:", err);
@@ -1581,7 +1565,6 @@ const App: React.FC = () => {
     { id: AppMode.QUIZ, label: "Quiz Creator", icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
-    { id: AppMode.GROUPS, label: "Study Groups", icon: Users },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
@@ -2378,17 +2361,6 @@ const App: React.FC = () => {
           </div>
         );
 
-      case AppMode.GROUPS:
-        return (
-          <div className="h-full">
-            <GroupsView 
-              user={user} 
-              initialGroupId={initialGroupId}
-              onClearInitialGroupId={() => setInitialGroupId(null)}
-            />
-          </div>
-        );
-
       case AppMode.ABOUT:
         return (
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -2454,6 +2426,45 @@ const App: React.FC = () => {
           />
         )}
       </div>
+    );
+  }
+
+  if (publicStudentUsername) {
+    return (
+      <StudentPublicProfile
+        username={publicStudentUsername}
+        onGoToApp={() => {
+          window.history.pushState({}, document.title, "/");
+          setPublicStudentUsername(null);
+          setMode(AppMode.DASHBOARD);
+        }}
+      />
+    );
+  }
+
+  if (publicCollectionSlug) {
+    return (
+      <StudyCollectionViewer
+        slug={publicCollectionSlug}
+        onGoToApp={() => {
+          window.history.pushState({}, document.title, "/");
+          setPublicCollectionSlug(null);
+          setMode(AppMode.DASHBOARD);
+        }}
+      />
+    );
+  }
+
+  if (publicCertificateId) {
+    return (
+      <CertificateViewer
+        certificateId={publicCertificateId}
+        onGoToApp={() => {
+          window.history.pushState({}, document.title, "/");
+          setPublicCertificateId(null);
+          setMode(AppMode.DASHBOARD);
+        }}
+      />
     );
   }
 
@@ -2672,16 +2683,8 @@ const App: React.FC = () => {
                     <Icon
                       className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
                     />
-                    {!isSidebarOpen && item.id === AppMode.GROUPS && pendingGroupsInvitesCount > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 flex h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
-                    )}
                   </div>
                   {isSidebarOpen && <span>{item.label}</span>}
-                  {isSidebarOpen && item.id === AppMode.GROUPS && pendingGroupsInvitesCount > 0 && (
-                    <span className="ml-auto bg-red-500 text-white rounded-full text-[10px] font-black px-1.5 py-0.5 animate-pulse shrink-0">
-                      {pendingGroupsInvitesCount}
-                    </span>
-                  )}
                   {isSidebarOpen && !user &&
                     item.id !== AppMode.DASHBOARD &&
                     item.id !== AppMode.ABOUT && (

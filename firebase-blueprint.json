@@ -16,7 +16,8 @@
         "learningStyle": { "type": "string" },
         "credits": { "type": "number" },
         "planType": { "type": "string" },
-        "claimedOffers": { "type": "array" }
+        "claimedOffers": { "type": "array" },
+        "username": { "type": "string" }
       },
       "required": ["credits"]
     },
@@ -86,14 +87,27 @@
         "shareId": { "type": "string" },
         "type": { "type": "string" },
         "title": { "type": "string" },
+        "description": { "type": "string" },
+        "subject": { "type": "string" },
+        "class": { "type": "string" },
         "content": { "type": "object" },
         "ownerUid": { "type": "string" },
+        "ownerName": { "type": "string" },
         "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "expiresAt": { "type": "number" },
         "views": { "type": "number" },
         "likes": { "type": "number" },
+        "bookmarks": { "type": "number" },
         "isPublic": { "type": "boolean" },
         "sharesCount": { "type": "number" },
-        "lastViewedAt": { "type": "number" }
+        "visibility": { "type": "string" },
+        "allowDownload": { "type": "boolean" },
+        "allowCopy": { "type": "boolean" },
+        "allowComments": { "type": "boolean" },
+        "showAuthor": { "type": "boolean" },
+        "showStudentId": { "type": "boolean" },
+        "slug": { "type": "string" }
       },
       "required": ["shareId", "type", "title", "content", "ownerUid", "createdAt", "views", "likes", "isPublic"]
     },
@@ -112,59 +126,24 @@
       },
       "required": ["uid", "displayName", "totalScore", "quizzesCompleted", "highestScore", "lastActive"]
     },
-    "Group": {
-      "title": "Group",
-      "description": "Study Group containing discussions and settings",
+    "StudyCollection": {
+      "title": "StudyCollection",
+      "description": "Student created public collections of learning items",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
+        "id": { "type": "string" },
+        "title": { "type": "string" },
         "description": { "type": "string" },
-        "privacy": { "type": "string", "enum": ["public", "private"] },
-        "visibility": { "type": "string", "enum": ["public", "private"] },
-        "category": { "type": "string" },
+        "slug": { "type": "string" },
         "ownerId": { "type": "string" },
         "ownerName": { "type": "string" },
-        "memberCount": { "type": "number" },
-        "members": { "type": "array" },
-        "admins": { "type": "array" },
-        "isActive": { "type": "boolean" },
-        "createdAt": { "type": "number" }
-      },
-      "required": ["name", "privacy", "ownerId", "members", "isActive"]
-    },
-    "GroupMessage": {
-      "title": "GroupMessage",
-      "description": "Real-time message sent inside a Group chat",
-      "type": "object",
-      "properties": {
-        "text": { "type": "string" },
-        "senderId": { "type": "string" },
-        "senderName": { "type": "string" },
+        "isPublic": { "type": "boolean" },
+        "items": { "type": "array" },
         "createdAt": { "type": "number" },
-        "mediaUrl": { "type": "string" },
-        "mediaType": { "type": "string", "enum": ["image", "video", "document", "audio"] },
-        "mediaName": { "type": "string" },
-        "readBy": { "type": "array" },
-        "clientMsgId": { "type": "string" }
+        "views": { "type": "number" },
+        "likes": { "type": "number" }
       },
-      "required": ["text", "senderId", "senderName"]
-    },
-    "UserGroupInvite": {
-      "title": "UserGroupInvite",
-      "description": "Group invitation record for a user",
-      "type": "object",
-      "properties": {
-        "email": { "type": "string" },
-        "invitedBy": { "type": "string" },
-        "invitedByName": { "type": "string" },
-        "groupId": { "type": "string" },
-        "groupName": { "type": "string" },
-        "status": { "type": "string", "enum": ["pending", "accepted", "declined", "cancelled"] },
-        "receiverUid": { "type": "string" },
-        "createdAt": { "type": "number" },
-        "expiresAt": { "type": "number" }
-      },
-      "required": ["email", "invitedBy", "groupId", "groupName", "status"]
+      "required": ["id", "title", "slug", "ownerId", "isPublic", "items", "createdAt"]
     }
   },
   "firestore": {
@@ -196,17 +175,9 @@
       "schema": "Streak",
       "description": "Stores user daily sequence progress and stats"
     },
-    "/groups/{groupId}": {
-      "schema": "Group",
-      "description": "Collaborative Study Group details"
-    },
-    "/groups/{groupId}/messages/{messageId}": {
-      "schema": "GroupMessage",
-      "description": "Discussion messages within a group"
-    },
-    "/user_invites/{inviteId}": {
-      "schema": "UserGroupInvite",
-      "description": "Index of invitations sent to users"
+    "/collections/{collectionId}": {
+      "schema": "StudyCollection",
+      "description": "User created resource collections"
     }
   }
 }
