@@ -1,9 +1,5 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { formatLaTeXToUnicode } from '../utils/exportUtils';
-import { GeminiService } from '../services/geminiService';
 import { UserProfile } from '../types';
 import { 
   User, 
@@ -19,9 +15,7 @@ import {
   Briefcase, 
   Layers, 
   BookOpen, 
-  ArrowRight,
-  Sparkles,
-  Loader2
+  ArrowRight 
 } from 'lucide-react';
 import { validateAndParsePhone, CountryPhone } from '../utils/phoneUtils';
 import { calculateProfileCompletion, generateRegistrationNumber, calculateGradeFromAge, getMissingProfileFields } from '../utils/profileUtils';
@@ -159,44 +153,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
   const [phoneInfo, setPhoneInfo] = useState<{ country?: CountryPhone, isValid: boolean, error?: string }>({ isValid: false });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const key = email || 'guest';
-    try {
-      const savedAnalysis = localStorage.getItem(`profile_analysis_${key}`);
-      if (savedAnalysis) {
-        setAnalysisResult(savedAnalysis);
-      } else {
-        setAnalysisResult(null);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [email]);
-
-  const handleAnalyzeProfile = async () => {
-    setIsAnalyzing(true);
-    setAnalysisError(null);
-    try {
-      const result = await GeminiService.analyzeProfile(formData, email);
-      if (result) {
-        setAnalysisResult(result);
-        const key = email || 'guest';
-        localStorage.setItem(`profile_analysis_${key}`, result);
-      } else {
-        setAnalysisError("Could not generate analysis. Please try again.");
-      }
-    } catch (err: any) {
-      console.error("Profile analysis error:", err);
-      setAnalysisError("Analysis failed. Please check your network or try again.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
 
   useEffect(() => {
     if (isOnboarding) {
@@ -785,88 +741,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                 </div>
              </div>
           </div>
-
-          {/* Section 4: AI Academic Analysis */}
-          {!isEditing && (
-            <div className="bg-gradient-to-tr from-violet-500/10 via-indigo-500/5 to-transparent rounded-2xl shadow-sm border border-violet-100 dark:border-violet-900/50 p-8">
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-violet-50 dark:border-violet-900/30">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-violet-100 dark:bg-violet-900/50 flex items-center justify-center animate-pulse">
-                    <Sparkles className="w-5 h-5 text-violet-600 dark:text-violet-400 fill-violet-600/10" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">AI Profile Analysis</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Get custom study tracks & syllabus recommendations</p>
-                  </div>
-                </div>
-                {analysisResult && (
-                  <button 
-                    onClick={() => {
-                      setAnalysisResult(null);
-                      const key = email || 'guest';
-                      localStorage.removeItem(`profile_analysis_${key}`);
-                    }}
-                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-medium"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              {analysisResult ? (
-                <div className="space-y-4 animate-in fade-in duration-500">
-                  <div className="prose prose-sm dark:prose-invert max-w-none bg-white dark:bg-slate-900/50 rounded-xl p-6 border border-slate-100 dark:border-slate-800 shadow-inner overflow-y-auto max-h-[400px] custom-scrollbar markdown-body text-slate-800 dark:text-slate-200 leading-relaxed">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{formatLaTeXToUnicode(analysisResult)}</ReactMarkdown>
-                  </div>
-                  <div className="flex justify-end">
-                    <button 
-                      onClick={handleAnalyzeProfile}
-                      disabled={isAnalyzing}
-                      className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-violet-500/20 disabled:opacity-50"
-                    >
-                      {isAnalyzing ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Analyzing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                          <span>Re-Analyze Profile</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-                    Your profile is fully configured! Run the AI analysis to get a custom learning roadmap aligned with the <strong>{formData.board || 'CBSE'}</strong> curriculum for <strong>{formData.grade || 'your class'}</strong>.
-                  </p>
-                  <button
-                    onClick={handleAnalyzeProfile}
-                    disabled={isAnalyzing}
-                    className="px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 mx-auto shadow-lg shadow-indigo-500/20 disabled:opacity-75 transition-all"
-                  >
-                    {isAnalyzing ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>SJ Tutor AI is analyzing your profile...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-5 h-5 text-amber-300 fill-amber-300/20 animate-pulse" />
-                        <span>Analyze with AI</span>
-                      </>
-                    )}
-                  </button>
-                  {analysisError && (
-                     <p className="text-xs text-rose-500 mt-2 font-medium">{analysisError}</p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
 
           {isOnboarding && (
             <div className="flex justify-end pt-4">

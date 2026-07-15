@@ -39,9 +39,6 @@ import { useStreak } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
 import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
-import { StudentPublicProfile } from "./components/StudentPublicProfile";
-import { StudyCollectionViewer } from "./components/StudyCollectionViewer";
-import { CertificateViewer } from "./components/CertificateViewer";
 import {
   saveProfileToFirestore,
   getProfileFromFirestore,
@@ -56,8 +53,6 @@ import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { auth } from "./firebaseConfig";
-import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "./firebaseConfig";
 import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo } from "firebase/auth";
 import type { User } from "firebase/auth";
 import {
@@ -209,30 +204,6 @@ const App: React.FC = () => {
     }
     const params = new URLSearchParams(window.location.search);
     return params.get("share");
-  });
-
-  const [publicStudentUsername, setPublicStudentUsername] = useState<string | null>(() => {
-    const path = window.location.pathname;
-    if (path.startsWith("/student/")) {
-      return path.substring(9); // After "/student/"
-    }
-    return null;
-  });
-
-  const [publicCollectionSlug, setPublicCollectionSlug] = useState<string | null>(() => {
-    const path = window.location.pathname;
-    if (path.startsWith("/collection/")) {
-      return path.substring(12); // After "/collection/"
-    }
-    return null;
-  });
-
-  const [publicCertificateId, setPublicCertificateId] = useState<string | null>(() => {
-    const path = window.location.pathname;
-    if (path.startsWith("/certificate/")) {
-      return path.substring(13); // After "/certificate/"
-    }
-    return null;
   });
 
   const [shareSuccessModal, setShareSuccessModal] = useState<{
@@ -669,34 +640,22 @@ const App: React.FC = () => {
         email = window.prompt('Please provide your email for confirmation');
       }
       
-      const cleanEmail = email?.trim();
-      if (cleanEmail) {
-        signInWithEmailLink(auth, cleanEmail, window.location.href)
+      if (email) {
+        signInWithEmailLink(auth, email, window.location.href)
           .then(async (result) => {
             window.localStorage.removeItem('emailForSignIn');
             const additionalUserInfo = getAdditionalUserInfo(result);
             if (additionalUserInfo?.isNewUser) {
                const storedDisplayName = window.localStorage.getItem('displayNameForSignIn') || '';
                window.localStorage.removeItem('displayNameForSignIn');
-               await handleSignUpSuccess({ displayName: storedDisplayName });
+               handleSignUpSuccess({ displayName: storedDisplayName });
             }
-            
-            // Send successful login notification
-            if (result.user?.uid) {
-              sendNotification(
-                "Welcome to SJ Tutor AI! 👋",
-                "You have successfully authenticated via Magic Link. Start learning now!",
-                "General",
-                result.user.uid
-              ).catch((e) => console.warn("Failed to send login notification:", e));
-            }
-
             // Clear URL of auth parameters
             window.history.replaceState({}, document.title, window.location.pathname);
           })
           .catch((error) => {
             console.error('Error signing in with email link', error);
-            alert("This sign-in link has expired, has already been used, or is invalid. Please request a new sign-in link from the auth screen.");
+            alert("This sign-in link has expired or has already been used. Please request a new sign-in link.");
           })
           .finally(() => {
              setAuthLoading(false);
@@ -822,6 +781,10 @@ const App: React.FC = () => {
             };
             setUserProfile(merged);
             localStorage.setItem(`profile_${user.uid}`, JSON.stringify(merged));
+            
+            if (!merged.hasCompletedOnboarding) {
+               setMode(AppMode.PROFILE);
+            }
           }
         } catch (err) {
           console.warn("Background profile sync failed:", err);
@@ -909,32 +872,17 @@ const App: React.FC = () => {
 
     loadAndSyncHistory();
 
-    // Setup real-time listener for multi-device sync
-    let unsubscribe: (() => void) | null = null;
+    // Setup 30-seconds sync timer to seamlessly match history across devices
+    let syncInterval: NodeJS.Timeout | null = null;
     if (user) {
-      const colRef = collection(db, "users", user.uid, "history");
-      unsubscribe = onSnapshot(colRef, (snapshot) => {
-        if (!active) return;
-        const firestoreItems: HistoryItem[] = [];
-        snapshot.forEach((doc) => {
-          firestoreItems.push(doc.data() as HistoryItem);
-        });
-        firestoreItems.sort((a, b) => b.timestamp - a.timestamp);
-        
-        // Merge with local changes?
-        // Since onSnapshot will fire for local writes instantly (latency compensation),
-        // we can safely just use the snapshot data directly to overwrite state, 
-        // effectively syncing all devices in real-time.
-        setHistory(firestoreItems);
-        localStorage.setItem(`history_${user.uid}`, JSON.stringify(firestoreItems));
-      }, (error) => {
-        console.warn("Real-time history sync error:", error);
-      });
+      syncInterval = setInterval(() => {
+        loadAndSyncHistory();
+      }, 30000);
     }
 
     return () => {
       active = false;
-      if (unsubscribe) unsubscribe();
+      if (syncInterval) clearInterval(syncInterval);
     };
   }, [user]);
 
@@ -1062,12 +1010,12 @@ const App: React.FC = () => {
     return true;
   };
 
-  const addToHistory = (type: AppMode, content: any, customTitle?: string) => {
+  const addToHistory = (type: AppMode, content: any) => {
     const newId = Date.now().toString();
     const newItem: HistoryItem = {
       id: newId,
       type,
-      title: customTitle || formData.chapterName || "Untitled Chapter",
+      title: formData.chapterName || "Untitled Chapter",
       subtitle: `${formData.gradeClass} • ${formData.subject}`,
       timestamp: Date.now(),
       content,
@@ -1210,74 +1158,6 @@ const App: React.FC = () => {
           );
         }, 1000);
       }
-    }
-  };
-
-  const handleSaveACLScore = async (score: number): Promise<boolean> => {
-    if (typeof score !== 'number' || score < 0) {
-      throw new Error("Invalid score. Score must be a positive number.");
-    }
-
-    const userUid = user?.uid || "guest";
-    const userDispName = userProfile.displayName || "Guest Learner";
-    const userPhoto = userProfile.photoURL || "";
-
-    // 1. Optimistic update for local history state
-    let updatedItem: any = null;
-    if (currentHistoryId) {
-      const historyItem = history.find((item) => item.id === currentHistoryId);
-      if (historyItem) {
-        updatedItem = { ...historyItem, score };
-        setHistory((prev) =>
-          prev.map((item) =>
-            item.id === currentHistoryId ? updatedItem : item
-          )
-        );
-      }
-    }
-
-    // 2. Define the exact Firestore write tasks
-    const doFirestoreWrite = async () => {
-      // Save to leaderboard
-      const leaderboardOk = await saveQuizScoreToLeaderboard(userUid, userDispName, userPhoto, score);
-      if (!leaderboardOk) {
-        throw new Error("Could not update the Academic Challenge Leaderboard. Please check your connection.");
-      }
-
-      // Save history item if authenticated
-      if (user && updatedItem) {
-        const historyOk = await saveHistoryItemToFirestore(user.uid, updatedItem);
-        if (!historyOk) {
-          throw new Error("Failed to sync score with your learning history.");
-        }
-      }
-      return true;
-    };
-
-    // 3. Helper to retry with backoff on temporary offline or transient errors
-    const retryWithBackoff = async <T,>(
-      fn: () => Promise<T>,
-      retries = 3,
-      delay = 1000
-    ): Promise<T> => {
-      try {
-        return await fn();
-      } catch (err: any) {
-        const isOffline = !navigator.onLine || (err && err.message && err.message.toLowerCase().includes("offline"));
-        if (retries <= 0 || !isOffline) throw err;
-        console.warn(`Firestore save failed, retrying in ${delay}ms... (${retries} attempts left)`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        return retryWithBackoff(fn, retries - 1, delay * 2);
-      }
-    };
-
-    // 4. Try executing with retries
-    try {
-      await retryWithBackoff(doFirestoreWrite, 3, 1000);
-      return true;
-    } catch (error: any) {
-      console.error("Failed to save ACL Score:", error);
-      throw error;
     }
   };
 
@@ -2230,7 +2110,6 @@ const App: React.FC = () => {
                 setSharedContent(null);
               }}
               onComplete={handleQuizComplete}
-              onSaveACLScore={handleSaveACLScore}
               existingScore={existingQuizScore}
               isViewingShared={isViewingShared}
               onAddToMyList={handleAddSharedToMyList}
@@ -2282,7 +2161,7 @@ const App: React.FC = () => {
               onDeductCredit={deductCredit}
               currentCredits={userProfile.credits}
               onSharePublicLink={handleSharePublicLink}
-              onSaveSession={(msgs, generatedTitle) => {
+              onSaveSession={(msgs) => {
                 if (msgs.length > 1) {
                   const tutorItemContent = {
                     messages: msgs,
@@ -2294,9 +2173,6 @@ const App: React.FC = () => {
                   );
                   if (existing) {
                     const updatedItem = { ...existing, content: tutorItemContent };
-                    if (generatedTitle && (!existing.title || existing.title === "Untitled Chapter" || existing.title === "New Chat" || existing.title === "AI Tutor Session")) {
-                      updatedItem.title = generatedTitle;
-                    }
                     setHistory((prev) =>
                       prev.map((h) =>
                         h.id === existing.id
@@ -2308,7 +2184,7 @@ const App: React.FC = () => {
                       saveHistoryItemToFirestore(user.uid, updatedItem);
                     }
                   } else {
-                    addToHistory(AppMode.TUTOR, tutorItemContent, generatedTitle);
+                    addToHistory(AppMode.TUTOR, tutorItemContent);
                   }
                 }
               }}
@@ -2429,45 +2305,6 @@ const App: React.FC = () => {
     );
   }
 
-  if (publicStudentUsername) {
-    return (
-      <StudentPublicProfile
-        username={publicStudentUsername}
-        onGoToApp={() => {
-          window.history.pushState({}, document.title, "/");
-          setPublicStudentUsername(null);
-          setMode(AppMode.DASHBOARD);
-        }}
-      />
-    );
-  }
-
-  if (publicCollectionSlug) {
-    return (
-      <StudyCollectionViewer
-        slug={publicCollectionSlug}
-        onGoToApp={() => {
-          window.history.pushState({}, document.title, "/");
-          setPublicCollectionSlug(null);
-          setMode(AppMode.DASHBOARD);
-        }}
-      />
-    );
-  }
-
-  if (publicCertificateId) {
-    return (
-      <CertificateViewer
-        certificateId={publicCertificateId}
-        onGoToApp={() => {
-          window.history.pushState({}, document.title, "/");
-          setPublicCertificateId(null);
-          setMode(AppMode.DASHBOARD);
-        }}
-      />
-    );
-  }
-
   if (showSplash) {
     return <SplashScreen onComplete={() => setShowSplash(false)} />;
   }
@@ -2583,68 +2420,57 @@ const App: React.FC = () => {
       )}
 
       <aside
-        className={`fixed lg:sticky top-0 left-0 z-50 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out ${
-          isSidebarOpen 
-            ? "w-64 translate-x-0" 
-            : "w-64 -translate-x-full lg:w-20 lg:translate-x-0 lg:overflow-hidden"
-        } shadow-2xl lg:shadow-none`}
+        className={`fixed lg:sticky top-0 left-0 z-50 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out ${isSidebarOpen ? "w-64 translate-x-0" : "w-0 -translate-x-full lg:-translate-x-full lg:border-r-0 overflow-hidden"} shadow-2xl lg:shadow-none`}
       >
-        <div className={`h-full flex flex-col transition-all duration-300 ${isSidebarOpen ? "w-64" : "w-64 lg:w-20"}`}>
+        <div className="h-full flex flex-col w-64">
           <div
-            onClick={() => {
-              if (!isSidebarOpen) {
-                setIsSidebarOpen(true);
-                return;
-              }
-              setMode(AppMode.DASHBOARD);
-              setDashboardView("OVERVIEW");
-              setSummaryContent("");
-              setHomeworkContent("");
-              setHomeworkFiles([]);
-              setQuizData(null);
-              setExistingQuizScore(undefined);
-              setCurrentHistoryId(null);
-              setError(null);
-              const settings = SettingsService.getSettings();
-              setFormData({
-                ...INITIAL_FORM_DATA,
-                language:
-                  settings.learning.language || INITIAL_FORM_DATA.language,
-                gradeClass: userProfile.grade || INITIAL_FORM_DATA.gradeClass,
-              });
-              if (window.innerWidth < 1024) setIsSidebarOpen(false);
-            }}
             className="p-5 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            title={!isSidebarOpen ? "Expand Sidebar" : undefined}
           >
-            <div className={`flex items-center gap-3 ${isSidebarOpen ? "justify-between" : "justify-center"}`}>
-              <div className="flex items-center gap-3 overflow-hidden">
+            <div className="flex items-center justify-between gap-3">
+              <div 
+                className="flex items-center gap-3 flex-1 overflow-hidden"
+                onClick={() => {
+                  setMode(AppMode.DASHBOARD);
+                  setDashboardView("OVERVIEW");
+                  setSummaryContent("");
+                  setHomeworkContent("");
+                  setHomeworkFiles([]);
+                  setQuizData(null);
+                  setExistingQuizScore(undefined);
+                  setCurrentHistoryId(null);
+                  setError(null);
+                  const settings = SettingsService.getSettings();
+                  setFormData({
+                    ...INITIAL_FORM_DATA,
+                    language:
+                      settings.learning.language || INITIAL_FORM_DATA.language,
+                    gradeClass: userProfile.grade || INITIAL_FORM_DATA.gradeClass,
+                  });
+                  if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                }}
+              >
                 <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0 bg-white dark:bg-slate-800">
                   <Logo className="w-full h-full" iconOnly />
                 </div>
-                {isSidebarOpen && (
-                  <div className="truncate animate-in fade-in duration-300">
-                    <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
-                      SJ Tutor AI
-                    </h1>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider truncate">
-                      AI Study Buddy
-                    </p>
-                  </div>
-                )}
+                <div className="truncate">
+                  <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                    SJ Tutor AI
+                  </h1>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider truncate">
+                    AI Study Buddy
+                  </p>
+                </div>
               </div>
-              {isSidebarOpen && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsSidebarOpen(false);
-                  }}
-                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 transition-all flex-shrink-0"
-                  title="Collapse Sidebar"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsSidebarOpen(false);
+                }}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 transition-all flex-shrink-0"
+                title="Collapse Sidebar"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
             </div>
           </div>
 
@@ -2665,27 +2491,19 @@ const App: React.FC = () => {
                       setIsSidebarOpen(false);
                     } else {
                       navigateToMode(item.id);
-                      if (window.innerWidth < 1024) setIsSidebarOpen(false);
                     }
                   }}
-                  className={`w-full flex items-center rounded-lg transition-all duration-200 group text-sm ${
-                    isSidebarOpen 
-                      ? "px-3 py-2.5 gap-3 justify-start" 
-                      : "p-2.5 justify-center"
-                  } ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group text-sm ${
                     isActive
                       ? "bg-primary-50 dark:bg-slate-800 text-primary-700 dark:text-primary-400 font-semibold shadow-sm"
                       : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                   }`}
-                  title={!isSidebarOpen ? item.label : undefined}
                 >
-                  <div className="relative">
-                    <Icon
-                      className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
-                    />
-                  </div>
-                  {isSidebarOpen && <span>{item.label}</span>}
-                  {isSidebarOpen && !user &&
+                  <Icon
+                    className={`w-4 h-4 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
+                  />
+                  {item.label}
+                  {!user &&
                     item.id !== AppMode.DASHBOARD &&
                     item.id !== AppMode.ABOUT && (
                       <div className="ml-auto">
@@ -2697,18 +2515,12 @@ const App: React.FC = () => {
             })}
           </div>
 
-          <div className={`p-3 border-t border-slate-100 dark:border-slate-800 space-y-2 flex flex-col ${isSidebarOpen ? "" : "items-center"}`}>
+          <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
             {user ? (
               <>
                 <button
-                  onClick={() => {
-                    setMode(AppMode.PROFILE);
-                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center rounded-lg transition-all ${
-                    isSidebarOpen ? "px-3 py-2 gap-2 justify-start" : "p-1.5 justify-center"
-                  } ${mode === AppMode.PROFILE ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
-                  title={!isSidebarOpen ? (userProfile.displayName || "Profile") : undefined}
+                  onClick={() => setMode(AppMode.PROFILE)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mode === AppMode.PROFILE ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold" : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                 >
                   <div className="relative w-8 h-8 flex-shrink-0">
                     <svg className="absolute inset-x-[-2px] inset-y-[-2px] w-[calc(100%+4px)] h-[calc(100%+4px)] -rotate-90">
@@ -2753,63 +2565,39 @@ const App: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  {isSidebarOpen && (
-                    <div className="flex-1 text-left overflow-hidden">
-                      <p className="text-xs font-medium truncate text-slate-800 dark:text-white">
-                        {userProfile.displayName || "Scholar"}
-                      </p>
-                      <p className="text-xs text-slate-400 truncate">
-                        {user.email}
-                      </p>
-                    </div>
-                  )}
+                  <div className="flex-1 text-left overflow-hidden">
+                    <p className="text-xs font-medium truncate text-slate-800 dark:text-white">
+                      {userProfile.displayName || "Scholar"}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {user.email}
+                    </p>
+                  </div>
                 </button>
                 <button
-                  onClick={() => {
-                    handleLogout();
-                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-center rounded-lg transition-colors font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 ${
-                    isSidebarOpen ? "px-3 py-2 gap-2 text-xs" : "p-2.5"
-                  }`}
-                  title={!isSidebarOpen ? "Sign Out" : undefined}
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                 >
-                  <LogOut className="w-4 h-4 flex-shrink-0" />
-                  {isSidebarOpen && <span>Sign Out</span>}
+                  <LogOut className="w-3.5 h-3.5" />
+                  Sign Out
                 </button>
               </>
             ) : (
               <button
-                onClick={() => {
-                  setShowAuthModal(true);
-                  if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                }}
-                className={`w-full bg-slate-900 dark:bg-slate-700 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors flex items-center justify-center ${
-                  isSidebarOpen ? "py-2.5 text-sm" : "p-2.5"
-                }`}
-                title={!isSidebarOpen ? "Sign In" : undefined}
+                onClick={() => setShowAuthModal(true)}
+                className="w-full py-2.5 bg-slate-900 dark:bg-slate-700 text-white rounded-lg font-medium shadow-lg shadow-slate-900/20 hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors text-sm"
               >
-                {isSidebarOpen ? (
-                  <span>Sign In</span>
-                ) : (
-                  <UserIcon className="w-5 h-5 flex-shrink-0" />
-                )}
+                Sign In
               </button>
             )}
 
             {user && (
               <button
-                onClick={() => {
-                  setShowPremiumModal(true);
-                  if (window.innerWidth < 1024) setIsSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-center rounded-lg font-bold bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 transition-all ${
-                  isSidebarOpen ? "py-2 gap-1.5 text-xs shadow-sm" : "p-2.5 shadow-none"
-                }`}
-                title={!isSidebarOpen ? "Upgrade Plan" : undefined}
+                onClick={() => setShowPremiumModal(true)}
+                className="w-full py-2 bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5"
               >
-                <Crown className="w-4 h-4 flex-shrink-0" />
-                {isSidebarOpen && <span>Upgrade Plan</span>}
+                <Crown className="w-3.5 h-3.5" />
+                Upgrade Plan
               </button>
             )}
           </div>
@@ -2820,9 +2608,9 @@ const App: React.FC = () => {
         <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-1.5 -ml-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
-              title="Toggle Sidebar"
+              onClick={() => setIsSidebarOpen(true)}
+              className={`${isSidebarOpen ? "lg:hidden" : "block"} p-1.5 -ml-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all`}
+              title="Open Sidebar"
             >
               <Menu className="w-5 h-5" />
             </button>

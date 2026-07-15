@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { NoteItem, ReminderItem, TimetableEntry, SJTUTOR_AVATAR, NoteStatus, NoteTemplate, UserProfile } from '../types';
 import { 
   Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, 
-  StickyNote, Bell, Loader2, Folder, 
-  ChevronRight, Star, Tag, Book, 
+  StickyNote, Bell, Edit3, Loader2, Folder, 
+  ChevronRight, Star, Tag, Book, Lightbulb, Languages,
   CheckCircle2, Circle, Download
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
@@ -12,10 +12,6 @@ import { SettingsService } from '../services/settingsService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
-import { formatLaTeXToUnicode } from '../utils/exportUtils';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { useRef } from 'react';
 
 interface NotesViewProps {
   userId: string | null;
@@ -74,63 +70,22 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     }
   }, []);
 
-  // Real-time Firestore Sync & Local Storage Fallback
+  // Load/Persist
   useEffect(() => {
     const key = userId || 'guest';
-    
-    // Always load from local storage immediately for fast render
     const savedNotes = localStorage.getItem(`notes_${key}`);
     const savedReminders = localStorage.getItem(`reminders_${key}`);
     const savedTimetable = localStorage.getItem(`timetable_${key}`);
-    
     if (savedNotes) setNotes(JSON.parse(savedNotes));
     if (savedReminders) setReminders(JSON.parse(savedReminders));
     if (savedTimetable) setTimetable(JSON.parse(savedTimetable));
-
-    if (userId) {
-      // Setup real-time listener
-      const docRef = doc(db, "user_data", `notes_${userId}`);
-      const unsub = onSnapshot(docRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          // To prevent remote syncs from overwriting our active typing, 
-          // we could do a deeper merge or just use this simple sync.
-          if (data.notes) setNotes(data.notes);
-          if (data.reminders) setReminders(data.reminders);
-          if (data.timetable) setTimetable(data.timetable);
-          
-          localStorage.setItem(`notes_${key}`, JSON.stringify(data.notes || []));
-          localStorage.setItem(`reminders_${key}`, JSON.stringify(data.reminders || []));
-          localStorage.setItem(`timetable_${key}`, JSON.stringify(data.timetable || {}));
-        }
-      });
-      return unsub;
-    }
   }, [userId]);
 
-  // Save to Firestore and Local Storage when modified
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     const key = userId || 'guest';
     localStorage.setItem(`notes_${key}`, JSON.stringify(notes));
     localStorage.setItem(`reminders_${key}`, JSON.stringify(reminders));
     localStorage.setItem(`timetable_${key}`, JSON.stringify(timetable));
-
-    if (userId) {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(() => {
-        setDoc(doc(db, "user_data", `notes_${userId}`), {
-          notes,
-          reminders,
-          timetable,
-          updatedAt: Date.now()
-        }, { merge: true });
-      }, 1000); // Debounce saves to reduce writes
-    }
-    
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
   }, [notes, reminders, timetable, userId]);
 
   // Derived
@@ -248,11 +203,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
 
         const updatedNotes = [newNote, ...notes];
         setNotes(updatedNotes);
-        if (userId) {
-          sendNotification('Notes Summarized', `New note '${newNote.title}' was successfully generated.`, 'Features', userId);
-        }
         
-
+        const key = userId || 'guest';
+        localStorage.setItem(`notes_${key}`, JSON.stringify(updatedNotes));
 
         setEditingNote(newNote);
         setViewMode('EDITOR');
@@ -268,6 +221,31 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
       alert("Something went wrong during notes generation. Please check your connection and try again.");
     } finally {
       setIsGeneratingNotes(false);
+    }
+  };
+
+  const handleAiAction = async (task: 'summarize' | 'simplify' | 'mcq' | 'translate') => {
+    if (!editingNote?.content) return;
+    
+    const cost = 0; // Free unlimited 10-day trial active
+    if (!onDeductCredit(cost)) {
+      alert("AI actions are currently free!");
+      return;
+    }
+
+    setIsAiLoading(true);
+    try {
+      const result = await GeminiService.processNoteAI(editingNote.content, task);
+      if (result) {
+        setEditingNote({
+          ...editingNote,
+          content: `${editingNote.content}\n\n---\n### AI ${task.toUpperCase()}\n${result}`
+        });
+      }
+    } catch {
+      alert("AI request failed. Please try again.");
+    } finally {
+      setIsAiLoading(false);
     }
   };
 
@@ -457,6 +435,22 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                   </div>
                 </div>
 
+                {/* AI ACTION BAR */}
+                <div className="px-6 py-3 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 flex gap-2 overflow-x-auto custom-scrollbar">
+                   <button onClick={() => handleAiAction('summarize')} className="flex-shrink-0 px-3 py-1.5 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded-full text-xs font-bold flex items-center gap-1.5 hover:bg-primary-100">
+                      <Sparkles className="w-3.5 h-3.5" /> Summarize
+                   </button>
+                   <button onClick={() => handleAiAction('simplify')} className="flex-shrink-0 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs font-bold flex items-center gap-1.5 hover:bg-blue-100">
+                      <Lightbulb className="w-3.5 h-3.5" /> Simplify
+                   </button>
+                   <button onClick={() => handleAiAction('mcq')} className="flex-shrink-0 px-3 py-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full text-xs font-bold flex items-center gap-1.5 hover:bg-purple-100">
+                      <Edit3 className="w-3.5 h-3.5" /> Get MCQs
+                   </button>
+                   <button onClick={() => handleAiAction('translate')} className="flex-shrink-0 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-xs font-bold flex items-center gap-1.5 hover:bg-amber-100">
+                      <Languages className="w-3.5 h-3.5" /> Hindi
+                   </button>
+                </div>
+
                 <div className="flex flex-col md:flex-row h-[500px]">
                   {/* Markdown Editor */}
                   <textarea 
@@ -469,7 +463,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                   {/* Live Preview */}
                   <div className="flex-1 p-6 overflow-y-auto bg-white/50 dark:bg-slate-900/20 custom-scrollbar">
                      <div className="prose prose-sm dark:prose-invert max-w-none markdown-body">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{formatLaTeXToUnicode(editingNote.content || '*No content yet*')}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{editingNote.content || '*No content yet*'}</ReactMarkdown>
                      </div>
                   </div>
                 </div>

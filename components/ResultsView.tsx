@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { formatLaTeXToUnicode } from '../utils/exportUtils';
 import { 
   Loader2, Volume2, Square, ArrowLeft, Download, Share2, 
   Mail, MessageCircle, Link, RefreshCw, Check, 
@@ -543,7 +542,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({
           <div className="prose prose-slate max-w-none dark:prose-invert text-left" ref={contentRef}>
             <div className="markdown-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {formatLaTeXToUnicode(content)}
+                {content}
               </ReactMarkdown>
             </div>
             

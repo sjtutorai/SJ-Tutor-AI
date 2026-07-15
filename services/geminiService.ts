@@ -30,7 +30,7 @@ export const GeminiService = {
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
       config: {
         systemInstruction: `You are an AI study assistant. You must communicate and generate content strictly in ${language}.`
@@ -64,7 +64,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: prompt,
     });
 
@@ -148,7 +148,7 @@ Generate notes based on:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         systemInstruction,
@@ -178,7 +178,7 @@ Generate notes based on:
     `;
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
@@ -228,7 +228,7 @@ Generate notes based on:
     });
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: {
         parts: contents
       },
@@ -264,7 +264,7 @@ Generate notes based on:
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -297,7 +297,7 @@ Generate notes based on:
     const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -338,7 +338,7 @@ Generate notes based on:
     
     const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -375,7 +375,7 @@ Generate notes based on:
     const ai = getAI();
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       config: { systemInstruction: systemInstruction }
     });
   },
@@ -401,7 +401,7 @@ Generate notes based on:
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: [...formattedHistory, { role: 'user', parts: currentParts }],
       config: { systemInstruction }
     });
@@ -425,7 +425,7 @@ ${SettingsService.getTutorSystemInstruction()}
 `;
 
     // Process chat history
-    const rawFormattedHistory = history.map(msg => ({
+    const formattedHistory = history.map(msg => ({
       role: msg.role === 'model' ? 'model' : 'user',
       parts: msg.images ? [
         ...msg.images.map((img: string) => {
@@ -436,19 +436,9 @@ ${SettingsService.getTutorSystemInstruction()}
             inlineData: { mimeType: mime, data: cleanBase64 }
           };
         }),
-        ...(msg.text ? [{ text: msg.text }] : [])
-      ] : (msg.text ? [{ text: msg.text }] : [])
-    })).filter(msg => msg.parts.length > 0);
-
-    const formattedHistory: any[] = [];
-    for (const msg of rawFormattedHistory) {
-      const last = formattedHistory[formattedHistory.length - 1];
-      if (last && last.role === msg.role) {
-        last.parts.push(...msg.parts);
-      } else {
-        formattedHistory.push({ role: msg.role, parts: [...msg.parts] });
-      }
-    }
+        { text: msg.text }
+      ] : [{ text: msg.text }]
+    }));
 
     // Build the current prompt parts
     const currentParts: any[] = [];
@@ -486,18 +476,9 @@ ${SettingsService.getTutorSystemInstruction()}
       currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
     });
 
-    const finalContents = [...formattedHistory];
-    const lastContent = finalContents[finalContents.length - 1];
-    
-    if (lastContent && lastContent.role === 'user') {
-      lastContent.parts.push(...currentParts);
-    } else {
-      finalContents.push({ role: 'user', parts: currentParts });
-    }
-
     const response = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash',
-      contents: finalContents,
+      model: 'gemini-3.5-flash',
+      contents: [...formattedHistory, { role: 'user', parts: currentParts }],
       config: { systemInstruction }
     });
 
@@ -509,7 +490,7 @@ ${SettingsService.getTutorSystemInstruction()}
     const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.5-flash',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
@@ -530,72 +511,5 @@ ${SettingsService.getTutorSystemInstruction()}
     });
     if (response.text) return JSON.parse(response.text.trim());
     throw new Error("Failed to analyze image");
-  },
-
-  analyzeProfile: async (profile: any, email: string | null) => {
-    const ai = getAI();
-    const systemInstruction = "You are SJ Tutor AI, an expert academic advisor, performance analyst, and study strategist. Analyze the student's profile and generate a highly personalized, structured academic analysis and roadmap.";
-    
-    const prompt = `
-Please analyze the following student's academic profile and provide:
-1. **Academic Strength & Goal Assessment**: Assess their background, bio, and main learning goal.
-2. **Customized Study Track**: Recommend study techniques and methods specifically aligned with their preferred learning style (${profile.learningStyle || 'Visual'}).
-3. **Step-by-Step Strategic Roadmap**: Practical, actionable milestones for them to achieve their primary learning goal: "${profile.learningGoal || 'General academic improvement'}".
-4. **Board Exam Recommendations**: Specific board preparation strategies suitable for Class ${profile.grade || '10th'} under the ${profile.board || 'CBSE'} syllabus.
-
-Student Profile Details:
-- **Full Name**: ${profile.displayName || 'Scholar'}
-- **Email**: ${email || 'Not provided'}
-- **Class / Grade**: ${profile.grade || 'Not specified'}
-- **School Board**: ${profile.board || 'Not specified'}
-- **Institution / School**: ${profile.institution || 'Not specified'}
-- **Location**: ${profile.district || 'Not specified'}, ${profile.state || 'Not specified'}
-- **Learning Style**: ${profile.learningStyle || 'Visual'}
-- **Learning Goal**: ${profile.learningGoal || 'General academic improvement'}
-- **About Me (Bio)**: ${profile.bio || 'Not provided'}
-
-Response Format Requirements:
-- Write in clean, beautiful, and inspiring Markdown formatting with headings and lists.
-- Be encouraging, detailed, and highly practical.
-`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: { systemInstruction }
-    });
-
-    return response.text;
-  },
-
-  generateConversationTitle: async (messages: any[]): Promise<string> => {
-    try {
-      const ai = getAI();
-      const textMessages = messages
-        .filter(m => m.role === 'user' || m.role === 'model')
-        .slice(0, 5) // Use first 5 messages for context
-        .map(m => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.text}`)
-        .join('\n');
-        
-      const prompt = `Analyze the following brief conversation between a student and an AI Tutor, and generate a concise summarizing title.
-      Requirements:
-      - The title must be between 4 and 8 words.
-      - Do not use generic words like "Tutor Session", "Lesson", "Help", or "Chat".
-      - Focus on the specific academic topic or subject discussed.
-      - Return ONLY the clean, plain title without quotes, prefixes, or markdown.
-
-      CONVERSATION TRANSCRIPT:
-      ${textMessages}`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-
-      return (response.text || "").trim().replace(/^["']|["']$/g, '');
-    } catch (e) {
-      console.warn("Failed to generate custom title:", e);
-      return "Tutor Lesson Segment";
-    }
   }
 };

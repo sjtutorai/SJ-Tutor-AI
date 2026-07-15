@@ -254,7 +254,7 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             const lastStudy = data.lastStudyDate || data.lastActivityDate || null;
 
             const parsedUpdatedAt = data.updatedAt 
-              ? (typeof data.updatedAt === 'object' && data.updatedAt !== null && 'toMillis' in data.updatedAt 
+              ? (typeof data.updatedAt === 'object' && 'toMillis' in data.updatedAt 
                  ? (data.updatedAt as any).toMillis() 
                  : Number(data.updatedAt)) 
               : 0;

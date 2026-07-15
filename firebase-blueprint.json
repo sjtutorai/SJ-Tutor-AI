@@ -16,8 +16,7 @@
         "learningStyle": { "type": "string" },
         "credits": { "type": "number" },
         "planType": { "type": "string" },
-        "claimedOffers": { "type": "array" },
-        "username": { "type": "string" }
+        "claimedOffers": { "type": "array" }
       },
       "required": ["credits"]
     },
@@ -87,27 +86,14 @@
         "shareId": { "type": "string" },
         "type": { "type": "string" },
         "title": { "type": "string" },
-        "description": { "type": "string" },
-        "subject": { "type": "string" },
-        "class": { "type": "string" },
         "content": { "type": "object" },
         "ownerUid": { "type": "string" },
-        "ownerName": { "type": "string" },
         "createdAt": { "type": "number" },
-        "updatedAt": { "type": "number" },
-        "expiresAt": { "type": "number" },
         "views": { "type": "number" },
         "likes": { "type": "number" },
-        "bookmarks": { "type": "number" },
         "isPublic": { "type": "boolean" },
         "sharesCount": { "type": "number" },
-        "visibility": { "type": "string" },
-        "allowDownload": { "type": "boolean" },
-        "allowCopy": { "type": "boolean" },
-        "allowComments": { "type": "boolean" },
-        "showAuthor": { "type": "boolean" },
-        "showStudentId": { "type": "boolean" },
-        "slug": { "type": "string" }
+        "lastViewedAt": { "type": "number" }
       },
       "required": ["shareId", "type", "title", "content", "ownerUid", "createdAt", "views", "likes", "isPublic"]
     },
@@ -125,25 +111,6 @@
         "lastActive": { "type": "number" }
       },
       "required": ["uid", "displayName", "totalScore", "quizzesCompleted", "highestScore", "lastActive"]
-    },
-    "StudyCollection": {
-      "title": "StudyCollection",
-      "description": "Student created public collections of learning items",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "slug": { "type": "string" },
-        "ownerId": { "type": "string" },
-        "ownerName": { "type": "string" },
-        "isPublic": { "type": "boolean" },
-        "items": { "type": "array" },
-        "createdAt": { "type": "number" },
-        "views": { "type": "number" },
-        "likes": { "type": "number" }
-      },
-      "required": ["id", "title", "slug", "ownerId", "isPublic", "items", "createdAt"]
     }
   },
   "firestore": {
@@ -174,10 +141,6 @@
     "/streaks/{userId}": {
       "schema": "Streak",
       "description": "Stores user daily sequence progress and stats"
-    },
-    "/collections/{collectionId}": {
-      "schema": "StudyCollection",
-      "description": "User created resource collections"
     }
   }
 }
