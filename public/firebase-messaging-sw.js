@@ -1,7 +1,7 @@
 // Firebase Cloud Messaging compat Service Worker
 
-importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/11.1.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/11.1.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
   apiKey: "AIzaSyApvrjOz196Z3feFfkW6y3W7r4OQiM6oIY",

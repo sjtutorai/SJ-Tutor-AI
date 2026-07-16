@@ -111,9 +111,54 @@
         "lastActive": { "type": "number" }
       },
       "required": ["uid", "displayName", "totalScore", "quizzesCompleted", "highestScore", "lastActive"]
+    },
+    "AdminNotification": {
+      "title": "AdminNotification",
+      "description": "Notification created by admin, possibly scheduled",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "scheduledTime": { "type": "number" },
+        "status": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetValue": { "type": "array" }
+      },
+      "required": ["title", "body", "timestamp", "status", "targetType"]
+    },
+    "NotificationLog": {
+      "title": "NotificationLog",
+      "description": "Audit log for sent notifications",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "senderId": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetValue": { "type": "array" },
+        "recipientCount": { "type": "number" },
+        "successCount": { "type": "number" },
+        "failureCount": { "type": "number" },
+        "status": { "type": "string" },
+        "errors": { "type": "array" },
+        "retryCount": { "type": "number" }
+      },
+      "required": ["title", "body", "timestamp", "senderId", "targetType", "recipientCount", "successCount", "failureCount", "status"]
     }
   },
   "firestore": {
+    "/notifications/{notificationId}": {
+      "schema": "AdminNotification",
+      "description": "Admin scheduled or broadcast notifications"
+    },
+    "/notification_logs/{logId}": {
+      "schema": "NotificationLog",
+      "description": "Audit log history of sent notifications"
+    },
     "/sharedContent/{shareId}": {
       "schema": "SharedContent",
       "description": "Public viewing records of shared materials"

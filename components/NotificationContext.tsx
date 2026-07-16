@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { collection, query, addDoc, doc, updateDoc, limit, orderBy, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '../firebaseConfig';
+import { 
+  collection, query, addDoc, doc, updateDoc, limit, orderBy, onSnapshot, 
+  arrayUnion, setDoc, writeBatch, getDocs, deleteDoc 
+} from 'firebase/firestore';
+import { auth, db, getFCM } from '../firebaseConfig';
 import { User, onAuthStateChanged } from 'firebase/auth';
+import { getToken, onMessage } from 'firebase/messaging';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Flame, Trophy, Award, Bell, X } from 'lucide-react';
 
@@ -24,6 +28,55 @@ export interface ActiveToast {
   category: string;
 }
 
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  if (process.env.NODE_ENV === 'development') {
+    console.error('Firestore Error details: ', JSON.stringify(errInfo));
+  }
+  throw new Error(JSON.stringify(errInfo));
+}
+
 interface NotificationContextProps {
   notifications: NotificationItem[];
   unreadCount: number;
@@ -32,9 +85,12 @@ interface NotificationContextProps {
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   clearNotifications: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
   sendNotification: (title: string, body: string, category: NotificationCategory, targetUser: string) => Promise<boolean>;
+  sendBulkNotification: (title: string, body: string, category: NotificationCategory, targetType: 'all' | 'selected' | 'class', targetValue: string[], scheduledTime?: number) => Promise<boolean>;
   triggerToast: (title: string, body: string, category?: string) => void;
   isAdminUser: boolean;
+  setupFCM: (user: User) => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextProps | undefined>(undefined);
@@ -46,7 +102,7 @@ const SEED_NOTIFICATIONS: NotificationItem[] = [
     title: 'Welcome to your brand-new Notification Center! 🔔',
     body: 'Say hello to the all-new SJ Tutor AI Notification Center. Track your quiz challenges, daily reminders, alerts, and feature updates right here.',
     category: 'New Features',
-    timestamp: Date.now() - 3600000 * 2, // 2 hours ago
+    timestamp: Date.now() - 3600000 * 2,
     read: false,
   },
   {
@@ -55,7 +111,7 @@ const SEED_NOTIFICATIONS: NotificationItem[] = [
     title: 'Daily Streak Challenge Active 🔥',
     body: 'Complete your daily learning goal of 30 minutes. Keep your streak alive to unlock free premium credits!',
     category: 'Daily Streak Reminders',
-    timestamp: Date.now() - 3600000 * 5, // 5 hours ago
+    timestamp: Date.now() - 3600000 * 5,
     read: false,
   },
   {
@@ -64,7 +120,7 @@ const SEED_NOTIFICATIONS: NotificationItem[] = [
     title: 'Double-Credit MCQ Science Challenge 🧪',
     body: 'A mock science test series is now available on your Quiz Creator tab. Pass with 90% or above to claim 50 free credits.',
     category: 'Quiz Updates',
-    timestamp: Date.now() - 86400000, // 1 day ago
+    timestamp: Date.now() - 86400000,
     read: false,
   },
   {
@@ -73,7 +129,7 @@ const SEED_NOTIFICATIONS: NotificationItem[] = [
     title: 'National SJ AI Olympiad 2026! 🚀',
     body: 'Early bird registration is open for the SJ AI Olympiad. Test your skills against students nationwide and win exciting cash scholarships!',
     category: 'Competition Announcements',
-    timestamp: Date.now() - 86400000 * 2, // 2 days ago
+    timestamp: Date.now() - 86400000 * 2,
     read: true,
   }
 ];
@@ -103,9 +159,53 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   const seenNotificationIdsRef = useRef<Set<string>>(new Set());
-
-  // Determine if current user is admin (sjtutorai@gmail.com)
   const isAdminUser = currentUser?.email === 'sjtutorai@gmail.com';
+
+  // FCM Token generation & storage
+  const setupFCM = async (user: User) => {
+    try {
+      const messaging = await getFCM();
+      if (!messaging) return;
+
+      if (Notification.permission !== 'granted') {
+        return;
+      }
+
+      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BMrbB4gM7e_E9l_YvZ7W89uaCN4S8k9eSZ-hNyWpq0To';
+
+      let reg: ServiceWorkerRegistration | undefined;
+      if ('serviceWorker' in navigator) {
+        reg = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+        if (!reg) {
+          reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        }
+      }
+
+      const token = await getToken(messaging, { 
+        vapidKey,
+        serviceWorkerRegistration: reg
+      });
+
+      if (token && user) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('FCM token generated successfully:', token);
+        }
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, {
+          fcmToken: token,
+          fcmTokens: arrayUnion(token)
+        }).catch((err) => {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('Failed to store token on user doc, trying write/create:', err);
+          }
+        });
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('FCM generation/registration failed:', err);
+      }
+    }
+  };
 
   // Track auth state
   useEffect(() => {
@@ -119,8 +219,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
     const localReadIdsKey = currentUser ? `read_global_ids_${currentUser.uid}` : 'read_global_ids_guest';
+    const localDeletedIdsKey = currentUser ? `deleted_global_ids_${currentUser.uid}` : 'deleted_global_ids_guest';
     
-    // 1. Get initial notifications from LocalStorage or seed if empty
     let initialLocal: NotificationItem[] = [];
     try {
       const stored = localStorage.getItem(storageKey);
@@ -136,7 +236,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     setNotifications(initialLocal);
 
-    // Initialize seen IDs so we don't alert old notifications on startup
     const loadedIds = new Set(initialLocal.map(n => n.id));
     seenNotificationIdsRef.current = loadedIds;
 
@@ -150,7 +249,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const mergeAndStore = () => {
       if (!active) return;
 
-      // Filter local storage items that are purely local (e.g. seeds / custom locally sent ones)
       let storedLocalItems: NotificationItem[] = [];
       try {
         const stored = localStorage.getItem(storageKey);
@@ -163,7 +261,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         storedLocalItems = SEED_NOTIFICATIONS;
       }
 
-      // Read global read lists from local storage
       let readGlobalIds: string[] = [];
       try {
         const rawRead = localStorage.getItem(localReadIdsKey);
@@ -172,35 +269,36 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         console.warn("Failed to parse readGlobalIds", e);
       }
 
-      // Process global items
-      const processedGlobal = currentGlobal.map(item => ({
-        ...item,
-        read: readGlobalIds.includes(item.id) || item.read
-      }));
+      let deletedGlobalIds: string[] = [];
+      try {
+        const rawDeleted = localStorage.getItem(localDeletedIdsKey);
+        if (rawDeleted) deletedGlobalIds = JSON.parse(rawDeleted);
+      } catch (e) {
+        console.warn("Failed to parse deletedGlobalIds", e);
+      }
 
-      // Combine direct, processed global, and stored local items
+      const processedGlobal = currentGlobal
+        .filter(item => !deletedGlobalIds.includes(item.id))
+        .map(item => ({
+          ...item,
+          read: readGlobalIds.includes(item.id) || item.read
+        }));
+
       const combinedMap = new Map<string, NotificationItem>();
       
-      // Default seeds / locals first
       storedLocalItems.forEach(item => combinedMap.set(item.id, item));
-      // Then global DB notifications
       processedGlobal.forEach(item => combinedMap.set(item.id, item));
-      // Then direct user DB notifications (most specific)
       currentDirect.forEach(item => combinedMap.set(item.id, item));
 
       const combined = Array.from(combinedMap.values()).sort((a, b) => b.timestamp - a.timestamp);
 
-      // Check for any NEW, UNREAD notifications to show system notification popup across all user devices!
       combined.forEach((notif) => {
         if (!notif.read && !seenNotificationIdsRef.current.has(notif.id)) {
-          // If it's a new unread notification that we haven't seen since the app opened/loaded
-          // and its timestamp is recent (e.g. not older than 1 hour, to prevent offline queue popups)
           if (Date.now() - notif.timestamp < 3600 * 1000) {
             triggerSystemNotification(`[${notif.category}] ${notif.title}`, notif.body);
             triggerToastRef.current(notif.title, notif.body, notif.category);
           }
         }
-        // Add to seen notifications set
         seenNotificationIdsRef.current.add(notif.id);
       });
 
@@ -209,7 +307,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     if (currentUser) {
-      // 1. Listen to personal notifications: /users/{userId}/notifications
+      // 1. Listen to personal notifications
       try {
         const personalNotifRef = collection(db, 'users', currentUser.uid, 'notifications');
         const personalQuery = query(personalNotifRef, orderBy('timestamp', 'desc'), limit(50));
@@ -230,13 +328,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           currentDirect = items;
           mergeAndStore();
         }, (err) => {
-          console.warn('Personal notifications listening error:', err);
+          handleFirestoreError(err, OperationType.LIST, `users/${currentUser.uid}/notifications`);
         });
       } catch (e) {
         console.warn('Failed to listen to personal notifications:', e);
       }
 
-      // 2. Listen to global notifications: /global_notifications
+      // 2. Listen to global notifications
       try {
         const globalNotifRef = collection(db, 'global_notifications');
         const globalQuery = query(globalNotifRef, orderBy('timestamp', 'desc'), limit(50));
@@ -257,18 +355,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           currentGlobal = items;
           mergeAndStore();
         }, (err) => {
-          console.warn('Global notifications listening error:', err);
+          handleFirestoreError(err, OperationType.LIST, 'global_notifications');
         });
       } catch (e) {
         console.warn('Failed to listen to global notifications:', e);
       }
     }
 
-    // Register simple Service Worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/firebase-messaging-sw.js')
         .then((reg) => {
-          console.log('Notification Service Worker registered with scope: ', reg.scope);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('FCM Service Worker registered successfully: ', reg.scope);
+          }
         })
         .catch((err) => {
           console.warn('Service Worker registration failed:', err);
@@ -279,6 +378,66 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       active = false;
       if (unsubDirect) unsubDirect();
       if (unsubGlobal) unsubGlobal();
+    };
+  }, [currentUser]);
+
+  // Handle Foreground/onMessage and Token Generation
+  useEffect(() => {
+    let unsubscribeOnMessage: (() => void) | null = null;
+
+    const initFCMListener = async () => {
+      try {
+        const messaging = await getFCM();
+        if (messaging && currentUser) {
+          // Listen to token refresh
+          setupFCM(currentUser);
+
+          // Configure Foreground messaging onMessage()
+          unsubscribeOnMessage = onMessage(messaging, (payload) => {
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Foreground FCM received:', payload);
+            }
+
+            const title = payload.notification?.title || payload.data?.title || 'SJ Tutor AI';
+            const body = payload.notification?.body || payload.data?.body || '';
+            const category = (payload.data?.category || 'Important Alerts') as NotificationCategory;
+
+            triggerSystemNotification(title, body);
+            triggerToast(title, body, category);
+
+            const timestamp = Date.now();
+            const newNotif: NotificationItem = {
+              id: payload.data?.notificationId || `fcm-${timestamp}-${Math.random()}`,
+              userId: currentUser.uid,
+              title,
+              body,
+              category,
+              timestamp,
+              read: false,
+            };
+
+            setNotifications((prev) => {
+              if (prev.some(n => n.id === newNotif.id)) return prev;
+              const updated = [newNotif, ...prev];
+              const storageKey = `notifications_${currentUser.uid}`;
+              localStorage.setItem(storageKey, JSON.stringify(updated));
+              return updated;
+            });
+          });
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('FCM listener setup failed:', err);
+        }
+      }
+    };
+
+    if (currentUser) {
+      initFCMListener();
+    }
+
+    return () => {
+      if (unsubscribeOnMessage) unsubscribeOnMessage();
     };
   }, [currentUser]);
 
@@ -294,11 +453,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setPermissionStatus(permission);
       
       if (permission === 'granted') {
-        // Trigger a nice success system notification
         triggerSystemNotification(
           'Notifications Enabled! 🔔',
           'You will now receive exam updates, daily streak reminders, and student alerts.'
         );
+        if (currentUser) {
+          setupFCM(currentUser);
+        }
         return true;
       }
       return false;
@@ -318,7 +479,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         data: { url }
       };
 
-      // Try using service worker if active for best OS support (Android/iOS/PWA)
       if (navigator.serviceWorker && navigator.serviceWorker.controller) {
         navigator.serviceWorker.ready.then((reg) => {
           reg.showNotification(title, options);
@@ -332,7 +492,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const markAsRead = async (id: string) => {
-    // 1. Update local state
     const updated = notifications.map((n) => {
       if (n.id === id) return { ...n, read: true };
       return n;
@@ -342,7 +501,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
     localStorage.setItem(storageKey, JSON.stringify(updated));
 
-    // 2. Clear from unread badge tracker in local storage for global notifications
     const localReadIdsKey = currentUser ? `read_global_ids_${currentUser.uid}` : 'read_global_ids_guest';
     try {
       let readGlobalIds: string[] = [];
@@ -356,19 +514,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       console.warn('Error saving read global ID locally', e);
     }
 
-    // 3. Try to update in Firestore if it's a cloud notification
     try {
       const notif = notifications.find(n => n.id === id);
       if (notif && !notif.id.startsWith('seed-') && !notif.id.startsWith('local-')) {
-        if (notif.userId === 'all') {
-          // Global is read track local
-        } else if (currentUser) {
+        if (notif.userId !== 'all' && currentUser) {
           const docRef = doc(db, 'users', currentUser.uid, 'notifications', id);
           await updateDoc(docRef, { read: true });
         }
       }
     } catch (err) {
-      console.warn('Firestore update read failed:', err);
+      handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser?.uid}/notifications/${id}`);
     }
   };
 
@@ -379,7 +534,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
     localStorage.setItem(storageKey, JSON.stringify(updated));
 
-    // Add all notification IDs to read list
     const localReadIdsKey = currentUser ? `read_global_ids_${currentUser.uid}` : 'read_global_ids_guest';
     try {
       const ids = notifications.map(n => n.id);
@@ -388,7 +542,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       console.warn("Storage write failed in markAllAsRead", e);
     }
 
-    // Update non-broadcast user notifications on Firestore
     try {
       if (currentUser) {
         const updates = notifications.filter(n => !n.id.startsWith('seed-') && !n.id.startsWith('local-') && n.userId !== 'all' && !n.read);
@@ -398,7 +551,40 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
       }
     } catch (e) {
-      console.warn("Firestore update failed in markAllAsRead", e);
+      handleFirestoreError(e, OperationType.UPDATE, `users/${currentUser?.uid}/notifications`);
+    }
+  };
+
+  const deleteNotification = async (id: string) => {
+    const updated = notifications.filter(n => n.id !== id);
+    setNotifications(updated);
+
+    const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+
+    const matched = notifications.find(n => n.id === id);
+    if (matched?.userId === 'all') {
+      const localDeletedKey = currentUser ? `deleted_global_ids_${currentUser.uid}` : 'deleted_global_ids_guest';
+      try {
+        let deletedGlobalIds: string[] = [];
+        const rawDeleted = localStorage.getItem(localDeletedKey);
+        if (rawDeleted) deletedGlobalIds = JSON.parse(rawDeleted);
+        if (!deletedGlobalIds.includes(id)) {
+          deletedGlobalIds.push(id);
+          localStorage.setItem(localDeletedKey, JSON.stringify(deletedGlobalIds));
+        }
+      } catch (e) {
+        console.warn('Error saving deleted global ID locally', e);
+      }
+    } else {
+      try {
+        if (currentUser && !id.startsWith('seed-') && !id.startsWith('local-')) {
+          const docRef = doc(db, 'users', currentUser.uid, 'notifications', id);
+          await deleteDoc(docRef);
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, `users/${currentUser?.uid}/notifications/${id}`);
+      }
     }
   };
 
@@ -407,7 +593,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
     localStorage.setItem(storageKey, JSON.stringify([]));
 
-    // Also add to global read list so they never show up as unread again if refetched
     const localReadIdsKey = currentUser ? `read_global_ids_${currentUser.uid}` : 'read_global_ids_guest';
     try {
       const ids = notifications.map(n => n.id);
@@ -421,7 +606,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     title: string,
     body: string,
     category: NotificationCategory,
-    targetUser: string // 'all' or specific user ID
+    targetUser: string
   ): Promise<boolean> => {
     const timestamp = Date.now();
     const payload = {
@@ -433,13 +618,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       read: false
     };
 
-    // 1. Emit instant system notification to the current admin/user if they qualify
     const shouldSystemShow = targetUser === 'all' || (currentUser && targetUser === currentUser.uid);
     if (shouldSystemShow) {
       triggerSystemNotification(`[${category}] ${title}`, body);
     }
 
-    // 2. Try adding to Firestore
     try {
       if (targetUser === 'all') {
         const globalRef = collection(db, 'global_notifications');
@@ -452,7 +635,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch (err) {
       console.warn('Could not add to Firestore directly. Adding locally instead.', err);
       
-      // Fallback: append locally as a simulated cloud-broadcast notification
       const localNotification: NotificationItem = {
         id: `local-custom-${timestamp}`,
         ...payload
@@ -463,6 +645,196 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setNotifications(updated);
       localStorage.setItem(storageKey, JSON.stringify(updated));
       return true;
+    }
+  };
+
+  // Secure Admin Bulk Sender (Immediate / Scheduled) with Delivery logs
+  const sendBulkNotification = async (
+    title: string,
+    body: string,
+    category: NotificationCategory,
+    targetType: 'all' | 'selected' | 'class',
+    targetValue: string[],
+    scheduledTime?: number
+  ): Promise<boolean> => {
+    if (!currentUser || !isAdminUser) {
+      alert('Access Denied: Only registered Admins can send bulk alerts.');
+      return false;
+    }
+
+    const timestamp = Date.now();
+    const logId = `log-${timestamp}-${Math.random().toString(36).substring(2, 9)}`;
+
+    // If scheduled for the future
+    if (scheduledTime && scheduledTime > timestamp) {
+      try {
+        const schedRef = doc(db, 'notifications', logId);
+        await setDoc(schedRef, {
+          title,
+          body,
+          category,
+          timestamp,
+          scheduledTime,
+          status: 'pending',
+          targetType,
+          targetValue,
+        });
+        
+        const logRef = doc(db, 'notification_logs', logId);
+        await setDoc(logRef, {
+          title,
+          body,
+          category,
+          timestamp,
+          senderId: currentUser.uid,
+          targetType,
+          targetValue,
+          recipientCount: 0,
+          successCount: 0,
+          failureCount: 0,
+          status: 'scheduled',
+          errors: [],
+          retryCount: 0
+        });
+        return true;
+      } catch (err: any) {
+        handleFirestoreError(err, OperationType.WRITE, `notifications/${logId}`);
+        return false;
+      }
+    }
+
+    // Immediate dispatch
+    try {
+      let targetUserIds: string[] = [];
+      
+      if (targetType === 'all') {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        usersSnap.forEach(d => {
+          if (d.id) targetUserIds.push(d.id);
+        });
+      } else if (targetType === 'selected') {
+        targetUserIds = targetValue;
+      } else if (targetType === 'class') {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        usersSnap.forEach(d => {
+          const uData = d.data();
+          const userClass = uData.grade || uData.gradeClass || '';
+          if (targetValue.includes(userClass)) {
+            targetUserIds.push(d.id);
+          }
+        });
+      }
+
+      if (targetUserIds.length === 0) {
+        const logRef = doc(db, 'notification_logs', logId);
+        await setDoc(logRef, {
+          title,
+          body,
+          category,
+          timestamp,
+          senderId: currentUser.uid,
+          targetType,
+          targetValue,
+          recipientCount: 0,
+          successCount: 0,
+          failureCount: 0,
+          status: 'failed',
+          errors: ['No matching recipients found.'],
+          retryCount: 0
+        });
+        return false;
+      }
+
+      let successCount = 0;
+      const failureCount = 0;
+      const errors: string[] = [];
+
+      const batches = [];
+      let currentBatch = writeBatch(db);
+      let count = 0;
+
+      for (const uid of targetUserIds) {
+        const userNotifRef = doc(collection(db, 'users', uid, 'notifications'));
+        currentBatch.set(userNotifRef, {
+          userId: uid,
+          title,
+          body,
+          category,
+          timestamp,
+          read: false
+        });
+        
+        successCount++;
+        count++;
+
+        if (count >= 400) {
+          batches.push(currentBatch);
+          currentBatch = writeBatch(db);
+          count = 0;
+        }
+      }
+      
+      if (count > 0) {
+        batches.push(currentBatch);
+      }
+
+      for (const b of batches) {
+        await b.commit();
+      }
+
+      const logRef = doc(db, 'notification_logs', logId);
+      await setDoc(logRef, {
+        title,
+        body,
+        category,
+        timestamp,
+        senderId: currentUser.uid,
+        targetType,
+        targetValue,
+        recipientCount: targetUserIds.length,
+        successCount,
+        failureCount,
+        status: failureCount === 0 ? 'success' : (successCount > 0 ? 'partially_failed' : 'failed'),
+        errors,
+        retryCount: 0
+      });
+
+      if (targetType === 'all') {
+        const globalRef = collection(db, 'global_notifications');
+        await addDoc(globalRef, {
+          userId: 'all',
+          title,
+          body,
+          category,
+          timestamp,
+          read: false
+        });
+      }
+
+      return true;
+    } catch (err: any) {
+      try {
+        const logRef = doc(db, 'notification_logs', logId);
+        await setDoc(logRef, {
+          title,
+          body,
+          category,
+          timestamp,
+          senderId: currentUser?.uid || 'unknown',
+          targetType,
+          targetValue,
+          recipientCount: 0,
+          successCount: 0,
+          failureCount: 1,
+          status: 'failed',
+          errors: [err.message || String(err)],
+          retryCount: 0
+        });
+      } catch (logErr) {
+        console.error('Could not write failure log:', logErr);
+      }
+      handleFirestoreError(err, OperationType.WRITE, `notification_logs/${logId}`);
+      return false;
     }
   };
 
@@ -478,9 +850,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         markAsRead,
         markAllAsRead,
         clearNotifications,
+        deleteNotification,
         sendNotification,
+        sendBulkNotification,
         triggerToast,
         isAdminUser,
+        setupFCM,
       }}
     >
       {children}

@@ -20,15 +20,33 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isAdmin() {
+      return isSignedIn() && 
+             request.auth.token.email == 'sjtutorai@gmail.com' && 
+             request.auth.token.email_verified == true;
+    }
+
     // Users collection
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId) && isValidId(userId);
+      allow write: if (isOwner(userId) || isAdmin()) && isValidId(userId);
     }
 
-    // Notifications subcollection
+    // Notifications subcollection (userNotifications)
     match /users/{userId}/notifications/{notificationId} {
-      allow read, write: if isOwner(userId) && isValidId(userId) && isValidId(notificationId);
+      allow read, delete: if isOwner(userId) && isValidId(userId) && isValidId(notificationId);
+      allow create, update: if (isOwner(userId) || isAdmin()) && isValidId(userId) && isValidId(notificationId);
+    }
+
+    // Top-level notifications (Admin scheduled or broadcast)
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && isValidId(notificationId);
+      allow write: if isAdmin() && isValidId(notificationId);
+    }
+
+    // Notification Logs
+    match /notification_logs/{logId} {
+      allow read, write: if isAdmin() && isValidId(logId);
     }
 
     // History subcollection
