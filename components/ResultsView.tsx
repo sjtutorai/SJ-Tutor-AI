@@ -19,7 +19,7 @@ interface ResultsViewProps {
   isViewingShared?: boolean;
   onAddToMyList?: () => void;
   isAddedToList?: boolean;
-  onSharePublicLink?: (type: string, title: string, content: any) => void;
+  onSharePublicLink?: (type: string, title: string, content: any) => Promise<void> | void;
 }
 
 interface Flashcard {
@@ -92,6 +92,25 @@ const ResultsView: React.FC<ResultsViewProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [localSaved, setLocalSaved] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isSharingPublic, setIsSharingPublic] = useState(false);
+
+  const handleSharePublicLinkClick = async () => {
+    if (isSharingPublic) return;
+    setIsSharingPublic(true);
+    console.log("ResultsView Share button click event detected.");
+    try {
+      if (onSharePublicLink) {
+        const shareType = type === 'Summary' ? 'summary' : 'homework';
+        await onSharePublicLink(shareType, title, content);
+      } else {
+        console.warn("onSharePublicLink prop is not provided to ResultsView.");
+      }
+    } catch (err) {
+      console.error("Error inside ResultsView handleSharePublicLinkClick:", err);
+    } finally {
+      setIsSharingPublic(false);
+    }
+  };
   const contentRef = useRef<HTMLDivElement>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
@@ -355,13 +374,18 @@ const ResultsView: React.FC<ResultsViewProps> = ({
                   <span>Copy</span>
                 </button>
 
-                {/* Share Link Button */}
+                 {/* Share Link Button */}
                 <button
-                  onClick={() => onSharePublicLink && onSharePublicLink(type === 'Summary' ? 'summary' : 'homework', title, content)}
-                  className="px-3 py-1.5 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-lg text-xs font-extrabold transition flex items-center gap-1.5 shadow-sm active:scale-95"
+                  onClick={handleSharePublicLinkClick}
+                  disabled={isSharingPublic}
+                  className="px-3 py-1.5 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-lg text-xs font-extrabold transition flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed min-w-[75px]"
                 >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>Share</span>
+                  {isSharingPublic ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Share2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isSharingPublic ? "Sharing..." : "Share"}</span>
                 </button>
               </div>
 

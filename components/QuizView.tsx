@@ -18,7 +18,7 @@ interface QuizViewProps {
   isViewingShared?: boolean;
   onAddToMyList?: () => void;
   isAddedToList?: boolean;
-  onSharePublicLink?: (type: string, title: string, content: any, customScore?: number) => void;
+  onSharePublicLink?: (type: string, title: string, content: any, customScore?: number) => Promise<void> | void;
 }
 
 const LOADING_STEPS = [
@@ -48,6 +48,25 @@ const QuizView: React.FC<QuizViewProps> = ({
   const [showResultModal, setShowResultModal] = useState(false);
   const [localSaved, setLocalSaved] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isSharingPublic, setIsSharingPublic] = useState(false);
+
+  const handleSharePublicLinkClick = async () => {
+    if (isSharingPublic) return;
+    setIsSharingPublic(true);
+    console.log("QuizView Share button click event detected.");
+    try {
+      if (onSharePublicLink) {
+        const title = questions[0]?.question ? `Quiz: ${questions[0].question.substring(0, 35)}...` : 'AI Quiz Challenge';
+        await onSharePublicLink('quiz', title, questions, score);
+      } else {
+        console.warn("onSharePublicLink prop is not provided to QuizView.");
+      }
+    } catch (err) {
+      console.error("Error inside QuizView handleSharePublicLinkClick:", err);
+    } finally {
+      setIsSharingPublic(false);
+    }
+  };
 
   // Loading screen states
   const [quizLoading, setQuizLoading] = useState(existingScore === undefined);
@@ -501,9 +520,9 @@ const QuizView: React.FC<QuizViewProps> = ({
                             quizText += `\n`;
                           });
                           await navigator.clipboard.writeText(quizText);
-                          alert("Quiz copied to clipboard!");
+                          triggerToast("Quiz Copied! 📋", "Full quiz questions copied to clipboard.", "Quiz Updates");
                         } catch {
-                          alert("Failed to copy quiz.");
+                          triggerToast("Copy Failed", "Could not copy quiz content to clipboard.", "Important Alerts");
                         }
                       }}
                       className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-xs transition hover:scale-[1.02]"
@@ -514,11 +533,16 @@ const QuizView: React.FC<QuizViewProps> = ({
 
                     {/* Share Link Button */}
                     <button
-                      onClick={() => onSharePublicLink && onSharePublicLink('quiz', questions[0]?.question ? `Quiz: ${questions[0].question.substring(0, 35)}...` : 'AI Quiz Challenge', questions, score)}
-                      className="p-3 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-sm transition hover:scale-[1.02]"
+                      onClick={handleSharePublicLinkClick}
+                      disabled={isSharingPublic}
+                      className="p-3 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-sm transition hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed min-w-[80px]"
                     >
-                      <Share2 className="w-4 h-4" />
-                      <span>Share Link</span>
+                      {isSharingPublic ? (
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                      ) : (
+                        <Share2 className="w-4 h-4" />
+                      )}
+                      <span>{isSharingPublic ? "Sharing..." : "Share Link"}</span>
                     </button>
                   </div>
 

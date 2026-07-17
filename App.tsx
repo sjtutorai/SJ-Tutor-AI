@@ -197,18 +197,40 @@ const App: React.FC = () => {
   // App State
   const [publicShareId, setPublicShareId] = useState<string | null>(() => {
     const path = window.location.pathname;
+    
+    // 9. Error Logging: Detecting path on load
+    console.log("[SHARE AUDIT] Detecting public share path on initial load:", path);
+    
     if (path.startsWith("/share/")) {
-      return path.substring(7); // After "/share/"
+      const shareId = path.substring(7);
+      console.log("[SHARE AUDIT] Match /share/ style ID:", shareId);
+      return shareId;
     }
-    if (path.startsWith("/quiz/")) {
-      // Convert /quiz/class-9/physics/motion to class-9_physics_motion
-      const segments = path.substring(6).split('/').filter(Boolean);
-      if (segments.length > 0) {
-        return "quiz_" + segments.join("_");
+    
+    // Support type-specific custom URLs (Requirement 2)
+    const prefixes = ["/quiz/", "/summary/", "/notes/", "/homework/", "/tutor/"];
+    for (const prefix of prefixes) {
+      if (path.startsWith(prefix)) {
+        const segments = path.substring(prefix.length).split('/').filter(Boolean);
+        if (segments.length === 1) {
+          console.log(`[SHARE AUDIT] Match single segment share ID under ${prefix}:`, segments[0]);
+          return segments[0]; // e.g. /quiz/{quizId} -> {quizId}
+        } else if (segments.length > 1) {
+          // Structured quiz slug fallback
+          const slug = prefix.substring(1) + segments.join("_");
+          console.log(`[SHARE AUDIT] Match multi-segment slug under ${prefix}:`, slug);
+          return slug;
+        }
       }
     }
+    
     const params = new URLSearchParams(window.location.search);
-    return params.get("share");
+    const queryShare = params.get("share");
+    if (queryShare) {
+      console.log("[SHARE AUDIT] Match query-param share ID:", queryShare);
+      return queryShare;
+    }
+    return null;
   });
 
   const [shareSuccessModal, setShareSuccessModal] = useState<{
@@ -464,18 +486,24 @@ const App: React.FC = () => {
         setIsAddedSharedContent(false);
         try {
           // 1. Try loading directly from Firestore first (primary ground truth)
+          console.log("[SHARE AUDIT] Fetching shared content with ID:", shareId);
           let item = await getSharedContent(shareId);
+          console.log("[SHARE AUDIT] Firestore fetch status:", item ? "Success" : "Not found in Firestore, attempting API fallback");
           
           // 2. Fallback to server API if not found in Firestore
           if (!item) {
             try {
+              console.log("[SHARE AUDIT] Calling API route fallback /api/auth/share/" + shareId);
               const response = await fetch(`/api/auth/share/${shareId}`);
               const data = await response.json();
               if (response.ok && data.success) {
                 item = data.data;
+                console.log("[SHARE AUDIT] API route fallback Success:", item);
+              } else {
+                console.warn("[SHARE AUDIT] API route fallback returned failure:", data);
               }
             } catch (apiErr) {
-              console.warn("Shared API route fallback failed:", apiErr);
+              console.error("[SHARE AUDIT] Shared API route fallback failed:", apiErr);
             }
           }
 
@@ -1046,40 +1074,89 @@ const App: React.FC = () => {
   };
 
   const handleSharePublicLink = async (type: string, title: string, content: any, customId?: string, customUrl?: string, customMessage?: string) => {
+    // 9. Error Logging: Button click detected
+    console.log("[SHARE AUDIT] Share button click detected inside App.tsx:", { type, title, customId, customUrl, customMessage });
+    
     try {
+      // 5. User Feedback: "Sharing..." toast
+      triggerToast("Sharing...", "Generating and storing your public share link...", "Important Alerts");
+      
       const uid = user ? user.uid : "guest";
+      
+      // 7. Firebase Check: Ensure document is created/exists in Firestore with a valid document ID
+      console.log("[SHARE AUDIT] Storing share item to Firestore with owner ID:", uid);
       const shareId = await createSharedContent(type, title, content, uid, customId);
-      const shareLink = customUrl || `${window.location.origin}/share/${shareId}`;
+      console.log("[SHARE AUDIT] Firestore document created successfully. shareId:", shareId);
+      
+      if (!shareId) {
+        // 5. User Feedback: "Unable to generate share link."
+        triggerToast("Unable to generate share link.", "The database could not create a unique resource identifier.", "Important Alerts");
+        return;
+      }
 
-      if (navigator.share) {
+      // 2. Generate the Share URL based on content type
+      // Examples: /quiz/{quizId}, /summary/{summaryId}, /notes/{noteId}, etc.
+      let normalizedType = type.toLowerCase();
+      if (normalizedType.includes('summary')) normalizedType = 'summary';
+      else if (normalizedType.includes('homework') || normalizedType.includes('essay')) normalizedType = 'homework';
+      else if (normalizedType.includes('quiz')) normalizedType = 'quiz';
+      else if (normalizedType.includes('tutor') || normalizedType.includes('chat')) normalizedType = 'tutor';
+      else normalizedType = 'notes';
+
+      const shareLink = `${window.location.origin}/${normalizedType}/${shareId}`;
+      console.log("[SHARE AUDIT] URL generated:", shareLink);
+
+      // 3. Web Share API detection and usage
+      const webShareSupported = !!navigator.share;
+      console.log("[SHARE AUDIT] Web Share API available in environment:", webShareSupported);
+
+      if (webShareSupported) {
         try {
+          console.log("[SHARE AUDIT] Attempting Web Share API share...");
           await navigator.share({
             title: title || "SJ Tutor AI",
-            text: customMessage || `Check out this ${type} on SJ Tutor AI!`,
+            text: customMessage || `Check out this study ${normalizedType} on SJ Tutor AI!`,
             url: shareLink
           });
+          console.log("[SHARE AUDIT] Web Share API success: Share dialog opened successfully.");
+          triggerToast("Share dialog opened.", "Native sharing dialog has been opened.", "Important Alerts");
+          
+          setShareSuccessModal({
+            isOpen: true,
+            shareId: shareId,
+            title,
+            type: normalizedType,
+            customUrl: shareLink,
+          });
           return;
-        } catch {
-          console.warn("Web share cancelled or failed");
+        } catch (shareErr: any) {
+          console.warn("[SHARE AUDIT] Web Share API call was cancelled or blocked by browser security:", shareErr);
+          // If user cancels or if not allowed in iframe, proceed to clipboard copy fallback
         }
       }
 
+      // 4. Fallback: Copy URL using navigator.clipboard
       try {
+        console.log("[SHARE AUDIT] Attempting navigator.clipboard.writeText...");
         await navigator.clipboard.writeText(shareLink);
-        alert(type === 'quiz' ? "✅ Quiz link copied to clipboard!" : "Link copied to clipboard!");
-      } catch {
-        console.warn("Clipboard copy blocked or unsupported, user can copy from modal");
+        console.log("[SHARE AUDIT] Clipboard copy success.");
+        triggerToast("Link copied successfully!", "The share link was copied to your clipboard.", "Important Alerts");
+      } catch (clipErr: any) {
+        console.error("[SHARE AUDIT] Clipboard copy failed:", clipErr);
+        triggerToast("Sharing...", "Opening sharing panel with link.", "Important Alerts");
       }
+
       setShareSuccessModal({
         isOpen: true,
         shareId: shareId,
         title,
-        type,
-        customUrl,
+        type: normalizedType,
+        customUrl: shareLink,
       });
-    } catch (error) {
-      console.error("Failed to share publicly:", error);
-      alert("Sharing failed. Please try again.");
+
+    } catch (error: any) {
+      console.error("[SHARE AUDIT] Failed to share publicly. Exception caught:", error);
+      triggerToast("Failed to share.", `Unable to generate share link: ${error.message || error}`, "Important Alerts");
     }
   };
 
@@ -1439,7 +1516,7 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error(err);
-      alert("Sharing failed: " + err.message);
+      triggerToast("Sharing failed.", err.message || "An unexpected sharing error occurred.", "Important Alerts");
     }
   };
 
@@ -2900,7 +2977,7 @@ const App: React.FC = () => {
                 <input
                   type="text"
                   readOnly
-                  value={shareSuccessModal.customUrl || `${window.location.origin}/share/${shareSuccessModal.shareId}`}
+                  value={shareSuccessModal.customUrl || `${window.location.origin}/${shareSuccessModal.type}/${shareSuccessModal.shareId}`}
                   className="bg-transparent text-[11px] text-slate-650 dark:text-slate-400 w-full focus:outline-none select-all font-mono"
                   onClick={(e) => (e.target as HTMLInputElement).select()}
                 />
@@ -2909,12 +2986,14 @@ const App: React.FC = () => {
               <div className="flex flex-col gap-2">
                 <button
                   onClick={async () => {
-                    const link = shareSuccessModal.customUrl || `${window.location.origin}/share/${shareSuccessModal.shareId}`;
+                    const link = shareSuccessModal.customUrl || `${window.location.origin}/${shareSuccessModal.type}/${shareSuccessModal.shareId}`;
+                    console.log("[SHARE AUDIT] Copying link from modal click:", link);
                     try {
                       await navigator.clipboard.writeText(link);
-                      alert("Copied shareable link to clipboard!");
-                    } catch {
-                      alert("Fallback link copy: " + link);
+                      triggerToast("Link copied!", "The share link was copied to your clipboard.", "Important Alerts");
+                    } catch (err) {
+                      console.error("[SHARE AUDIT] Fallback copy inside Modal failed:", err);
+                      triggerToast("Copy Failed", `Please manually select and copy the text box: ${link}`, "Important Alerts");
                     }
                   }}
                   className="py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 active:scale-95"
@@ -2925,7 +3004,9 @@ const App: React.FC = () => {
                 
                 <button
                   onClick={() => {
-                    window.open(shareSuccessModal.customUrl || `/share/${shareSuccessModal.shareId}`, "_blank");
+                    const relativeLink = `/${shareSuccessModal.type}/${shareSuccessModal.shareId}`;
+                    console.log("[SHARE AUDIT] Opening share link in new tab:", relativeLink);
+                    window.open(relativeLink, "_blank");
                   }}
                   className="py-3 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200/60 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 active:scale-95"
                 >

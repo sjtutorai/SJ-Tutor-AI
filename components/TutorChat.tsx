@@ -147,7 +147,7 @@ interface TutorChatProps {
   currentCredits: number;
   onSaveSession: (messages: ChatMessage[]) => void;
   initialMessages?: ChatMessage[];
-  onSharePublicLink?: (type: string, title: string, content: any) => void;
+  onSharePublicLink?: (type: string, title: string, content: any) => Promise<void> | void;
   recentSessions?: any[];
   activeSessionId?: string | null;
   onSelectSession?: (id: string | null) => void;
@@ -505,24 +505,35 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     setIsListening(!isListening);
   };
 
-  const handleShareChat = () => {
+  const [isSharingPublic, setIsSharingPublic] = useState(false);
+
+  const handleShareChat = async () => {
     if (messages.length === 0) {
-      alert("No messages to share yet.");
+      triggerToast("No messages", "No messages to share yet.", "Important Alerts");
       return;
     }
-    if (props.onSharePublicLink) {
-      const firstUserMsg = messages.find(m => m.role === 'user')?.text || '';
-      const topicSnippet = firstUserMsg ? `"${firstUserMsg.substring(0, 30)}..."` : 'AI Lesson';
-      props.onSharePublicLink(
-        "tutor",
-        `Tutor Session: ${topicSnippet}`,
-        { messages }
-      );
-    } else {
-      const transcript = messages.map(m => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.text}`).join('\n\n');
-      navigator.clipboard.writeText(transcript)
-        .then(() => alert("Chat transcript copied to clipboard!"))
-        .catch(() => alert("Failed to copy transcript."));
+    if (isSharingPublic) return;
+    setIsSharingPublic(true);
+    console.log("TutorChat Share button click event detected.");
+    try {
+      if (props.onSharePublicLink) {
+        const firstUserMsg = messages.find(m => m.role === 'user')?.text || '';
+        const topicSnippet = firstUserMsg ? `"${firstUserMsg.substring(0, 30)}..."` : 'AI Lesson';
+        await props.onSharePublicLink(
+          "tutor",
+          `Tutor Session: ${topicSnippet}`,
+          { messages }
+        );
+      } else {
+        const transcript = messages.map(m => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.text}`).join('\n\n');
+        await navigator.clipboard.writeText(transcript);
+        triggerToast("Chat Copied! 📋", "Chat transcript copied to clipboard!", "Quiz Updates");
+      }
+    } catch (err) {
+      console.error("Error inside TutorChat handleShareChat:", err);
+      triggerToast("Sharing Failed", "Failed to copy or share transcript.", "Important Alerts");
+    } finally {
+      setIsSharingPublic(false);
     }
   };
 
@@ -912,10 +923,15 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             </button>
             <button 
               onClick={handleShareChat} 
-              className="p-2 text-slate-500 dark:text-slate-400 hover:text-primary-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all" 
+              disabled={isSharingPublic}
+              className="p-2 text-slate-500 dark:text-slate-400 hover:text-primary-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed" 
               title="Share Session"
             >
-              <Share2 className="w-4 h-4" />
+              {isSharingPublic ? (
+                <Loader2 className="w-4 h-4 animate-spin text-primary-600" />
+              ) : (
+                <Share2 className="w-4 h-4" />
+              )}
             </button>
             <button 
               onClick={() => setIsExportOpen(true)} 
