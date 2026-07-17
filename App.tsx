@@ -1796,10 +1796,13 @@ const App: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 relative z-20">
                     <button
-                      onClick={(e) => handleShareHistoryItem(e, item)}
-                      className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-primary-50 hover:text-primary-600"
+                      onClick={(e) => {
+                        console.log("[SHARE AUDIT] Share history item button click event captured directly in onClick handler! Item:", item);
+                        handleShareHistoryItem(e, item);
+                      }}
+                      className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-primary-50 hover:text-primary-600 relative z-20 pointer-events-auto"
                       title="Share"
                     >
                       <Share2 className="w-4 h-4" />
