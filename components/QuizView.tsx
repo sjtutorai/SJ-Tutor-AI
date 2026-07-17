@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { ExportModal } from './ExportModal';
 import confetti from 'canvas-confetti';
+import { useNotifications } from './NotificationContext';
 
 interface QuizViewProps {
   questions: QuizQuestion[];
@@ -17,7 +18,7 @@ interface QuizViewProps {
   isViewingShared?: boolean;
   onAddToMyList?: () => void;
   isAddedToList?: boolean;
-  onSharePublicLink?: (type: string, title: string, content: any) => void;
+  onSharePublicLink?: (type: string, title: string, content: any, customScore?: number) => void;
 }
 
 const LOADING_STEPS = [
@@ -39,6 +40,7 @@ const QuizView: React.FC<QuizViewProps> = ({
   isAddedToList = false,
   onSharePublicLink
 }) => {
+  const { triggerToast } = useNotifications();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>(() => new Array(questions.length).fill(null));
   const [score, setScore] = useState(0);
@@ -214,7 +216,9 @@ const QuizView: React.FC<QuizViewProps> = ({
         break;
       case 'copy':
         navigator.clipboard.writeText(shareTextWithLink).then(() => {
-          alert('Share link copied to clipboard!');
+          triggerToast('Quiz Score Copied! 📋', 'Your quiz challenge details and score were copied to clipboard.', 'Quiz Updates');
+        }).catch(() => {
+          triggerToast('Copy Failed', 'Could not copy quiz score to clipboard.', 'Important Alerts');
         });
         return;
     }
@@ -510,7 +514,7 @@ const QuizView: React.FC<QuizViewProps> = ({
 
                     {/* Share Link Button */}
                     <button
-                      onClick={() => onSharePublicLink && onSharePublicLink('quiz', questions[0]?.question ? `Quiz: ${questions[0].question.substring(0, 35)}...` : 'AI Quiz Challenge', questions)}
+                      onClick={() => onSharePublicLink && onSharePublicLink('quiz', questions[0]?.question ? `Quiz: ${questions[0].question.substring(0, 35)}...` : 'AI Quiz Challenge', questions, score)}
                       className="p-3 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-sm transition hover:scale-[1.02]"
                     >
                       <Share2 className="w-4 h-4" />

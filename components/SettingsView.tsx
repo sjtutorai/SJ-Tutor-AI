@@ -40,10 +40,6 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   const handleSettingChange = (category: keyof UserSettings, field: string, value: any) => {
-    const completion = calculateProfileCompletion(userProfile);
-    if (completion < 100) {
-      return;
-    }
     setSettings(prev => ({
       ...prev,
       [category]: {

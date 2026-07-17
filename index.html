@@ -13,6 +13,25 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <script>
+      (function() {
+        try {
+          const stored = localStorage.getItem('sjtutor_user_settings');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            const theme = parsed.appearance && parsed.appearance.theme;
+            const isDark = theme === 'Dark' || (theme === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if (isDark) {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+          }
+        } catch (e) {
+          console.warn(e);
+        }
+      })();
+    </script>
+    <script>
       // Safety polyfill for process.env to prevent "process is not defined" errors in browser
       window.process = window.process || { env: {} };
     </script>

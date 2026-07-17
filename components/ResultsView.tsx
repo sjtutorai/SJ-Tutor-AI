@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ExportModal } from './ExportModal';
+import { useNotifications } from './NotificationContext';
 
 interface ResultsViewProps {
   content: string;
@@ -87,6 +88,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({
   isAddedToList = false,
   onSharePublicLink
 }) => {
+  const { triggerToast } = useNotifications();
   const [isPlaying, setIsPlaying] = useState(false);
   const [localSaved, setLocalSaved] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -128,7 +130,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({
 
   const toggleSpeech = () => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
-      alert("Text-to-speech is not supported in this browser context.");
+      triggerToast('Not Supported 🚫', 'Text-to-speech is not supported in this browser context.', 'Important Alerts');
       return;
     }
 
@@ -174,7 +176,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({
       } catch (e) {
         console.error("Speech Synthesis failed:", e);
         setIsPlaying(false);
-        alert("Text-to-speech could not start. Please click 'Open in New Tab' to bypass iframe security limits!");
+        triggerToast('Tutor Audio Info 🎙️', "Text-to-speech could not start. Please click 'Open in New Tab' to bypass iframe security limits!", 'Important Alerts');
       }
     }
   };
@@ -233,9 +235,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({
         } else {
           try {
             await navigator.clipboard.writeText(fullContent);
-            alert('Share link copied to clipboard!');
+            triggerToast('Shared Link Copied! 📋', 'Full content link was successfully copied to clipboard.', 'Important Alerts');
           } catch {
-            alert('Failed to copy content.');
+            triggerToast('Copy Failed', 'Failed to copy content to clipboard.', 'Important Alerts');
           }
         }
         return;
@@ -255,9 +257,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({
         case 'copy':
           try {
             await navigator.clipboard.writeText(shareUrl);
-            alert("Share link copied to clipboard!");
+            triggerToast('Shared Link Copied! 📋', 'Public link was successfully copied to clipboard.', 'Important Alerts');
           } catch {
-            alert("Failed to copy.");
+            triggerToast('Copy Failed', 'Failed to copy link to clipboard.', 'Important Alerts');
           }
           return;
       }
@@ -265,7 +267,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({
       if (url) window.open(url, '_blank');
     } catch (err: any) {
       console.error(err);
-      alert('Sharing failed: ' + err.message);
+      triggerToast('Sharing Failed', 'Sharing failed: ' + err.message, 'Important Alerts');
     }
   };
 
@@ -342,9 +344,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(content);
-                      alert("Successfully copied generated notes to clipboard!");
+                      triggerToast('Content Copied! 📋', 'Successfully copied generated notes to clipboard.', 'Important Alerts');
                     } catch {
-                      alert("Failed to copy text.");
+                      triggerToast('Copy Failed', 'Failed to copy text to clipboard.', 'Important Alerts');
                     }
                   }}
                   className="px-3 py-1.5 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"

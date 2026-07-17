@@ -12,6 +12,8 @@ import { SettingsService } from '../services/settingsService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
+import { saveNotesToFirestore, getNotesFromFirestore } from '../utils/firebaseUtils';
+import { useNotifications } from './NotificationContext';
 
 interface NotesViewProps {
   userId: string | null;
@@ -20,6 +22,7 @@ interface NotesViewProps {
 }
 
 const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfile }) => {
+  const { triggerToast } = useNotifications();
   const [activeTab, setActiveTab] = useState<'NOTES' | 'REMINDERS' | 'TIMETABLE'>('NOTES');
   const [viewMode, setViewMode] = useState<'SUBJECTS' | 'LIST' | 'EDITOR' | 'AI_GENERATOR'>('SUBJECTS');
   
@@ -79,6 +82,18 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     if (savedNotes) setNotes(JSON.parse(savedNotes));
     if (savedReminders) setReminders(JSON.parse(savedReminders));
     if (savedTimetable) setTimetable(JSON.parse(savedTimetable));
+
+    if (userId && userId !== 'guest') {
+      getNotesFromFirestore(userId).then((firestoreNotes) => {
+        if (firestoreNotes && firestoreNotes.length > 0) {
+          setNotes(prev => {
+            const merged = [...firestoreNotes];
+            const localOnly = prev.filter(ln => !firestoreNotes.some(fn => fn.id === ln.id));
+            return [...localOnly, ...merged];
+          });
+        }
+      });
+    }
   }, [userId]);
 
   useEffect(() => {
@@ -86,6 +101,10 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     localStorage.setItem(`notes_${key}`, JSON.stringify(notes));
     localStorage.setItem(`reminders_${key}`, JSON.stringify(reminders));
     localStorage.setItem(`timetable_${key}`, JSON.stringify(timetable));
+
+    if (userId && userId !== 'guest' && notes.length > 0) {
+      saveNotesToFirestore(userId, notes);
+    }
   }, [notes, reminders, timetable, userId]);
 
   // Derived
@@ -161,13 +180,13 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   const handleGenerateAiNotesSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subjectInput || !languageInput || !chapterNameInput) {
-      alert("Please fill in all required fields.");
+      triggerToast('Incomplete Form', 'Please fill in all required fields.', 'Important Alerts');
       return;
     }
 
     const cost = 5;
     if (!onDeductCredit(cost)) {
-      alert("Insufficient credits. You need at least 5 credits to generate study notes.");
+      triggerToast('Insufficient Credits 🪙', 'You need at least 5 credits to generate study notes.', 'Important Alerts');
       return;
     }
 
@@ -210,15 +229,17 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
         setEditingNote(newNote);
         setViewMode('EDITOR');
         
+        triggerToast('Notes Generated! ✨', `Syllabus-aligned notes for "${chapterNameInput}" are ready in your notebook.`, 'Important Alerts');
+
         // Clear Chapter & Author inputs for future creations
         setChapterNameInput('');
         setAuthorInput('');
       } else {
-        alert("Failed to generate notes. Please check your input or try again.");
+        triggerToast('Generation Failed', 'Failed to generate notes. Please check your input or try again.', 'Important Alerts');
       }
     } catch (err) {
       console.error("AI notes generation error:", err);
-      alert("Something went wrong during notes generation. Please check your connection and try again.");
+      triggerToast('Generation Error', 'Something went wrong during notes generation. Please check your connection and try again.', 'Important Alerts');
     } finally {
       setIsGeneratingNotes(false);
     }
@@ -229,7 +250,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     
     const cost = 0; // Free unlimited 10-day trial active
     if (!onDeductCredit(cost)) {
-      alert("AI actions are currently free!");
+      triggerToast('Trial Notice', 'AI actions are currently free during your trial!', 'Important Alerts');
       return;
     }
 
@@ -241,9 +262,10 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
           ...editingNote,
           content: `${editingNote.content}\n\n---\n### AI ${task.toUpperCase()}\n${result}`
         });
+        triggerToast('AI Action Complete! 🧠', `Successfully applied ${task} to your notes.`, 'Important Alerts');
       }
     } catch {
-      alert("AI request failed. Please try again.");
+      triggerToast('AI Action Failed', 'AI request failed. Please try again.', 'Important Alerts');
     } finally {
       setIsAiLoading(false);
     }

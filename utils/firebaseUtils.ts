@@ -301,3 +301,31 @@ export const deleteHistoryItemFromFirestore = async (uid: string, itemId: string
   }
 };
 
+export const saveNotesToFirestore = async (uid: string, notes: any[]) => {
+  if (!uid || uid === "guest") return false;
+  try {
+    const docRef = doc(db, "users", uid, "notes", "all_notes");
+    await setDoc(docRef, { notes }, { merge: true });
+    return true;
+  } catch (error: any) {
+    console.error("Error saving notes to Firestore:", error);
+    return false;
+  }
+};
+
+export const getNotesFromFirestore = async (uid: string): Promise<any[]> => {
+  if (!uid || uid === "guest") return [];
+  try {
+    const docRef = doc(db, "users", uid, "notes", "all_notes");
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return data.notes || [];
+    }
+    return [];
+  } catch (error: any) {
+    console.error("Error getting notes from Firestore:", error);
+    return [];
+  }
+};
+

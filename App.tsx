@@ -155,7 +155,12 @@ const THEME_COLORS: Record<string, Record<string, string>> = {
 
 const App: React.FC = () => {
   // Notifications
-  const { unreadCount, requestPermission, sendNotification } = useNotifications();
+  const { unreadCount, requestPermission, sendNotification, triggerToast } = useNotifications();
+  const sendNotificationRef = useRef(sendNotification);
+  useEffect(() => {
+    sendNotificationRef.current = sendNotification;
+  }, [sendNotification]);
+
   const { recordActivity } = useStreak();
 
   // Request notification permission on first visit
@@ -655,7 +660,7 @@ const App: React.FC = () => {
           })
           .catch((error) => {
             console.error('Error signing in with email link', error);
-            alert("This sign-in link has expired or has already been used. Please request a new sign-in link.");
+            triggerToast("Sign-In Error 🚫", "This sign-in link has expired or has already been used. Please request a new sign-in link.", "Important Alerts");
           })
           .finally(() => {
              setAuthLoading(false);
@@ -756,7 +761,7 @@ const App: React.FC = () => {
         const lastSentProfileNotif = localStorage.getItem(profileNotifKey);
         const oneHourMs = 60 * 60 * 1000;
         if (!lastSentProfileNotif || now - parseInt(lastSentProfileNotif) > oneHourMs) {
-          sendNotification(
+          sendNotificationRef.current(
             "Profile Incomplete 📋",
             "Complete your learning profile details to unlock personalized recommendations, custom study tools, and claim 10 bonus credits!",
             "Important Alerts",
@@ -793,7 +798,7 @@ const App: React.FC = () => {
 
       loadProfileFromDb();
     }
-  }, [user, sendNotification]);
+  }, [user]);
 
   // History Persistence and Database Synchronization
   useEffect(() => {
@@ -1106,7 +1111,11 @@ const App: React.FC = () => {
         if (res.success && res.incremented) {
           if (res.milestoneReached) {
             setTimeout(() => {
-              alert(`🎉 STREAK MILESTONE REACHED! 🎉\n\nYou have completed ${res.milestoneReached} consecutive learning days on SJ Tutor AI!\n\nOpen the Streak Widget on your screen to claim your Reward in learning credits!`);
+              triggerToast(
+                "Streak Milestone! 🔥",
+                `You have completed ${res.milestoneReached} consecutive learning days on SJ Tutor AI! Open the Streak Widget to claim your reward.`,
+                "Daily Streak Reminders"
+              );
             }, 1500);
           }
         }
@@ -1125,8 +1134,10 @@ const App: React.FC = () => {
           handleProfileSave({ ...userProfile, credits: newCredits }, false);
 
           setTimeout(() => {
-            alert(
-              `🏆 ACADEMIC EXCELLENCE! 🏆\n\nYou scored ${percentage}% on your quiz!\n\nAs a reward, we've refunded ${refundAmount} credits (50% of your spent credits) back to your account. Keep it up!`,
+            triggerToast(
+              "Academic Excellence! 🏆",
+              `You scored ${percentage}% on your quiz! We have refunded ${refundAmount} credits (50%) to your account. Keep it up!`,
+              "Competition Announcements"
             );
           }, 1500);
         }
@@ -1143,8 +1154,10 @@ const App: React.FC = () => {
         handleProfileSave({ ...userProfile, credits: newCredits }, false);
 
         setTimeout(() => {
-          alert(
-            `🎉 CHALLENGE MASTERED! 🎉\n\nYou scored ${score}/${qCount} (${percentage}%) and earned ${bonus} credits!`,
+          triggerToast(
+            "Challenge Mastered! 🎉",
+            `You scored ${score}/${qCount} (${percentage}%) and earned ${bonus} credits!`,
+            "Competition Announcements"
           );
         }, 1000);
       } else if (
@@ -1153,8 +1166,10 @@ const App: React.FC = () => {
         percentage < 75
       ) {
         setTimeout(() => {
-          alert(
-            `Challenge Attempted: You scored ${percentage}%. Score 75% or higher to earn the 50 credit bonus! Keep practicing!`,
+          triggerToast(
+            "Challenge Attempted",
+            `You scored ${percentage}%. Score 75% or higher to earn the 50 credit bonus! Keep practicing!`,
+            "Quiz Updates"
           );
         }, 1000);
       }
@@ -1946,9 +1961,9 @@ const App: React.FC = () => {
     if (success) {
       setHistory(prev => [newItem, ...prev]);
       setIsAddedSharedContent(true);
-      alert("Successfully added to your Study History & Dashboard List!");
+      triggerToast("Added to List! 📂", "Successfully added to your Study History & Dashboard List!", "Important Alerts");
     } else {
-      alert("Failed to save. Please make sure you are signed in and online.");
+      triggerToast("Save Failed", "Please make sure you are signed in and online.", "Important Alerts");
     }
   };
 
@@ -2114,7 +2129,7 @@ const App: React.FC = () => {
               isViewingShared={isViewingShared}
               onAddToMyList={handleAddSharedToMyList}
               isAddedToList={isAddedSharedContent}
-              onSharePublicLink={(type, title, content) => {
+              onSharePublicLink={(type, title, content, customScore) => {
                 const sanitizeSlug = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'general';
                 const classSlug = sanitizeSlug(formData.gradeClass || "general");
                 const subjectSlug = sanitizeSlug(formData.subject || "general");
@@ -2122,9 +2137,12 @@ const App: React.FC = () => {
                 
                 const customId = `quiz_${classSlug}_${subjectSlug}_${chapterSlug}`;
                 const customUrl = `${window.location.origin}/quiz/${classSlug}/${subjectSlug}/${chapterSlug}`;
-                const customMessage = `📚 Test your knowledge with this quiz on *${formData.chapterName || "various topics"}* (Class ${formData.gradeClass || "General"}, ${formData.subject || "General"}) in SJ Tutor AI. Challenge yourself now!`;
+                const scoreText = customScore !== undefined ? ` Score: ${customScore}/${content.length}.` : '';
+                const studentNameText = userProfile.displayName ? ` Taken by ${userProfile.displayName}.` : '';
+                const quizTitleText = formData.chapterName ? `"${formData.chapterName}"` : title;
+                const customMessage = `🎓 SJ Tutor AI - Quiz Results 🎓\nTitle: ${quizTitleText}\nClass: ${formData.gradeClass || "General"}\nSubject: ${formData.subject || "General"}${studentNameText}${scoreText}\n\nChallenge yourself or review results here:`;
 
-                handleSharePublicLink(type, title, content, customId, customUrl, customMessage);
+                handleSharePublicLink(type, quizTitleText, content, customId, customUrl, customMessage);
               }}
             />
           );

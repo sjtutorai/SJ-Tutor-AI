@@ -42,6 +42,29 @@ export const SettingsService = {
   },
 
   /**
+   * Partially updates current settings and fires settings-changed event.
+   */
+  updateSettings: (partialSettings: any): void => {
+    try {
+      const current = SettingsService.getSettings();
+      const updated = {
+        ...current,
+        ...partialSettings,
+        learning: { ...current.learning, ...(partialSettings.learning || {}) },
+        aiTutor: { ...current.aiTutor, ...(partialSettings.aiTutor || {}) },
+        chat: { ...current.chat, ...(partialSettings.chat || {}) },
+        notifications: { ...current.notifications, ...(partialSettings.notifications || {}) },
+        appearance: { ...current.appearance, ...(partialSettings.appearance || {}) },
+        privacy: { ...current.privacy, ...(partialSettings.privacy || {}) },
+      };
+      SettingsService.saveSettings(updated);
+      window.dispatchEvent(new Event('settings-changed'));
+    } catch (e) {
+      console.error("Failed to update settings", e);
+    }
+  },
+
+  /**
    * Resets settings to default.
    */
   resetSettings: (): UserSettings => {
