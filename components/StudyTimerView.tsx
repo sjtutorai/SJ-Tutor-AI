@@ -1,101 +1,108 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, Clock, CheckCircle2, Coffee, Zap, AlertTriangle, Sparkles } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Shield, AlertTriangle, Settings2, Smartphone, Check } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
-const PRESETS = [
-  { label: 'Pomodoro', minutes: 25, icon: Zap },
-  { label: 'Short Break', minutes: 5, icon: Coffee },
-  { label: 'Long Break', minutes: 15, icon: Coffee },
-  { label: 'Deep Work', minutes: 50, icon: Zap },
-];
-
-interface StudyTimerViewProps {
-  userProfile: UserProfile;
+interface UserProfile {
+  // Add necessary types if needed, or any
+  [key: string]: any;
 }
 
-const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile }) => {
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
-  const [isActive, setIsActive] = useState(false);
-  const [mode, setMode] = useState<'FOCUS' | 'BREAK'>('FOCUS');
-  const [task, setTask] = useState('');
-  const [initialTime, setInitialTime] = useState(25 * 60);
-  const [customMinutes, setCustomMinutes] = useState('');
-  const [showWarning, setShowWarning] = useState(false);
-  const [isStrictFocus, setIsStrictFocus] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);
-  const [unlockDob, setUnlockDob] = useState('');
-  const [showForgotTip, setShowForgotTip] = useState(false);
+interface StudyTimerViewProps {
+  userProfile?: UserProfile;
+}
+
+type TimerState = 'IDLE' | 'RUNNING' | 'PAUSED';
+
+const APPS_TO_BLOCK = [
+  { id: 'insta', name: 'Instagram', default: true },
+  { id: 'wa', name: 'WhatsApp', default: true },
+  { id: 'fb', name: 'Facebook', default: true },
+  { id: 'snap', name: 'Snapchat', default: true },
+  { id: 'tele', name: 'Telegram', default: true },
+  { id: 'yt', name: 'YouTube', default: true },
+  { id: 'x', name: 'X (Twitter)', default: true },
+  { id: 'threads', name: 'Threads', default: true },
+  { id: 'discord', name: 'Discord', default: true },
+  { id: 'msg', name: 'Messenger', default: true },
+  { id: 'chrome', name: 'Chrome', default: false },
+  { id: 'games', name: 'Games', default: false },
+];
+
+const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
+  // Input states
+  const [inputH, setInputH] = useState('00');
+  const [inputM, setInputM] = useState('25');
+  const [inputS, setInputS] = useState('00');
+
+  // Timer internal state
+  const [timerState, setTimerState] = useState<TimerState>('IDLE');
+  const [timeLeftMs, setTimeLeftMs] = useState(0);
+  const [initialTimeMs, setInitialTimeMs] = useState(0);
+  const expectedEndTimeRef = useRef<number | null>(null);
+
+  // Modals / Overlays
+  const [showFocusSetup, setShowFocusSetup] = useState(false);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [showBlockingOverlay, setShowBlockingOverlay] = useState(false);
   
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  const taskRef = useRef(task);
+  // Settings
+  const [selectedApps, setSelectedApps] = useState<string[]>(
+    APPS_TO_BLOCK.filter(a => a.default).map(a => a.id)
+  );
+  const [isFocusModeActive, setIsFocusModeActive] = useState(false);
+  const [hasAccessibilityPerm, setHasAccessibilityPerm] = useState<boolean | null>(null);
+  const [showPermDialog, setShowPermDialog] = useState(false);
+
+  // Update timer in background/foreground accurately
   useEffect(() => {
-    taskRef.current = task;
-  }, [task]);
+    let animationFrameId: number;
+    let intervalId: NodeJS.Timeout;
 
-  const updateNotification = (seconds: number) => {
-    if ("Notification" in window && Notification.permission === "granted") {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      const timeStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-      const title = `SJ Tutor AI Timer: ${timeStr}`;
-      const body = taskRef.current ? `Task: ${taskRef.current}` : "Stay focused on your study goal!";
+    const tick = () => {
+      if (timerState === 'RUNNING' && expectedEndTimeRef.current) {
+        const now = Date.now();
+        const remaining = Math.max(0, expectedEndTimeRef.current - now);
+        setTimeLeftMs(remaining);
 
-      const options = {
-        body,
-        tag: 'study-timer-view',
-        requireInteraction: true,
-        silent: true,
-        renotify: false,
-        icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-      };
-
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.ready.then((reg) => {
-          reg.showNotification(title, options);
-        }).catch(() => {
-          try {
-            new Notification(title, options);
-          } catch (e) {
-            console.warn("Notification fallback failed", e);
-          }
-        });
-      } else {
-        try {
-          new Notification(title, options);
-        } catch (e) {
-          console.warn("Notification fallback failed", e);
+        if (remaining === 0) {
+          handleTimerComplete();
+        } else {
+          // fallback to interval for background if requestAnimationFrame pauses
         }
       }
-    }
-  };
+    };
 
-  const clearTimerNotification = () => {
-    if ("Notification" in window && Notification.permission === "granted") {
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.ready.then((reg) => {
-          reg.getNotifications({ tag: 'study-timer-view' }).then((notifications) => {
-            notifications.forEach((notif) => notif.close());
-          });
-        });
-      }
+    if (timerState === 'RUNNING') {
+      // Use requestAnimationFrame for smooth UI updates
+      const loop = () => {
+        tick();
+        if (timerState === 'RUNNING') {
+          animationFrameId = requestAnimationFrame(loop);
+        }
+      };
+      animationFrameId = requestAnimationFrame(loop);
+      
+      // Fallback interval for background execution (since browsers pause rAF)
+      intervalId = setInterval(tick, 500);
     }
-  };
 
-  // Visibility Change Detection
+    return () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [timerState]);
+
+  // Handle visibility changes for web-based "App Blocking" simulation
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden && isActive) {
-        if (isStrictFocus) {
-          setIsLocked(true);
-          setIsActive(false);
-          setShowWarning(true);
-          if (Notification.permission === 'granted') {
-            new Notification("Timer Paused", {
-              body: "Timer paused because you switched tabs. Stay focused!",
-              icon: '/favicon.ico'
-            });
-          }
-        }
+      if (document.hidden && timerState === 'RUNNING' && isFocusModeActive) {
+        // Tab went to background.
+        // In a real native app, the Accessibility Service handles this.
+        // We simulate it here by showing the blocking screen when they return if they left.
+      } else if (!document.hidden && timerState === 'RUNNING' && isFocusModeActive) {
+        // Returned to tab
+        setShowBlockingOverlay(true);
       }
     };
 
@@ -103,346 +110,457 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile }) => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isActive, isStrictFocus]);
+  }, [timerState, isFocusModeActive]);
 
-  useEffect(() => {
-    if (isActive && timeLeft > 0) {
-      updateNotification(timeLeft);
-      intervalRef.current = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0) {
-      setIsActive(false);
-      clearTimerNotification();
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      // Play sound or notify
-      if (Notification.permission === 'granted') {
-        new Notification("Time's up!", {
-          body: mode === 'FOCUS' ? "Great job! Take a break." : "Break's over! Back to work.",
-          icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
-        });
-      }
+  const handleTimerComplete = () => {
+    setTimerState('IDLE');
+    setIsFocusModeActive(false);
+    expectedEndTimeRef.current = null;
+    
+    // Play sound & vibrate
+    if (navigator.vibrate) {
+      navigator.vibrate([200, 100, 200, 100, 500]);
+    }
+    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3');
+    audio.play().catch(e => console.warn("Audio play blocked", e));
+
+    confetti({
+      particleCount: 150,
+      spread: 70,
+      origin: { y: 0.6 }
+    });
+
+    setShowCompletion(true);
+    saveStudySession(true);
+  };
+
+  const saveStudySession = (completed: boolean) => {
+    const durationSec = Math.floor(initialTimeMs / 1000);
+    const durationSpent = Math.floor((initialTimeMs - timeLeftMs) / 1000);
+    
+    const session = {
+      date: new Date().toISOString(),
+      duration: completed ? durationSec : durationSpent,
+      completed,
+      focusMode: isFocusModeActive
+    };
+
+    try {
+      const existing = JSON.parse(localStorage.getItem('sjtutor_study_sessions') || '[]');
+      existing.push(session);
+      localStorage.setItem('sjtutor_study_sessions', JSON.stringify(existing));
       
-      // Accumulate completed study time to Daily Study Goal tracker
-      if (mode === 'FOCUS') {
-        try {
-          const studyMins = Math.round(initialTime / 60);
-          if (studyMins > 0) {
-            const savedProgress = localStorage.getItem('sjtutor_daily_study_progress');
-            const savedDate = localStorage.getItem('sjtutor_daily_study_date');
-            const todayStr = new Date().toDateString();
-            let currentProg = 0;
-            if (savedDate === todayStr && savedProgress) {
-              currentProg = parseInt(savedProgress);
-            }
-            const nextProg = currentProg + studyMins;
-            localStorage.setItem('sjtutor_daily_study_progress', String(nextProg));
-            localStorage.setItem('sjtutor_daily_study_date', todayStr);
-            // Fire layout refresh trigger
-            window.dispatchEvent(new Event('storage'));
-          }
-        } catch (e) {
-          console.warn("Could not save study progress automatically", e);
-        }
+      // Update daily total
+      if (completed) {
+        const todayStr = new Date().toDateString();
+        const savedDate = localStorage.getItem('sjtutor_daily_study_date');
+        const savedProgress = localStorage.getItem('sjtutor_daily_study_progress');
+        const currentProg = (savedDate === todayStr && savedProgress) ? parseInt(savedProgress) : 0;
+        localStorage.setItem('sjtutor_daily_study_progress', String(currentProg + Math.round(durationSec / 60)));
+        localStorage.setItem('sjtutor_daily_study_date', todayStr);
+        window.dispatchEvent(new Event('storage'));
       }
-    } else {
-      clearTimerNotification();
+    } catch (e) {
+      console.warn("Stats save error", e);
+    }
+  };
+
+  const handleStartRequest = () => {
+    const h = parseInt(inputH) || 0;
+    const m = parseInt(inputM) || 0;
+    const s = parseInt(inputS) || 0;
+    const totalMs = (h * 3600 + m * 60 + s) * 1000;
+
+    if (totalMs <= 0) {
+      alert("Please enter a duration greater than 0.");
+      return;
     }
 
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    setInitialTimeMs(totalMs);
+    setTimeLeftMs(totalMs);
+    setShowFocusSetup(true);
+  };
+
+  const startTimer = (withFocusMode: boolean) => {
+    setIsFocusModeActive(withFocusMode);
+    setTimerState('RUNNING');
+    expectedEndTimeRef.current = Date.now() + timeLeftMs;
+    setShowFocusSetup(false);
+    setShowPermDialog(false);
+
+    if (Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  };
+
+  const handlePause = () => {
+    setTimerState('PAUSED');
+    expectedEndTimeRef.current = null;
+  };
+
+  const handleResume = () => {
+    setTimerState('RUNNING');
+    expectedEndTimeRef.current = Date.now() + timeLeftMs;
+  };
+
+  const handleStopRequest = () => {
+    setShowStopConfirm(true);
+    if (timerState === 'RUNNING') handlePause();
+  };
+
+  const confirmStop = () => {
+    saveStudySession(false);
+    setTimerState('IDLE');
+    setIsFocusModeActive(false);
+    setShowStopConfirm(false);
+  };
+
+  const cancelStop = () => {
+    setShowStopConfirm(false);
+    handleResume();
+  };
+
+  const handleReset = () => {
+    if (timerState === 'IDLE') return;
+    setTimerState('PAUSED');
+    setTimeLeftMs(initialTimeMs);
+    expectedEndTimeRef.current = null;
+  };
+
+  // Format Helpers
+  const formatDisplayTime = (ms: number) => {
+    const totalSec = Math.ceil(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return {
+      h: h.toString().padStart(2, '0'),
+      m: m.toString().padStart(2, '0'),
+      s: s.toString().padStart(2, '0')
     };
-  }, [isActive, timeLeft, mode]);
-
-  // Cleanup on unmount (auto-stop)
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      clearTimerNotification();
-    };
-  }, []);
-
-  const toggleTimer = () => {
-    setIsActive(!isActive);
-    if (!isActive) setShowWarning(false);
   };
 
-  const resetTimer = () => {
-    setIsActive(false);
-    setTimeLeft(initialTime);
-    setShowWarning(false);
+  const { h: dH, m: dM, s: dS } = formatDisplayTime(timeLeftMs);
+  const progressPercent = initialTimeMs > 0 ? ((initialTimeMs - timeLeftMs) / initialTimeMs) * 100 : 0;
+
+  const handleInputBlur = (type: 'H' | 'M' | 'S', val: string) => {
+    let num = parseInt(val) || 0;
+    if (type === 'H' && num > 23) num = 23;
+    if (type === 'M' && num > 59) num = 59;
+    if (type === 'S' && num > 59) num = 59;
+    
+    const formatted = num.toString().padStart(2, '0');
+    if (type === 'H') setInputH(formatted);
+    if (type === 'M') setInputM(formatted);
+    if (type === 'S') setInputS(formatted);
   };
 
-  const setDuration = (minutes: number, newMode: 'FOCUS' | 'BREAK') => {
-    setIsActive(false);
-    setMode(newMode);
-    setInitialTime(minutes * 60);
-    setTimeLeft(minutes * 60);
-    setShowWarning(false);
+  const toggleAppSelection = (id: string) => {
+    setSelectedApps(prev => 
+      prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
+    );
   };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleUnlock = () => {
-    // Normalize DOB for comparison (assuming userProfile.dob is YYYY-MM-DD or similar)
-    const normalizedInput = unlockDob.trim();
-    if (normalizedInput === userProfile.dob) {
-      setIsLocked(false);
-      setUnlockDob('');
-      setShowForgotTip(false);
-    } else {
-      alert("Incorrect identifier.");
-    }
-  };
-
-  const requestNotificationPermission = async () => {
-    if ("Notification" in window) {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        alert("Notifications enabled! We'll alert you when your timer is up.");
-      }
-    }
-  };
-
-  const progress = ((initialTime - timeLeft) / initialTime) * 100;
 
   return (
-    <div className="max-w-md mx-auto p-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
-      {/* Lock Overlay */}
-      {isLocked && (
-        <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center p-8 transition-all animate-in fade-in zoom-in duration-300">
-           <div className="w-20 h-20 bg-primary-500 rounded-full flex items-center justify-center mb-8 shadow-lg shadow-primary-500/30">
-              <Zap className="w-10 h-10 text-white fill-current" />
-           </div>
-           <h2 className="text-2xl font-bold text-white mb-2">Focus Mode Locked</h2>
-           <p className="text-slate-400 text-center mb-8 max-w-xs">
-             You switched tabs while in strict mode. Enter your verification code to resume.
-           </p>
-           
-           <div className="w-full max-w-xs space-y-4">
-             <div className="relative">
-               <input
-                 type="password"
-                 value={unlockDob}
-                 onChange={(e) => setUnlockDob(e.target.value)}
-                 onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
-                 placeholder="••••••••"
-                 className="w-full bg-slate-800 border-2 border-slate-700 rounded-xl py-4 px-4 text-white text-center text-2xl tracking-[1em] focus:outline-none focus:border-primary-500 transition-all font-mono"
-                 autoFocus
-               />
-               <div className="absolute inset-y-0 right-4 flex items-center">
-                 <button 
-                  onClick={handleUnlock}
-                  className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-                 >
-                   Open
-                 </button>
-               </div>
-             </div>
-             
-             <div className="text-center">
-               <button 
-                onClick={() => setShowForgotTip(true)}
-                className="text-xs text-slate-500 hover:text-slate-400 transition-colors"
-               >
-                 Forgot Code?
-               </button>
-               {showForgotTip && (
-                 <p className="text-xs text-primary-400 mt-2 font-medium animate-in slide-in-from-top-1">
-                   Hint: Remember your date of birth (YYYY-MM-DD)
-                 </p>
-               )}
-             </div>
-           </div>
+    <div className="max-w-xl mx-auto p-4 sm:p-6 animate-in fade-in duration-500 relative">
+      
+      {/* 5. BLOCKING SCREEN OVERLAY */}
+      {showBlockingOverlay && (
+        <div className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
+          <Shield className="w-20 h-20 text-red-500 mb-6" />
+          <h1 className="text-4xl font-extrabold text-white mb-4">Stay Focused 📚</h1>
+          <p className="text-slate-300 text-lg mb-8 max-w-sm">
+            Your study session is currently running. Distracting apps are blocked until you finish.
+          </p>
+          <div className="text-6xl font-mono font-bold text-white mb-12 tabular-nums tracking-tighter">
+            {dH}:{dM}:{dS}
+          </div>
+          <button 
+            onClick={() => setShowBlockingOverlay(false)}
+            className="px-8 py-4 bg-primary-600 hover:bg-primary-500 text-white rounded-2xl font-bold text-lg shadow-lg shadow-primary-500/30 transition-all active:scale-95"
+          >
+            Return to SJ Tutor AI
+          </button>
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden relative">
-        {/* Header */}
-        <div className={`p-6 text-center transition-colors duration-500 ${mode === 'FOCUS' ? 'bg-primary-50 dark:bg-primary-900/20' : 'bg-emerald-50 dark:bg-emerald-900/20'}`}>
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white dark:bg-slate-800 shadow-sm mb-4">
-            <Clock className={`w-8 h-8 ${mode === 'FOCUS' ? 'text-primary-600' : 'text-emerald-600'}`} />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-1">
-            {mode === 'FOCUS' ? 'Focus Timer' : 'Break Time'}
-          </h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">
-            {mode === 'FOCUS' ? 'Stay focused and productive' : 'Relax and recharge'}
-          </p>
-        </div>
-
-        {/* Warning Message */}
-        {showWarning && !isLocked && (
-          <div className="bg-amber-50 dark:bg-amber-900/30 border-y border-amber-100 dark:border-amber-800 p-4 flex items-start gap-3 animate-in slide-in-from-top-2">
-            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-bold text-amber-800 dark:text-amber-300">Timer Paused!</p>
-              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                Please don&apos;t switch tabs while the timer is running. Stay focused on your task!
+      {/* FOCUS MODE SETUP MODAL */}
+      {showFocusSetup && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center border-b border-slate-100 dark:border-slate-700 bg-primary-50 dark:bg-primary-900/20">
+              <div className="w-16 h-16 bg-white dark:bg-slate-700 rounded-2xl shadow-sm mx-auto flex items-center justify-center mb-4">
+                <Shield className="w-8 h-8 text-primary-600 dark:text-primary-400" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Focus Mode Enabled 🔒</h2>
+              <p className="text-slate-600 dark:text-slate-300 mt-2 text-sm">
+                To help you concentrate, distracting apps will be blocked until your study session finishes.
               </p>
             </div>
-          </div>
-        )}
+            
+            <div className="p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Smartphone className="w-4 h-4" /> Apps to block
+                </h3>
+                <span className="text-xs font-bold text-primary-600 bg-primary-50 px-2 py-1 rounded-md">
+                  {selectedApps.length} selected
+                </span>
+              </div>
+              
+              <div className="max-h-48 overflow-y-auto pr-2 space-y-2 mb-6 custom-scrollbar">
+                {APPS_TO_BLOCK.map(app => (
+                  <button
+                    key={app.id}
+                    onClick={() => toggleAppSelection(app.id)}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl border text-sm font-medium transition-colors ${
+                      selectedApps.includes(app.id) 
+                        ? 'bg-primary-50 border-primary-200 text-primary-800 dark:bg-primary-900/30 dark:border-primary-800 dark:text-primary-300' 
+                        : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
+                    }`}
+                  >
+                    {app.name}
+                    {selectedApps.includes(app.id) && <Check className="w-4 h-4" />}
+                  </button>
+                ))}
+              </div>
 
-        {/* Timer Display */}
-        <div className="p-8 flex flex-col items-center">
-          <div className="relative w-64 h-64 flex items-center justify-center mb-8">
-            {/* Circular Progress SVG */}
-            <svg className="w-full h-full transform -rotate-90">
-              <circle
-                cx="128"
-                cy="128"
-                r="120"
-                stroke="currentColor"
-                strokeWidth="8"
-                fill="transparent"
-                className="text-slate-100 dark:text-slate-700"
-              />
-              <circle
-                cx="128"
-                cy="128"
-                r="120"
-                stroke="currentColor"
-                strokeWidth="8"
-                fill="transparent"
-                strokeDasharray={2 * Math.PI * 120}
-                strokeDashoffset={2 * Math.PI * 120 * (1 - progress / 100)}
-                className={`transition-all duration-1000 ease-linear ${mode === 'FOCUS' ? 'text-primary-500' : 'text-emerald-500'}`}
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-6xl font-bold text-slate-800 dark:text-white font-mono tracking-tighter">
-                {formatTime(timeLeft)}
-              </span>
-              <span className="text-sm text-slate-400 font-medium mt-2 uppercase tracking-widest">
-                {isActive ? 'Running' : 'Paused'}
-              </span>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowFocusSetup(false)}
+                  className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => {
+                    if (hasAccessibilityPerm === null) {
+                      setShowFocusSetup(false);
+                      setShowPermDialog(true);
+                    } else {
+                      startTimer(true);
+                    }
+                  }}
+                  className="flex-1 py-3.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold shadow-md shadow-primary-500/20 transition-all"
+                >
+                  Continue
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Social Media Lock Toggle */}
-          <div className="w-full mb-6 p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-700">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${isStrictFocus ? 'bg-primary-100 text-primary-600' : 'bg-slate-200 text-slate-400'}`}>
-                  <Zap className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-800 dark:text-white leading-tight">Focus Lock Mode</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Lock the app if you switch tabs</p>
+      {/* PERMISSION DIALOG */}
+      {showPermDialog && (
+        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-sm w-full p-6 text-center animate-in zoom-in-95">
+            <Settings2 className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Accessibility Service Required</h3>
+            <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
+              To detect and block distracting apps, SJ Tutor AI needs Accessibility Permissions. Since you are using the web version, native app blocking is limited. The timer will still function accurately.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={() => {
+                  setHasAccessibilityPerm(false);
+                  startTimer(true); // Start anyway, we'll use web-based blur detection
+                }}
+                className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold"
+              >
+                Understood, Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STOP CONFIRMATION */}
+      {showStopConfirm && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-sm w-full p-6 text-center animate-in zoom-in-95">
+            <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Stop Session?</h3>
+            <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
+              Are you sure you want to stop this study session? Your progress so far will be saved as interrupted.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={cancelStop} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white rounded-xl font-bold">
+                Cancel
+              </button>
+              <button onClick={confirmStop} className="flex-1 py-3 bg-amber-500 text-white rounded-xl font-bold shadow-md shadow-amber-500/20">
+                Stop Timer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* COMPLETION MODAL */}
+      {showCompletion && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-sm w-full p-8 text-center animate-in zoom-in-95 duration-500 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-400 to-emerald-600" />
+            <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+              <span className="text-4xl">🎉</span>
+            </div>
+            <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">Session Completed!</h2>
+            <p className="text-slate-600 dark:text-slate-400 mb-8">
+              Great job! You stayed focused for the entire duration. Focus Mode has been turned off and your apps are unblocked.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button onClick={() => setShowCompletion(false)} className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-colors">
+                Start Another Session
+              </button>
+              <button onClick={() => { setShowCompletion(false); /* route to stats if available */ }} className="w-full py-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white rounded-xl font-bold transition-colors">
+                View Study Statistics
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* MAIN TIMER UI */}
+      <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden relative">
+        <div className="p-8 text-center bg-gradient-to-b from-primary-50 to-white dark:from-slate-900 dark:to-slate-800 border-b border-slate-100 dark:border-slate-700">
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Study Timer</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">Set your duration and stay focused</p>
+        </div>
+
+        <div className="p-8 flex flex-col items-center">
+          
+          {timerState === 'IDLE' ? (
+            /* Input View */
+            <div className="flex items-center justify-center gap-4 mb-10 w-full max-w-sm mx-auto">
+              <div className="flex flex-col items-center gap-2 flex-1">
+                <input
+                  type="number"
+                  value={inputH}
+                  onChange={e => setInputH(e.target.value)}
+                  onBlur={e => handleInputBlur('H', e.target.value)}
+                  className="w-full aspect-square text-center text-5xl font-mono font-bold bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white rounded-3xl border-2 border-slate-200 dark:border-slate-700 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/20 outline-none transition-all"
+                />
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Hours</span>
+              </div>
+              <span className="text-4xl font-bold text-slate-300 dark:text-slate-600 pb-6">:</span>
+              
+              <div className="flex flex-col items-center gap-2 flex-1">
+                <input
+                  type="number"
+                  value={inputM}
+                  onChange={e => setInputM(e.target.value)}
+                  onBlur={e => handleInputBlur('M', e.target.value)}
+                  className="w-full aspect-square text-center text-5xl font-mono font-bold bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white rounded-3xl border-2 border-slate-200 dark:border-slate-700 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/20 outline-none transition-all"
+                />
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Minutes</span>
+              </div>
+              <span className="text-4xl font-bold text-slate-300 dark:text-slate-600 pb-6">:</span>
+              
+              <div className="flex flex-col items-center gap-2 flex-1">
+                <input
+                  type="number"
+                  value={inputS}
+                  onChange={e => setInputS(e.target.value)}
+                  onBlur={e => handleInputBlur('S', e.target.value)}
+                  className="w-full aspect-square text-center text-5xl font-mono font-bold bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white rounded-3xl border-2 border-slate-200 dark:border-slate-700 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/20 outline-none transition-all"
+                />
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Seconds</span>
+              </div>
+            </div>
+          ) : (
+            /* Running / Paused View with Circular Progress */
+            <div className="relative w-72 h-72 flex items-center justify-center mb-10">
+              <svg className="w-full h-full transform -rotate-90 drop-shadow-md">
+                <circle
+                  cx="144"
+                  cy="144"
+                  r="134"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="transparent"
+                  className="text-slate-100 dark:text-slate-700"
+                />
+                <circle
+                  cx="144"
+                  cy="144"
+                  r="134"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  fill="transparent"
+                  strokeDasharray={2 * Math.PI * 134}
+                  strokeDashoffset={2 * Math.PI * 134 * (1 - progressPercent / 100)}
+                  className="text-primary-500 transition-all duration-300 ease-linear"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-5xl font-extrabold text-slate-800 dark:text-white font-mono tracking-tighter tabular-nums drop-shadow-sm">
+                  {dH} : {dM} : {dS}
+                </span>
+                <div className="flex items-center gap-2 mt-3 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                  <div className={`w-2 h-2 rounded-full ${timerState === 'RUNNING' ? 'bg-primary-500 animate-pulse' : 'bg-amber-500'}`} />
+                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    {timerState === 'RUNNING' ? 'Focusing' : 'Paused'}
+                  </span>
                 </div>
               </div>
-              <button 
-                onClick={() => setIsStrictFocus(!isStrictFocus)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isStrictFocus ? 'bg-primary-600' : 'bg-slate-300 dark:bg-slate-600'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isStrictFocus ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
             </div>
-          </div>
-
-          {/* Task Input */}
-          <div className="w-full mb-8 relative">
-            <input
-              type="text"
-              value={task}
-              onChange={(e) => setTask(e.target.value)}
-              placeholder="What are you working on?"
-              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 pl-10 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
-            />
-            <CheckCircle2 className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
-          </div>
-
-          {/* Controls */}
-          <div className="flex items-center gap-4 mb-8">
-            <button
-              onClick={toggleTimer}
-              className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all transform hover:scale-105 active:scale-95 ${
-                isActive 
-                  ? 'bg-amber-100 text-amber-600 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' 
-                  : 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-primary-500/30'
-              }`}
-            >
-              {isActive ? <Pause className="w-8 h-8 fill-current" /> : <Play className="w-8 h-8 fill-current ml-1" />}
-            </button>
-            <button
-              onClick={resetTimer}
-              className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-            >
-              <RotateCcw className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Presets */}
-          <div className="grid grid-cols-2 gap-3 w-full mb-6">
-            {PRESETS.map((preset) => (
-              <button
-                key={preset.label}
-                onClick={() => setDuration(preset.minutes, preset.minutes > 15 && preset.minutes < 50 ? 'BREAK' : (preset.minutes === 5 ? 'BREAK' : 'FOCUS'))}
-                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all border ${
-                  initialTime === preset.minutes * 60
-                    ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800 text-primary-700 dark:text-primary-400'
-                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                <preset.icon className="w-3.5 h-3.5" />
-                {preset.label} ({preset.minutes}m)
-              </button>
-            ))}
-          </div>
-
-          {/* Notification Button */}
-          {Notification.permission !== 'granted' && (
-            <button 
-              onClick={requestNotificationPermission}
-              className="w-full mb-6 py-2 bg-primary-50 text-primary-700 rounded-lg text-xs font-bold border border-primary-100 hover:bg-primary-100 transition-colors flex items-center justify-center gap-2"
-            >
-              <Sparkles className="w-3 h-3" />
-              Enable Notifications for Timer Alerts
-            </button>
           )}
 
-          {/* Custom Timer */}
-          <div className="w-full pt-6 border-t border-slate-100 dark:border-slate-700">
-             <p className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-3 text-center">Custom Duration</p>
-             <div className="flex gap-2">
-               <input 
-                 type="number" 
-                 min="1" 
-                 max="180"
-                 value={customMinutes}
-                 onChange={(e) => setCustomMinutes(e.target.value)}
-                 placeholder="Minutes"
-                 className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                 onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const val = parseInt(customMinutes);
-                      if (val > 0) {
-                        setDuration(val, 'FOCUS');
-                        setCustomMinutes('');
-                      }
-                    }
-                 }}
-               />
-               <button 
-                 onClick={() => {
-                    const val = parseInt(customMinutes);
-                    if (val > 0) {
-                      setDuration(val, 'FOCUS');
-                      setCustomMinutes('');
-                    }
-                 }}
-                 className="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-               >
-                 Set
-               </button>
-             </div>
+          {/* Controls */}
+          <div className="flex items-center justify-center gap-4 w-full max-w-sm">
+            {timerState === 'IDLE' && (
+              <button
+                onClick={handleStartRequest}
+                className="w-full py-5 bg-primary-600 hover:bg-primary-500 text-white rounded-2xl font-bold text-xl shadow-xl shadow-primary-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Play className="w-6 h-6 fill-current" />
+                Start Focus Session
+              </button>
+            )}
+
+            {timerState !== 'IDLE' && (
+              <>
+                {timerState === 'RUNNING' ? (
+                  <button
+                    onClick={handlePause}
+                    className="flex-1 py-4 bg-amber-100 hover:bg-amber-200 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-2xl font-bold text-lg transition-colors flex flex-col items-center justify-center gap-1"
+                  >
+                    <Pause className="w-6 h-6 fill-current" />
+                    Pause
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleResume}
+                    className="flex-1 py-4 bg-primary-100 hover:bg-primary-200 text-primary-700 dark:bg-primary-900/40 dark:text-primary-400 rounded-2xl font-bold text-lg transition-colors flex flex-col items-center justify-center gap-1"
+                  >
+                    <Play className="w-6 h-6 fill-current" />
+                    Resume
+                  </button>
+                )}
+                
+                <button
+                  onClick={handleStopRequest}
+                  className="w-24 py-4 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 rounded-2xl font-bold transition-colors flex flex-col items-center justify-center gap-1"
+                >
+                  <Square className="w-6 h-6 fill-current" />
+                  Stop
+                </button>
+                
+                {timerState === 'PAUSED' && (
+                  <button
+                    onClick={handleReset}
+                    className="w-24 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 rounded-2xl font-bold transition-colors flex flex-col items-center justify-center gap-1"
+                  >
+                    <RotateCcw className="w-6 h-6" />
+                    Reset
+                  </button>
+                )}
+              </>
+            )}
           </div>
+
         </div>
       </div>
     </div>
