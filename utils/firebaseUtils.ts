@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { UserProfile, HistoryItem, LeaderboardEntry } from "../types";
 
@@ -99,13 +99,24 @@ export const createSharedContent = async (
     const shareId = customId || (Math.random().toString(36).substring(2, 8) + Math.random().toString(36).substring(2, 8));
     const docRef = doc(db, "sharedContent", shareId);
     
+    let contentType = type.toLowerCase();
+    if (contentType.includes('summary')) contentType = 'summary';
+    else if (contentType.includes('homework') || contentType.includes('essay')) contentType = 'homework';
+    else if (contentType.includes('quiz')) contentType = 'quiz';
+    else if (contentType.includes('tutor') || contentType.includes('chat')) contentType = 'tutor';
+    else contentType = 'notes';
+
     const sharedData = {
+      id: shareId,
       shareId,
-      type,
+      type, // keeping for backwards compatibility
+      contentType, // new mapped field requested by user
       title,
       content,
-      ownerUid,
-      createdAt: Date.now(),
+      ownerUid, // keeping for backwards compatibility 
+      ownerId: ownerUid, // new field requested by user
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
       views: 0,
       likes: 0,
       sharesCount: 0,
@@ -126,7 +137,22 @@ export const getSharedContent = async (shareId: string): Promise<any | null> => 
     const docRef = doc(db, "sharedContent", shareId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      return docSnap.data();
+      const data = docSnap.data();
+      
+      // Auto-migrate in memory for backwards compatibility
+      if (data.isPublic === undefined) data.isPublic = true;
+      if (!data.id) data.id = shareId;
+      if (!data.ownerId && data.ownerUid) data.ownerId = data.ownerUid;
+      if (!data.contentType && data.type) {
+        let ct = data.type.toLowerCase();
+        if (ct.includes('summary')) data.contentType = 'summary';
+        else if (ct.includes('homework') || ct.includes('essay')) data.contentType = 'homework';
+        else if (ct.includes('quiz')) data.contentType = 'quiz';
+        else if (ct.includes('tutor') || ct.includes('chat')) data.contentType = 'tutor';
+        else data.contentType = 'notes';
+      }
+
+      return data;
     }
     return null;
   } catch (error) {

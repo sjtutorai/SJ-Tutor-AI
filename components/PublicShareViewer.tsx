@@ -5,6 +5,8 @@ import {
   incrementLikeCount, 
   incrementShareCount 
 } from "../utils/firebaseUtils";
+import { auth, db } from "../firebaseConfig";
+import { doc, updateDoc } from "firebase/firestore";
 import { 
   Sparkles, 
   Eye, 
@@ -19,7 +21,9 @@ import {
   Check,
   AlertTriangle,
   Lightbulb,
-  Award
+  Award,
+  Lock,
+  Unlock
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -218,12 +222,12 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
   if (!content) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center p-4 text-center">
-        <div className="w-16 h-16 bg-red-55 border border-red-100 dark:border-red-950/30 rounded-full flex items-center justify-center mb-4 p-2 text-red-500">
+        <div className="w-16 h-16 bg-red-50 border border-red-100 dark:border-red-950/30 rounded-full flex items-center justify-center mb-4 p-2 text-red-500">
           <AlertTriangle className="w-8 h-8" />
         </div>
-        <h1 className="text-xl md:text-2xl font-bold text-slate-850 dark:text-white mb-2">Content Not Found</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white mb-2">Content Not Found</h1>
         <p className="text-slate-500 dark:text-slate-400 max-w-md mb-6 text-sm">
-          This shared link may have expired, been deleted by its owner, or is set to private.
+          This shared content is no longer available.
         </p>
         <button
           onClick={onGoToApp}
@@ -231,6 +235,47 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
         >
           Go to SJ Tutor AI
         </button>
+      </div>
+    );
+  }
+
+  if (content.isPublic === false) {
+    const isOwner = auth.currentUser?.uid === content.ownerId || auth.currentUser?.uid === content.ownerUid;
+    
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center p-4 text-center">
+        <div className="w-16 h-16 bg-amber-50 border border-amber-100 dark:border-amber-950/30 rounded-full flex items-center justify-center mb-4 p-2 text-amber-500">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white mb-2">This content is private.</h1>
+        <p className="text-slate-500 dark:text-slate-400 max-w-md mb-6 text-sm">
+          Only the owner can view or change this setting.
+        </p>
+        {isOwner && (
+          <button
+            onClick={async () => {
+              try {
+                await updateDoc(doc(db, "sharedContent", shareId), { isPublic: true });
+                setContent({ ...content, isPublic: true });
+              } catch (e) {
+                console.error("Failed to make public:", e);
+                alert("Could not update privacy setting.");
+              }
+            }}
+            className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-sm shadow hover:shadow-lg transition flex items-center justify-center gap-2"
+          >
+            <Unlock className="w-4 h-4" />
+            Make Public
+          </button>
+        )}
+        {!isOwner && (
+          <button
+            onClick={onGoToApp}
+            className="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm shadow transition"
+          >
+            Return Home
+          </button>
+        )}
       </div>
     );
   }

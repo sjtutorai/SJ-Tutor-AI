@@ -1094,16 +1094,8 @@ const App: React.FC = () => {
         return;
       }
 
-      // 2. Generate the Share URL based on content type
-      // Examples: /quiz/{quizId}, /summary/{summaryId}, /notes/{noteId}, etc.
-      let normalizedType = type.toLowerCase();
-      if (normalizedType.includes('summary')) normalizedType = 'summary';
-      else if (normalizedType.includes('homework') || normalizedType.includes('essay')) normalizedType = 'homework';
-      else if (normalizedType.includes('quiz')) normalizedType = 'quiz';
-      else if (normalizedType.includes('tutor') || normalizedType.includes('chat')) normalizedType = 'tutor';
-      else normalizedType = 'notes';
-
-      const shareLink = `${window.location.origin}/${normalizedType}/${shareId}`;
+      // 2. Generate the Share URL
+      const shareLink = `${window.location.origin}/share/${shareId}`;
       console.log("[SHARE AUDIT] URL generated:", shareLink);
 
       // 3. Web Share API detection and usage
@@ -1115,7 +1107,7 @@ const App: React.FC = () => {
           console.log("[SHARE AUDIT] Attempting Web Share API share...");
           await navigator.share({
             title: title || "SJ Tutor AI",
-            text: customMessage || `Check out this study ${normalizedType} on SJ Tutor AI!`,
+            text: customMessage || `Check out this study content on SJ Tutor AI!`,
             url: shareLink
           });
           console.log("[SHARE AUDIT] Web Share API success: Share dialog opened successfully.");
@@ -1125,7 +1117,7 @@ const App: React.FC = () => {
             isOpen: true,
             shareId: shareId,
             title,
-            type: normalizedType,
+            type: type,
             customUrl: shareLink,
           });
           return;
@@ -1150,7 +1142,7 @@ const App: React.FC = () => {
         isOpen: true,
         shareId: shareId,
         title,
-        type: normalizedType,
+        type: type,
         customUrl: shareLink,
       });
 
@@ -2980,7 +2972,7 @@ const App: React.FC = () => {
                 <input
                   type="text"
                   readOnly
-                  value={shareSuccessModal.customUrl || `${window.location.origin}/${shareSuccessModal.type}/${shareSuccessModal.shareId}`}
+                  value={shareSuccessModal.customUrl || `${window.location.origin}/share/${shareSuccessModal.shareId}`}
                   className="bg-transparent text-[11px] text-slate-650 dark:text-slate-400 w-full focus:outline-none select-all font-mono"
                   onClick={(e) => (e.target as HTMLInputElement).select()}
                 />
@@ -2989,7 +2981,7 @@ const App: React.FC = () => {
               <div className="flex flex-col gap-2">
                 <button
                   onClick={async () => {
-                    const link = shareSuccessModal.customUrl || `${window.location.origin}/${shareSuccessModal.type}/${shareSuccessModal.shareId}`;
+                    const link = shareSuccessModal.customUrl || `${window.location.origin}/share/${shareSuccessModal.shareId}`;
                     console.log("[SHARE AUDIT] Copying link from modal click:", link);
                     try {
                       await navigator.clipboard.writeText(link);
@@ -3007,7 +2999,7 @@ const App: React.FC = () => {
                 
                 <button
                   onClick={() => {
-                    const relativeLink = `/${shareSuccessModal.type}/${shareSuccessModal.shareId}`;
+                    const relativeLink = shareSuccessModal.customUrl || `/share/${shareSuccessModal.shareId}`;
                     console.log("[SHARE AUDIT] Opening share link in new tab:", relativeLink);
                     window.open(relativeLink, "_blank");
                   }}
