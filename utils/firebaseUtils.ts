@@ -144,7 +144,7 @@ export const getSharedContent = async (shareId: string): Promise<any | null> => 
       if (!data.id) data.id = shareId;
       if (!data.ownerId && data.ownerUid) data.ownerId = data.ownerUid;
       if (!data.contentType && data.type) {
-        let ct = data.type.toLowerCase();
+        const ct = data.type.toLowerCase();
         if (ct.includes('summary')) data.contentType = 'summary';
         else if (ct.includes('homework') || ct.includes('essay')) data.contentType = 'homework';
         else if (ct.includes('quiz')) data.contentType = 'quiz';

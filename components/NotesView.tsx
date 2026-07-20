@@ -542,18 +542,25 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                   </div>
 
                   {/* Student Profile Info Banner - Read-only */}
-                  <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 mb-6 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Retrieved from Profile</span>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-sm font-bold text-slate-800 dark:text-white">Class: <span className="text-violet-600 dark:text-violet-400">{userClass}</span></span>
-                        <span className="text-slate-300 dark:text-slate-700">•</span>
-                        <span className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[240px]" title={userBoard}>Board: <span className="text-violet-600 dark:text-violet-400">{userBoard}</span></span>
-                      </div>
+                  <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-900/30 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-sm font-bold text-slate-800 dark:text-white">Class: <span className="text-primary-600 dark:text-primary-400">{userClass}</span></span>
+                      <span className="text-primary-300 dark:text-primary-700">•</span>
+                      <span className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[240px]" title={userBoard}>Board: <span className="text-primary-600 dark:text-primary-400">{userBoard}</span></span>
                     </div>
-                    <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-full text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                      Auto-Aligned
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSubjectInput('Science');
+                        setLanguageInput('English');
+                        setChapterNameInput('Chemical Reactions and Equations');
+                        setAuthorInput('');
+                        setMaxCharactersInput(3000);
+                      }}
+                      className="px-4 py-1.5 bg-primary-100 hover:bg-primary-200 text-primary-700 dark:bg-primary-900/40 dark:hover:bg-primary-800/60 dark:text-primary-300 rounded-xl text-xs font-bold border border-primary-200 dark:border-primary-800 shadow-sm transition-all whitespace-nowrap flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-3 h-3" /> Try Example
+                    </button>
                   </div>
 
                   <form onSubmit={handleGenerateAiNotesSubmit} className="space-y-5">
