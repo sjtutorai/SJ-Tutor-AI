@@ -202,7 +202,7 @@ const App: React.FC = () => {
     console.log("[SHARE AUDIT] Detecting public share path on initial load:", path);
     
     if (path.startsWith("/share/")) {
-      const shareId = path.substring(7);
+      const shareId = path.substring(7).replace(/\/$/, "");
       console.log("[SHARE AUDIT] Match /share/ style ID:", shareId);
       return shareId;
     }
@@ -1095,7 +1095,7 @@ const App: React.FC = () => {
       }
 
       // 2. Generate the Share URL
-      const shareLink = `${window.location.origin}/share/${shareId}`;
+      const shareLink = customUrl || `${window.location.origin}/share/${shareId}`;
       console.log("[SHARE AUDIT] URL generated:", shareLink);
 
       // 3. Web Share API detection and usage

@@ -76,15 +76,30 @@ service cloud.firestore {
 
     // Shared content collection - zero-trust dynamic permissions
     match /sharedContent/{shareId} {
-      allow read: if resource == null || (resource.data.isPublic == true) || (isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.ownerUid == request.auth.uid));
+      allow read: if resource == null || 
+                     (!('isPublic' in resource.data) || resource.data.isPublic == true) || 
+                     (isSignedIn() && 
+                       (('ownerId' in resource.data && resource.data.ownerId == request.auth.uid) || 
+                        ('ownerUid' in resource.data && resource.data.ownerUid == request.auth.uid)));
+                        
       allow create: if isValidId(shareId) && (
-        (isSignedIn() && (request.resource.data.ownerId == request.auth.uid || request.resource.data.ownerUid == request.auth.uid)) ||
-        (request.resource.data.ownerId == "guest" || request.resource.data.ownerUid == "guest")
+        (isSignedIn() && 
+          (('ownerId' in request.resource.data && request.resource.data.ownerId == request.auth.uid) || 
+           ('ownerUid' in request.resource.data && request.resource.data.ownerUid == request.auth.uid))) ||
+        (!isSignedIn() || ('ownerId' in request.resource.data && request.resource.data.ownerId == "guest") || 
+         ('ownerUid' in request.resource.data && request.resource.data.ownerUid == "guest"))
       );
-      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.ownerUid == request.auth.uid) && isValidId(shareId);
+      
+      allow delete: if isSignedIn() && isValidId(shareId) && 
+                      (('ownerId' in resource.data && resource.data.ownerId == request.auth.uid) || 
+                       ('ownerUid' in resource.data && resource.data.ownerUid == request.auth.uid));
+                       
       allow update: if isValidId(shareId) && (
-        (isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.ownerUid == request.auth.uid)) ||
-        (resource.data.isPublic == true && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'likes', 'sharesCount', 'lastViewedAt']))
+        (isSignedIn() && 
+          (('ownerId' in resource.data && resource.data.ownerId == request.auth.uid) || 
+           ('ownerUid' in resource.data && resource.data.ownerUid == request.auth.uid))) ||
+        ((!('isPublic' in resource.data) || resource.data.isPublic == true) && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'likes', 'sharesCount', 'lastViewedAt']))
       );
     }
   }
