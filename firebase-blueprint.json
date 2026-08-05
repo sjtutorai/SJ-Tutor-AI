@@ -1,0 +1,234 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with academic settings and details",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "institution": { "type": "string" },
+        "grade": { "type": "string" },
+        "board": { "type": "string" },
+        "bio": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "learningGoal": { "type": "string" },
+        "learningStyle": { "type": "string" },
+        "credits": { "type": "number" },
+        "planType": { "type": "string" },
+        "claimedOffers": { "type": "array" }
+      },
+      "required": ["credits"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User specific push or pull notifications",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "read": { "type": "boolean" },
+        "targetUserId": { "type": "string" }
+      },
+      "required": ["title", "body", "timestamp", "read"]
+    },
+    "GlobalNotification": {
+      "title": "GlobalNotification",
+      "description": "Broadcast notifications for all users",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["title", "body", "timestamp"]
+    },
+    "Streak": {
+      "title": "StreakData",
+      "description": "Duolingo-style daily learning streak records",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "currentStreak": { "type": "number" },
+        "highestStreak": { "type": "number" },
+        "lastActivityDate": { "type": "string" },
+        "streakHistory": { "type": "array" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["uid", "currentStreak", "highestStreak", "lastActivityDate", "streakHistory", "updatedAt"]
+    },
+    "History": {
+      "title": "HistoryItem",
+      "description": "User specific course learning activities, quizzes, summary history",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "content": { "type": "object" },
+        "formData": { "type": "object" },
+        "score": { "type": "number" }
+      },
+      "required": ["id", "type", "title", "timestamp"]
+    },
+    "SharedContent": {
+      "title": "SharedContent",
+      "description": "Public shared quiz, summary, notes, homework or tutor transcripts",
+      "type": "object",
+      "properties": {
+        "shareId": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "object" },
+        "ownerUid": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "views": { "type": "number" },
+        "likes": { "type": "number" },
+        "isPublic": { "type": "boolean" },
+        "sharesCount": { "type": "number" },
+        "lastViewedAt": { "type": "number" }
+      },
+      "required": ["shareId", "type", "title", "content", "ownerUid", "createdAt", "views", "likes", "isPublic"]
+    },
+    "QuizLeaderboard": {
+      "title": "QuizLeaderboard",
+      "description": "User overall quiz points, high score, and rank summaries",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "totalScore": { "type": "number" },
+        "quizzesCompleted": { "type": "number" },
+        "highestScore": { "type": "number" },
+        "lastActive": { "type": "number" }
+      },
+      "required": ["uid", "displayName", "totalScore", "quizzesCompleted", "highestScore", "lastActive"]
+    },
+    "AdminNotification": {
+      "title": "AdminNotification",
+      "description": "Notification created by admin, possibly scheduled",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "scheduledTime": { "type": "number" },
+        "status": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetValue": { "type": "array" }
+      },
+      "required": ["title", "body", "timestamp", "status", "targetType"]
+    },
+    "NotificationLog": {
+      "title": "NotificationLog",
+      "description": "Audit log for sent notifications",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "senderId": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetValue": { "type": "array" },
+        "recipientCount": { "type": "number" },
+        "successCount": { "type": "number" },
+        "failureCount": { "type": "number" },
+        "status": { "type": "string" },
+        "errors": { "type": "array" },
+        "retryCount": { "type": "number" }
+      },
+      "required": ["title", "body", "timestamp", "senderId", "targetType", "recipientCount", "successCount", "failureCount", "status"]
+    },
+    "Group": {
+      "title": "StudyGroup",
+      "description": "WhatsApp-like study group for real-time collaboration and chat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "subject": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "members": { "type": "object" },
+        "memberCount": { "type": "number" },
+        "isPublic": { "type": "boolean" },
+        "inviteCode": { "type": "string" }
+      },
+      "required": ["id", "name", "subject", "createdBy", "createdAt", "memberCount", "isPublic"]
+    },
+    "GroupMessage": {
+      "title": "GroupMessage",
+      "description": "Messages sent within a study group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "type": { "type": "string" }
+      },
+      "required": ["id", "groupId", "senderId", "senderName", "text", "timestamp", "type"]
+    }
+  },
+  "firestore": {
+    "/groups/{groupId}": {
+      "schema": "Group",
+      "description": "Study group records"
+    },
+    "/groups/{groupId}/messages/{messageId}": {
+      "schema": "GroupMessage",
+      "description": "Messages sent inside a group"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "AdminNotification",
+      "description": "Admin scheduled or broadcast notifications"
+    },
+    "/notification_logs/{logId}": {
+      "schema": "NotificationLog",
+      "description": "Audit log history of sent notifications"
+    },
+    "/sharedContent/{shareId}": {
+      "schema": "SharedContent",
+      "description": "Public viewing records of shared materials"
+    },
+    "/quiz_leaderboard/{userId}": {
+      "schema": "QuizLeaderboard",
+      "description": "Leaderboard statistics for each user"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Stores individual user profile and setting details"
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User specific notification records"
+    },
+    "/users/{userId}/history/{historyId}": {
+      "schema": "History",
+      "description": "User specific generated course history, quizzes, and homework items"
+    },
+    "/global_notifications/{notificationId}": {
+      "schema": "GlobalNotification",
+      "description": "System-wide broadcast alerts"
+    },
+    "/streaks/{userId}": {
+      "schema": "Streak",
+      "description": "Stores user daily sequence progress and stats"
+    }
+  }
+}
