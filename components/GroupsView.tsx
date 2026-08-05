@@ -22,7 +22,9 @@ import {
   Link as LinkIcon,
   Share2,
   UserPlus,
-  UserX
+  UserX,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -364,6 +366,34 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           : g
       )
     );
+  };
+
+  // Helper to render text with clickable URLs (like https://sjtutorai.vercel.app/)
+  const renderMessageWithClickableLinks = (text: string, isMe: boolean) => {
+    if (!text) return null;
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+
+    return parts.map((part, index) => {
+      if (part.match(urlRegex)) {
+        return (
+          <a
+            key={index}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`inline-flex items-center gap-1 font-bold underline break-all transition-opacity hover:opacity-80 ${
+              isMe ? 'text-amber-200 hover:text-white' : 'text-indigo-600 dark:text-indigo-400'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span>{part}</span>
+            <ExternalLink className="w-3 h-3 shrink-0 inline" />
+          </a>
+        );
+      }
+      return <React.Fragment key={index}>{part}</React.Fragment>;
+    });
   };
 
   // Delete Group (Admin / Creator only)
@@ -936,6 +966,17 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
               {/* Actions Header */}
               <div className="flex items-center gap-1.5">
+                <a
+                  href="https://sjtutorai.vercel.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-xl transition flex items-center gap-1.5 text-xs font-bold border border-indigo-200/60 dark:border-indigo-800/40"
+                  title="Visit SJ Tutor Website (https://sjtutorai.vercel.app/)"
+                >
+                  <Globe className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <span className="hidden sm:inline">Website</span>
+                </a>
+
                 <button
                   onClick={() => setShowPollCreator(true)}
                   className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
@@ -1046,7 +1087,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                           {/* Message Text Content */}
                           {msg.type === 'text' && (
                             <div className="whitespace-pre-wrap leading-relaxed">
-                              {msg.text}
+                              {renderMessageWithClickableLinks(msg.text, isMe)}
                             </div>
                           )}
 
@@ -1250,6 +1291,17 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     <BarChart2 className="w-4 h-4 text-blue-500" />
                     <span>Create Poll</span>
                   </button>
+
+                  <button
+                    onClick={() => {
+                      setShowAttachmentMenu(false);
+                      setInputText((prev) => (prev ? `${prev} https://sjtutorai.vercel.app/` : 'https://sjtutorai.vercel.app/'));
+                    }}
+                    className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 transition col-span-2 border-t border-slate-100 dark:border-slate-700/60 pt-2"
+                  >
+                    <Globe className="w-4 h-4 text-indigo-500" />
+                    <span>Share Website (sjtutorai.vercel.app)</span>
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1267,7 +1319,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   type="button"
                   onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
                   className="p-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition flex-shrink-0"
-                  title="Attach Media or Poll"
+                  title="Attach Media, Poll, or Link"
                 >
                   <Paperclip className="w-5 h-5" />
                 </button>
@@ -1278,19 +1330,32 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     placeholder="Type a message or @Tutor to ask AI..."
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    className="w-full pl-4 pr-10 py-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/40 transition"
+                    className="w-full pl-4 pr-32 py-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/40 transition"
                   />
 
-                  {/* Mention @Tutor quick button */}
-                  {!inputText.includes('@Tutor') && (
-                    <button
-                      type="button"
-                      onClick={() => setInputText((prev) => (prev ? prev + ' @Tutor ' : '@Tutor '))}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg hover:bg-purple-200 transition"
-                    >
-                      @Tutor
-                    </button>
-                  )}
+                  {/* Quick Action Chips inside Input Bar */}
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    {!inputText.includes('https://sjtutorai.vercel.app/') && (
+                      <button
+                        type="button"
+                        onClick={() => setInputText((prev) => (prev ? `${prev} https://sjtutorai.vercel.app/` : 'https://sjtutorai.vercel.app/'))}
+                        className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded-lg hover:bg-indigo-200 transition flex items-center gap-1"
+                        title="Insert website link"
+                      >
+                        <Globe className="w-3 h-3" />
+                        <span className="hidden sm:inline">Web</span>
+                      </button>
+                    )}
+                    {!inputText.includes('@Tutor') && (
+                      <button
+                        type="button"
+                        onClick={() => setInputText((prev) => (prev ? prev + ' @Tutor ' : '@Tutor '))}
+                        className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg hover:bg-purple-200 transition"
+                      >
+                        @Tutor
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Voice Note or Send Button */}
