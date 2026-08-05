@@ -24,7 +24,10 @@ import {
   UserPlus,
   UserX,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Lock,
+  Clock,
+  Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -39,6 +42,9 @@ import {
 } from '../types';
 import {
   createGroupInFirestore,
+  updateGroupInFirestore,
+  requestJoinGroupInFirestore,
+  handleJoinRequestInFirestore,
   subscribeToAllGroups,
   subscribeToGroupMessages,
   sendGroupMessageInFirestore,
@@ -609,13 +615,220 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     setRecordingSeconds(0);
   };
 
-  // Create New Group
+  // Render group avatar icon helper
+  const renderGroupIcon = (group: Partial<StudyGroup>, sizeClass = "w-11 h-11 text-xl") => {
+    if (group.iconUrl) {
+      return (
+        <img
+          src={group.iconUrl}
+          alt={group.name || 'Group'}
+          className={`${sizeClass} rounded-2xl object-cover border border-slate-200/50 dark:border-slate-700 shadow-sm flex-shrink-0`}
+        />
+      );
+    }
+    return (
+      <div
+        className={`${sizeClass} rounded-2xl bg-gradient-to-br ${
+          group.bgColor || 'from-primary-500 to-amber-600'
+        } flex items-center justify-center text-white shadow-md flex-shrink-0`}
+      >
+        <span>{group.iconEmoji || '📚'}</span>
+      </div>
+    );
+  };
+
+  // Create New Group States
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupSubject, setNewGroupSubject] = useState('');
   const [newGroupDescription, setNewGroupDescription] = useState('');
   const [newGroupEmoji, setNewGroupEmoji] = useState('📚');
+  const [newGroupIconType, setNewGroupIconType] = useState<'emoji' | 'url' | 'file'>('emoji');
+  const [newGroupIconUrl, setNewGroupIconUrl] = useState('');
   const [newGroupColor] = useState('from-primary-500 to-amber-600');
   const [newGroupIsPublic, setNewGroupIsPublic] = useState(true);
+
+  // Edit Group Modal States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editGroupName, setEditGroupName] = useState('');
+  const [editGroupSubject, setEditGroupSubject] = useState('');
+  const [editGroupDescription, setEditGroupDescription] = useState('');
+  const [editGroupIsPublic, setEditGroupIsPublic] = useState(true);
+  const [editGroupIconType, setEditGroupIconType] = useState<'emoji' | 'url' | 'file'>('emoji');
+  const [editGroupIconEmoji, setEditGroupIconEmoji] = useState('📚');
+  const [editGroupIconUrl, setEditGroupIconUrl] = useState('');
+
+  // Custom Image File Upload Handler
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a valid image file (PNG, JPG, WEBP).');
+      return;
+    }
+
+    if (file.size > 3 * 1024 * 1024) {
+      alert('File size exceeds 3MB limit. Please select a smaller image.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (isEdit) {
+        setEditGroupIconUrl(dataUrl);
+        setEditGroupIconType('file');
+      } else {
+        setNewGroupIconUrl(dataUrl);
+        setNewGroupIconType('file');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Request to Join Public Group
+  const handleRequestToJoinGroup = async (group: StudyGroup) => {
+    const userReq = {
+      uid: currentUid,
+      displayName: currentName,
+      photoURL: userProfile.photoURL || ''
+    };
+
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== group.id) return g;
+        const currentReqs = g.joinRequests || {};
+        return {
+          ...g,
+          joinRequests: {
+            ...currentReqs,
+            [currentUid]: {
+              uid: currentUid,
+              displayName: currentName,
+              photoURL: userProfile.photoURL || '',
+              requestedAt: Date.now()
+            }
+          }
+        };
+      })
+    );
+
+    triggerToast('Join Request Sent! 📩', `Your request to join "${group.name}" was sent to the owner.`, 'Important Alerts');
+
+    await requestJoinGroupInFirestore(group.id, userReq);
+
+    if (group.createdBy) {
+      await sendNotification(
+        'New Join Request 📩',
+        `${currentName} requested to join your group "${group.name}".`,
+        'Important Alerts',
+        group.createdBy,
+        undefined,
+        {
+          type: 'group_join_request',
+          groupId: group.id,
+          requesterUid: currentUid,
+          requesterName: currentName
+        }
+      );
+    }
+  };
+
+  // Group Owner/Admin: Approve Join Request
+  const handleApproveJoinRequest = async (groupId: string, req: { uid: string; displayName: string; photoURL?: string }) => {
+    const newMember: GroupMember = {
+      uid: req.uid,
+      displayName: req.displayName,
+      photoURL: req.photoURL,
+      role: 'member',
+      joinedAt: Date.now()
+    };
+
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== groupId) return g;
+        const updatedMembers = { ...(g.members || {}), [req.uid]: newMember };
+        const updatedReqs = { ...(g.joinRequests || {}) };
+        delete updatedReqs[req.uid];
+        return {
+          ...g,
+          members: updatedMembers,
+          memberCount: Object.keys(updatedMembers).length,
+          joinRequests: updatedReqs
+        };
+      })
+    );
+
+    triggerToast('Member Approved! 🎉', `${req.displayName} is now a member of the group.`, 'Important Alerts');
+
+    await handleJoinRequestInFirestore(groupId, req.uid, true, newMember);
+
+    await sendNotification(
+      'Join Request Approved! 🎉',
+      `Your request to join "${activeGroup?.name}" was approved by the owner!`,
+      'Important Alerts',
+      req.uid
+    );
+  };
+
+  // Group Owner/Admin: Decline Join Request
+  const handleDeclineJoinRequest = async (groupId: string, reqUid: string) => {
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== groupId) return g;
+        const updatedReqs = { ...(g.joinRequests || {}) };
+        delete updatedReqs[reqUid];
+        return {
+          ...g,
+          joinRequests: updatedReqs
+        };
+      })
+    );
+
+    triggerToast('Request Declined', 'Join request was removed.', 'Important Alerts');
+    await handleJoinRequestInFirestore(groupId, reqUid, false);
+  };
+
+  // Open Edit Group Settings Modal
+  const handleOpenEditModal = () => {
+    if (!activeGroup) return;
+    setEditGroupName(activeGroup.name || '');
+    setEditGroupSubject(activeGroup.subject || '');
+    setEditGroupDescription(activeGroup.description || '');
+    setEditGroupIsPublic(activeGroup.isPublic !== false);
+    setEditGroupIconEmoji(activeGroup.iconEmoji || '📚');
+    setEditGroupIconUrl(activeGroup.iconUrl || '');
+    setEditGroupIconType(activeGroup.iconUrl ? 'url' : 'emoji');
+    setShowEditModal(true);
+  };
+
+  // Save Group Settings (Privacy, Icon, Info)
+  const handleSaveGroupSettings = async () => {
+    if (!activeGroup || !editGroupName.trim() || !editGroupSubject.trim()) {
+      alert('Please fill in group name and subject.');
+      return;
+    }
+
+    const finalIconUrl = editGroupIconType !== 'emoji' && editGroupIconUrl.trim() ? editGroupIconUrl.trim() : '';
+
+    const updates: Partial<StudyGroup> = {
+      name: editGroupName.trim(),
+      subject: editGroupSubject.trim(),
+      description: editGroupDescription.trim(),
+      isPublic: editGroupIsPublic,
+      iconEmoji: editGroupIconEmoji,
+      iconUrl: finalIconUrl
+    };
+
+    setGroups((prev) =>
+      prev.map((g) => (g.id === activeGroup.id ? { ...g, ...updates, updatedAt: Date.now() } : g))
+    );
+
+    setShowEditModal(false);
+    triggerToast('Settings Saved ⚙️', 'Group privacy and settings updated successfully!', 'Important Alerts');
+
+    await updateGroupInFirestore(activeGroup.id, updates);
+  };
 
   const handleInviteUser = async () => {
     if (!inviteRegId.trim() || !activeGroup) return;
@@ -665,6 +878,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     }
 
     const groupId = 'group_' + Date.now();
+    const finalIconUrl = newGroupIconType !== 'emoji' && newGroupIconUrl.trim() ? newGroupIconUrl.trim() : undefined;
+
     const newGroup: StudyGroup = {
       id: groupId,
       name: newGroupName.trim(),
@@ -672,6 +887,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       subject: newGroupSubject.trim(),
       gradeClass: userProfile.grade || 'General',
       iconEmoji: newGroupEmoji,
+      iconUrl: finalIconUrl,
       bgColor: newGroupColor,
       createdBy: currentUid,
       creatorName: currentName,
@@ -691,12 +907,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
     await createGroupInFirestore(newGroup);
 
-    triggerToast('Group Created! 🚀', `Successfully created "${newGroup.name}"!`, 'Important Alerts');
+    triggerToast('Group Created! 🚀', `Successfully created ${newGroupIsPublic ? 'public' : 'private'} group "${newGroup.name}"!`, 'Important Alerts');
 
     // Reset Form
     setNewGroupName('');
     setNewGroupSubject('');
     setNewGroupDescription('');
+    setNewGroupIconUrl('');
+    setNewGroupIconType('emoji');
     setShowCreateModal(false);
   };
 
@@ -846,15 +1064,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    {/* Group Avatar / Emoji */}
-                    <div
-                      className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${
-                        group.bgColor || 'from-primary-500 to-amber-600'
-                      } flex items-center justify-center text-xl text-white shadow-md flex-shrink-0 relative`}
-                    >
-                      <span>{group.iconEmoji || '📚'}</span>
+                    {/* Group Avatar / Icon */}
+                    <div className="relative shrink-0">
+                      {renderGroupIcon(group, "w-12 h-12 text-xl")}
                       {isMember && (
-                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white dark:border-slate-800 rounded-full flex items-center justify-center">
+                        <div className="absolute -bottom-1 -right-1 w-4.5 h-4.5 bg-emerald-500 border-2 border-white dark:border-slate-800 rounded-full flex items-center justify-center shadow-sm">
                           <Check className="w-2.5 h-2.5 text-white" />
                         </div>
                       )}
@@ -876,10 +1090,19 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                         <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold rounded-md truncate">
                           {group.subject}
                         </span>
+                        {group.isPublic ? (
+                          <span className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold rounded-md flex items-center gap-0.5">
+                            <Globe className="w-2.5 h-2.5" /> Public
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-md flex items-center gap-0.5">
+                            <Lock className="w-2.5 h-2.5" /> Private
+                          </span>
+                        )}
                         <span className="text-[10px] text-slate-400">
                           • {group.memberCount} members
                         </span>
@@ -900,15 +1123,21 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     </div>
 
                     {!isMember && activeTab === 'explore' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleJoinGroup(group);
-                        }}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex-shrink-0 shadow-sm active:scale-95"
-                      >
-                        Join
-                      </button>
+                      group.joinRequests?.[currentUid] ? (
+                        <span className="px-2.5 py-1.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded-xl text-[11px] font-bold flex items-center gap-1 shrink-0">
+                          <Clock className="w-3 h-3" /> Requested
+                        </span>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRequestToJoinGroup(group);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex-shrink-0 shadow-sm active:scale-95"
+                        >
+                          Ask to Join
+                        </button>
+                      )
                     )}
                   </div>
                 </div>
@@ -941,13 +1170,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   onClick={() => setShowGroupInfo(true)}
                   className="flex items-center gap-3 cursor-pointer group min-w-0"
                 >
-                  <div
-                    className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${
-                      activeGroup.bgColor || 'from-primary-500 to-amber-600'
-                    } flex items-center justify-center text-xl text-white shadow-md flex-shrink-0`}
-                  >
-                    <span>{activeGroup.iconEmoji || '📚'}</span>
-                  </div>
+                  {renderGroupIcon(activeGroup, "w-11 h-11 text-xl")}
 
                   <div className="min-w-0">
                     <h2 className="font-bold text-slate-900 dark:text-white text-base truncate group-hover:text-primary-600 transition">
@@ -1402,13 +1625,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 </button>
 
                 <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${
-                      activeGroup.bgColor || 'from-primary-500 to-amber-600'
-                    } flex items-center justify-center text-xl text-white shadow-md flex-shrink-0`}
-                  >
-                    <span>{activeGroup.iconEmoji || '📚'}</span>
-                  </div>
+                  {renderGroupIcon(activeGroup, "w-10 h-10 text-xl")}
 
                   <div className="min-w-0">
                     <h2 className="font-bold text-slate-900 dark:text-white text-base truncate">
@@ -1439,12 +1656,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             {/* Preview Body */}
             <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center text-center custom-scrollbar">
               <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-xl border border-slate-200/80 dark:border-slate-800 space-y-6">
-                <div
-                  className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${
-                    activeGroup.bgColor || 'from-primary-500 to-amber-600'
-                  } flex items-center justify-center text-4xl text-white mx-auto shadow-lg`}
-                >
-                  <span>{activeGroup.iconEmoji || '📚'}</span>
+                <div className="flex justify-center">
+                  {renderGroupIcon(activeGroup, "w-20 h-20 text-4xl")}
                 </div>
 
                 <div>
@@ -1459,21 +1672,40 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   </p>
                 </div>
 
-                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 text-xs font-medium text-left flex items-start gap-3">
-                  <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <span>
-                    You are not a member of this study group yet. Click <strong>Join Group</strong> below to participate in chats, ask AI Tutor, and view group messages!
-                  </span>
-                </div>
+                {activeGroup.joinRequests?.[currentUid] ? (
+                  <div className="p-4 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 text-xs font-medium text-left flex items-start gap-3">
+                    <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <span>
+                      Your request to join <strong>&quot;{activeGroup.name}&quot;</strong> has been sent to the group owner. You will be able to enter as soon as the owner approves your request!
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200 rounded-2xl border border-indigo-200/60 dark:border-indigo-900/40 text-xs font-medium text-left flex items-start gap-3">
+                    <Info className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                    <span>
+                      To join this group, click <strong>Ask Owner to Join</strong> below. Once approved by the owner, you can participate in chats!
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
-                  <button
-                    onClick={() => handleToggleJoinGroup(activeGroup)}
-                    className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/25 transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Join Group
-                  </button>
+                  {activeGroup.joinRequests?.[currentUid] ? (
+                    <button
+                      disabled
+                      className="w-full py-3 px-6 bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold text-sm rounded-xl cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Clock className="w-4 h-4" />
+                      Request Pending Approval ⏳
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleRequestToJoinGroup(activeGroup)}
+                      className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/25 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Ask Owner to Join Group 📩
+                    </button>
+                  )}
 
                   <button
                     onClick={() => {
@@ -1655,45 +1887,132 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   />
                 </div>
 
-                {/* Emoji Avatar Selector */}
+                {/* Group Icon Selector (Emoji / Custom PNG/JPG / URL) */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Choose Group Icon Emoji
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Group Icon
                   </label>
-                  <div className="flex gap-2 flex-wrap">
-                    {['🏆', '⚡', '🚀', '💻', '🧬', '📐', '📚', '🎯', '💡'].map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={() => setNewGroupEmoji(emoji)}
-                        className={`w-10 h-10 rounded-xl text-lg flex items-center justify-center border transition ${
-                          newGroupEmoji === emoji
-                            ? 'border-primary-500 bg-primary-50 dark:bg-primary-950/40'
-                            : 'border-slate-200 dark:border-slate-800'
-                        }`}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
+                  <div className="flex gap-2 mb-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setNewGroupIconType('emoji')}
+                      className={`flex-1 py-1.5 rounded-lg transition ${
+                        newGroupIconType === 'emoji'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Emoji
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewGroupIconType('file')}
+                      className={`flex-1 py-1.5 rounded-lg transition ${
+                        newGroupIconType === 'file'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Upload PNG/JPG
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewGroupIconType('url')}
+                      className={`flex-1 py-1.5 rounded-lg transition ${
+                        newGroupIconType === 'url'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Image URL
+                    </button>
                   </div>
+
+                  {newGroupIconType === 'emoji' && (
+                    <div className="flex gap-2 flex-wrap">
+                      {['🏆', '⚡', '🚀', '💻', '🧬', '📐', '📚', '🎯', '💡', '🎓', '🔬', '🎨'].map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => setNewGroupEmoji(emoji)}
+                          className={`w-10 h-10 rounded-xl text-lg flex items-center justify-center border transition ${
+                            newGroupEmoji === emoji
+                              ? 'border-primary-500 bg-primary-50 dark:bg-primary-950/40'
+                              : 'border-slate-200 dark:border-slate-800'
+                          }`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {newGroupIconType === 'file' && (
+                    <div className="space-y-2">
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg, image/webp"
+                        onChange={(e) => handleFileUpload(e, false)}
+                        className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary-50 file:text-primary-700 dark:file:bg-slate-800 dark:file:text-primary-400 hover:file:bg-primary-100"
+                      />
+                      {newGroupIconUrl && (
+                        <div className="flex items-center gap-3 p-2 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                          <img src={newGroupIconUrl} alt="Preview" className="w-10 h-10 rounded-xl object-cover" />
+                          <span className="text-xs text-emerald-600 font-bold">Custom Icon Loaded!</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {newGroupIconType === 'url' && (
+                    <input
+                      type="url"
+                      placeholder="https://example.com/logo.png"
+                      value={newGroupIconUrl}
+                      onChange={(e) => setNewGroupIconUrl(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  )}
                 </div>
 
-                {/* Public / Private Toggle */}
-                <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
-                  <div>
-                    <span className="block text-xs font-bold text-slate-800 dark:text-white">
-                      Public Group
-                    </span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                      Allow other students in SJ Tutor AI to discover & join
-                    </span>
+                {/* Public / Private Selector */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Group Privacy
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewGroupIsPublic(true)}
+                      className={`p-3 rounded-2xl border text-left transition flex items-start gap-2.5 ${
+                        newGroupIsPublic
+                          ? 'border-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <Globe className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="block text-xs font-bold">Public Group</span>
+                        <span className="text-[10px] opacity-80 block leading-tight">Displayed in Explore Hubs.</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNewGroupIsPublic(false)}
+                      className={`p-3 rounded-2xl border text-left transition flex items-start gap-2.5 ${
+                        !newGroupIsPublic
+                          ? 'border-amber-500 bg-amber-50/80 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="block text-xs font-bold">Private Group</span>
+                        <span className="text-[10px] opacity-80 block leading-tight">Hidden from Explore. Join via ID / Link.</span>
+                      </div>
+                    </button>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={newGroupIsPublic}
-                    onChange={(e) => setNewGroupIsPublic(e.target.checked)}
-                    className="w-4 h-4 text-primary-600 rounded"
-                  />
                 </div>
               </div>
 
@@ -1709,6 +2028,214 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   className="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold shadow-lg transition active:scale-95"
                 >
                   Create Squad
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* EDIT GROUP SETTINGS MODAL */}
+      <AnimatePresence>
+        {showEditModal && activeGroup && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden"
+            >
+              <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-indigo-500" />
+                  Edit Group Settings
+                </h3>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Group Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editGroupName}
+                    onChange={(e) => setEditGroupName(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Subject / Topic *
+                  </label>
+                  <input
+                    type="text"
+                    value={editGroupSubject}
+                    onChange={(e) => setEditGroupSubject(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Group Description
+                  </label>
+                  <textarea
+                    value={editGroupDescription}
+                    onChange={(e) => setEditGroupDescription(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 h-20"
+                  />
+                </div>
+
+                {/* Edit Group Icon */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Group Icon
+                  </label>
+                  <div className="flex gap-2 mb-3 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setEditGroupIconType('emoji')}
+                      className={`flex-1 py-1.5 rounded-lg transition ${
+                        editGroupIconType === 'emoji'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Emoji
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditGroupIconType('file')}
+                      className={`flex-1 py-1.5 rounded-lg transition ${
+                        editGroupIconType === 'file'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Upload PNG/JPG
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditGroupIconType('url')}
+                      className={`flex-1 py-1.5 rounded-lg transition ${
+                        editGroupIconType === 'url'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Image URL
+                    </button>
+                  </div>
+
+                  {editGroupIconType === 'emoji' && (
+                    <div className="flex gap-2 flex-wrap">
+                      {['🏆', '⚡', '🚀', '💻', '🧬', '📐', '📚', '🎯', '💡', '🎓', '🔬', '🎨'].map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => setEditGroupIconEmoji(emoji)}
+                          className={`w-10 h-10 rounded-xl text-lg flex items-center justify-center border transition ${
+                            editGroupIconEmoji === emoji
+                              ? 'border-primary-500 bg-primary-50 dark:bg-primary-950/40'
+                              : 'border-slate-200 dark:border-slate-800'
+                          }`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {editGroupIconType === 'file' && (
+                    <div className="space-y-2">
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg, image/webp"
+                        onChange={(e) => handleFileUpload(e, true)}
+                        className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary-50 file:text-primary-700 dark:file:bg-slate-800 dark:file:text-primary-400 hover:file:bg-primary-100"
+                      />
+                      {editGroupIconUrl && (
+                        <div className="flex items-center gap-3 p-2 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                          <img src={editGroupIconUrl} alt="Preview" className="w-10 h-10 rounded-xl object-cover" />
+                          <span className="text-xs text-emerald-600 font-bold">Image loaded!</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {editGroupIconType === 'url' && (
+                    <input
+                      type="url"
+                      placeholder="https://example.com/logo.png"
+                      value={editGroupIconUrl}
+                      onChange={(e) => setEditGroupIconUrl(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  )}
+                </div>
+
+                {/* Edit Privacy */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Privacy Setting
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditGroupIsPublic(true)}
+                      className={`p-3 rounded-2xl border text-left transition flex items-start gap-2.5 ${
+                        editGroupIsPublic
+                          ? 'border-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <Globe className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="block text-xs font-bold">Public Group</span>
+                        <span className="text-[10px] opacity-80 block leading-tight">Show in Explore Hubs.</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditGroupIsPublic(false)}
+                      className={`p-3 rounded-2xl border text-left transition flex items-start gap-2.5 ${
+                        !editGroupIsPublic
+                          ? 'border-amber-500 bg-amber-50/80 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="block text-xs font-bold">Private Group</span>
+                        <span className="text-[10px] opacity-80 block leading-tight">Hide from Explore Hubs.</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveGroupSettings}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-lg transition active:scale-95 flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  Save Changes
                 </button>
               </div>
             </motion.div>
@@ -1898,16 +2425,80 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   <X className="w-5 h-5" />
                 </button>
 
-                <div className="w-16 h-16 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center text-3xl mb-3 shadow-lg border border-white/30">
-                  {activeGroup.iconEmoji || '📚'}
+                <div className="mb-3">
+                  {renderGroupIcon(activeGroup, "w-16 h-16 text-3xl")}
                 </div>
 
                 <h3 className="text-xl font-black">{activeGroup.name}</h3>
-                <p className="text-xs opacity-90">{activeGroup.subject}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-xs opacity-90">{activeGroup.subject}</p>
+                  <span>•</span>
+                  {activeGroup.isPublic ? (
+                    <span className="px-2 py-0.5 bg-white/20 backdrop-blur-md rounded-md text-[10px] font-bold flex items-center gap-1">
+                      <Globe className="w-3 h-3" /> Public
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 bg-black/30 backdrop-blur-md rounded-md text-[10px] font-bold flex items-center gap-1">
+                      <Lock className="w-3 h-3" /> Private
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Details Body */}
               <div className="p-6 space-y-6 flex-1">
+                {/* Admin/Owner Settings Button */}
+                {(activeGroup.createdBy === currentUid || (userUid && activeGroup.createdBy === userUid) || activeGroup.members?.[currentUid]?.role === 'admin' || (userUid && activeGroup.members?.[userUid]?.role === 'admin')) && (
+                  <button
+                    onClick={handleOpenEditModal}
+                    className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700"
+                  >
+                    <Settings className="w-4 h-4 text-indigo-500" />
+                    Edit Group Settings & Privacy
+                  </button>
+                )}
+
+                {/* Pending Join Requests (For Owner/Admin) */}
+                {(activeGroup.createdBy === currentUid || (userUid && activeGroup.createdBy === userUid) || activeGroup.members?.[currentUid]?.role === 'admin' || (userUid && activeGroup.members?.[userUid]?.role === 'admin')) && activeGroup.joinRequests && Object.keys(activeGroup.joinRequests).length > 0 && (
+                  <div className="p-4 bg-amber-50/90 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-900/50 space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                      Pending Join Requests ({Object.keys(activeGroup.joinRequests).length})
+                    </h4>
+                    <div className="space-y-2">
+                      {Object.values(activeGroup.joinRequests).map((req) => (
+                        <div key={req.uid} className="flex items-center justify-between gap-2 p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-amber-100 dark:border-amber-900/30">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700 shrink-0">
+                              {req.photoURL ? <img src={req.photoURL} alt={req.displayName} className="w-full h-full object-cover" /> : req.displayName.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{req.displayName}</p>
+                              <span className="text-[10px] text-slate-400 block">{new Date(req.requestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => handleApproveJoinRequest(activeGroup.id, req)}
+                              className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition shadow-sm"
+                              title="Approve Request"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeclineJoinRequest(activeGroup.id, req.uid)}
+                              className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-sm"
+                              title="Decline Request"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
                     Description

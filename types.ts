@@ -268,6 +268,7 @@ export interface StudyGroup {
   subject: string;
   gradeClass?: string;
   iconEmoji?: string;
+  iconUrl?: string;
   bgColor?: string;
   createdBy: string;
   creatorName: string;
@@ -279,6 +280,7 @@ export interface StudyGroup {
   inviteCode: string;
   pinnedMessageId?: string;
   pinnedMessageText?: string;
+  joinRequests?: Record<string, { uid: string; displayName: string; photoURL?: string; requestedAt: number }>;
   lastMessage?: {
     text: string;
     senderName: string;

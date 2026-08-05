@@ -596,6 +596,91 @@ export const voteGroupPollInFirestore = async (
   }
 };
 
+export const updateGroupInFirestore = async (groupId: string, updates: Partial<StudyGroup>): Promise<boolean> => {
+  try {
+    const cleanUpdates = removeUndefinedFields({
+      ...updates,
+      updatedAt: Date.now()
+    });
+    const groupDocRef = doc(db, "groups", groupId);
+    await updateDoc(groupDocRef, cleanUpdates);
+    return true;
+  } catch (error) {
+    console.error("Error updating group in Firestore:", error);
+    return false;
+  }
+};
+
+export const requestJoinGroupInFirestore = async (
+  groupId: string,
+  userReq: { uid: string; displayName: string; photoURL?: string }
+): Promise<boolean> => {
+  try {
+    const groupDocRef = doc(db, "groups", groupId);
+    const groupSnap = await getDoc(groupDocRef);
+    if (!groupSnap.exists()) return false;
+
+    const groupData = groupSnap.data() as StudyGroup;
+    const currentRequests = groupData.joinRequests || {};
+
+    const newRequests = removeUndefinedFields({
+      ...currentRequests,
+      [userReq.uid]: {
+        uid: userReq.uid,
+        displayName: userReq.displayName,
+        photoURL: userReq.photoURL || '',
+        requestedAt: Date.now()
+      }
+    });
+
+    await updateDoc(groupDocRef, {
+      joinRequests: newRequests,
+      updatedAt: Date.now()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error requesting join group in Firestore:", error);
+    return false;
+  }
+};
+
+export const handleJoinRequestInFirestore = async (
+  groupId: string,
+  applicantUid: string,
+  approve: boolean,
+  applicantInfo?: GroupMember
+): Promise<boolean> => {
+  try {
+    const groupDocRef = doc(db, "groups", groupId);
+    const groupSnap = await getDoc(groupDocRef);
+    if (!groupSnap.exists()) return false;
+
+    const groupData = groupSnap.data() as StudyGroup;
+    const currentRequests = { ...(groupData.joinRequests || {}) };
+    delete currentRequests[applicantUid];
+
+    const updates: any = {
+      joinRequests: currentRequests,
+      updatedAt: Date.now()
+    };
+
+    if (approve && applicantInfo) {
+      const updatedMembers = {
+        ...(groupData.members || {}),
+        [applicantInfo.uid]: applicantInfo
+      };
+      updates.members = updatedMembers;
+      updates.memberCount = Object.keys(updatedMembers).length;
+    }
+
+    await updateDoc(groupDocRef, updates);
+    return true;
+  } catch (error) {
+    console.error("Error handling join request in Firestore:", error);
+    return false;
+  }
+};
+
 export const deleteGroupInFirestore = async (groupId: string): Promise<boolean> => {
   try {
     const messagesRef = collection(db, "groups", groupId, "messages");
