@@ -85,7 +85,7 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow read: if true;
       allow create, update: if isSignedIn() || true;
-      allow delete: if isSignedIn() || true;
+      allow delete: if isSignedIn();
 
       match /messages/{messageId} {
         allow read, write: if true;

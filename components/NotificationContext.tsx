@@ -297,7 +297,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       combined.forEach((notif) => {
         if (!notif.read && !seenNotificationIdsRef.current.has(notif.id)) {
           if (Date.now() - notif.timestamp < 3600 * 1000) {
-            triggerSystemNotification(`[${notif.category}] ${notif.title}`, notif.body, notif.link || '/');
+            triggerSystemNotification(`[${notif.category}] ${notif.title}`, notif.body);
             triggerToastRef.current(notif.title, notif.body, notif.category);
           }
         }
@@ -626,7 +626,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const shouldSystemShow = targetUser === 'all' || (currentUser && targetUser === currentUser.uid);
     if (shouldSystemShow) {
-      triggerSystemNotification(`[${category}] ${title}`, body, link || '/');
+      triggerSystemNotification(`[${category}] ${title}`, body);
     }
 
     try {

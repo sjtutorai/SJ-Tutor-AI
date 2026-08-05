@@ -86,7 +86,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static("dist"));
-    app.get("*all", (req, res) => {
+    app.get("*", (req, res) => {
       res.sendFile(path.resolve(resolvedDirname, "dist", "index.html"));
     });
   }

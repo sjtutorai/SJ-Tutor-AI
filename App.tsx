@@ -166,20 +166,7 @@ const App: React.FC = () => {
 
   const { recordActivity } = useStreak();
 
-  const [pendingGroupInvite, setPendingGroupInvite] = useState<{ groupId: string; inviterName: string; groupName: string } | null>(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const groupId = params.get('group_invite');
-      if (groupId) {
-        return {
-          groupId,
-          inviterName: params.get('inviterName') || 'A User',
-          groupName: params.get('groupName') || 'Group'
-        };
-      }
-    } catch { /* ignore */ }
-    return null;
-  });
+  const [pendingGroupInvite, setPendingGroupInvite] = useState<{ groupId: string; inviterName: string; groupName: string } | null>(null);
 
   const handleNavigateToGroupInvite = (groupId: string, inviterName: string, groupName: string) => {
     setPendingGroupInvite({ groupId, inviterName, groupName });
@@ -257,22 +244,6 @@ const App: React.FC = () => {
     return null;
   });
 
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('group_invite')) {
-        params.delete('group_invite');
-        params.delete('inviterName');
-        params.delete('groupName');
-        let newUrl = window.location.pathname;
-        if (params.toString()) {
-           newUrl += '?' + params.toString();
-        }
-        window.history.replaceState({}, document.title, newUrl);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
   const [shareSuccessModal, setShareSuccessModal] = useState<{
     isOpen: boolean;
     shareId: string;
@@ -285,13 +256,6 @@ const App: React.FC = () => {
 
   const [mode, setMode] = useState<AppMode>(() => {
     try {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("group_invite")) {
-        return AppMode.GROUP_INVITE;
-      }
-      if (params.get("invite")) {
-        return AppMode.GROUPS;
-      }
       return (localStorage.getItem('sjtutor_autosave_mode') as AppMode) || AppMode.DASHBOARD;
     } catch {
       return AppMode.DASHBOARD;
@@ -301,7 +265,7 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       localStorage.setItem('sjtutor_autosave_mode', mode);
-    } catch {
+    } catch (e) {
       console.warn("Could not save mode", e);
     }
   }, [mode]);
@@ -313,7 +277,7 @@ const App: React.FC = () => {
       if (saved) {
         return JSON.parse(saved);
       }
-    } catch {
+    } catch (e) {
       console.warn("Could not load autosaved form data", e);
     }
     const settings = SettingsService.getSettings();
@@ -327,7 +291,7 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       localStorage.setItem('sjtutor_autosave_form_data', JSON.stringify(formData));
-    } catch {
+    } catch (e) {
       console.warn("Could not autosave form data", e);
     }
   }, [formData]);
@@ -338,7 +302,7 @@ const App: React.FC = () => {
       if (saved !== null) {
         return saved === 'true';
       }
-    } catch {
+    } catch (e) {
       console.warn("Could not read sidebar open state", e);
     }
     return typeof window !== 'undefined' ? window.innerWidth >= 1024 : true;
@@ -347,7 +311,7 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       localStorage.setItem('sjtutor_sidebar_open', String(isSidebarOpen));
-    } catch {
+    } catch (e) {
       console.warn("Could not write sidebar open state", e);
     }
   }, [isSidebarOpen]);
@@ -425,7 +389,7 @@ const App: React.FC = () => {
       } else {
         localStorage.removeItem('sjtutor_autosave_quiz_score');
       }
-    } catch {
+    } catch (e) {
       console.warn("Could not autosave active outputs", e);
     }
   }, [summaryContent, homeworkContent, quizData, existingQuizScore]);
@@ -513,7 +477,7 @@ const App: React.FC = () => {
             }
           });
         }
-      } catch {
+      } catch (e) {
         console.error("Error checking reminders", e);
       }
 
@@ -781,7 +745,7 @@ const App: React.FC = () => {
              } else {
                setMode(AppMode.DASHBOARD);
              }
-           } catch {
+           } catch (e) {
              console.error("Error fetching/creating profile:", e);
            }
         } else {
@@ -927,7 +891,7 @@ const App: React.FC = () => {
               }
             }
           }
-        } catch {
+        } catch (e) {
           console.warn("Guest history migration failed:", e);
         }
       }
@@ -1007,7 +971,7 @@ const App: React.FC = () => {
         } else {
           setMode(AppMode.DASHBOARD);
         }
-      } catch {
+      } catch (e) {
         console.error("Error fetching/creating profile on signup success:", e);
       }
     }
@@ -2503,30 +2467,6 @@ const App: React.FC = () => {
                 }}
                 onBack={() => setMode(AppMode.DASHBOARD)}
               />
-            ) : !user ? (
-              <div className="flex flex-col items-center justify-center p-12 text-center h-full">
-                <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/50 text-indigo-500 rounded-full flex items-center justify-center mb-6">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
-                </div>
-                <h3 className="text-2xl font-black text-slate-800 dark:text-white mb-3">Sign In Required</h3>
-                <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-sm leading-relaxed">
-                  You must create an account or sign in to accept group invitations and collaborate with other students.
-                </p>
-                <div className="flex gap-4">
-                  <button 
-                    onClick={() => setMode(AppMode.DASHBOARD)}
-                    className="px-6 py-3 border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-                  >
-                    Go Back
-                  </button>
-                  <button 
-                    onClick={() => setShowAuthModal(true)} 
-                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"
-                  >
-                    Sign In to Join
-                  </button>
-                </div>
-              </div>
             ) : (
               <div className="p-12 text-center text-slate-500">Invalid invitation link.</div>
             )}

@@ -58,7 +58,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   userProfile,
   userUid
 }) => {
-  const { triggerToast, sendNotification } = useNotifications();
+  const { triggerToast } = useNotifications();
   const currentUid = userUid || 'guest_user_' + (userProfile.displayName || 'scholar').toLowerCase().replace(/\s+/g, '_');
   const currentName = userProfile.displayName || 'Scholar User';
 
@@ -108,7 +108,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // 1. Subscribe to Firestore Groups
   useEffect(() => {
     const unsubscribe = subscribeToAllGroups((firestoreGroups) => {
-      if (firestoreGroups) {
+      if (firestoreGroups && firestoreGroups.length > 0) {
         const groupMap = new Map<string, StudyGroup>();
         firestoreGroups.forEach((fg) => groupMap.set(fg.id, fg));
         const merged = Array.from(groupMap.values()).sort((a, b) => b.updatedAt - a.updatedAt);
@@ -373,13 +373,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
         if (activeGroup.members[targetUserId]) {
            triggerToast('Already a Member', 'This user is already in the group.', 'Important Alerts');
         } else {
-           const inviteUrl = `/?group_invite=${activeGroup.id}&inviterName=${encodeURIComponent(userProfile.displayName || 'A user')}&groupName=${encodeURIComponent(activeGroup.name)}`;
            await sendNotification(
              'Group Invitation',
              `${userProfile.displayName || 'A user'} has invited you to join ${activeGroup.name}.`,
              'Important Alerts',
              targetUserId,
-             inviteUrl,
+             undefined,
              {
                type: 'group_invite',
                groupId: activeGroup.id,
@@ -444,34 +443,13 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Filter groups
   const filteredGroups = groups.filter((g) => {
     const isMember = g.members && !!g.members[currentUid];
-    const matchesTab = activeTab === 'my' 
-      ? isMember 
-      : !isMember && (g.isPublic || (g.inviteCode && searchQuery && g.inviteCode.toLowerCase() === searchQuery.toLowerCase()));
+    const matchesTab = activeTab === 'my' ? isMember : !isMember && g.isPublic;
     const matchesSearch =
       g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       g.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      g.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (g.inviteCode && g.inviteCode.toLowerCase().includes(searchQuery.toLowerCase()));
+      g.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTab && matchesSearch;
   });
-
-  // Handle Invite Code from URL
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const invite = params.get('invite');
-    if (invite && groups.length > 0) {
-      const targetGroup = groups.find(g => g.inviteCode?.toUpperCase() === invite.toUpperCase());
-      if (targetGroup) {
-        setActiveGroupId(targetGroup.id);
-        const isMember = targetGroup.members && !!targetGroup.members[currentUid];
-        setActiveTab(isMember ? 'my' : 'explore');
-        window.history.replaceState({}, document.title, window.location.pathname);
-      } else {
-        setSearchQuery(invite);
-        setActiveTab('explore');
-      }
-    }
-  }, [groups, currentUid]);
 
   return (
     <div className="max-w-7xl mx-auto h-[calc(100vh-6rem)] min-h-[600px] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex overflow-hidden">
@@ -745,19 +723,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
             {/* Messages Scroll View */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar">
-              {activeGroup && !(activeGroup.members && !!activeGroup.members[currentUid]) ? (
-                <div className="flex-1 flex flex-col items-center justify-center h-full opacity-60">
-                   <div className="w-16 h-16 rounded-3xl bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center mb-4">
-                     <Info className="w-8 h-8" />
-                   </div>
-                   <h3 className="text-lg font-bold text-slate-500 dark:text-slate-400">
-                     Chat is hidden
-                   </h3>
-                   <p className="text-sm text-slate-400 mt-1 max-w-sm text-center">
-                     Join the group to view the messages and participate in the conversation.
-                   </p>
-                </div>
-              ) : messages.map((msg) => {
+              {messages.map((msg) => {
                 const isMe = msg.senderId === currentUid;
                 const isAi = msg.isAi || msg.senderId === 'ai_tutor';
 
@@ -1037,26 +1003,13 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
             {/* Message Input Bar */}
             <div className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-20">
-              {activeGroup && !(activeGroup.members && !!activeGroup.members[currentUid]) ? (
-                <div className="flex flex-col items-center justify-center p-2 text-center">
-                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">
-                    You must join this group to view all messages and participate in the chat.
-                  </p>
-                  <button
-                    onClick={() => handleToggleJoinGroup(activeGroup)}
-                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-sm transition active:scale-95 flex items-center gap-2"
-                  >
-                    Join Group to Chat
-                  </button>
-                </div>
-              ) : (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }}
-                  className="flex items-center gap-2"
-                >
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage();
+                }}
+                className="flex items-center gap-2"
+              >
                 <button
                   type="button"
                   onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
@@ -1115,7 +1068,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   </button>
                 )}
               </form>
-              )}
             </div>
           </>
         ) : (

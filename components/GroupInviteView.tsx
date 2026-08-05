@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Users, CheckCircle, ArrowLeft, ShieldAlert } from 'lucide-react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useNotifications } from './NotificationContext';
 import { StudyGroup } from '../types';
@@ -43,16 +43,13 @@ export const GroupInviteView: React.FC<GroupInviteViewProps> = ({
       const groupData = groupSnap.data() as StudyGroup;
       
       // Update group with new member
-      const memberKey = `members.${currentUserId}`;
       await updateDoc(groupRef, {
-        [memberKey]: {
+        members: arrayUnion({
           uid: currentUserId,
           displayName: currentUserDisplayName,
           role: 'member',
-          photoURL: null,
           joinedAt: Date.now()
-        },
-        memberCount: (groupData.memberCount || 1) + 1,
+        }),
         updatedAt: Date.now()
       });
 
