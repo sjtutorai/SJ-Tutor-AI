@@ -80,6 +80,42 @@ interface GroupsViewProps {
 
 const DEFAULT_MESSAGES: Record<string, GroupMessage[]> = {};
 
+const getFriendDetails = (chat: DirectChat, currentUid: string): DirectChatParticipant => {
+  let friendUid = '';
+  if (Array.isArray(chat.participants)) {
+    friendUid = chat.participants.find((id) => id !== currentUid) || '';
+  } else if (chat.participantDetails) {
+    friendUid = Object.keys(chat.participantDetails).find((id) => id !== currentUid) || '';
+  } else if (chat.participants && typeof chat.participants === 'object') {
+    friendUid = Object.keys(chat.participants).find((id) => id !== currentUid) || '';
+  }
+
+  if (chat.participantDetails && chat.participantDetails[friendUid]) {
+    return chat.participantDetails[friendUid];
+  }
+
+  if (chat.participants && typeof chat.participants === 'object' && !Array.isArray(chat.participants)) {
+    const p = (chat.participants as Record<string, any>)[friendUid];
+    if (p && typeof p === 'object') {
+      return {
+        uid: friendUid,
+        displayName: p.displayName || 'Student Friend',
+        photoURL: p.photoURL || '',
+        email: p.email || '',
+        registrationNumber: p.registrationNumber || ''
+      };
+    }
+  }
+
+  return {
+    uid: friendUid,
+    displayName: 'Student Friend',
+    photoURL: '',
+    email: '',
+    registrationNumber: ''
+  };
+};
+
 export const GroupsView: React.FC<GroupsViewProps> = ({
   userProfile,
   userUid
@@ -248,30 +284,56 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Start Direct Chat with Friend and redirect immediately to the chat page
   const handleStartDirectChat = async (friend: DirectChatParticipant) => {
-    const chat = await getOrCreateDirectChat(
-      currentUid,
-      {
-        displayName: currentName,
-        photoURL: userProfile.photoURL,
-        email: userProfile.phoneNumber ? `${currentUid}@sjtutor.ai` : '',
-        registrationNumber: userProfile.registrationNumber
-      },
-      friend.uid,
-      {
-        displayName: friend.displayName,
-        photoURL: friend.photoURL,
-        email: friend.email,
-        registrationNumber: friend.registrationNumber
-      }
-    );
+    try {
+      const chat = await getOrCreateDirectChat(
+        currentUid,
+        {
+          displayName: currentName,
+          photoURL: userProfile.photoURL,
+          email: userProfile.email || '',
+          registrationNumber: userProfile.registrationNumber
+        },
+        friend.uid,
+        {
+          displayName: friend.displayName,
+          photoURL: friend.photoURL,
+          email: friend.email,
+          registrationNumber: friend.registrationNumber
+        }
+      );
 
-    // Update local state immediately so chat thread is rendered right away
-    setDirectChats((prev) => (prev.some((c) => c.id === chat.id) ? prev : [chat, ...prev]));
-    setActiveDirectChatId(chat.id);
-    setShowMobileChat(true);
-    setSearchQuery('');
-    setUserSearchResults([]);
-    triggerToast('Direct Chat Opened 💬', `Chat room ready with ${friend.displayName}.`, 'Important Alerts');
+      const completeChat: DirectChat = {
+        ...chat,
+        participantDetails: {
+          ...(chat.participantDetails || {}),
+          [currentUid]: {
+            uid: currentUid,
+            displayName: currentName,
+            photoURL: userProfile.photoURL || '',
+            email: userProfile.email || '',
+            registrationNumber: userProfile.registrationNumber || ''
+          },
+          [friend.uid]: {
+            uid: friend.uid,
+            displayName: friend.displayName,
+            photoURL: friend.photoURL || '',
+            email: friend.email || '',
+            registrationNumber: friend.registrationNumber || ''
+          }
+        }
+      };
+
+      // Update local state immediately so chat thread is rendered right away
+      setDirectChats((prev) => (prev.some((c) => c.id === completeChat.id) ? prev.map((c) => c.id === completeChat.id ? completeChat : c) : [completeChat, ...prev]));
+      setActiveDirectChatId(completeChat.id);
+      setShowMobileChat(true);
+      setSearchQuery('');
+      setUserSearchResults([]);
+      triggerToast('Direct Chat Opened 💬', `Chat room ready with ${friend.displayName}.`, 'Important Alerts');
+    } catch (err) {
+      console.error('Error starting direct chat:', err);
+      triggerToast('Error ⚠️', 'Could not open direct chat. Please try again.', 'Important Alerts');
+    }
   };
 
   // Send Direct Message
@@ -296,7 +358,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     // Notify recipient of direct message
     const activeChat = directChats.find((c) => c.id === activeDirectChatId);
     if (activeChat) {
-      const recipientUid = activeChat.participants.find((uid) => uid !== currentUid);
+      const recipientUid = Array.isArray(activeChat.participants)
+        ? activeChat.participants.find((uid) => uid !== currentUid)
+        : Object.keys(activeChat.participantDetails || {}).find((uid) => uid !== currentUid);
+
       if (recipientUid) {
         await sendNotification(
           `💬 Message from ${currentName}`,
@@ -1419,8 +1484,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 ) : (
                   <div className="space-y-1.5">
                     {directChats.map((chat) => {
-                      const friendUid = Object.keys(chat.participants || {}).find((id) => id !== currentUid) || '';
-                      const friend = chat.participants?.[friendUid] || { displayName: 'Student Friend', photoURL: '' };
+                      const friend = getFriendDetails(chat, currentUid);
                       const isActive = chat.id === activeDirectChatId;
 
                       return (
@@ -1600,10 +1664,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
         {activeTab === 'direct' ? (
           (() => {
             const activeChat = directChats.find((c) => c.id === activeDirectChatId);
-            const friendUid = activeChat
-              ? Object.keys(activeChat.participants || {}).find((id) => id !== currentUid) || ''
-              : '';
-            const friend = activeChat?.participants?.[friendUid];
+            const friend = activeChat ? getFriendDetails(activeChat, currentUid) : null;
 
             return activeChat && friend ? (
               <div className="flex-1 flex flex-col h-full bg-slate-100/60 dark:bg-slate-950 overflow-hidden relative">
