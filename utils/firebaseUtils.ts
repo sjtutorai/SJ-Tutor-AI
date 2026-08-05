@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where, serverTimestamp, onSnapshot, orderBy, limit, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where, serverTimestamp, onSnapshot, orderBy, limit, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember } from "../types";
 
@@ -570,15 +570,26 @@ export const voteGroupPollInFirestore = async (
 
 export const deleteGroupInFirestore = async (groupId: string): Promise<boolean> => {
   try {
+    const messagesRef = collection(db, "groups", groupId, "messages");
+    const msgsSnap = await getDocs(messagesRef);
+    const batch = writeBatch(db);
+    msgsSnap.forEach((msgDoc) => {
+      batch.delete(msgDoc.ref);
+    });
     const groupRef = doc(db, "groups", groupId);
-    // In a production app with Cloud Functions, we'd trigger a deletion of subcollections here.
-    // Since we're client side, we just delete the document and let Firestore handle it.
-    // It will be sufficient to just delete the top level group document to hide it.
-    await deleteDoc(groupRef);
+    batch.delete(groupRef);
+    await batch.commit();
     return true;
   } catch (error) {
-    console.error("Error deleting group from Firestore:", error);
-    return false;
+    console.warn("Batch group delete failed, trying doc delete fallback:", error);
+    try {
+      const groupRef = doc(db, "groups", groupId);
+      await deleteDoc(groupRef);
+      return true;
+    } catch (err) {
+      console.error("Error deleting group from Firestore:", err);
+      return false;
+    }
   }
 };
 

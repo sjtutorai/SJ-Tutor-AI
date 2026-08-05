@@ -160,19 +160,16 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // 1. Subscribe to Firestore Groups
   useEffect(() => {
     const unsubscribe = subscribeToAllGroups((firestoreGroups) => {
-      if (firestoreGroups && firestoreGroups.length > 0) {
-        const groupMap = new Map<string, StudyGroup>();
-        firestoreGroups.forEach((fg) => groupMap.set(fg.id, fg));
-        const merged = Array.from(groupMap.values()).sort((a, b) => b.updatedAt - a.updatedAt);
-        setGroups(merged);
+      if (Array.isArray(firestoreGroups)) {
+        setGroups(firestoreGroups);
         try {
-          localStorage.setItem('sjtutor_groups_cache', JSON.stringify(merged));
+          localStorage.setItem('sjtutor_groups_cache', JSON.stringify(firestoreGroups));
         } catch (e) { console.warn('Cache error', e); }
 
-        // Sync activeGroupId based on availability
+        // Sync activeGroupId based on availability across all devices
         setActiveGroupId((prev) => {
-          if (prev && merged.some((g) => g.id === prev)) return prev;
-          const myJoined = merged.filter((g) => g.members && (!!g.members[currentUid] || (userUid && !!g.members[userUid])));
+          if (prev && firestoreGroups.some((g) => g.id === prev)) return prev;
+          const myJoined = firestoreGroups.filter((g) => g.members && (!!g.members[currentUid] || (userUid && !!g.members[userUid])));
           if (myJoined.length > 0) return myJoined[0].id;
           return '';
         });
@@ -358,23 +355,35 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     );
   };
 
-  // Delete Group (Admin only)
+  // Delete Group (Admin / Creator only)
   const handleDeleteGroup = async (group: StudyGroup) => {
-    if (!window.confirm("Are you sure you want to delete this group? This action cannot be undone.")) return;
+    if (!window.confirm(`Are you sure you want to delete "${group.name}"? This action will permanently remove this group for all members on all devices and cannot be undone.`)) return;
     
-    // Switch active group if the deleted one is currently active
+    setShowGroupInfo(false);
+
+    // Immediate local cleanup on deleting device
+    setGroups((prev) => {
+      const remaining = prev.filter((g) => g.id !== group.id);
+      try {
+        localStorage.setItem('sjtutor_groups_cache', JSON.stringify(remaining));
+      } catch (e) { console.warn('Cache error', e); }
+      return remaining;
+    });
+
     if (activeGroupId === group.id) {
-      const remainingGroups = groups.filter((g) => g.id !== group.id);
-      setActiveGroupId(remainingGroups.length > 0 ? remainingGroups[0].id : '');
-      setShowGroupInfo(false);
+      localStorage.removeItem('sjtutor_active_group_id');
+      const remainingJoined = groups.filter((g) => g.id !== group.id && isMemberOf(g));
+      setActiveGroupId(remainingJoined.length > 0 ? remainingJoined[0].id : '');
+      setShowMobileChat(false);
     }
-    
-    // Remove locally
-    setGroups((prev) => prev.filter((g) => g.id !== group.id));
-    
-    // Remove from Firestore
-    await deleteGroupInFirestore(group.id);
-    triggerToast('Group Deleted', 'The group was successfully deleted.', 'Important Alerts');
+
+    // Delete doc and subcollection in Firestore (triggers real-time snapshot on all connected devices)
+    const success = await deleteGroupInFirestore(group.id);
+    if (success) {
+      triggerToast('Group Deleted 🗑️', `"${group.name}" was permanently deleted from all devices.`, 'Important Alerts');
+    } else {
+      triggerToast('Delete Failed', 'Failed to delete group from server. Please try again.', 'Important Alerts');
+    }
   };
 
   // Join or Leave Group
@@ -1932,7 +1941,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     Leave Group
                   </button>
 
-                  {activeGroup.createdBy === currentUid && (
+                  {(activeGroup.createdBy === currentUid || (userUid && activeGroup.createdBy === userUid) || activeGroup.members?.[currentUid]?.role === 'admin' || (userUid && activeGroup.members?.[userUid]?.role === 'admin')) && (
                     <button
                       onClick={() => handleDeleteGroup(activeGroup)}
                       className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm"
