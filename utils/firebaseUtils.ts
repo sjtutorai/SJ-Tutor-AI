@@ -360,14 +360,29 @@ export const getNotesFromFirestore = async (uid: string): Promise<any[]> => {
   }
 };
 
+// Helper to clean undefined properties before passing objects to Firestore
+export const removeUndefinedFields = <T>(obj: T): T => {
+  if (obj === null || obj === undefined || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map((item) => removeUndefinedFields(item)) as unknown as T;
+  const clean: any = {};
+  Object.keys(obj).forEach((key) => {
+    const val = (obj as any)[key];
+    if (val !== undefined) {
+      clean[key] = removeUndefinedFields(val);
+    }
+  });
+  return clean as T;
+};
+
 // =====================================
 // GROUPS FIRESTORE UTILITIES
 // =====================================
 
 export const createGroupInFirestore = async (group: StudyGroup): Promise<boolean> => {
   try {
-    const docRef = doc(db, "groups", group.id);
-    await setDoc(docRef, group);
+    const cleanGroup = removeUndefinedFields(group);
+    const docRef = doc(db, "groups", cleanGroup.id);
+    await setDoc(docRef, cleanGroup);
     return true;
   } catch (error) {
     console.error("Error creating group in Firestore:", error);
@@ -386,8 +401,14 @@ export const subscribeToAllGroups = (callback: (groups: StudyGroup[]) => void): 
       });
       callback(groups);
     }, (err) => {
-      console.warn("Firestore group subscription error:", err);
-      callback([]);
+      console.warn("Firestore group subscription query error, using fallback:", err);
+      // Fallback query without orderBy
+      return onSnapshot(colRef, (snap) => {
+        const groups: StudyGroup[] = [];
+        snap.forEach((d) => groups.push(d.data() as StudyGroup));
+        groups.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        callback(groups);
+      });
     });
   } catch (err) {
     console.warn("Error setting up group subscription:", err);
@@ -407,7 +428,13 @@ export const subscribeToGroupMessages = (groupId: string, callback: (messages: G
       });
       callback(messages);
     }, (err) => {
-      console.warn("Firestore message subscription error:", err);
+      console.warn("Firestore message subscription query error, using fallback listener:", err);
+      return onSnapshot(messagesRef, (snap) => {
+        const msgs: GroupMessage[] = [];
+        snap.forEach((d) => msgs.push(d.data() as GroupMessage));
+        msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        callback(msgs);
+      });
     });
   } catch (err) {
     console.warn("Error subscribing to group messages:", err);
@@ -417,18 +444,19 @@ export const subscribeToGroupMessages = (groupId: string, callback: (messages: G
 
 export const sendGroupMessageInFirestore = async (groupId: string, message: GroupMessage): Promise<boolean> => {
   try {
-    const messageDocRef = doc(db, "groups", groupId, "messages", message.id);
-    await setDoc(messageDocRef, message);
+    const cleanMessage = removeUndefinedFields(message);
+    const messageDocRef = doc(db, "groups", groupId, "messages", cleanMessage.id);
+    await setDoc(messageDocRef, cleanMessage);
 
     // Update group's lastMessage and updatedAt
     const groupDocRef = doc(db, "groups", groupId);
     await updateDoc(groupDocRef, {
-      updatedAt: message.timestamp,
-      lastMessage: {
-        text: message.text,
-        senderName: message.senderName,
-        timestamp: message.timestamp,
-      },
+      updatedAt: cleanMessage.timestamp || Date.now(),
+      lastMessage: removeUndefinedFields({
+        text: cleanMessage.text || '',
+        senderName: cleanMessage.senderName || 'Member',
+        timestamp: cleanMessage.timestamp || Date.now(),
+      }),
     });
     return true;
   } catch (error) {

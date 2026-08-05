@@ -313,15 +313,22 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       groupId: activeGroupId,
       senderId: currentUid,
       senderName: currentName,
-      senderAvatar: userProfile.photoURL || undefined,
-      text: finalText,
+      text: finalText.trim(),
       timestamp: Date.now(),
       type: messageType,
-      replyTo: replyingTo ? { id: replyingTo.id, senderName: replyingTo.senderName, text: replyingTo.text } : undefined,
       reactions: {},
-      status: 'delivered',
-      ...extraData
+      status: 'delivered'
     };
+
+    if (userProfile.photoURL) {
+      newMsg.senderAvatar = userProfile.photoURL;
+    }
+    if (replyingTo) {
+      newMsg.replyTo = { id: replyingTo.id, senderName: replyingTo.senderName, text: replyingTo.text };
+    }
+    if (extraData && typeof extraData === 'object') {
+      Object.assign(newMsg, extraData);
+    }
 
     // Optimistically update local message list
     const updatedMessages = [...messages, newMsg];
@@ -335,7 +342,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     } catch (e) { console.warn('Storage warn', e); }
 
     // Sync to Firestore
-    await sendGroupMessageInFirestore(activeGroupId, newMsg);
+    const sentOk = await sendGroupMessageInFirestore(activeGroupId, newMsg);
+    if (!sentOk) {
+      triggerToast('Sync Issue ⚠️', 'Failed to deliver message to group server. Retrying...', 'Important Alerts');
+    }
 
     // Update group last message snippet
     setGroups((prev) =>
