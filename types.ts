@@ -235,12 +235,19 @@ export interface GroupPoll {
   createdBy: string;
 }
 
+export interface GroupMemberPermissions {
+  canAddMembers?: boolean;
+  canEditGroupIcon?: boolean;
+  canChat?: boolean;
+}
+
 export interface GroupMember {
   uid: string;
   displayName: string;
   photoURL?: string;
   role: 'admin' | 'member';
   joinedAt: number;
+  permissions?: GroupMemberPermissions;
 }
 
 export interface GroupMessage {
@@ -277,6 +284,14 @@ export interface StudyGroup {
   members: Record<string, GroupMember>;
   memberCount: number;
   isPublic: boolean;
+  isDirect?: boolean;
+  directUser?: {
+    uid: string;
+    displayName: string;
+    email?: string;
+    photoURL?: string;
+    registrationNumber?: string;
+  };
   inviteCode: string;
   pinnedMessageId?: string;
   pinnedMessageText?: string;

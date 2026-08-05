@@ -706,4 +706,147 @@ export const deleteGroupInFirestore = async (groupId: string): Promise<boolean> 
   }
 };
 
+export const findUserByEmailOrRegId = async (searchQuery: string): Promise<UserProfile & { uid: string } | null> => {
+  if (!searchQuery || !searchQuery.trim()) return null;
+  const queryTerm = searchQuery.trim();
+
+  try {
+    const usersRef = collection(db, "users");
+
+    // 1. Search by registrationNumber
+    const qReg = query(usersRef, where("registrationNumber", "==", queryTerm));
+    const snapReg = await getDocs(qReg);
+    if (!snapReg.empty) {
+      const d = snapReg.docs[0];
+      return { ...(d.data() as UserProfile), uid: d.id };
+    }
+
+    // 2. Search by email (exact match or lowercased)
+    const qEmail = query(usersRef, where("email", "==", queryTerm.toLowerCase()));
+    const snapEmail = await getDocs(qEmail);
+    if (!snapEmail.empty) {
+      const d = snapEmail.docs[0];
+      return { ...(d.data() as UserProfile), uid: d.id };
+    }
+
+    // 3. Search by doc ID / UID directly
+    const userDocRef = doc(db, "users", queryTerm);
+    const snapDoc = await getDoc(userDocRef);
+    if (snapDoc.exists()) {
+      return { ...(snapDoc.data() as UserProfile), uid: snapDoc.id };
+    }
+
+    return null;
+  } catch (err) {
+    console.error("Error searching for user by email/regId:", err);
+    return null;
+  }
+};
+
+export const createOrGetDirectChatInFirestore = async (
+  currentUser: { uid: string; displayName: string; photoURL?: string; email?: string; registrationNumber?: string },
+  targetUser: { uid: string; displayName: string; photoURL?: string; email?: string; registrationNumber?: string }
+): Promise<StudyGroup | null> => {
+  if (!currentUser.uid || !targetUser.uid) return null;
+
+  // Generate deterministic direct chat ID
+  const uids = [currentUser.uid, targetUser.uid].sort();
+  const directGroupId = `dm_${uids[0]}_${uids[1]}`;
+
+  try {
+    const groupRef = doc(db, "groups", directGroupId);
+    const snap = await getDoc(groupRef);
+
+    if (snap.exists()) {
+      return snap.data() as StudyGroup;
+    }
+
+    // Create new direct chat
+    const directGroup: StudyGroup = {
+      id: directGroupId,
+      name: targetUser.displayName,
+      description: `Direct chat between ${currentUser.displayName} and ${targetUser.displayName}`,
+      subject: 'Direct Message',
+      gradeClass: 'Friend',
+      iconEmoji: '💬',
+      iconUrl: targetUser.photoURL,
+      bgColor: 'from-indigo-500 to-purple-600',
+      createdBy: currentUser.uid,
+      creatorName: currentUser.displayName,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      memberCount: 2,
+      isPublic: false,
+      isDirect: true,
+      directUser: targetUser,
+      inviteCode: directGroupId,
+      members: {
+        [currentUser.uid]: {
+          uid: currentUser.uid,
+          displayName: currentUser.displayName,
+          photoURL: currentUser.photoURL || '',
+          role: 'admin',
+          joinedAt: Date.now(),
+          permissions: { canAddMembers: true, canEditGroupIcon: true, canChat: true }
+        },
+        [targetUser.uid]: {
+          uid: targetUser.uid,
+          displayName: targetUser.displayName,
+          photoURL: targetUser.photoURL || '',
+          role: 'admin',
+          joinedAt: Date.now(),
+          permissions: { canAddMembers: true, canEditGroupIcon: true, canChat: true }
+        }
+      }
+    };
+
+    await setDoc(groupRef, directGroup);
+    return directGroup;
+  } catch (err) {
+    console.error("Error creating/getting direct chat in Firestore:", err);
+    return null;
+  }
+};
+
+export const updateMemberPermissionsInFirestore = async (
+  groupId: string,
+  memberUid: string,
+  role: 'admin' | 'member',
+  permissions: { canAddMembers?: boolean; canEditGroupIcon?: boolean; canChat?: boolean }
+): Promise<boolean> => {
+  try {
+    const groupRef = doc(db, "groups", groupId);
+    const snap = await getDoc(groupRef);
+    if (!snap.exists()) return false;
+
+    const groupData = snap.data() as StudyGroup;
+    const existingMember = groupData.members?.[memberUid];
+    if (!existingMember) return false;
+
+    const updatedMember: GroupMember = {
+      ...existingMember,
+      role,
+      permissions: {
+        ...(existingMember.permissions || {}),
+        ...permissions
+      }
+    };
+
+    const updatedMembers = {
+      ...(groupData.members || {}),
+      [memberUid]: updatedMember
+    };
+
+    await updateDoc(groupRef, {
+      members: updatedMembers,
+      updatedAt: Date.now()
+    });
+
+    return true;
+  } catch (err) {
+    console.error("Error updating member permissions in Firestore:", err);
+    return false;
+  }
+};
+
 

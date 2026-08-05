@@ -27,7 +27,9 @@ import {
   ExternalLink,
   Lock,
   Clock,
-  Settings
+  Settings,
+  Search,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -52,7 +54,10 @@ import {
   leaveGroupInFirestore,
   toggleGroupMessageReactionInFirestore,
   voteGroupPollInFirestore,
-  deleteGroupInFirestore
+  deleteGroupInFirestore,
+  findUserByEmailOrRegId,
+  createOrGetDirectChatInFirestore,
+  updateMemberPermissionsInFirestore
 } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
 
@@ -89,7 +94,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   });
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'my' | 'explore'>('my');
+  const [activeTab, setActiveTab] = useState<'my' | 'direct' | 'explore'>('my');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinByIdModal, setShowJoinByIdModal] = useState(false);
   const [joinInput, setJoinInput] = useState('');
@@ -98,6 +103,163 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [inviting, setInviting] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
+
+  // Direct Chat States
+  const [showDirectChatModal, setShowDirectChatModal] = useState(false);
+  const [directSearchQuery, setDirectSearchQuery] = useState('');
+  const [directSearching, setDirectSearching] = useState(false);
+  const [directSearchResult, setDirectSearchResult] = useState<(UserProfile & { uid: string }) | null>(null);
+  const [directSearchError, setDirectSearchError] = useState<string | null>(null);
+
+  // Manage Member Permissions Modal States
+  const [editingMember, setEditingMember] = useState<GroupMember | null>(null);
+  const [editMemberRole, setEditMemberRole] = useState<'admin' | 'member'>('member');
+  const [editMemberCanAdd, setEditMemberCanAdd] = useState(true);
+  const [editMemberCanEditIcon, setEditMemberCanEditIcon] = useState(false);
+  const [editMemberCanChat, setEditMemberCanChat] = useState(true);
+  const [savingMemberPerms, setSavingMemberPerms] = useState(false);
+
+  // Helper check for group permissions
+  const hasGroupPermission = (group: StudyGroup | null, uid: string, perm: 'canAddMembers' | 'canEditGroupIcon' | 'canChat'): boolean => {
+    if (!group || !uid) return false;
+    // Direct chats always have full permissions for both participants
+    if (group.isDirect) return true;
+    // Creator / Owner always has full permission
+    if (group.createdBy === uid || (userUid && group.createdBy === userUid)) return true;
+
+    const member = group.members?.[uid] || (userUid ? group.members?.[userUid] : undefined);
+    if (!member) return false;
+
+    // Admin role has full permission by default
+    if (member.role === 'admin') return true;
+
+    // Specific permission overrides
+    if (member.permissions && member.permissions[perm] !== undefined) {
+      return member.permissions[perm]!;
+    }
+
+    // Defaults for regular members
+    if (perm === 'canChat') return true;
+    if (perm === 'canAddMembers') return true;
+    if (perm === 'canEditGroupIcon') return false;
+
+    return false;
+  };
+
+  // Direct Chat / Friend Search Handlers
+  const handleSearchFriend = async () => {
+    if (!directSearchQuery.trim()) return;
+    setDirectSearching(true);
+    setDirectSearchError(null);
+    setDirectSearchResult(null);
+
+    try {
+      const user = await findUserByEmailOrRegId(directSearchQuery.trim());
+      if (!user) {
+        setDirectSearchError('No registered user found with that Email ID or Registration ID.');
+      } else if (user.uid === currentUid || (userUid && user.uid === userUid)) {
+        setDirectSearchError("You entered your own Email ID or Registration ID.");
+      } else {
+        setDirectSearchResult(user);
+      }
+    } catch (err: any) {
+      console.error('Error searching friend:', err);
+      setDirectSearchError('Failed to search for user. Please try again.');
+    } finally {
+      setDirectSearching(false);
+    }
+  };
+
+  const handleStartDirectChat = async (friend: UserProfile & { uid: string }) => {
+    const currentUserObj = {
+      uid: currentUid,
+      displayName: currentName,
+      photoURL: userProfile.photoURL || '',
+      email: (userProfile as any).email || '',
+      registrationNumber: userProfile.registrationNumber || ''
+    };
+
+    const targetUserObj = {
+      uid: friend.uid,
+      displayName: friend.displayName || 'Friend',
+      photoURL: friend.photoURL || '',
+      email: (friend as any).email || '',
+      registrationNumber: friend.registrationNumber || ''
+    };
+
+    const directChat = await createOrGetDirectChatInFirestore(currentUserObj, targetUserObj);
+
+    if (directChat) {
+      setGroups((prev) => {
+        const exists = prev.some((g) => g.id === directChat.id);
+        if (exists) {
+          return prev.map((g) => (g.id === directChat.id ? directChat : g));
+        }
+        return [directChat, ...prev];
+      });
+
+      setActiveGroupId(directChat.id);
+      setActiveTab('direct');
+      setShowMobileChat(true);
+      setShowDirectChatModal(false);
+      setDirectSearchQuery('');
+      setDirectSearchResult(null);
+      triggerToast('Direct Chat Started! 💬', `Chat room with ${targetUserObj.displayName} opened!`, 'Important Alerts');
+    } else {
+      triggerToast('Chat Error', 'Could not start direct chat. Please try again.', 'Important Alerts');
+    }
+  };
+
+  // Member Permission Management Handlers
+  const handleOpenMemberPermissionsModal = (member: GroupMember) => {
+    setEditingMember(member);
+    setEditMemberRole(member.role || 'member');
+    setEditMemberCanAdd(member.permissions?.canAddMembers !== false);
+    setEditMemberCanEditIcon(member.permissions?.canEditGroupIcon === true);
+    setEditMemberCanChat(member.permissions?.canChat !== false);
+  };
+
+  const handleSaveMemberPermissions = async () => {
+    if (!activeGroup || !editingMember) return;
+    setSavingMemberPerms(true);
+
+    const newPerms = {
+      canAddMembers: editMemberCanAdd,
+      canEditGroupIcon: editMemberCanEditIcon,
+      canChat: editMemberCanChat
+    };
+
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== activeGroup.id) return g;
+        const updatedMembers = { ...g.members };
+        if (updatedMembers[editingMember.uid]) {
+          updatedMembers[editingMember.uid] = {
+            ...updatedMembers[editingMember.uid],
+            role: editMemberRole,
+            permissions: newPerms
+          };
+        }
+        return { ...g, members: updatedMembers };
+      })
+    );
+
+    const ok = await updateMemberPermissionsInFirestore(activeGroup.id, editingMember.uid, editMemberRole, newPerms);
+    setSavingMemberPerms(false);
+    setEditingMember(null);
+
+    if (ok) {
+      triggerToast('Permissions Saved 🛡️', `Permissions updated for ${editingMember.displayName}`, 'Important Alerts');
+      await sendNotification(
+        'Permissions Updated 🛡️',
+        `Your permissions in group "${activeGroup.name}" have been updated by an admin.`,
+        'Important Alerts',
+        editingMember.uid
+      );
+    } else {
+      triggerToast('Save Error', 'Failed to update member permissions in Firestore.', 'Important Alerts');
+    }
+  };
 
   // Message States
   const [messages, setMessages] = useState<GroupMessage[]>([]);
@@ -313,6 +475,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Handle Send Text Message
   const handleSendMessage = async (textToSend?: string, typeOverride?: 'text' | 'image' | 'poll' | 'voice', extraData?: any) => {
+    if (activeGroup) {
+      const canChat = hasGroupPermission(activeGroup, currentUid, 'canChat');
+      if (!canChat) {
+        triggerToast('Permission Required 🔒', 'Your group admin has disabled chat permissions for your account.', 'Important Alerts');
+        return;
+      }
+    }
+
     const finalText = textToSend || inputText;
     if (!finalText.trim() && typeOverride !== 'image' && typeOverride !== 'poll' && typeOverride !== 'voice') return;
 
@@ -617,6 +787,25 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Render group avatar icon helper
   const renderGroupIcon = (group: Partial<StudyGroup>, sizeClass = "w-11 h-11 text-xl") => {
+    if (group.isDirect && group.directUser) {
+      if (group.directUser.photoURL) {
+        return (
+          <img
+            src={group.directUser.photoURL}
+            alt={group.directUser.displayName || 'Friend'}
+            className={`${sizeClass} rounded-2xl object-cover border border-slate-200/50 dark:border-slate-700 shadow-sm flex-shrink-0`}
+          />
+        );
+      }
+      return (
+        <div
+          className={`${sizeClass} rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-md flex-shrink-0`}
+        >
+          <span>{(group.directUser.displayName || 'F').charAt(0).toUpperCase()}</span>
+        </div>
+      );
+    }
+
     if (group.iconUrl) {
       return (
         <img
@@ -792,6 +981,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Open Edit Group Settings Modal
   const handleOpenEditModal = () => {
     if (!activeGroup) return;
+    const canEdit = hasGroupPermission(activeGroup, currentUid, 'canEditGroupIcon');
+    if (!canEdit) {
+      triggerToast('Permission Required 🔒', 'Only group admins or members with icon edit permission can update group settings.', 'Important Alerts');
+      return;
+    }
     setEditGroupName(activeGroup.name || '');
     setEditGroupSubject(activeGroup.subject || '');
     setEditGroupDescription(activeGroup.description || '');
@@ -832,18 +1026,22 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   const handleInviteUser = async () => {
     if (!inviteRegId.trim() || !activeGroup) return;
+
+    const canAdd = hasGroupPermission(activeGroup, currentUid, 'canAddMembers');
+    if (!canAdd) {
+      triggerToast('Permission Required 🔒', 'Your group admin has disabled member invite permissions for your account.', 'Important Alerts');
+      return;
+    }
+
     setInviting(true);
     try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('registrationNumber', '==', inviteRegId.trim()));
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        triggerToast('User Not Found', 'No user found with that Registration ID.', 'Important Alerts');
+      const foundUser = await findUserByEmailOrRegId(inviteRegId.trim());
+      if (!foundUser) {
+        triggerToast('User Not Found', 'No registered user found with that Email ID or Registration ID.', 'Important Alerts');
       } else {
-        const targetUserDoc = snap.docs[0];
-        const targetUserId = targetUserDoc.id;
+        const targetUserId = foundUser.uid;
         
-        if (activeGroup.members[targetUserId]) {
+        if (activeGroup.members?.[targetUserId]) {
            triggerToast('Already a Member', 'This user is already in the group.', 'Important Alerts');
         } else {
            await sendNotification(
@@ -859,7 +1057,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                groupName: activeGroup.name
              }
            );
-           triggerToast('Invite Sent', 'Invitation sent successfully!', 'Important Alerts');
+           triggerToast('Invite Sent! 📩', `Invitation sent to ${foundUser.displayName || inviteRegId}`, 'Important Alerts');
            setInviteRegId('');
         }
       }
@@ -921,11 +1119,23 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Filter groups
   const filteredGroups = groups.filter((g) => {
     const isMember = isMemberOf(g);
-    const matchesTab = activeTab === 'my' ? isMember : !isMember && g.isPublic;
+    let matchesTab = false;
+    if (activeTab === 'my') {
+      matchesTab = !g.isDirect && isMember;
+    } else if (activeTab === 'direct') {
+      matchesTab = g.isDirect === true && isMember;
+    } else if (activeTab === 'explore') {
+      matchesTab = !g.isDirect && g.isPublic;
+    }
+
     const matchesSearch =
       g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       g.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      g.description.toLowerCase().includes(searchQuery.toLowerCase());
+      g.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (g.directUser?.displayName && g.directUser.displayName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (g.directUser?.email && g.directUser.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (g.directUser?.registrationNumber && g.directUser.registrationNumber.toLowerCase().includes(searchQuery.toLowerCase()));
+
     return matchesTab && matchesSearch;
   });
 
@@ -956,8 +1166,17 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
             <div className="flex items-center gap-1.5">
               <button
+                onClick={() => setShowDirectChatModal(true)}
+                className="p-2 sm:px-2.5 py-2 bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-600 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60 rounded-xl transition-all active:scale-95 flex items-center gap-1 text-xs font-bold shrink-0"
+                title="Start 1-on-1 Chat with Friend by Email or Reg ID"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Direct Chat</span>
+              </button>
+
+              <button
                 onClick={() => setShowJoinByIdModal(true)}
-                className="p-2 sm:px-3 py-2 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 rounded-xl transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold shrink-0"
+                className="p-2 sm:px-2.5 py-2 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 rounded-xl transition-all active:scale-95 flex items-center gap-1 text-xs font-bold shrink-0"
                 title="Join Group by ID, Invite Code, or Link"
               >
                 <LinkIcon className="w-3.5 h-3.5" />
@@ -966,11 +1185,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="p-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold shrink-0"
+                className="p-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1 text-xs font-bold shrink-0"
                 title="Create New Study Group"
               >
                 <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">New Group</span>
+                <span className="hidden sm:inline">New</span>
               </button>
             </div>
           </div>
@@ -980,7 +1199,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search groups or subjects..."
+              placeholder="Search groups, friends, or subjects..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 transition-all"
@@ -996,20 +1215,31 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex p-1 bg-slate-200/60 dark:bg-slate-800 rounded-xl text-xs font-bold">
+          <div className="flex p-1 bg-slate-200/60 dark:bg-slate-800 rounded-xl text-xs font-bold gap-1">
             <button
               onClick={() => setActiveTab('my')}
-              className={`flex-1 py-1.5 rounded-lg transition-all ${
+              className={`flex-1 py-1.5 px-2 rounded-lg transition-all ${
                 activeTab === 'my'
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              My Groups ({groups.filter(isMemberOf).length})
+              Groups ({groups.filter((g) => !g.isDirect && isMemberOf(g)).length})
+            </button>
+            <button
+              onClick={() => setActiveTab('direct')}
+              className={`flex-1 py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 ${
+                activeTab === 'direct'
+                  ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-300 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Direct ({groups.filter((g) => g.isDirect && isMemberOf(g)).length})
             </button>
             <button
               onClick={() => setActiveTab('explore')}
-              className={`flex-1 py-1.5 rounded-lg transition-all ${
+              className={`flex-1 py-1.5 px-2 rounded-lg transition-all ${
                 activeTab === 'explore'
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
@@ -1025,24 +1255,31 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           {filteredGroups.length === 0 ? (
             <div className="text-center py-12 px-4">
               <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-3 text-slate-400">
-                <Users className="w-6 h-6" />
+                {activeTab === 'direct' ? <MessageSquare className="w-6 h-6 text-purple-500" /> : <Users className="w-6 h-6" />}
               </div>
               <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">
-                {activeTab === 'my' ? 'No Joined Groups Yet' : 'No Public Groups Found'}
+                {activeTab === 'my'
+                  ? 'No Joined Groups Yet'
+                  : activeTab === 'direct'
+                  ? 'No Direct Conversations'
+                  : 'No Public Groups Found'}
               </p>
               <p className="text-xs text-slate-400 mb-4 max-w-xs mx-auto">
                 {activeTab === 'my'
                   ? 'Join an existing study hub or create your own study group!'
+                  : activeTab === 'direct'
+                  ? 'Start a 1-on-1 direct chat with a friend by typing their Email ID or Registration ID!'
                   : 'Try adjusting your search query or create a new group.'}
               </p>
               <button
                 onClick={() => {
-                  if (activeTab === 'my') setActiveTab('explore');
+                  if (activeTab === 'direct') setShowDirectChatModal(true);
+                  else if (activeTab === 'my') setActiveTab('explore');
                   else setShowCreateModal(true);
                 }}
                 className="px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-bold hover:bg-primary-700 transition"
               >
-                {activeTab === 'my' ? 'Explore Public Groups' : 'Create Group'}
+                {activeTab === 'direct' ? 'Find Friend to Chat 💬' : activeTab === 'my' ? 'Explore Public Groups' : 'Create Group'}
               </button>
             </div>
           ) : (
@@ -2642,13 +2879,22 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                             ) : null}
 
                             {canRemove && (
-                              <button
-                                onClick={() => handleRemoveMember(activeGroup, m.uid, m.displayName)}
-                                className="p-1.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl transition shrink-0"
-                                title={`Remove ${m.displayName} from group`}
-                              >
-                                <UserX className="w-4 h-4" />
-                              </button>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  onClick={() => handleOpenMemberPermissionsModal(m)}
+                                  className="p-1.5 hover:bg-amber-100 dark:hover:bg-amber-950/50 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-xl transition"
+                                  title={`Manage ${m.displayName}'s permissions & role`}
+                                >
+                                  <ShieldCheck className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveMember(activeGroup, m.uid, m.displayName)}
+                                  className="p-1.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl transition"
+                                  title={`Remove ${m.displayName} from group`}
+                                >
+                                  <UserX className="w-4 h-4" />
+                                </button>
+                              </div>
                             )}
                           </div>
                         );
@@ -2679,6 +2925,247 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     </button>
                   )}
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* DIRECT CHAT / FIND FRIEND MODAL */}
+      <AnimatePresence>
+        {showDirectChatModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden"
+            >
+              <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 flex items-center justify-center">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Start Direct Chat
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Chat 1-on-1 using Email ID or Registration ID
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowDirectChatModal(false);
+                    setDirectSearchResult(null);
+                    setDirectSearchError(null);
+                    setDirectSearchQuery('');
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Friend&apos;s Email ID or Registration ID *
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="e.g. friend@gmail.com or REG12345"
+                        value={directSearchQuery}
+                        onChange={(e) => {
+                          setDirectSearchQuery(e.target.value);
+                          setDirectSearchError(null);
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearchFriend()}
+                        className="w-full pl-9 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                    <button
+                      onClick={handleSearchFriend}
+                      disabled={directSearching || !directSearchQuery.trim()}
+                      className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition disabled:opacity-50 shrink-0"
+                    >
+                      {directSearching ? 'Searching...' : 'Search'}
+                    </button>
+                  </div>
+                </div>
+
+                {directSearchError && (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-xl text-xs border border-rose-200 dark:border-rose-900/50">
+                    {directSearchError}
+                  </div>
+                )}
+
+                {directSearchResult && (
+                  <div className="p-4 bg-purple-50/70 dark:bg-purple-950/30 rounded-2xl border border-purple-200 dark:border-purple-800/50 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-purple-200 dark:bg-purple-900 flex items-center justify-center font-bold text-purple-700 dark:text-purple-300 shrink-0">
+                        {directSearchResult.photoURL ? (
+                          <img src={directSearchResult.photoURL} alt={directSearchResult.displayName} className="w-full h-full object-cover" />
+                        ) : (
+                          (directSearchResult.displayName || 'F').charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {directSearchResult.displayName || 'User'}
+                        </p>
+                        {directSearchResult.registrationNumber && (
+                          <p className="text-[11px] text-purple-600 dark:text-purple-400 font-mono font-medium">
+                            Reg ID: {directSearchResult.registrationNumber}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleStartDirectChat(directSearchResult)}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md transition active:scale-95 shrink-0 flex items-center gap-1.5"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Chat Now
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MEMBER PERMISSIONS & ROLE MANAGEMENT MODAL */}
+      <AnimatePresence>
+        {editingMember && activeGroup && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden"
+            >
+              <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 flex items-center justify-center">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Member Permissions
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
+                      Manage permissions for {editingMember.displayName}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setEditingMember(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                {/* Role Selection */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    Member Role
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditMemberRole('member')}
+                      className={`p-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 ${
+                        editMemberRole === 'member'
+                          ? 'bg-primary-50 dark:bg-slate-800 border-primary-500 text-primary-700 dark:text-primary-300 shadow-sm'
+                          : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      Member
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditMemberRole('admin')}
+                      className={`p-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 ${
+                        editMemberRole === 'admin'
+                          ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-500 text-amber-700 dark:text-amber-300 shadow-sm'
+                          : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      Admin
+                    </button>
+                  </div>
+                </div>
+
+                {/* Granular Permissions Toggles */}
+                <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Granular Privileges
+                  </h4>
+
+                  <label className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 dark:text-white">Allow Chatting & Sending Messages</p>
+                      <p className="text-[10px] text-slate-400">Can post text, polls, images and voice notes</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={editMemberCanChat}
+                      onChange={(e) => setEditMemberCanChat(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 dark:text-white">Allow Inviting / Adding Teammates</p>
+                      <p className="text-[10px] text-slate-400">Can invite friends via Registration ID or Email ID</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={editMemberCanAdd}
+                      onChange={(e) => setEditMemberCanAdd(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 dark:text-white">Allow Editing Group Icon & Details</p>
+                      <p className="text-[10px] text-slate-400">Can update icon URL, emoji, and public settings</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={editMemberCanEditIcon}
+                      onChange={(e) => setEditMemberCanEditIcon(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+                <button
+                  onClick={() => setEditingMember(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveMemberPermissions}
+                  disabled={savingMemberPerms}
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-lg transition active:scale-95 disabled:opacity-50"
+                >
+                  {savingMemberPerms ? 'Saving...' : 'Save Permissions'}
+                </button>
               </div>
             </motion.div>
           </div>
