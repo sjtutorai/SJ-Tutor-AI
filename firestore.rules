@@ -81,6 +81,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Direct Chats collection (1-on-1 User-to-User Chat)
+    match /direct_chats/{chatId} {
+      allow read, write: if true;
+
+      match /messages/{messageId} {
+        allow read, write: if true;
+      }
+    }
+
     // Groups collection
     match /groups/{groupId} {
       allow read: if true;

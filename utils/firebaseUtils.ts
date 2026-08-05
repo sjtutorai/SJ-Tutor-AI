@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where, serverTimestamp, onSnapshot, orderBy, limit, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "../firebaseConfig";
-import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember } from "../types";
+import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember, DirectChat, DirectMessage, DirectChatParticipant, MemberPermissions } from "../types";
 
 export const saveProfileToFirestore = async (uid: string, profile: Partial<UserProfile>) => {
   try {
@@ -706,145 +706,241 @@ export const deleteGroupInFirestore = async (groupId: string): Promise<boolean> 
   }
 };
 
-export const findUserByEmailOrRegId = async (searchQuery: string): Promise<UserProfile & { uid: string } | null> => {
-  if (!searchQuery || !searchQuery.trim()) return null;
-  const queryTerm = searchQuery.trim();
+// =====================================
+// MEMBER PERMISSIONS UTILITIES
+// =====================================
+
+export const updateGroupMemberPermissionsInFirestore = async (
+  groupId: string,
+  memberUid: string,
+  permissions: MemberPermissions
+): Promise<boolean> => {
+  try {
+    const groupDocRef = doc(db, "groups", groupId);
+    const groupSnap = await getDoc(groupDocRef);
+    if (!groupSnap.exists()) return false;
+
+    const groupData = groupSnap.data() as StudyGroup;
+    const members = { ...(groupData.members || {}) };
+
+    if (members[memberUid]) {
+      members[memberUid] = {
+        ...members[memberUid],
+        permissions
+      };
+      await updateDoc(groupDocRef, {
+        members,
+        updatedAt: Date.now()
+      });
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error updating member permissions:", error);
+    return false;
+  }
+};
+
+export const updateGroupDefaultPermissionsInFirestore = async (
+  groupId: string,
+  defaultPermissions: MemberPermissions
+): Promise<boolean> => {
+  try {
+    const groupDocRef = doc(db, "groups", groupId);
+    await updateDoc(groupDocRef, {
+      defaultMemberPermissions: defaultPermissions,
+      updatedAt: Date.now()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error updating group default permissions:", error);
+    return false;
+  }
+};
+
+// =====================================
+// USER SEARCH & DIRECT CHAT UTILITIES
+// =====================================
+
+export const searchUsersByEmailOrRegistration = async (
+  queryText: string,
+  currentUid?: string
+): Promise<DirectChatParticipant[]> => {
+  if (!queryText || queryText.trim().length < 2) return [];
+  const cleanQuery = queryText.trim().toLowerCase();
 
   try {
     const usersRef = collection(db, "users");
+    const snapshot = await getDocs(usersRef);
+    const results: DirectChatParticipant[] = [];
 
-    // 1. Search by registrationNumber
-    const qReg = query(usersRef, where("registrationNumber", "==", queryTerm));
-    const snapReg = await getDocs(qReg);
-    if (!snapReg.empty) {
-      const d = snapReg.docs[0];
-      return { ...(d.data() as UserProfile), uid: d.id };
-    }
+    snapshot.forEach((d) => {
+      const u = d.data() as UserProfile & { email?: string };
+      const uid = d.id;
 
-    // 2. Search by email (exact match or lowercased)
-    const qEmail = query(usersRef, where("email", "==", queryTerm.toLowerCase()));
-    const snapEmail = await getDocs(qEmail);
-    if (!snapEmail.empty) {
-      const d = snapEmail.docs[0];
-      return { ...(d.data() as UserProfile), uid: d.id };
-    }
+      if (currentUid && uid === currentUid) return;
 
-    // 3. Search by doc ID / UID directly
-    const userDocRef = doc(db, "users", queryTerm);
-    const snapDoc = await getDoc(userDocRef);
-    if (snapDoc.exists()) {
-      return { ...(snapDoc.data() as UserProfile), uid: snapDoc.id };
-    }
+      const email = (u.email || '').toLowerCase();
+      const regNo = (u.registrationNumber || '').toLowerCase();
+      const name = (u.displayName || '').toLowerCase();
+      const phone = (u.phoneNumber || '').toLowerCase();
 
-    return null;
-  } catch (err) {
-    console.error("Error searching for user by email/regId:", err);
-    return null;
-  }
-};
-
-export const createOrGetDirectChatInFirestore = async (
-  currentUser: { uid: string; displayName: string; photoURL?: string; email?: string; registrationNumber?: string },
-  targetUser: { uid: string; displayName: string; photoURL?: string; email?: string; registrationNumber?: string }
-): Promise<StudyGroup | null> => {
-  if (!currentUser.uid || !targetUser.uid) return null;
-
-  // Generate deterministic direct chat ID
-  const uids = [currentUser.uid, targetUser.uid].sort();
-  const directGroupId = `dm_${uids[0]}_${uids[1]}`;
-
-  try {
-    const groupRef = doc(db, "groups", directGroupId);
-    const snap = await getDoc(groupRef);
-
-    if (snap.exists()) {
-      return snap.data() as StudyGroup;
-    }
-
-    // Create new direct chat
-    const directGroup: StudyGroup = {
-      id: directGroupId,
-      name: targetUser.displayName,
-      description: `Direct chat between ${currentUser.displayName} and ${targetUser.displayName}`,
-      subject: 'Direct Message',
-      gradeClass: 'Friend',
-      iconEmoji: '💬',
-      iconUrl: targetUser.photoURL,
-      bgColor: 'from-indigo-500 to-purple-600',
-      createdBy: currentUser.uid,
-      creatorName: currentUser.displayName,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      memberCount: 2,
-      isPublic: false,
-      isDirect: true,
-      directUser: targetUser,
-      inviteCode: directGroupId,
-      members: {
-        [currentUser.uid]: {
-          uid: currentUser.uid,
-          displayName: currentUser.displayName,
-          photoURL: currentUser.photoURL || '',
-          role: 'admin',
-          joinedAt: Date.now(),
-          permissions: { canAddMembers: true, canEditGroupIcon: true, canChat: true }
-        },
-        [targetUser.uid]: {
-          uid: targetUser.uid,
-          displayName: targetUser.displayName,
-          photoURL: targetUser.photoURL || '',
-          role: 'admin',
-          joinedAt: Date.now(),
-          permissions: { canAddMembers: true, canEditGroupIcon: true, canChat: true }
-        }
+      if (
+        email.includes(cleanQuery) ||
+        regNo.includes(cleanQuery) ||
+        name.includes(cleanQuery) ||
+        phone.includes(cleanQuery)
+      ) {
+        results.push({
+          uid,
+          displayName: u.displayName || 'SJ Scholar',
+          photoURL: u.photoURL || '',
+          email: u.email || email || '',
+          registrationNumber: u.registrationNumber || '',
+          institution: u.institution || '',
+          grade: u.grade || ''
+        });
       }
-    };
-
-    await setDoc(groupRef, directGroup);
-    return directGroup;
-  } catch (err) {
-    console.error("Error creating/getting direct chat in Firestore:", err);
-    return null;
-  }
-};
-
-export const updateMemberPermissionsInFirestore = async (
-  groupId: string,
-  memberUid: string,
-  role: 'admin' | 'member',
-  permissions: { canAddMembers?: boolean; canEditGroupIcon?: boolean; canChat?: boolean }
-): Promise<boolean> => {
-  try {
-    const groupRef = doc(db, "groups", groupId);
-    const snap = await getDoc(groupRef);
-    if (!snap.exists()) return false;
-
-    const groupData = snap.data() as StudyGroup;
-    const existingMember = groupData.members?.[memberUid];
-    if (!existingMember) return false;
-
-    const updatedMember: GroupMember = {
-      ...existingMember,
-      role,
-      permissions: {
-        ...(existingMember.permissions || {}),
-        ...permissions
-      }
-    };
-
-    const updatedMembers = {
-      ...(groupData.members || {}),
-      [memberUid]: updatedMember
-    };
-
-    await updateDoc(groupRef, {
-      members: updatedMembers,
-      updatedAt: Date.now()
     });
 
-    return true;
+    return results;
+  } catch (error) {
+    console.warn("User search query failed:", error);
+    return [];
+  }
+};
+
+export const getOrCreateDirectChat = async (
+  currentUid: string,
+  currentUserInfo: { displayName: string; photoURL?: string; email?: string; registrationNumber?: string },
+  friendUid: string,
+  friendUserInfo: { displayName: string; photoURL?: string; email?: string; registrationNumber?: string }
+): Promise<DirectChat> => {
+  const participants = [currentUid, friendUid].sort();
+  const chatId = `dm_${participants[0]}_${participants[1]}`;
+  const chatRef = doc(db, "direct_chats", chatId);
+
+  try {
+    const chatSnap = await getDoc(chatRef);
+    if (chatSnap.exists()) {
+      return chatSnap.data() as DirectChat;
+    }
+
+    const newChat: DirectChat = {
+      id: chatId,
+      participants,
+      participantDetails: {
+        [currentUid]: {
+          uid: currentUid,
+          displayName: currentUserInfo.displayName || 'Student',
+          photoURL: currentUserInfo.photoURL || '',
+          email: currentUserInfo.email || '',
+          registrationNumber: currentUserInfo.registrationNumber || ''
+        },
+        [friendUid]: {
+          uid: friendUid,
+          displayName: friendUserInfo.displayName || 'Student',
+          photoURL: friendUserInfo.photoURL || '',
+          email: friendUserInfo.email || '',
+          registrationNumber: friendUserInfo.registrationNumber || ''
+        }
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    await setDoc(chatRef, newChat);
+    return newChat;
+  } catch (error) {
+    console.error("Error creating direct chat:", error);
+    // Return local fallback object
+    return {
+      id: chatId,
+      participants,
+      participantDetails: {
+        [currentUid]: { uid: currentUid, displayName: currentUserInfo.displayName },
+        [friendUid]: { uid: friendUid, displayName: friendUserInfo.displayName }
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+  }
+};
+
+export const subscribeToUserDirectChats = (
+  uid: string,
+  callback: (chats: DirectChat[]) => void
+): (() => void) => {
+  if (!uid) return () => {};
+  try {
+    const colRef = collection(db, "direct_chats");
+    const q = query(colRef, where("participants", "array-contains", uid));
+    return onSnapshot(q, (snapshot) => {
+      const chats: DirectChat[] = [];
+      snapshot.forEach((d) => {
+        chats.push(d.data() as DirectChat);
+      });
+      chats.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      callback(chats);
+    }, (err) => {
+      console.warn("Direct chat subscription fallback:", err);
+    });
   } catch (err) {
-    console.error("Error updating member permissions in Firestore:", err);
+    console.warn("Error subscribing to direct chats:", err);
+    return () => {};
+  }
+};
+
+export const subscribeToDirectMessages = (
+  chatId: string,
+  callback: (messages: DirectMessage[]) => void
+): (() => void) => {
+  if (!chatId) return () => {};
+  try {
+    const msgsRef = collection(db, "direct_chats", chatId, "messages");
+    const q = query(msgsRef, orderBy("timestamp", "asc"), limit(200));
+    return onSnapshot(q, (snapshot) => {
+      const messages: DirectMessage[] = [];
+      snapshot.forEach((d) => {
+        messages.push(d.data() as DirectMessage);
+      });
+      callback(messages);
+    }, (err) => {
+      console.warn("Direct messages query error, fallback to basic snapshot:", err);
+      return onSnapshot(msgsRef, (snap) => {
+        const msgs: DirectMessage[] = [];
+        snap.forEach((d) => msgs.push(d.data() as DirectMessage));
+        msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        callback(msgs);
+      });
+    });
+  } catch (err) {
+    console.warn("Error subscribing to direct messages:", err);
+    return () => {};
+  }
+};
+
+export const sendDirectMessageInFirestore = async (
+  chatId: string,
+  message: DirectMessage
+): Promise<boolean> => {
+  try {
+    const cleanMessage = removeUndefinedFields(message);
+    const messageDocRef = doc(db, "direct_chats", chatId, "messages", cleanMessage.id);
+    await setDoc(messageDocRef, cleanMessage);
+
+    const chatDocRef = doc(db, "direct_chats", chatId);
+    await updateDoc(chatDocRef, {
+      updatedAt: cleanMessage.timestamp || Date.now(),
+      lastMessage: {
+        text: cleanMessage.text || '',
+        senderId: cleanMessage.senderId,
+        timestamp: cleanMessage.timestamp || Date.now()
+      }
+    });
+    return true;
+  } catch (error) {
+    console.error("Error sending direct message:", error);
     return false;
   }
 };
