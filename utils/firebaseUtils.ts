@@ -764,7 +764,8 @@ export const updateGroupDefaultPermissionsInFirestore = async (
 
 export const searchUsersByEmailOrRegistration = async (
   queryText: string,
-  currentUid?: string
+  currentUid?: string,
+  exactMatchOnly: boolean = true
 ): Promise<DirectChatParticipant[]> => {
   if (!queryText || queryText.trim().length < 2) return [];
   const cleanQuery = queryText.trim().toLowerCase();
@@ -780,26 +781,45 @@ export const searchUsersByEmailOrRegistration = async (
 
       if (currentUid && uid === currentUid) return;
 
-      const email = (u.email || '').toLowerCase();
-      const regNo = (u.registrationNumber || '').toLowerCase();
-      const name = (u.displayName || '').toLowerCase();
-      const phone = (u.phoneNumber || '').toLowerCase();
+      const email = (u.email || '').trim().toLowerCase();
+      const regNo = (u.registrationNumber || '').trim().toLowerCase();
 
-      if (
-        email.includes(cleanQuery) ||
-        regNo.includes(cleanQuery) ||
-        name.includes(cleanQuery) ||
-        phone.includes(cleanQuery)
-      ) {
-        results.push({
-          uid,
-          displayName: u.displayName || 'SJ Scholar',
-          photoURL: u.photoURL || '',
-          email: u.email || email || '',
-          registrationNumber: u.registrationNumber || '',
-          institution: u.institution || '',
-          grade: u.grade || ''
-        });
+      if (exactMatchOnly) {
+        // Strict exact match: must match full exact Email ID or full exact Registration ID
+        const matchesExactEmail = email !== '' && email === cleanQuery;
+        const matchesExactReg = regNo !== '' && regNo === cleanQuery;
+
+        if (matchesExactEmail || matchesExactReg) {
+          results.push({
+            uid,
+            displayName: u.displayName || 'SJ Scholar',
+            photoURL: u.photoURL || '',
+            email: u.email || email || '',
+            registrationNumber: u.registrationNumber || '',
+            institution: u.institution || '',
+            grade: u.grade || ''
+          });
+        }
+      } else {
+        const name = (u.displayName || '').toLowerCase();
+        const phone = (u.phoneNumber || '').toLowerCase();
+
+        if (
+          email.includes(cleanQuery) ||
+          regNo.includes(cleanQuery) ||
+          name.includes(cleanQuery) ||
+          phone.includes(cleanQuery)
+        ) {
+          results.push({
+            uid,
+            displayName: u.displayName || 'SJ Scholar',
+            photoURL: u.photoURL || '',
+            email: u.email || email || '',
+            registrationNumber: u.registrationNumber || '',
+            institution: u.institution || '',
+            grade: u.grade || ''
+          });
+        }
       }
     });
 

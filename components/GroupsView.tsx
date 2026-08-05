@@ -226,7 +226,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     return () => unsubscribe();
   }, [activeDirectChatId, currentUid, triggerSystemNotification]);
 
-  // Handle User Search for Direct Chat
+  // Handle User Search for Direct Chat (Exact Email or Reg ID match only)
   useEffect(() => {
     if (activeTab !== 'direct') return;
 
@@ -238,7 +238,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
     setIsSearchingUsers(true);
     const timer = setTimeout(async () => {
-      const results = await searchUsersByEmailOrRegistration(searchQuery, currentUid);
+      const results = await searchUsersByEmailOrRegistration(searchQuery, currentUid, true);
       setUserSearchResults(results);
       setIsSearchingUsers(false);
     }, 300);
@@ -246,7 +246,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     return () => clearTimeout(timer);
   }, [searchQuery, activeTab, currentUid]);
 
-  // Start Direct Chat with Friend
+  // Start Direct Chat with Friend and redirect immediately to the chat page
   const handleStartDirectChat = async (friend: DirectChatParticipant) => {
     const chat = await getOrCreateDirectChat(
       currentUid,
@@ -265,8 +265,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       }
     );
 
+    // Update local state immediately so chat thread is rendered right away
+    setDirectChats((prev) => (prev.some((c) => c.id === chat.id) ? prev : [chat, ...prev]));
     setActiveDirectChatId(chat.id);
     setShowMobileChat(true);
+    setSearchQuery('');
+    setUserSearchResults([]);
     triggerToast('Direct Chat Opened 💬', `Chat room ready with ${friend.displayName}.`, 'Important Alerts');
   };
 
@@ -1278,7 +1282,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search groups or subjects..."
+              placeholder={activeTab === 'direct' ? "Type exact Email ID or Registration ID..." : "Search groups or subjects..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 transition-all"
@@ -1343,11 +1347,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                   {isSearchingUsers ? (
                     <div className="p-4 text-center text-xs text-slate-400 animate-pulse">
-                      Searching students by Email or Registration ID...
+                      Searching student with exact Email or Registration ID...
                     </div>
                   ) : userSearchResults.length === 0 ? (
                     <div className="p-4 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
-                      No user found with Email or Reg ID matching &quot;{searchQuery}&quot;.
+                      <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">No exact match found</p>
+                      <p className="text-[11px] text-slate-400">
+                        Please enter the complete, exact Email ID or Registration ID to find a student.
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-2">
