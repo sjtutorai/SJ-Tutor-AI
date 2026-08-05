@@ -53,7 +53,9 @@ import {
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
-import { auth } from "./firebaseConfig";
+import { db, auth } from "./firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
+import { StudyGroup } from "./types";
 import { getCurrentUserProfile } from "./utils/userService";
 import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, } from "firebase/auth";
 import type { User } from "firebase/auth";
@@ -172,6 +174,52 @@ const App: React.FC = () => {
     setPendingGroupInvite({ groupId, inviterName, groupName });
     setMode(AppMode.GROUP_INVITE);
   };
+
+  // Process group invite link parameters from URL (e.g. ?groupId=xxx or ?groupInvite=xxx or ?invite=xxx)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const groupIdFromUrl = params.get("groupId") || params.get("groupInvite") || params.get("invite");
+    const inviterFromUrl = params.get("inviter") || "A student";
+
+    if (groupIdFromUrl) {
+      const checkAndRouteGroupInvite = async () => {
+        try {
+          const groupRef = doc(db, "groups", groupIdFromUrl);
+          const groupSnap = await getDoc(groupRef);
+          
+          if (groupSnap.exists()) {
+            const groupData = groupSnap.data() as StudyGroup;
+            const currentUid = auth.currentUser ? auth.currentUser.uid : null;
+            const isMember = currentUid && groupData.members && !!groupData.members[currentUid];
+
+            if (isMember) {
+              // Already a member -> redirect directly to group chat
+              localStorage.setItem('sjtutor_active_group_id', groupIdFromUrl);
+              setMode(AppMode.GROUPS);
+              triggerToast('Welcome Back! 🎉', `Opened "${groupData.name}" group chat.`, 'Important Alerts');
+            } else {
+              // Not a member yet -> open group invite view with Accept/Decline buttons
+              setPendingGroupInvite({
+                groupId: groupIdFromUrl,
+                inviterName: inviterFromUrl,
+                groupName: groupData.name,
+              });
+              setMode(AppMode.GROUP_INVITE);
+            }
+          } else {
+            triggerToast('Invalid Group Link', 'The group in this link was not found or has been deleted.', 'Important Alerts');
+          }
+        } catch (err) {
+          console.error("Error processing group invite link:", err);
+        } finally {
+          // Clean search params from URL so refresh doesn't re-trigger
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      };
+
+      checkAndRouteGroupInvite();
+    }
+  }, []);
 
   // Request notification permission on first visit
   useEffect(() => {

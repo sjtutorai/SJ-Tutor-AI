@@ -18,10 +18,12 @@ import {
   X,
   Play,
   Info,
-  Trash2
+  Trash2,
+  Link as LinkIcon,
+  Share2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import {
   StudyGroup,
@@ -58,7 +60,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   userProfile,
   userUid
 }) => {
-  const { triggerToast } = useNotifications();
+  const { triggerToast, sendNotification } = useNotifications();
   const currentUid = userUid || 'guest_user_' + (userProfile.displayName || 'scholar').toLowerCase().replace(/\s+/g, '_');
   const currentName = userProfile.displayName || 'Scholar User';
 
@@ -72,11 +74,16 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     }
   });
 
-  const [activeGroupId, setActiveGroupId] = useState<string>('');
+  const [activeGroupId, setActiveGroupId] = useState<string>(() => {
+    return localStorage.getItem('sjtutor_active_group_id') || '';
+  });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'my' | 'explore'>('my');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showJoinByIdModal, setShowJoinByIdModal] = useState(false);
+  const [joinInput, setJoinInput] = useState('');
+  const [joiningById, setJoiningById] = useState(false);
   const [inviteRegId, setInviteRegId] = useState('');
   const [inviting, setInviting] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
@@ -105,6 +112,17 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Active group object
   const activeGroup = groups.find((g) => g.id === activeGroupId) || groups[0];
 
+  // Persist active group selection
+  useEffect(() => {
+    if (activeGroupId) {
+      try {
+        localStorage.setItem('sjtutor_active_group_id', activeGroupId);
+      } catch (e) {
+        console.warn('Cache active group warn', e);
+      }
+    }
+  }, [activeGroupId]);
+
   // 1. Subscribe to Firestore Groups
   useEffect(() => {
     const unsubscribe = subscribeToAllGroups((firestoreGroups) => {
@@ -116,6 +134,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
         try {
           localStorage.setItem('sjtutor_groups_cache', JSON.stringify(merged));
         } catch (e) { console.warn('Cache error', e); }
+
+        // Select first group if activeGroupId is empty or invalid
+        setActiveGroupId((prev) => {
+          if (prev && merged.some((g) => g.id === prev)) return prev;
+          const cached = localStorage.getItem('sjtutor_active_group_id');
+          if (cached && merged.some((g) => g.id === cached)) return cached;
+          return merged[0]?.id || '';
+        });
       }
     });
 
@@ -126,7 +152,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   useEffect(() => {
     if (!activeGroupId) return;
 
-    // First load default local fallback messages for seeded group if empty
+    // First load default local fallback messages for group if cached
     const cachedLocal = localStorage.getItem(`group_msgs_${activeGroupId}`);
     if (cachedLocal) {
       try {
@@ -139,7 +165,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     }
 
     const unsubscribe = subscribeToGroupMessages(activeGroupId, (realtimeMsgs) => {
-      if (realtimeMsgs && realtimeMsgs.length > 0) {
+      if (realtimeMsgs) {
         setMessages(realtimeMsgs);
         try {
           localStorage.setItem(`group_msgs_${activeGroupId}`, JSON.stringify(realtimeMsgs));
@@ -149,6 +175,96 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
     return () => unsubscribe();
   }, [activeGroupId]);
+
+  // Join Group by ID or Link or Code
+  const handleJoinGroupById = async (groupIdOrCode?: string) => {
+    const rawInput = (groupIdOrCode || joinInput).trim();
+    if (!rawInput) return;
+
+    let targetId = rawInput;
+    if (rawInput.includes('groupId=')) {
+      try {
+        const url = new URL(rawInput);
+        const params = new URLSearchParams(url.search);
+        targetId = params.get('groupId') || params.get('groupInvite') || params.get('invite') || rawInput;
+      } catch {
+        const match = rawInput.match(/(?:groupId|groupInvite|invite)=([^&]+)/);
+        if (match) targetId = match[1];
+      }
+    }
+
+    setJoiningById(true);
+    try {
+      // Fetch direct doc by ID first
+      const groupRef = doc(db, 'groups', targetId);
+      const groupSnap = await getDoc(groupRef);
+      let targetGroupData: StudyGroup | null = null;
+
+      if (groupSnap.exists()) {
+        targetGroupData = groupSnap.data() as StudyGroup;
+      } else {
+        // Query by invite code
+        const q = query(collection(db, 'groups'), where('inviteCode', '==', targetId));
+        const querySnap = await getDocs(q);
+        if (!querySnap.empty) {
+          targetGroupData = querySnap.docs[0].data() as StudyGroup;
+        }
+      }
+
+      if (!targetGroupData) {
+        triggerToast('Group Not Found', `No group found with ID or Invite Code "${targetId}".`, 'Important Alerts');
+        return;
+      }
+
+      const groupToJoin = targetGroupData;
+      const isMember = groupToJoin.members && !!groupToJoin.members[currentUid];
+
+      if (isMember) {
+        setActiveGroupId(groupToJoin.id);
+        setActiveTab('my');
+        setShowMobileChat(true);
+        triggerToast('Already Joined! 🎉', `You are already a member of "${groupToJoin.name}". Opened chat.`, 'Important Alerts');
+      } else {
+        const newMember: GroupMember = {
+          uid: currentUid,
+          displayName: currentName,
+          photoURL: userProfile.photoURL,
+          role: 'member',
+          joinedAt: Date.now()
+        };
+
+        await joinGroupInFirestore(groupToJoin.id, newMember);
+
+        const updatedMembers = { ...(groupToJoin.members || {}), [currentUid]: newMember };
+        const updatedGroup = {
+          ...groupToJoin,
+          members: updatedMembers,
+          memberCount: Object.keys(updatedMembers).length,
+        };
+
+        setGroups((prev) => {
+          const exists = prev.some((g) => g.id === groupToJoin.id);
+          if (exists) {
+            return prev.map((g) => (g.id === groupToJoin.id ? updatedGroup : g));
+          }
+          return [updatedGroup, ...prev];
+        });
+
+        setActiveGroupId(groupToJoin.id);
+        setActiveTab('my');
+        setShowMobileChat(true);
+        triggerToast('Joined Group! 🎉', `Welcome to "${groupToJoin.name}"!`, 'Important Alerts');
+      }
+
+      setJoinInput('');
+      setShowJoinByIdModal(false);
+    } catch (err: any) {
+      console.error('Error joining group by ID:', err);
+      triggerToast('Join Error', 'Failed to join group. Please check ID and try again.', 'Important Alerts');
+    } finally {
+      setJoiningById(false);
+    }
+  };
 
   // Auto scroll on new messages
   useEffect(() => {
@@ -476,14 +592,25 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="p-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold"
-              title="Create New Study Group"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New Group</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setShowJoinByIdModal(true)}
+                className="p-2 sm:px-3 py-2 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 rounded-xl transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold shrink-0"
+                title="Join Group by ID, Invite Code, or Link"
+              >
+                <LinkIcon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Paste ID</span>
+              </button>
+
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="p-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold shrink-0"
+                title="Create New Study Group"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">New Group</span>
+              </button>
+            </div>
           </div>
 
           {/* Search Bar */}
@@ -701,6 +828,18 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   title="Create Group Poll"
                 >
                   <BarChart2 className="w-5 h-5" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
+                    navigator.clipboard.writeText(shareUrl);
+                    triggerToast('Copied Group Link! 🔗', 'Share this link with any student. When opened, they can Accept or Decline your invitation.', 'Important Alerts');
+                  }}
+                  className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition"
+                  title="Share Group Link"
+                >
+                  <Share2 className="w-5 h-5" />
                 </button>
 
                 <button
@@ -1085,6 +1224,78 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
         )}
       </div>
 
+      {/* JOIN GROUP BY ID / LINK MODAL */}
+      <AnimatePresence>
+        {showJoinByIdModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 overflow-hidden"
+            >
+              <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <LinkIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  Join Group by ID or Link
+                </h3>
+                <button
+                  onClick={() => setShowJoinByIdModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Paste the <strong className="text-slate-800 dark:text-white">Group ID</strong>, <strong className="text-slate-800 dark:text-white">Invite Code</strong>, or paste the entire <strong className="text-slate-800 dark:text-white">Group Invite Link</strong> to join directly.
+                </p>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Group ID, Code, or Link *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="e.g. group_1752... or STUDY100 or https://..."
+                      value={joinInput}
+                      onChange={(e) => setJoinInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleJoinGroupById();
+                        }
+                      }}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowJoinByIdModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleJoinGroupById()}
+                    disabled={joiningById || !joinInput.trim()}
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {joiningById ? 'Joining...' : 'Join Group'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* CREATE GROUP MODAL */}
       <AnimatePresence>
         {showCreateModal && (
@@ -1409,27 +1620,60 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   </p>
                 </div>
 
-                {/* Invite Link Generator */}
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Invite Code
+                {/* Share Group Link & Group ID */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Group Share & Invite Link
                   </h4>
-                  <div className="flex items-center gap-2 p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <span className="text-xs font-mono font-bold text-slate-800 dark:text-white flex-1 truncate">
-                      {activeGroup.inviteCode || 'STUDY100'}
-                    </span>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(
-                          `${window.location.origin}?invite=${activeGroup.inviteCode || 'STUDY100'}`
-                        );
-                        triggerToast('Copied Invite Link!', 'Link copied to clipboard', 'Important Alerts');
-                      }}
-                      className="px-3 py-1 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      Copy
-                    </button>
+
+                  <button
+                    onClick={() => {
+                      const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
+                      navigator.clipboard.writeText(shareUrl);
+                      triggerToast('Copied Group Link! 🔗', 'Share this link with any student. When opened, they can Accept or Decline your invitation.', 'Important Alerts');
+                    }}
+                    className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Copy Group Invite Link
+                  </button>
+
+                  <div className="p-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-500 dark:text-slate-400">Group ID:</span>
+                      <div className="flex items-center gap-1.5 font-mono text-slate-800 dark:text-slate-200 font-bold">
+                        <span className="max-w-[140px] truncate">{activeGroup.id}</span>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeGroup.id);
+                            triggerToast('Group ID Copied!', 'Group ID copied to clipboard.', 'Important Alerts');
+                          }}
+                          className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition text-indigo-600 dark:text-indigo-400"
+                          title="Copy Group ID"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {activeGroup.inviteCode && (
+                      <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-200/60 dark:border-slate-700/60">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">Invite Code:</span>
+                        <div className="flex items-center gap-1.5 font-mono text-slate-800 dark:text-slate-200 font-bold">
+                          <span>{activeGroup.inviteCode}</span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(activeGroup.inviteCode || '');
+                              triggerToast('Invite Code Copied!', 'Invite code copied to clipboard.', 'Important Alerts');
+                            }}
+                            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition text-indigo-600 dark:text-indigo-400"
+                            title="Copy Invite Code"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
