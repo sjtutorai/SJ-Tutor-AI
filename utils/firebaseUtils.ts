@@ -468,12 +468,20 @@ export const leaveGroupInFirestore = async (groupId: string, userUid: string): P
     if (!groupSnap.exists()) return false;
 
     const groupData = groupSnap.data() as StudyGroup;
-    const updatedMembers = { ...(groupData.members || {}) };
-    delete updatedMembers[userUid];
+    const members = { ...(groupData.members || {}) };
+
+    // Find and delete all keys matching userUid or member.uid
+    Object.keys(members).forEach((key) => {
+      if (key === userUid || members[key]?.uid === userUid) {
+        delete members[key];
+      }
+    });
+
+    const newMemberCount = Object.keys(members).length;
 
     await updateDoc(groupDocRef, {
-      members: updatedMembers,
-      memberCount: Object.keys(updatedMembers).length,
+      members: members,
+      memberCount: newMemberCount,
       updatedAt: Date.now(),
     });
     return true;

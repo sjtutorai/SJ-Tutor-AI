@@ -20,7 +20,8 @@ import {
   Info,
   Trash2,
   Link as LinkIcon,
-  Share2
+  Share2,
+  UserPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -109,8 +110,13 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Helper check for membership
+  const isMemberOf = (g: StudyGroup) =>
+    Boolean(g.members && (!!g.members[currentUid] || (userUid && !!g.members[userUid])));
+
   // Active group object
-  const activeGroup = groups.find((g) => g.id === activeGroupId) || groups[0];
+  const activeGroup = groups.find((g) => g.id === activeGroupId) || null;
+  const isMemberOfActive = activeGroup ? isMemberOf(activeGroup) : false;
 
   // Persist active group selection
   useEffect(() => {
@@ -122,6 +128,34 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       }
     }
   }, [activeGroupId]);
+
+  // Auto-select active group based on membership
+  useEffect(() => {
+    if (groups.length === 0) return;
+
+    const myJoined = groups.filter(isMemberOf);
+
+    setActiveGroupId((prev) => {
+      // If prev is set and valid in groups, keep it
+      if (prev && groups.some((g) => g.id === prev)) {
+        return prev;
+      }
+
+      // Check cached active group if user is a member
+      const cached = localStorage.getItem('sjtutor_active_group_id');
+      if (cached && myJoined.some((g) => g.id === cached)) {
+        return cached;
+      }
+
+      // Default to first joined group if available
+      if (myJoined.length > 0) {
+        return myJoined[0].id;
+      }
+
+      // If user has not joined any group, clear activeGroupId so unjoined group is not auto-selected
+      return '';
+    });
+  }, [groups, currentUid, userUid]);
 
   // 1. Subscribe to Firestore Groups
   useEffect(() => {
@@ -135,18 +169,18 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           localStorage.setItem('sjtutor_groups_cache', JSON.stringify(merged));
         } catch (e) { console.warn('Cache error', e); }
 
-        // Select first group if activeGroupId is empty or invalid
+        // Sync activeGroupId based on availability
         setActiveGroupId((prev) => {
           if (prev && merged.some((g) => g.id === prev)) return prev;
-          const cached = localStorage.getItem('sjtutor_active_group_id');
-          if (cached && merged.some((g) => g.id === cached)) return cached;
-          return merged[0]?.id || '';
+          const myJoined = merged.filter((g) => g.members && (!!g.members[currentUid] || (userUid && !!g.members[userUid])));
+          if (myJoined.length > 0) return myJoined[0].id;
+          return '';
         });
       }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [currentUid, userUid]);
 
   // 2. Subscribe to Firestore Messages for active group or use local state
   useEffect(() => {
@@ -345,16 +379,42 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Join or Leave Group
   const handleToggleJoinGroup = async (group: StudyGroup) => {
-    const isMember = group.members && !!group.members[currentUid];
+    const isMember = group.members && Object.values(group.members).some((m) => m.uid === currentUid || (userUid && m.uid === userUid) || group.members?.[currentUid] !== undefined);
+    
     if (isMember) {
       // Leave group
       await leaveGroupInFirestore(group.id, currentUid);
+      if (userUid && userUid !== currentUid) {
+        await leaveGroupInFirestore(group.id, userUid);
+      }
+
       const updatedMembers = { ...group.members };
-      delete updatedMembers[currentUid];
+      Object.keys(updatedMembers).forEach((key) => {
+        if (key === currentUid || key === userUid || updatedMembers[key]?.uid === currentUid || (userUid && updatedMembers[key]?.uid === userUid)) {
+          delete updatedMembers[key];
+        }
+      });
+
+      const newMemberCount = Object.keys(updatedMembers).length;
+
       setGroups((prev) =>
-        prev.map((g) => (g.id === group.id ? { ...g, members: updatedMembers, memberCount: Math.max(1, g.memberCount - 1) } : g))
+        prev.map((g) => (g.id === group.id ? { ...g, members: updatedMembers, memberCount: newMemberCount } : g))
       );
-      triggerToast('Left Group', `You have left ${group.name}`, 'Important Alerts');
+
+      // If leaving current active group, switch active group to another remaining joined group or reset
+      if (activeGroupId === group.id) {
+        const remainingJoined = groups.filter((g) => g.id !== group.id && g.members && Object.values(g.members).some((m) => m.uid === currentUid || (userUid && m.uid === userUid)));
+        if (remainingJoined.length > 0) {
+          setActiveGroupId(remainingJoined[0].id);
+        } else {
+          const remainingAny = groups.filter((g) => g.id !== group.id);
+          setActiveGroupId(remainingAny.length > 0 ? remainingAny[0].id : '');
+        }
+        setShowMobileChat(false);
+      }
+
+      setShowGroupInfo(false);
+      triggerToast('Left Group', `You have left "${group.name}".`, 'Important Alerts');
     } else {
       // Join group
       const newMember: GroupMember = {
@@ -369,7 +429,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       setGroups((prev) =>
         prev.map((g) => (g.id === group.id ? { ...g, members: updatedMembers, memberCount: Object.keys(updatedMembers).length } : g))
       );
-      triggerToast('Joined Group! 🎉', `Welcome to ${group.name}!`, 'Important Alerts');
+      setActiveGroupId(group.id);
+      triggerToast('Joined Group! 🎉', `Welcome to "${group.name}"!`, 'Important Alerts');
     }
   };
 
@@ -558,7 +619,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Filter groups
   const filteredGroups = groups.filter((g) => {
-    const isMember = g.members && !!g.members[currentUid];
+    const isMember = isMemberOf(g);
     const matchesTab = activeTab === 'my' ? isMember : !isMember && g.isPublic;
     const matchesSearch =
       g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -643,7 +704,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              My Groups ({groups.filter((g) => g.members && !!g.members[currentUid]).length})
+              My Groups ({groups.filter(isMemberOf).length})
             </button>
             <button
               onClick={() => setActiveTab('explore')}
@@ -686,7 +747,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           ) : (
             filteredGroups.map((group) => {
               const isActive = group.id === activeGroupId;
-              const isMember = group.members && !!group.members[currentUid];
+              const isMember = isMemberOf(group);
 
               return (
                 <div
@@ -780,7 +841,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           !showMobileChat ? 'hidden lg:flex' : 'flex'
         } flex-1 flex-col bg-slate-100/60 dark:bg-slate-950 relative overflow-hidden`}
       >
-        {activeGroup ? (
+        {activeGroup && isMemberOfActive ? (
           <>
             {/* Top Group Chat Header Bar */}
             <div className="px-4 py-3 sm:px-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between z-20 shadow-sm">
@@ -1209,17 +1270,135 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               </form>
             </div>
           </>
+        ) : activeGroup ? (
+          <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden">
+            {/* Top Header Bar for Preview */}
+            <div className="px-4 py-3 sm:px-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between z-20 shadow-sm">
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  onClick={() => setShowMobileChat(false)}
+                  className="lg:hidden p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                  title="Back to Groups"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${
+                      activeGroup.bgColor || 'from-primary-500 to-amber-600'
+                    } flex items-center justify-center text-xl text-white shadow-md flex-shrink-0`}
+                  >
+                    <span>{activeGroup.iconEmoji || '📚'}</span>
+                  </div>
+
+                  <div className="min-w-0">
+                    <h2 className="font-bold text-slate-900 dark:text-white text-base truncate">
+                      {activeGroup.name}
+                    </h2>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
+                      <span>Preview — Not Joined</span>
+                      <span>•</span>
+                      <span>{activeGroup.subject}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
+                  navigator.clipboard.writeText(shareUrl);
+                  triggerToast('Copied Group Link! 🔗', 'Share link copied to clipboard.', 'Important Alerts');
+                }}
+                className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition"
+                title="Share Group Link"
+              >
+                <Share2 className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Preview Body */}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center text-center custom-scrollbar">
+              <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-xl border border-slate-200/80 dark:border-slate-800 space-y-6">
+                <div
+                  className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${
+                    activeGroup.bgColor || 'from-primary-500 to-amber-600'
+                  } flex items-center justify-center text-4xl text-white mx-auto shadow-lg`}
+                >
+                  <span>{activeGroup.iconEmoji || '📚'}</span>
+                </div>
+
+                <div>
+                  <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-1">
+                    {activeGroup.name}
+                  </h3>
+                  <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3">
+                    Subject: {activeGroup.subject} • {activeGroup.memberCount} {activeGroup.memberCount === 1 ? 'member' : 'members'}
+                  </p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                    {activeGroup.description || 'Join this study group to connect with peers and solve problems together.'}
+                  </p>
+                </div>
+
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 text-xs font-medium text-left flex items-start gap-3">
+                  <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    You are not a member of this study group yet. Click <strong>Join Group</strong> below to participate in chats, ask AI Tutor, and view group messages!
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                  <button
+                    onClick={() => handleToggleJoinGroup(activeGroup)}
+                    className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/25 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Join Group
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
+                      navigator.clipboard.writeText(shareUrl);
+                      triggerToast('Copied Group Link! 🔗', 'Share link copied to clipboard.', 'Important Alerts');
+                    }}
+                    className="w-full sm:w-auto py-3 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Share
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-            <div className="w-16 h-16 rounded-3xl bg-primary-100 dark:bg-slate-800 text-primary-600 dark:text-primary-400 flex items-center justify-center mb-4 shadow-lg">
+            <div className="w-16 h-16 rounded-3xl bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4 shadow-lg shadow-indigo-500/10">
               <MessageSquare className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-              Select a Study Group
+            <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2">
+              Select or Join a Study Group
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
-              Choose a group from the list on the left or create your own study squad to start collaborating in real-time!
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mb-6 leading-relaxed">
+              You are not currently viewing any joined study group. Select a group from the left, explore public hubs, or paste a Group ID to get started!
             </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                onClick={() => setActiveTab('explore')}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition active:scale-95 flex items-center gap-2"
+              >
+                <Users className="w-4 h-4" />
+                Explore Public Groups
+              </button>
+              <button
+                onClick={() => setShowJoinByIdModal(true)}
+                className="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition flex items-center gap-2"
+              >
+                <LinkIcon className="w-4 h-4" />
+                Paste ID
+              </button>
+            </div>
           </div>
         )}
       </div>
