@@ -219,13 +219,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Track auth state
+  // Track auth state and setup permission
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
+      if (user) {
+        setupFCM(user);
+      }
     });
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then((perm) => {
+        setPermissionStatus(perm);
+        if (perm === 'granted' && currentUser) {
+          setupFCM(currentUser);
+        }
+      }).catch(() => {});
+    } else if ('Notification' in window) {
+      setPermissionStatus(Notification.permission);
+    }
+
     return unsubscribe;
-  }, []);
+  }, [currentUser]);
 
   // Sync / load notifications
   useEffect(() => {
