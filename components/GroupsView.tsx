@@ -21,7 +21,8 @@ import {
   Trash2,
   Link as LinkIcon,
   Share2,
-  UserPlus
+  UserPlus,
+  UserX
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -393,6 +394,39 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       triggerToast('Group Deleted 🗑️', `"${group.name}" was permanently deleted from all devices.`, 'Important Alerts');
     } else {
       triggerToast('Delete Failed', 'Failed to delete group from server. Please try again.', 'Important Alerts');
+    }
+  };
+
+  // Owner/Admin: Remove a member from the group
+  const handleRemoveMember = async (group: StudyGroup, memberUid: string, memberName: string) => {
+    if (!window.confirm(`Are you sure you want to remove ${memberName} from "${group.name}"?`)) return;
+
+    // 1. Remove in Firestore
+    const success = await leaveGroupInFirestore(group.id, memberUid);
+
+    // 2. Update local state
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== group.id) return g;
+        const updatedMembers = { ...g.members };
+        Object.keys(updatedMembers).forEach((key) => {
+          if (key === memberUid || updatedMembers[key]?.uid === memberUid) {
+            delete updatedMembers[key];
+          }
+        });
+        const newCount = Object.keys(updatedMembers).length;
+        return {
+          ...g,
+          members: updatedMembers,
+          memberCount: newCount,
+        };
+      })
+    );
+
+    if (success) {
+      triggerToast('Member Removed 👤', `${memberName} was removed from "${group.name}".`, 'Important Alerts');
+    } else {
+      triggerToast('Removal Failed', 'Could not remove member. Please try again.', 'Important Alerts');
     }
   };
 
@@ -1908,33 +1942,61 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                   <div className="space-y-2">
                     {activeGroup.members &&
-                      Object.values(activeGroup.members).map((m) => (
-                        <div
-                          key={m.uid}
-                          className="flex items-center gap-3 p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800"
-                        >
-                          <div className="w-8 h-8 rounded-full overflow-hidden bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-700">
-                            {m.photoURL ? (
-                              <img src={m.photoURL} alt={m.displayName} className="w-full h-full object-cover" />
-                            ) : (
-                              m.displayName.charAt(0).toUpperCase()
+                      Object.values(activeGroup.members).map((m) => {
+                        const isSelf = m.uid === currentUid || (userUid && m.uid === userUid);
+                        const isOwner = m.uid === activeGroup.createdBy;
+                        const isOwnerOrAdmin =
+                          activeGroup.createdBy === currentUid ||
+                          (userUid && activeGroup.createdBy === userUid) ||
+                          activeGroup.members?.[currentUid]?.role === 'admin' ||
+                          (userUid && activeGroup.members?.[userUid]?.role === 'admin');
+
+                        const canRemove = isOwnerOrAdmin && !isSelf && !isOwner;
+
+                        return (
+                          <div
+                            key={m.uid}
+                            className="flex items-center gap-3 p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800"
+                          >
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-700 flex-shrink-0">
+                              {m.photoURL ? (
+                                <img src={m.photoURL} alt={m.displayName} className="w-full h-full object-cover" />
+                              ) : (
+                                m.displayName.charAt(0).toUpperCase()
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-slate-800 dark:text-white truncate flex items-center gap-1.5">
+                                <span className="truncate">{m.displayName}</span>
+                                {isSelf && <span className="text-[10px] text-slate-400 font-normal shrink-0">(You)</span>}
+                              </p>
+                              <span className="text-[10px] text-slate-400 block">
+                                Joined {new Date(m.joinedAt).toLocaleDateString()}
+                              </span>
+                            </div>
+
+                            {isOwner ? (
+                              <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded-md shrink-0">
+                                Owner
+                              </span>
+                            ) : m.role === 'admin' ? (
+                              <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded-md shrink-0">
+                                Admin
+                              </span>
+                            ) : null}
+
+                            {canRemove && (
+                              <button
+                                onClick={() => handleRemoveMember(activeGroup, m.uid, m.displayName)}
+                                className="p-1.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl transition shrink-0"
+                                title={`Remove ${m.displayName} from group`}
+                              >
+                                <UserX className="w-4 h-4" />
+                              </button>
                             )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-slate-800 dark:text-white truncate">
-                              {m.displayName}
-                            </p>
-                            <span className="text-[10px] text-slate-400">
-                              Joined {new Date(m.joinedAt).toLocaleDateString()}
-                            </span>
-                          </div>
-                          {m.role === 'admin' && (
-                            <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded-md">
-                              Admin
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 </div>
 
