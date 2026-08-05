@@ -84,9 +84,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   userProfile,
   userUid
 }) => {
-  const { triggerToast, sendNotification } = useNotifications();
+  const { triggerToast, sendNotification, triggerSystemNotification } = useNotifications();
   const currentUid = userUid || 'guest_user_' + (userProfile.displayName || 'scholar').toLowerCase().replace(/\s+/g, '_');
   const currentName = userProfile.displayName || 'Scholar User';
+
+  const seenDirectMessageIdsRef = useRef<Set<string>>(new Set());
+  const seenGroupMessageIdsRef = useRef<Set<string>>(new Set());
 
   // Group States
   const [groups, setGroups] = useState<StudyGroup[]>(() => {
@@ -203,9 +206,25 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     }
     const unsubscribe = subscribeToDirectMessages(activeDirectChatId, (msgs) => {
       setDirectMessages(msgs);
+
+      msgs.forEach((msg) => {
+        if (msg.senderId !== currentUid && !seenDirectMessageIdsRef.current.has(msg.id)) {
+          seenDirectMessageIdsRef.current.add(msg.id);
+          if (Date.now() - (msg.timestamp || Date.now()) < 30000) {
+            triggerSystemNotification(
+              `💬 ${msg.senderName}`,
+              msg.text,
+              '/',
+              `dm_device_${msg.id}`
+            );
+          }
+        } else {
+          seenDirectMessageIdsRef.current.add(msg.id);
+        }
+      });
     });
     return () => unsubscribe();
-  }, [activeDirectChatId]);
+  }, [activeDirectChatId, currentUid, triggerSystemNotification]);
 
   // Handle User Search for Direct Chat
   useEffect(() => {
@@ -269,6 +288,28 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     setDirectInputText('');
 
     await sendDirectMessageInFirestore(activeDirectChatId, newMsg);
+
+    // Notify recipient of direct message
+    const activeChat = directChats.find((c) => c.id === activeDirectChatId);
+    if (activeChat) {
+      const recipientUid = activeChat.participants.find((uid) => uid !== currentUid);
+      if (recipientUid) {
+        await sendNotification(
+          `💬 Message from ${currentName}`,
+          newMsg.text,
+          'Important Alerts',
+          recipientUid,
+          undefined,
+          {
+            type: 'direct_chat',
+            chatId: activeDirectChatId,
+            senderId: currentUid,
+            senderName: currentName,
+            messageId: newMsg.id
+          }
+        );
+      }
+    }
   };
 
   // Admin Toggle Member Permission
@@ -414,6 +455,24 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     const unsubscribe = subscribeToGroupMessages(activeGroupId, (realtimeMsgs) => {
       if (realtimeMsgs) {
         setMessages(realtimeMsgs);
+
+        realtimeMsgs.forEach((msg) => {
+          if (msg.senderId !== currentUid && !seenGroupMessageIdsRef.current.has(msg.id)) {
+            seenGroupMessageIdsRef.current.add(msg.id);
+            if (Date.now() - (msg.timestamp || Date.now()) < 30000) {
+              const grpName = activeGroup?.name || 'Study Group';
+              triggerSystemNotification(
+                `📚 ${grpName}: ${msg.senderName}`,
+                msg.text || (msg.type === 'poll' ? '📊 New Poll' : msg.type === 'image' ? '📷 Image Attachment' : '🎤 Voice Note'),
+                '/',
+                `grp_device_${msg.id}`
+              );
+            }
+          } else {
+            seenGroupMessageIdsRef.current.add(msg.id);
+          }
+        });
+
         try {
           localStorage.setItem(`group_msgs_${activeGroupId}`, JSON.stringify(realtimeMsgs));
         } catch (e) { console.warn('Msg cache error', e); }
@@ -561,6 +620,27 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     const sentOk = await sendGroupMessageInFirestore(activeGroupId, newMsg);
     if (!sentOk) {
       triggerToast('Sync Issue ⚠️', 'Failed to deliver message to group server. Retrying...', 'Important Alerts');
+    }
+
+    // Notify other group members
+    if (activeGroup && activeGroup.members) {
+      const otherMembers = Object.values(activeGroup.members).filter((m) => m.uid !== currentUid);
+      otherMembers.forEach((m) => {
+        sendNotification(
+          `📚 ${activeGroup.name}: ${currentName}`,
+          finalText || (messageType === 'poll' ? '📊 New Poll' : messageType === 'image' ? '📷 Image Attachment' : '🎤 Voice Note'),
+          'Important Alerts',
+          m.uid,
+          undefined,
+          {
+            type: 'group_chat',
+            groupId: activeGroupId,
+            senderId: currentUid,
+            senderName: currentName,
+            messageId: newMsg.id
+          }
+        );
+      });
     }
 
     // Update group last message snippet
