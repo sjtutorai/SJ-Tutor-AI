@@ -723,23 +723,31 @@ export const getDirectChatId = (uid1: string, uid2: string): string => {
 
 export const searchUsersInFirestore = async (searchTerm: string, currentUid: string): Promise<any[]> => {
   if (!currentUid) return [];
+  const term = searchTerm.trim().toLowerCase();
+  if (!term) return []; // Strictly require search term
+
   try {
     const colRef = collection(db, "users");
     const snapshot = await getDocs(colRef);
     const results: any[] = [];
-    const term = searchTerm.trim().toLowerCase();
 
     snapshot.forEach((docSnap) => {
       const uData = docSnap.data();
       const uid = docSnap.id;
       if (uid === currentUid) return;
 
-      const name = (uData.displayName || uData.name || "").toLowerCase();
       const email = (uData.email || "").toLowerCase();
       const regNo = (uData.registrationNumber || "").toLowerCase();
-      const institution = (uData.institution || "").toLowerCase();
+      const userUid = uid.toLowerCase();
 
-      if (!term || name.includes(term) || email.includes(term) || regNo.includes(term) || institution.includes(term)) {
+      // Strict matching on exact Student ID / Registration Number, exact Email, or exact UID
+      const isMatch = (
+        (email && email === term) ||
+        (regNo && regNo === term) ||
+        (userUid && userUid === term)
+      );
+
+      if (isMatch) {
         results.push({
           uid,
           displayName: uData.displayName || uData.name || "Student",
@@ -862,17 +870,7 @@ export const subscribeToUserFriendships = (
         callback(friendships);
       },
       (err) => {
-        console.warn("Friendships subscription query error, using fallback:", err);
-        return onSnapshot(colRef, (snap) => {
-          const list: Friendship[] = [];
-          snap.forEach((d) => {
-            const data = d.data() as Friendship;
-            if (data.users && data.users.includes(currentUid)) {
-              list.push(data);
-            }
-          });
-          callback(list);
-        });
+        console.warn("Friendships subscription query notice:", err?.message || err);
       }
     );
   } catch (err) {
@@ -948,18 +946,7 @@ export const subscribeToUserDirectChats = (
         callback(chats);
       },
       (err) => {
-        console.warn("Direct chats subscription error, fallback listener:", err);
-        return onSnapshot(colRef, (snap) => {
-          const list: DirectChat[] = [];
-          snap.forEach((d) => {
-            const data = d.data() as DirectChat;
-            if (data.participants && data.participants.includes(currentUid)) {
-              list.push(data);
-            }
-          });
-          list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-          callback(list);
-        });
+        console.warn("Direct chats subscription query notice:", err?.message || err);
       }
     );
   } catch (err) {
@@ -986,13 +973,7 @@ export const subscribeToDirectMessages = (
         callback(messages);
       },
       (err) => {
-        console.warn("Direct messages query error, using fallback listener:", err);
-        return onSnapshot(messagesRef, (snap) => {
-          const msgs: DirectMessage[] = [];
-          snap.forEach((d) => msgs.push(d.data() as DirectMessage));
-          msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-          callback(msgs);
-        });
+        console.warn("Direct messages subscription notice:", err?.message || err);
       }
     );
   } catch (err) {
