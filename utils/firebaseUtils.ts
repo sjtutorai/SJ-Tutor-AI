@@ -723,29 +723,30 @@ export const getDirectChatId = (uid1: string, uid2: string): string => {
 
 export const searchUsersInFirestore = async (searchTerm: string, currentUid: string): Promise<any[]> => {
   if (!currentUid) return [];
-  const term = searchTerm.trim().toLowerCase();
-  if (!term) return []; // Strictly require search term
-
   try {
     const colRef = collection(db, "users");
     const snapshot = await getDocs(colRef);
     const results: any[] = [];
+    const term = searchTerm.trim().toLowerCase();
 
     snapshot.forEach((docSnap) => {
       const uData = docSnap.data();
       const uid = docSnap.id;
       if (uid === currentUid) return;
 
+      const name = (uData.displayName || uData.name || "").toLowerCase();
       const email = (uData.email || "").toLowerCase();
       const regNo = (uData.registrationNumber || "").toLowerCase();
+      const institution = (uData.institution || "").toLowerCase();
       const userUid = uid.toLowerCase();
 
-      // Strict matching on exact Student ID / Registration Number, exact Email, or exact UID
-      const isMatch = (
-        (email && email === term) ||
-        (regNo && regNo === term) ||
-        (userUid && userUid === term)
-      );
+      // Flexible search: if no term, include user; otherwise match any field
+      const isMatch = !term ||
+        name.includes(term) ||
+        email.includes(term) ||
+        regNo.includes(term) ||
+        institution.includes(term) ||
+        userUid.includes(term);
 
       if (isMatch) {
         results.push({

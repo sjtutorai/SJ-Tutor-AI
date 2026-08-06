@@ -127,8 +127,6 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
     }
   }, [initialTargetUser, user]);
 
-  const [hasSearched, setHasSearched] = useState(false);
-
   // Search Users Handler
   const handleSearchUsers = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -136,16 +134,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
       onOpenAuthModal();
       return;
     }
-    const queryTerm = searchQuery.trim();
-    if (!queryTerm) {
-      setSearchResults([]);
-      setHasSearched(false);
-      return;
-    }
     setIsSearching(true);
-    setHasSearched(true);
     try {
-      const results = await searchUsersInFirestore(queryTerm, user.uid);
+      const results = await searchUsersInFirestore(searchQuery, user.uid);
       setSearchResults(results);
     } catch (err) {
       console.error("Error searching users:", err);
@@ -153,6 +144,13 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
       setIsSearching(false);
     }
   };
+
+  // Auto-search on opening Add Friend tab or when search query changes
+  useEffect(() => {
+    if (activeTab === "add_friend" && user) {
+      handleSearchUsers();
+    }
+  }, [activeTab, searchQuery, user]);
 
   // Send Friend Request
   const handleSendFriendRequest = async (targetUser: any) => {
@@ -566,41 +564,28 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
             <div className="flex-1 flex flex-col p-4">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Find & Connect Friends</h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3 leading-tight">
-                To connect with a student, enter their exact Student ID or Email address.
+                Search students by name, email, student ID, or institution to send friend requests.
               </p>
               
-              <form onSubmit={handleSearchUsers} className="flex gap-2 mb-4">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    placeholder="Enter exact Student ID or Email..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={!searchQuery.trim()}
-                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-all shrink-0"
-                >
-                  Search
-                </button>
+              <form onSubmit={handleSearchUsers} className="relative mb-4">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  placeholder="Search by name, ID, or email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
               </form>
 
               <div className="flex-1 overflow-y-auto space-y-2">
                 {isSearching ? (
-                  <div className="text-center py-8 text-xs text-slate-500">Searching by exact ID/Email...</div>
-                ) : !hasSearched ? (
-                  <div className="text-center py-8 px-4 text-xs text-slate-500 dark:text-slate-400">
-                    <UserPlus className="w-8 h-8 text-amber-500/40 mx-auto mb-2" />
-                    <p className="font-medium text-slate-700 dark:text-slate-300">Strict ID / Email Search</p>
-                    <p className="mt-1">Type your friend&apos;s exact Student ID or Email address above and click Search.</p>
-                  </div>
+                  <div className="text-center py-8 text-xs text-slate-500">Searching students...</div>
                 ) : searchResults.length === 0 ? (
                   <div className="text-center py-8 px-4 text-xs text-slate-500 dark:text-slate-400">
-                    No student found matching &quot;{searchQuery}&quot;. Please check the exact Student ID or Email address and try again.
+                    <UserPlus className="w-8 h-8 text-amber-500/40 mx-auto mb-2" />
+                    <p className="font-medium text-slate-700 dark:text-slate-300">No students found</p>
+                    <p className="mt-1">Try typing a different name, Student ID, or email address.</p>
                   </div>
                 ) : (
                   searchResults.map((st) => {
