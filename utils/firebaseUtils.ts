@@ -843,7 +843,38 @@ export const getOrCreateDirectChat = async (
   try {
     const chatSnap = await getDoc(chatRef);
     if (chatSnap.exists()) {
-      return chatSnap.data() as DirectChat;
+      const existingData = chatSnap.data() as DirectChat;
+      const updatedDetails = {
+        ...(existingData.participantDetails || {}),
+        [currentUid]: {
+          uid: currentUid,
+          displayName: currentUserInfo.displayName || 'Student',
+          photoURL: currentUserInfo.photoURL || '',
+          email: currentUserInfo.email || '',
+          registrationNumber: currentUserInfo.registrationNumber || ''
+        },
+        [friendUid]: {
+          uid: friendUid,
+          displayName: friendUserInfo.displayName || 'Student',
+          photoURL: friendUserInfo.photoURL || '',
+          email: friendUserInfo.email || '',
+          registrationNumber: friendUserInfo.registrationNumber || ''
+        }
+      };
+
+      try {
+        await updateDoc(chatRef, {
+          participantDetails: updatedDetails,
+          updatedAt: Date.now()
+        });
+      } catch (upErr) {
+        console.warn("Could not update direct chat participant details:", upErr);
+      }
+
+      return {
+        ...existingData,
+        participantDetails: updatedDetails
+      };
     }
 
     const newChat: DirectChat = {

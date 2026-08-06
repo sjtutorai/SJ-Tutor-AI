@@ -227,17 +227,20 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     if (!currentUid) return;
     const unsubscribe = subscribeToUserDirectChats(currentUid, (chats) => {
       setDirectChats(chats);
-      if (chats.length > 0 && !activeDirectChatId) {
-        setActiveDirectChatId(chats[0].id);
-      }
+      setActiveDirectChatId((prev) => {
+        if (prev && chats.some((c) => c.id === prev)) {
+          return prev;
+        }
+        return chats.length > 0 ? chats[0].id : '';
+      });
     });
     return () => unsubscribe();
-  }, [currentUid, activeDirectChatId]);
+  }, [currentUid]);
 
   // Subscribe to active direct chat messages
   useEffect(() => {
+    setDirectMessages([]);
     if (!activeDirectChatId) {
-      setDirectMessages([]);
       return;
     }
     const unsubscribe = subscribeToDirectMessages(activeDirectChatId, (msgs) => {
