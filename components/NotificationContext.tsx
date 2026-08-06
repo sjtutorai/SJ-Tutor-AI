@@ -91,7 +91,6 @@ interface NotificationContextProps {
   sendNotification: (title: string, body: string, category: NotificationCategory, targetUser: string, link?: string, metadata?: any) => Promise<boolean>;
   sendBulkNotification: (title: string, body: string, category: NotificationCategory, targetType: 'all' | 'selected' | 'class', targetValue: string[], scheduledTime?: number) => Promise<boolean>;
   triggerToast: (title: string, body: string, category?: string) => void;
-  triggerSystemNotification: (title: string, body: string, url?: string, notificationId?: string) => void;
   isAdminUser: boolean;
   setupFCM: (user: User) => Promise<void>;
 }
@@ -162,15 +161,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   const seenNotificationIdsRef = useRef<Set<string>>(new Set());
-  const shownDeviceNotificationKeysRef = useRef<Set<string>>((() => {
-    try {
-      const raw = localStorage.getItem('sjtutor_shown_device_notifs');
-      if (raw) return new Set(JSON.parse(raw));
-    } catch (e) {
-      console.warn('Error reading shown device notifications:', e);
-    }
-    return new Set<string>();
-  })());
   const isAdminUser = currentUser?.email === 'sjtutorai@gmail.com';
 
   // FCM Token generation & storage
@@ -219,28 +209,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Track auth state and setup permission
+  // Track auth state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
-      if (user) {
-        setupFCM(user);
-      }
     });
-
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().then((perm) => {
-        setPermissionStatus(perm);
-        if (perm === 'granted' && currentUser) {
-          setupFCM(currentUser);
-        }
-      }).catch(() => {});
-    } else if ('Notification' in window) {
-      setPermissionStatus(Notification.permission);
-    }
-
     return unsubscribe;
-  }, [currentUser]);
+  }, []);
 
   // Sync / load notifications
   useEffect(() => {
@@ -322,7 +297,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       combined.forEach((notif) => {
         if (!notif.read && !seenNotificationIdsRef.current.has(notif.id)) {
           if (Date.now() - notif.timestamp < 3600 * 1000) {
-            triggerSystemNotification(notif.title, notif.body, notif.link || '/', notif.id);
+            triggerSystemNotification(`[${notif.category}] ${notif.title}`, notif.body);
             triggerToastRef.current(notif.title, notif.body, notif.category);
           }
         }
@@ -496,43 +471,25 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Trigger system notification on device with strict single-delivery deduplication
-  const triggerSystemNotification = (title: string, body: string, url = '/', notificationId?: string) => {
-    if (!('Notification' in window) || Notification.permission !== 'granted') {
-      return;
-    }
+  // Trigger system notification
+  const triggerSystemNotification = (title: string, body: string, url = '/') => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const options = {
+        body,
+        icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+        badge: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+        data: { url }
+      };
 
-    const notifKey = notificationId || `${title.trim()}::${body.trim()}`;
-    if (shownDeviceNotificationKeysRef.current.has(notifKey)) {
-      // Prevent duplicate notification on device
-      return;
-    }
-
-    shownDeviceNotificationKeysRef.current.add(notifKey);
-    try {
-      const storedKeys = Array.from(shownDeviceNotificationKeysRef.current).slice(-200);
-      localStorage.setItem('sjtutor_shown_device_notifs', JSON.stringify(storedKeys));
-    } catch (e) {
-      console.warn('Error persisting shown device notification keys:', e);
-    }
-
-    const options: NotificationOptions = {
-      body,
-      icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-      badge: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-      tag: notifKey,
-      renotify: false,
-      data: { url }
-    };
-
-    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.ready.then((reg) => {
-        reg.showNotification(title, options);
-      }).catch(() => {
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then((reg) => {
+          reg.showNotification(title, options);
+        }).catch(() => {
+          new Notification(title, options);
+        });
+      } else {
         new Notification(title, options);
-      });
-    } else {
-      new Notification(title, options);
+      }
     }
   };
 
@@ -656,10 +613,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     metadata?: any
   ): Promise<boolean> => {
     const timestamp = Date.now();
-    const notifId = metadata?.messageId ? `notif_msg_${metadata.messageId}` : `notif_${timestamp}_${Math.random().toString(36).substring(2, 7)}`;
-
-    const payload: NotificationItem = {
-      id: notifId,
+    const payload: Omit<NotificationItem, 'id'> = {
       userId: targetUser,
       title,
       body,
@@ -672,23 +626,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const shouldSystemShow = targetUser === 'all' || (currentUser && targetUser === currentUser.uid);
     if (shouldSystemShow) {
-      triggerSystemNotification(title, body, link || '/', notifId);
+      triggerSystemNotification(`[${category}] ${title}`, body);
     }
 
     try {
       if (targetUser === 'all') {
-        const globalRef = doc(db, 'global_notifications', notifId);
-        await setDoc(globalRef, payload);
+        const globalRef = collection(db, 'global_notifications');
+        await addDoc(globalRef, payload);
       } else {
-        const notifRef = doc(db, 'users', targetUser, 'notifications', notifId);
-        await setDoc(notifRef, payload);
+        const notifRef = collection(db, 'users', targetUser, 'notifications');
+        await addDoc(notifRef, payload);
       }
       return true;
     } catch (err) {
       console.warn('Could not add to Firestore directly. Adding locally instead.', err);
       
+      const localNotification: NotificationItem = {
+        id: `local-custom-${timestamp}`,
+        ...payload
+      };
+
       const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
-      const updated = [payload, ...notifications];
+      const updated = [localNotification, ...notifications];
       setNotifications(updated);
       localStorage.setItem(storageKey, JSON.stringify(updated));
       return true;
@@ -901,7 +860,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         sendNotification,
         sendBulkNotification,
         triggerToast,
-        triggerSystemNotification,
         isAdminUser,
         setupFCM,
       }}

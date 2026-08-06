@@ -27,11 +27,7 @@ import {
   ExternalLink,
   Lock,
   Clock,
-  Settings,
-  Shield,
-  Mail,
-  Key,
-  MessageCircle
+  Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -42,11 +38,7 @@ import {
   GroupMember,
   GroupPoll,
   UserProfile,
-  SJTUTOR_AVATAR,
-  DirectChat,
-  DirectMessage,
-  DirectChatParticipant,
-  MemberPermissions
+  SJTUTOR_AVATAR
 } from '../types';
 import {
   createGroupInFirestore,
@@ -60,13 +52,7 @@ import {
   leaveGroupInFirestore,
   toggleGroupMessageReactionInFirestore,
   voteGroupPollInFirestore,
-  deleteGroupInFirestore,
-  updateGroupMemberPermissionsInFirestore,
-  searchUsersByEmailOrRegistration,
-  getOrCreateDirectChat,
-  subscribeToUserDirectChats,
-  subscribeToDirectMessages,
-  sendDirectMessageInFirestore
+  deleteGroupInFirestore
 } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
 
@@ -80,52 +66,13 @@ interface GroupsViewProps {
 
 const DEFAULT_MESSAGES: Record<string, GroupMessage[]> = {};
 
-const getFriendDetails = (chat: DirectChat, currentUid: string): DirectChatParticipant => {
-  let friendUid = '';
-  if (Array.isArray(chat.participants)) {
-    friendUid = chat.participants.find((id) => id !== currentUid) || '';
-  } else if (chat.participantDetails) {
-    friendUid = Object.keys(chat.participantDetails).find((id) => id !== currentUid) || '';
-  } else if (chat.participants && typeof chat.participants === 'object') {
-    friendUid = Object.keys(chat.participants).find((id) => id !== currentUid) || '';
-  }
-
-  if (chat.participantDetails && chat.participantDetails[friendUid]) {
-    return chat.participantDetails[friendUid];
-  }
-
-  if (chat.participants && typeof chat.participants === 'object' && !Array.isArray(chat.participants)) {
-    const p = (chat.participants as Record<string, any>)[friendUid];
-    if (p && typeof p === 'object') {
-      return {
-        uid: friendUid,
-        displayName: p.displayName || 'Student Friend',
-        photoURL: p.photoURL || '',
-        email: p.email || '',
-        registrationNumber: p.registrationNumber || ''
-      };
-    }
-  }
-
-  return {
-    uid: friendUid,
-    displayName: 'Student Friend',
-    photoURL: '',
-    email: '',
-    registrationNumber: ''
-  };
-};
-
 export const GroupsView: React.FC<GroupsViewProps> = ({
   userProfile,
   userUid
 }) => {
-  const { triggerToast, sendNotification, triggerSystemNotification } = useNotifications();
+  const { triggerToast, sendNotification } = useNotifications();
   const currentUid = userUid || 'guest_user_' + (userProfile.displayName || 'scholar').toLowerCase().replace(/\s+/g, '_');
   const currentName = userProfile.displayName || 'Scholar User';
-
-  const seenDirectMessageIdsRef = useRef<Set<string>>(new Set());
-  const seenGroupMessageIdsRef = useRef<Set<string>>(new Set());
 
   // Group States
   const [groups, setGroups] = useState<StudyGroup[]>(() => {
@@ -142,7 +89,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   });
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'my' | 'explore' | 'direct'>('my');
+  const [activeTab, setActiveTab] = useState<'my' | 'explore'>('my');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinByIdModal, setShowJoinByIdModal] = useState(false);
   const [joinInput, setJoinInput] = useState('');
@@ -151,17 +98,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [inviting, setInviting] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
-
-  // Direct Chat States (User-to-User Chat)
-  const [directChats, setDirectChats] = useState<DirectChat[]>([]);
-  const [activeDirectChatId, setActiveDirectChatId] = useState<string>('');
-  const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
-  const [directInputText, setDirectInputText] = useState('');
-  const [userSearchResults, setUserSearchResults] = useState<DirectChatParticipant[]>([]);
-  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
-
-  // Member Permission Management States
-  const [editingMemberUid, setEditingMemberUid] = useState<string | null>(null);
 
   // Message States
   const [messages, setMessages] = useState<GroupMessage[]>([]);
@@ -190,262 +126,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Active group object
   const activeGroup = groups.find((g) => g.id === activeGroupId) || null;
   const isMemberOfActive = activeGroup ? isMemberOf(activeGroup) : false;
-
-  // Helper check for admin permissions
-  const canUserAddTeammates = (group: StudyGroup | null, uid: string) => {
-    if (!group) return false;
-    const isOwner = group.createdBy === uid || (userUid && group.createdBy === userUid);
-    const memberRole = group.members?.[uid]?.role;
-    if (isOwner || memberRole === 'admin') return true;
-    const memberPerm = group.members?.[uid]?.permissions?.canAddTeammates;
-    if (memberPerm !== undefined) return memberPerm;
-    return group.defaultMemberPermissions?.canAddTeammates !== false;
-  };
-
-  const canUserChangeGroupIcon = (group: StudyGroup | null, uid: string) => {
-    if (!group) return false;
-    const isOwner = group.createdBy === uid || (userUid && group.createdBy === userUid);
-    const memberRole = group.members?.[uid]?.role;
-    if (isOwner || memberRole === 'admin') return true;
-    const memberPerm = group.members?.[uid]?.permissions?.canChangeGroupIcon;
-    if (memberPerm !== undefined) return memberPerm;
-    return group.defaultMemberPermissions?.canChangeGroupIcon === true;
-  };
-
-  const canUserChat = (group: StudyGroup | null, uid: string) => {
-    if (!group) return false;
-    const isOwner = group.createdBy === uid || (userUid && group.createdBy === userUid);
-    const memberRole = group.members?.[uid]?.role;
-    if (isOwner || memberRole === 'admin') return true;
-    const memberPerm = group.members?.[uid]?.permissions?.canChat;
-    if (memberPerm !== undefined) return memberPerm;
-    return group.defaultMemberPermissions?.canChat !== false;
-  };
-
-  // Subscribe to user direct chats
-  useEffect(() => {
-    if (!currentUid) return;
-    const unsubscribe = subscribeToUserDirectChats(currentUid, (chats) => {
-      setDirectChats(chats);
-      setActiveDirectChatId((prev) => {
-        if (prev && chats.some((c) => c.id === prev)) {
-          return prev;
-        }
-        return chats.length > 0 ? chats[0].id : '';
-      });
-    });
-    return () => unsubscribe();
-  }, [currentUid]);
-
-  // Subscribe to active direct chat messages
-  useEffect(() => {
-    setDirectMessages([]);
-    if (!activeDirectChatId) {
-      return;
-    }
-    const unsubscribe = subscribeToDirectMessages(activeDirectChatId, (msgs) => {
-      setDirectMessages(msgs);
-
-      msgs.forEach((msg) => {
-        if (msg.senderId !== currentUid && !seenDirectMessageIdsRef.current.has(msg.id)) {
-          seenDirectMessageIdsRef.current.add(msg.id);
-          if (Date.now() - (msg.timestamp || Date.now()) < 30000) {
-            triggerSystemNotification(
-              `💬 ${msg.senderName}`,
-              msg.text,
-              '/',
-              `dm_device_${msg.id}`
-            );
-          }
-        } else {
-          seenDirectMessageIdsRef.current.add(msg.id);
-        }
-      });
-    });
-    return () => unsubscribe();
-  }, [activeDirectChatId, currentUid, triggerSystemNotification]);
-
-  // Handle User Search for Direct Chat (Exact Email or Reg ID match only)
-  useEffect(() => {
-    if (activeTab !== 'direct') return;
-
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
-      setUserSearchResults([]);
-      setIsSearchingUsers(false);
-      return;
-    }
-
-    setIsSearchingUsers(true);
-    const timer = setTimeout(async () => {
-      const results = await searchUsersByEmailOrRegistration(searchQuery, currentUid, true);
-      setUserSearchResults(results);
-      setIsSearchingUsers(false);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, activeTab, currentUid]);
-
-  // Start Direct Chat with Friend and redirect immediately to the chat page
-  const handleStartDirectChat = async (friend: DirectChatParticipant) => {
-    try {
-      const chat = await getOrCreateDirectChat(
-        currentUid,
-        {
-          displayName: currentName,
-          photoURL: userProfile.photoURL,
-          email: userProfile.email || '',
-          registrationNumber: userProfile.registrationNumber
-        },
-        friend.uid,
-        {
-          displayName: friend.displayName,
-          photoURL: friend.photoURL,
-          email: friend.email,
-          registrationNumber: friend.registrationNumber
-        }
-      );
-
-      const completeChat: DirectChat = {
-        ...chat,
-        participantDetails: {
-          ...(chat.participantDetails || {}),
-          [currentUid]: {
-            uid: currentUid,
-            displayName: currentName,
-            photoURL: userProfile.photoURL || '',
-            email: userProfile.email || '',
-            registrationNumber: userProfile.registrationNumber || ''
-          },
-          [friend.uid]: {
-            uid: friend.uid,
-            displayName: friend.displayName,
-            photoURL: friend.photoURL || '',
-            email: friend.email || '',
-            registrationNumber: friend.registrationNumber || ''
-          }
-        }
-      };
-
-      // Update local state immediately so chat thread is rendered right away
-      setDirectChats((prev) => (prev.some((c) => c.id === completeChat.id) ? prev.map((c) => c.id === completeChat.id ? completeChat : c) : [completeChat, ...prev]));
-      setActiveDirectChatId(completeChat.id);
-      setShowMobileChat(true);
-      setSearchQuery('');
-      setUserSearchResults([]);
-      triggerToast('Direct Chat Opened 💬', `Chat room ready with ${friend.displayName}.`, 'Important Alerts');
-    } catch (err) {
-      console.error('Error starting direct chat:', err);
-      triggerToast('Error ⚠️', 'Could not open direct chat. Please try again.', 'Important Alerts');
-    }
-  };
-
-  // Send Direct Message
-  const handleSendDirectMessage = async () => {
-    if (!directInputText.trim() || !activeDirectChatId) return;
-
-    const newMsg: DirectMessage = {
-      id: 'dm_msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-      chatId: activeDirectChatId,
-      senderId: currentUid,
-      senderName: currentName,
-      senderAvatar: userProfile.photoURL || '',
-      text: directInputText.trim(),
-      timestamp: Date.now()
-    };
-
-    setDirectMessages((prev) => [...prev, newMsg]);
-    setDirectInputText('');
-
-    await sendDirectMessageInFirestore(activeDirectChatId, newMsg);
-
-    // Notify recipient of direct message
-    const activeChat = directChats.find((c) => c.id === activeDirectChatId);
-    if (activeChat) {
-      const recipientUid = Array.isArray(activeChat.participants)
-        ? activeChat.participants.find((uid) => uid !== currentUid)
-        : Object.keys(activeChat.participantDetails || {}).find((uid) => uid !== currentUid);
-
-      if (recipientUid) {
-        await sendNotification(
-          `💬 Message from ${currentName}`,
-          newMsg.text,
-          'Important Alerts',
-          recipientUid,
-          undefined,
-          {
-            type: 'direct_chat',
-            chatId: activeDirectChatId,
-            senderId: currentUid,
-            senderName: currentName,
-            messageId: newMsg.id
-          }
-        );
-      }
-    }
-  };
-
-  // Admin Toggle Member Permission
-  const handleToggleMemberPermission = async (
-    groupId: string,
-    memberUid: string,
-    permissionKey: keyof MemberPermissions
-  ) => {
-    const group = groups.find((g) => g.id === groupId);
-    if (!group) return;
-
-    const currentMember = group.members?.[memberUid];
-    if (!currentMember) return;
-
-    const currentPerms: MemberPermissions = currentMember.permissions || {
-      canAddTeammates: group.defaultMemberPermissions?.canAddTeammates !== false,
-      canChangeGroupIcon: group.defaultMemberPermissions?.canChangeGroupIcon === true,
-      canChat: group.defaultMemberPermissions?.canChat !== false
-    };
-
-    const updatedPerms: MemberPermissions = {
-      ...currentPerms,
-      [permissionKey]: !currentPerms[permissionKey]
-    };
-
-    const updatedMembers = {
-      ...group.members,
-      [memberUid]: {
-        ...currentMember,
-        permissions: updatedPerms
-      }
-    };
-
-    setGroups((prev) =>
-      prev.map((g) => (g.id === groupId ? { ...g, members: updatedMembers } : g))
-    );
-
-    await updateGroupMemberPermissionsInFirestore(groupId, memberUid, updatedPerms);
-    triggerToast('Permissions Updated 🛡️', `Updated permissions for ${currentMember.displayName}.`, 'Important Alerts');
-  };
-
-  // Request Permission From Admin
-  const handleRequestPermissionFromAdmin = async (groupId: string, permissionName: string) => {
-    const group = groups.find((g) => g.id === groupId);
-    if (!group) return;
-
-    triggerToast('Permission Requested 📩', `Requested ${permissionName} permission from group admin.`, 'Important Alerts');
-
-    if (group.createdBy) {
-      await sendNotification(
-        'Permission Request 🛡️',
-        `${currentName} requested permission to ${permissionName} in group "${group.name}".`,
-        'Important Alerts',
-        group.createdBy,
-        undefined,
-        {
-          type: 'group_permission_request',
-          groupId: group.id,
-          requesterUid: currentUid,
-          permissionName
-        }
-      );
-    }
-  };
 
   // Persist active group selection
   useEffect(() => {
@@ -527,24 +207,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     const unsubscribe = subscribeToGroupMessages(activeGroupId, (realtimeMsgs) => {
       if (realtimeMsgs) {
         setMessages(realtimeMsgs);
-
-        realtimeMsgs.forEach((msg) => {
-          if (msg.senderId !== currentUid && !seenGroupMessageIdsRef.current.has(msg.id)) {
-            seenGroupMessageIdsRef.current.add(msg.id);
-            if (Date.now() - (msg.timestamp || Date.now()) < 30000) {
-              const grpName = activeGroup?.name || 'Study Group';
-              triggerSystemNotification(
-                `📚 ${grpName}: ${msg.senderName}`,
-                msg.text || (msg.type === 'poll' ? '📊 New Poll' : msg.type === 'image' ? '📷 Image Attachment' : '🎤 Voice Note'),
-                '/',
-                `grp_device_${msg.id}`
-              );
-            }
-          } else {
-            seenGroupMessageIdsRef.current.add(msg.id);
-          }
-        });
-
         try {
           localStorage.setItem(`group_msgs_${activeGroupId}`, JSON.stringify(realtimeMsgs));
         } catch (e) { console.warn('Msg cache error', e); }
@@ -692,27 +354,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     const sentOk = await sendGroupMessageInFirestore(activeGroupId, newMsg);
     if (!sentOk) {
       triggerToast('Sync Issue ⚠️', 'Failed to deliver message to group server. Retrying...', 'Important Alerts');
-    }
-
-    // Notify other group members
-    if (activeGroup && activeGroup.members) {
-      const otherMembers = Object.values(activeGroup.members).filter((m) => m.uid !== currentUid);
-      otherMembers.forEach((m) => {
-        sendNotification(
-          `📚 ${activeGroup.name}: ${currentName}`,
-          finalText || (messageType === 'poll' ? '📊 New Poll' : messageType === 'image' ? '📷 Image Attachment' : '🎤 Voice Note'),
-          'Important Alerts',
-          m.uid,
-          undefined,
-          {
-            type: 'group_chat',
-            groupId: activeGroupId,
-            senderId: currentUid,
-            senderName: currentName,
-            messageId: newMsg.id
-          }
-        );
-      });
     }
 
     // Update group last message snippet
@@ -1170,11 +811,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
     const finalIconUrl = editGroupIconType !== 'emoji' && editGroupIconUrl.trim() ? editGroupIconUrl.trim() : '';
 
-    if (finalIconUrl !== (activeGroup.iconUrl || '') && !canUserChangeGroupIcon(activeGroup, currentUid)) {
-      triggerToast('Permission Denied', 'Only group admins or members approved by admin can change the group icon.', 'Important Alerts');
-      return;
-    }
-
     const updates: Partial<StudyGroup> = {
       name: editGroupName.trim(),
       subject: editGroupSubject.trim(),
@@ -1196,12 +832,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   const handleInviteUser = async () => {
     if (!inviteRegId.trim() || !activeGroup) return;
-
-    if (!canUserAddTeammates(activeGroup, currentUid)) {
-      triggerToast('Permission Denied', 'Only group admins or members approved by admin can add teammates.', 'Important Alerts');
-      return;
-    }
-
     setInviting(true);
     try {
       const usersRef = collection(db, 'users');
@@ -1350,7 +980,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder={activeTab === 'direct' ? "Type exact Email ID or Registration ID..." : "Search groups or subjects..."}
+              placeholder="Search groups or subjects..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 transition-all"
@@ -1366,7 +996,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex p-1 bg-slate-200/60 dark:bg-slate-800 rounded-xl text-xs font-bold gap-1">
+          <div className="flex p-1 bg-slate-200/60 dark:bg-slate-800 rounded-xl text-xs font-bold">
             <button
               onClick={() => setActiveTab('my')}
               className={`flex-1 py-1.5 rounded-lg transition-all ${
@@ -1387,153 +1017,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             >
               Explore Hubs
             </button>
-            <button
-              onClick={() => setActiveTab('direct')}
-              className={`flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
-                activeTab === 'direct'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <MessageCircle className="w-3.5 h-3.5" />
-              Direct Chat
-            </button>
           </div>
         </div>
 
-        {/* Group or Direct Chat Items List */}
+        {/* Group Items List */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
-          {activeTab === 'direct' ? (
-            <div className="space-y-4">
-              {/* User Search Results */}
-              {searchQuery.trim() && (
-                <div>
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-1 flex items-center gap-1">
-                    <Search className="w-3.5 h-3.5" />
-                    Found Students ({userSearchResults.length})
-                  </h4>
-
-                  {isSearchingUsers ? (
-                    <div className="p-4 text-center text-xs text-slate-400 animate-pulse">
-                      Searching student with exact Email or Registration ID...
-                    </div>
-                  ) : userSearchResults.length === 0 ? (
-                    <div className="p-4 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
-                      <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">No exact match found</p>
-                      <p className="text-[11px] text-slate-400">
-                        Please enter the complete, exact Email ID or Registration ID to find a student.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {userSearchResults.map((user) => (
-                        <div
-                          key={user.uid}
-                          className="p-3 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between gap-2"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-9 h-9 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                              {user.photoURL ? (
-                                <img src={user.photoURL} alt={user.displayName} className="w-full h-full object-cover" />
-                              ) : (
-                                user.displayName.charAt(0).toUpperCase()
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{user.displayName}</p>
-                              {user.email && (
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
-                                  <Mail className="w-2.5 h-2.5 text-indigo-500" />
-                                  {user.email}
-                                </p>
-                              )}
-                              {user.registrationNumber && (
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
-                                  <Key className="w-2.5 h-2.5 text-amber-500" />
-                                  ID: {user.registrationNumber}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => handleStartDirectChat(user)}
-                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm shrink-0 flex items-center gap-1 active:scale-95"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            Chat
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Direct Chats List */}
-              <div>
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 px-1">
-                  Direct Messages ({directChats.length})
-                </h4>
-
-                {directChats.length === 0 ? (
-                  <div className="text-center py-10 px-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
-                    <MessageCircle className="w-8 h-8 text-indigo-400 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No Direct Chats Yet</p>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Type a friend&apos;s Email ID or Registration ID above to start chatting!
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    {directChats.map((chat) => {
-                      const friend = getFriendDetails(chat, currentUid);
-                      const isActive = chat.id === activeDirectChatId;
-
-                      return (
-                        <div
-                          key={chat.id}
-                          onClick={() => {
-                            setActiveDirectChatId(chat.id);
-                            setShowMobileChat(true);
-                          }}
-                          className={`p-3 rounded-2xl cursor-pointer transition-all border flex items-center gap-3 ${
-                            isActive
-                              ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800/80 shadow-sm'
-                              : 'bg-white dark:bg-slate-800/60 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-                          }`}
-                        >
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white font-bold text-xs flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                            {friend.photoURL ? (
-                              <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover" />
-                            ) : (
-                              friend.displayName.charAt(0).toUpperCase()
-                            )}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-0.5">
-                              <h3 className="font-bold text-slate-900 dark:text-white text-xs truncate">
-                                {friend.displayName}
-                              </h3>
-                              {chat.lastMessageTimestamp && (
-                                <span className="text-[10px] text-slate-400">
-                                  {new Date(chat.lastMessageTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                              {chat.lastMessageText || (friend.email ? `Email: ${friend.email}` : `ID: ${friend.registrationNumber || 'Student'}`)}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : filteredGroups.length === 0 ? (
+          {filteredGroups.length === 0 ? (
             <div className="text-center py-12 px-4">
               <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-3 text-slate-400">
                 <Users className="w-6 h-6" />
@@ -1664,157 +1153,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           !showMobileChat ? 'hidden lg:flex' : 'flex'
         } flex-1 flex-col bg-slate-100/60 dark:bg-slate-950 relative overflow-hidden`}
       >
-        {activeTab === 'direct' ? (
-          (() => {
-            const activeChat = directChats.find((c) => c.id === activeDirectChatId);
-            const friend = activeChat ? getFriendDetails(activeChat, currentUid) : null;
-
-            return activeChat && friend ? (
-              <div className="flex-1 flex flex-col h-full bg-slate-100/60 dark:bg-slate-950 overflow-hidden relative">
-                {/* Direct Chat Top Bar */}
-                <div className="px-4 py-3 sm:px-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between z-20 shadow-sm">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <button
-                      onClick={() => setShowMobileChat(false)}
-                      className="lg:hidden p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                      title="Back to Chats"
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                    </button>
-
-                    <div className="w-10 h-10 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                      {friend.photoURL ? (
-                        <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover" />
-                      ) : (
-                        friend.displayName.charAt(0).toUpperCase()
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      <h2 className="font-bold text-slate-900 dark:text-white text-base truncate flex items-center gap-2">
-                        {friend.displayName}
-                        <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded-md flex items-center gap-1">
-                          <Users className="w-3 h-3 text-emerald-600" />
-                          Equal Rights 1-on-1 Chat
-                        </span>
-                      </h2>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                        {friend.email && (
-                          <span className="flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-indigo-500" />
-                            {friend.email}
-                          </span>
-                        )}
-                        {friend.registrationNumber && (
-                          <span className="flex items-center gap-1">
-                            <Key className="w-3 h-3 text-amber-500" />
-                            ID: {friend.registrationNumber}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Direct Messages List Stream */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 custom-scrollbar">
-                  {directMessages.length === 0 ? (
-                    <div className="text-center py-12 px-4">
-                      <MessageSquare className="w-10 h-10 text-indigo-400 mx-auto mb-2 opacity-80" />
-                      <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                        Start your 1-on-1 conversation with {friend.displayName}!
-                      </p>
-                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                        Both students have equal rights and authorities in 1-on-1 direct chats. Messages are real-time, private, and secure.
-                      </p>
-                    </div>
-                  ) : (
-                    directMessages.map((msg) => {
-                      const isMe = msg.senderId === currentUid;
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}
-                        >
-                          {!isMe && (
-                            <div className="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold text-[10px] flex items-center justify-center overflow-hidden shrink-0">
-                              {msg.senderAvatar ? (
-                                <img src={msg.senderAvatar} alt={msg.senderName} className="w-full h-full object-cover" />
-                              ) : (
-                                msg.senderName.charAt(0).toUpperCase()
-                              )}
-                            </div>
-                          )}
-
-                          <div
-                            className={`max-w-[80%] sm:max-w-[70%] p-3.5 rounded-2xl shadow-sm ${
-                              isMe
-                                ? 'bg-indigo-600 text-white rounded-br-none'
-                                : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-bl-none'
-                            }`}
-                          >
-                            <p className="text-xs sm:text-sm whitespace-pre-wrap break-words leading-relaxed">
-                              {msg.text}
-                            </p>
-                            <div
-                              className={`flex items-center justify-end gap-1 text-[10px] mt-1 ${
-                                isMe ? 'text-indigo-200' : 'text-slate-400'
-                              }`}
-                            >
-                              <span>
-                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                              {isMe && <CheckCheck className="w-3 h-3 text-indigo-200" />}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {/* Direct Message Input Bar */}
-                <div className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-20">
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleSendDirectMessage();
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    <input
-                      type="text"
-                      placeholder={`Message ${friend.displayName}...`}
-                      value={directInputText}
-                      onChange={(e) => setDirectInputText(e.target.value)}
-                      className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!directInputText.trim()}
-                      className="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 shrink-0"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </form>
-                </div>
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-                <div className="w-16 h-16 rounded-3xl bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4 shadow-lg shadow-indigo-500/10">
-                  <MessageCircle className="w-8 h-8" />
-                </div>
-                <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2">
-                  Direct Friend Chat
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mb-6 leading-relaxed">
-                  Type a friend&apos;s Email ID (e.g. friend@gmail.com) or Registration ID in the search bar on the left to start direct 1-on-1 chatting!
-                </p>
-              </div>
-            );
-          })()
-        ) : activeGroup && isMemberOfActive ? (
+        {activeGroup && isMemberOfActive ? (
           <>
             {/* Top Group Chat Header Bar */}
             <div className="px-4 py-3 sm:px-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between z-20 shadow-sm">
@@ -2192,103 +1531,84 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
             {/* Message Input Bar */}
             <div className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-20">
-              {!canUserChat(activeGroup, currentUid) ? (
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-900/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2.5 text-amber-900 dark:text-amber-200">
-                    <Lock className="w-5 h-5 text-amber-600 shrink-0" />
-                    <div>
-                      <p className="font-bold">Chatting Restricted by Group Admin</p>
-                      <p className="text-[11px] opacity-80">You need approval from the admin to send messages in this group.</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleRequestPermissionFromAdmin(activeGroup.id, 'Chatting')}
-                    className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shrink-0 shadow-sm active:scale-95 flex items-center gap-1.5"
-                  >
-                    <Mail className="w-3.5 h-3.5" />
-                    Request Permission
-                  </button>
-                </div>
-              ) : (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }}
-                  className="flex items-center gap-2"
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage();
+                }}
+                className="flex items-center gap-2"
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+                  className="p-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition flex-shrink-0"
+                  title="Attach Media, Poll, or Link"
                 >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    placeholder="Type a message or @Tutor to ask AI..."
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    className="w-full pl-4 pr-32 py-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/40 transition"
+                  />
+
+                  {/* Quick Action Chips inside Input Bar */}
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    {!inputText.includes('https://sjtutorai.vercel.app/') && (
+                      <button
+                        type="button"
+                        onClick={() => setInputText((prev) => (prev ? `${prev} https://sjtutorai.vercel.app/` : 'https://sjtutorai.vercel.app/'))}
+                        className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded-lg hover:bg-indigo-200 transition flex items-center gap-1"
+                        title="Insert website link"
+                      >
+                        <Globe className="w-3 h-3" />
+                        <span className="hidden sm:inline">Web</span>
+                      </button>
+                    )}
+                    {!inputText.includes('@Tutor') && (
+                      <button
+                        type="button"
+                        onClick={() => setInputText((prev) => (prev ? prev + ' @Tutor ' : '@Tutor '))}
+                        className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg hover:bg-purple-200 transition"
+                      >
+                        @Tutor
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Voice Note or Send Button */}
+                {isRecordingVoice ? (
                   <button
                     type="button"
-                    onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-                    className="p-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition flex-shrink-0"
-                    title="Attach Media, Poll, or Link"
+                    onClick={stopVoiceRecordingAndSend}
+                    className="p-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl shadow-lg transition animate-pulse flex items-center gap-1 text-xs font-bold"
                   >
-                    <Paperclip className="w-5 h-5" />
+                    <Mic className="w-4 h-4" />
+                    <span>{recordingSeconds}s</span>
                   </button>
-
-                  <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      placeholder="Type a message or @Tutor to ask AI..."
-                      value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
-                      className="w-full pl-4 pr-32 py-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/40 transition"
-                    />
-
-                    {/* Quick Action Chips inside Input Bar */}
-                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                      {!inputText.includes('https://sjtutorai.vercel.app/') && (
-                        <button
-                          type="button"
-                          onClick={() => setInputText((prev) => (prev ? `${prev} https://sjtutorai.vercel.app/` : 'https://sjtutorai.vercel.app/'))}
-                          className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded-lg hover:bg-indigo-200 transition flex items-center gap-1"
-                          title="Insert website link"
-                        >
-                          <Globe className="w-3 h-3" />
-                          <span className="hidden sm:inline">Web</span>
-                        </button>
-                      )}
-                      {!inputText.includes('@Tutor') && (
-                        <button
-                          type="button"
-                          onClick={() => setInputText((prev) => (prev ? prev + ' @Tutor ' : '@Tutor '))}
-                          className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg hover:bg-purple-200 transition"
-                        >
-                          @Tutor
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Voice Note or Send Button */}
-                  {isRecordingVoice ? (
-                    <button
-                      type="button"
-                      onClick={stopVoiceRecordingAndSend}
-                      className="p-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl shadow-lg transition animate-pulse flex items-center gap-1 text-xs font-bold"
-                    >
-                      <Mic className="w-4 h-4" />
-                      <span>{recordingSeconds}s</span>
-                    </button>
-                  ) : inputText.trim() ? (
-                    <button
-                      type="submit"
-                      className="p-3 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl shadow-lg transition active:scale-95 flex-shrink-0"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={startVoiceRecording}
-                      className="p-3 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition flex-shrink-0"
-                      title="Hold/Click to record voice note"
-                    >
-                      <Mic className="w-5 h-5" />
-                    </button>
-                  )}
-                </form>
-              )}
+                ) : inputText.trim() ? (
+                  <button
+                    type="submit"
+                    className="p-3 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl shadow-lg transition active:scale-95 flex-shrink-0"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startVoiceRecording}
+                    className="p-3 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition flex-shrink-0"
+                    title="Hold/Click to record voice note"
+                  >
+                    <Mic className="w-5 h-5" />
+                  </button>
+                )}
+              </form>
             </div>
           </>
         ) : activeGroup ? (
@@ -3288,136 +2608,47 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                           (userUid && activeGroup.members?.[userUid]?.role === 'admin');
 
                         const canRemove = isOwnerOrAdmin && !isSelf && !isOwner;
-                        const isExpandedPerms = editingMemberUid === m.uid;
-
-                        const memberPerms: MemberPermissions = m.permissions || {
-                          canAddTeammates: activeGroup.defaultMemberPermissions?.canAddTeammates !== false,
-                          canChangeGroupIcon: activeGroup.defaultMemberPermissions?.canChangeGroupIcon === true,
-                          canChat: activeGroup.defaultMemberPermissions?.canChat !== false
-                        };
 
                         return (
                           <div
                             key={m.uid}
-                            className="p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2"
+                            className="flex items-center gap-3 p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800"
                           >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full overflow-hidden bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-700 flex-shrink-0">
-                                {m.photoURL ? (
-                                  <img src={m.photoURL} alt={m.displayName} className="w-full h-full object-cover" />
-                                ) : (
-                                  m.displayName.charAt(0).toUpperCase()
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-slate-800 dark:text-white truncate flex items-center gap-1.5">
-                                  <span className="truncate">{m.displayName}</span>
-                                  {isSelf && <span className="text-[10px] text-slate-400 font-normal shrink-0">(You)</span>}
-                                </p>
-                                <span className="text-[10px] text-slate-400 block">
-                                  Joined {new Date(m.joinedAt).toLocaleDateString()}
-                                </span>
-                              </div>
-
-                              {isOwner ? (
-                                <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded-md shrink-0">
-                                  Owner
-                                </span>
-                              ) : m.role === 'admin' ? (
-                                <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded-md shrink-0">
-                                  Admin
-                                </span>
-                              ) : null}
-
-                              {isOwnerOrAdmin && !isOwner && (
-                                <button
-                                  onClick={() => setEditingMemberUid(isExpandedPerms ? null : m.uid)}
-                                  className={`p-1.5 rounded-xl transition shrink-0 ${
-                                    isExpandedPerms
-                                      ? 'bg-indigo-600 text-white'
-                                      : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500'
-                                  }`}
-                                  title="Manage Admin Permissions for Member"
-                                >
-                                  <Shield className="w-4 h-4" />
-                                </button>
-                              )}
-
-                              {canRemove && (
-                                <button
-                                  onClick={() => handleRemoveMember(activeGroup, m.uid, m.displayName)}
-                                  className="p-1.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl transition shrink-0"
-                                  title={`Remove ${m.displayName} from group`}
-                                >
-                                  <UserX className="w-4 h-4" />
-                                </button>
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-700 flex-shrink-0">
+                              {m.photoURL ? (
+                                <img src={m.photoURL} alt={m.displayName} className="w-full h-full object-cover" />
+                              ) : (
+                                m.displayName.charAt(0).toUpperCase()
                               )}
                             </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-slate-800 dark:text-white truncate flex items-center gap-1.5">
+                                <span className="truncate">{m.displayName}</span>
+                                {isSelf && <span className="text-[10px] text-slate-400 font-normal shrink-0">(You)</span>}
+                              </p>
+                              <span className="text-[10px] text-slate-400 block">
+                                Joined {new Date(m.joinedAt).toLocaleDateString()}
+                              </span>
+                            </div>
 
-                            {/* Admin Permissions Controls Panel */}
-                            {isExpandedPerms && isOwnerOrAdmin && !isOwner && (
-                              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 space-y-1.5 bg-white dark:bg-slate-900 p-2.5 rounded-xl">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                                  <span>Admin Permissions</span>
-                                  <button
-                                    onClick={() => {
-                                      handleToggleMemberPermission(activeGroup.id, m.uid, 'canAddTeammates');
-                                      handleToggleMemberPermission(activeGroup.id, m.uid, 'canChangeGroupIcon');
-                                      handleToggleMemberPermission(activeGroup.id, m.uid, 'canChat');
-                                    }}
-                                    className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
-                                  >
-                                    Approve All
-                                  </button>
-                                </p>
+                            {isOwner ? (
+                              <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded-md shrink-0">
+                                Owner
+                              </span>
+                            ) : m.role === 'admin' ? (
+                              <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded-md shrink-0">
+                                Admin
+                              </span>
+                            ) : null}
 
-                                <div className="grid grid-cols-1 gap-1 text-xs">
-                                  <button
-                                    onClick={() => handleToggleMemberPermission(activeGroup.id, m.uid, 'canAddTeammates')}
-                                    className={`p-1.5 rounded-lg border flex items-center justify-between transition ${
-                                      memberPerms.canAddTeammates
-                                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300'
-                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
-                                    }`}
-                                  >
-                                    <span className="flex items-center gap-1.5 text-[11px] font-semibold">
-                                      <UserPlus className="w-3.5 h-3.5" />
-                                      Adding Teammates
-                                    </span>
-                                    <span className="text-[10px] font-bold">{memberPerms.canAddTeammates ? 'Approved ✅' : 'Restricted ❌'}</span>
-                                  </button>
-
-                                  <button
-                                    onClick={() => handleToggleMemberPermission(activeGroup.id, m.uid, 'canChangeGroupIcon')}
-                                    className={`p-1.5 rounded-lg border flex items-center justify-between transition ${
-                                      memberPerms.canChangeGroupIcon
-                                        ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-900/40 text-indigo-800 dark:text-indigo-300'
-                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
-                                    }`}
-                                  >
-                                    <span className="flex items-center gap-1.5 text-[11px] font-semibold">
-                                      <ImageIcon className="w-3.5 h-3.5" />
-                                      Changing Group Icon
-                                    </span>
-                                    <span className="text-[10px] font-bold">{memberPerms.canChangeGroupIcon ? 'Approved ✅' : 'Restricted ❌'}</span>
-                                  </button>
-
-                                  <button
-                                    onClick={() => handleToggleMemberPermission(activeGroup.id, m.uid, 'canChat')}
-                                    className={`p-1.5 rounded-lg border flex items-center justify-between transition ${
-                                      memberPerms.canChat
-                                        ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/40 text-blue-800 dark:text-blue-300'
-                                        : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/40 text-rose-800 dark:text-rose-300'
-                                    }`}
-                                  >
-                                    <span className="flex items-center gap-1.5 text-[11px] font-semibold">
-                                      <MessageSquare className="w-3.5 h-3.5" />
-                                      Group Chatting
-                                    </span>
-                                    <span className="text-[10px] font-bold">{memberPerms.canChat ? 'Approved ✅' : 'Restricted ❌'}</span>
-                                  </button>
-                                </div>
-                              </div>
+                            {canRemove && (
+                              <button
+                                onClick={() => handleRemoveMember(activeGroup, m.uid, m.displayName)}
+                                className="p-1.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl transition shrink-0"
+                                title={`Remove ${m.displayName} from group`}
+                              >
+                                <UserX className="w-4 h-4" />
+                              </button>
                             )}
                           </div>
                         );

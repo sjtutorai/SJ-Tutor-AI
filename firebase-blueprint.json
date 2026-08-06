@@ -183,43 +183,9 @@
         "type": { "type": "string" }
       },
       "required": ["id", "groupId", "senderId", "senderName", "text", "timestamp", "type"]
-    },
-    "DirectChat": {
-      "title": "DirectChat",
-      "description": "User to user direct friend chat room",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "participants": { "type": "array" },
-        "createdAt": { "type": "number" },
-        "updatedAt": { "type": "number" }
-      },
-      "required": ["id", "participants", "createdAt", "updatedAt"]
-    },
-    "DirectMessage": {
-      "title": "DirectMessage",
-      "description": "1-on-1 private chat messages between friends",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "chatId": { "type": "string" },
-        "senderId": { "type": "string" },
-        "senderName": { "type": "string" },
-        "text": { "type": "string" },
-        "timestamp": { "type": "number" }
-      },
-      "required": ["id", "chatId", "senderId", "senderName", "text", "timestamp"]
     }
   },
   "firestore": {
-    "/direct_chats/{chatId}": {
-      "schema": "DirectChat",
-      "description": "User to user 1-on-1 friend chat channels"
-    },
-    "/direct_chats/{chatId}/messages/{messageId}": {
-      "schema": "DirectMessage",
-      "description": "Direct chat messages"
-    },
     "/groups/{groupId}": {
       "schema": "Group",
       "description": "Study group records"

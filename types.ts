@@ -235,19 +235,12 @@ export interface GroupPoll {
   createdBy: string;
 }
 
-export interface MemberPermissions {
-  canAddTeammates: boolean;
-  canChangeGroupIcon: boolean;
-  canChat: boolean;
-}
-
 export interface GroupMember {
   uid: string;
   displayName: string;
   photoURL?: string;
   role: 'admin' | 'member';
   joinedAt: number;
-  permissions?: MemberPermissions;
 }
 
 export interface GroupMessage {
@@ -287,48 +280,10 @@ export interface StudyGroup {
   inviteCode: string;
   pinnedMessageId?: string;
   pinnedMessageText?: string;
-  defaultMemberPermissions?: MemberPermissions;
   joinRequests?: Record<string, { uid: string; displayName: string; photoURL?: string; requestedAt: number }>;
   lastMessage?: {
     text: string;
     senderName: string;
     timestamp: number;
   };
-}
-
-export interface DirectChatParticipant {
-  uid: string;
-  displayName: string;
-  photoURL?: string;
-  email?: string;
-  registrationNumber?: string;
-  institution?: string;
-  grade?: string;
-}
-
-export interface DirectChat {
-  id: string;
-  participants: string[]; // [uid1, uid2]
-  participantDetails: Record<string, DirectChatParticipant>;
-  createdAt: number;
-  updatedAt: number;
-  lastMessage?: {
-    text: string;
-    senderId: string;
-    timestamp: number;
-  };
-  unreadCount?: Record<string, number>;
-}
-
-export interface DirectMessage {
-  id: string;
-  chatId: string;
-  senderId: string;
-  senderName: string;
-  senderAvatar?: string;
-  text: string;
-  timestamp: number;
-  type?: 'text' | 'image' | 'voice' | 'file';
-  mediaUrl?: string;
-  readBy?: string[];
 }
