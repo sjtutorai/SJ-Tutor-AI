@@ -29,7 +29,8 @@ import {
   Clock,
   Settings,
   Shield,
-  ShieldCheck
+  ShieldCheck,
+  MessageSquareOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -56,7 +57,8 @@ import {
   voteGroupPollInFirestore,
   deleteGroupInFirestore,
   deleteGroupMessageInFirestore,
-  updateGroupMemberRoleInFirestore
+  updateGroupMemberRoleInFirestore,
+  updateGroupMemberMessagingInFirestore
 } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
 import { DirectChatView } from './DirectChatView';
@@ -148,6 +150,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           (userUid && activeGroup.members[userUid]?.role === 'admin')))
   );
   const isPostingRestricted = Boolean(activeGroup?.onlyAdminsCanPost && !isAdmin);
+
+  const isMuted = Boolean(activeGroup?.members[currentUid]?.canMessage === false);
 
   // Persist active group selection
   useEffect(() => {
@@ -337,6 +341,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const handleSendMessage = async (textToSend?: string, typeOverride?: 'text' | 'image' | 'poll' | 'voice', extraData?: any) => {
     if (isPostingRestricted) {
       triggerToast('Posting Restricted 🔒', 'Only group admins can send messages in this group.', 'Important Alerts');
+      return;
+    }
+    if (isMuted && !isAdmin) {
+      triggerToast('Muted 🔇', 'You have been muted by an admin.', 'Important Alerts');
       return;
     }
 
@@ -881,6 +889,24 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
     triggerToast(actionLabel, `Member status updated to ${newRole}.`, 'Important Alerts');
     await updateGroupMemberRoleInFirestore(group.id, memberUid, newRole);
+  };
+
+  const handleToggleMemberMessaging = async (group: StudyGroup, memberUid: string, canMessage: boolean) => {
+    const newStatus = !canMessage;
+    
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== group.id) return g;
+        const updatedMembers = { ...g.members };
+        if (updatedMembers[memberUid]) {
+          updatedMembers[memberUid] = { ...updatedMembers[memberUid], canMessage: newStatus };
+        }
+        return { ...g, members: updatedMembers };
+      })
+    );
+
+    triggerToast('Permission Updated', newStatus ? 'Member can now send messages.' : 'Member muted.', 'Important Alerts');
+    await updateGroupMemberMessagingInFirestore(group.id, memberUid, newStatus);
   };
 
   // Delete message for everyone in group (Owner / Admin / Message Author)
@@ -1571,6 +1597,16 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                             >
                               Reply
                             </button>
+                            
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDeleteMessageForEveryone(msg.id)}
+                                className="p-1 hover:bg-rose-200 dark:hover:bg-rose-900/50 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-full transition ml-1"
+                                title="Delete for everyone"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1668,10 +1704,13 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 <div className="flex-1 relative">
                   <input
                     type="text"
-                    placeholder="Type a message or @Tutor to ask AI..."
+                    disabled={isPostingRestricted || (isMuted && !isAdmin)}
+                    placeholder={isPostingRestricted ? "Posting is restricted to admins" : (isMuted && !isAdmin) ? "You are muted" : "Type a message or @Tutor to ask AI..."}
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    className="w-full pl-4 pr-32 py-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/40 transition"
+                    className={`w-full pl-4 pr-32 py-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/40 transition ${
+                      isPostingRestricted || (isMuted && !isAdmin) ? 'opacity-60 cursor-not-allowed' : ''
+                    }`}
                   />
 
                   {/* Quick Action Chips inside Input Bar */}
@@ -2622,6 +2661,26 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
               {/* Details Body */}
               <div className="p-6 space-y-6 flex-1">
+                {/* Switch to User-to-User Chat (if only 2 members) */}
+                {activeGroup.memberCount === 2 && (
+                  <button
+                    onClick={() => {
+                      const otherMember = Object.values(activeGroup.members || {}).find(
+                        (m) => m.uid !== currentUid && m.uid !== userUid
+                      );
+                      if (otherMember) {
+                        setShowGroupInfo(false);
+                        setTargetDirectUser({ uid: otherMember.uid, displayName: otherMember.displayName, photoURL: otherMember.photoURL });
+                        setGroupsMainTab('direct_chat');
+                      }
+                    }}
+                    className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-bold text-xs shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2"
+                  >
+                    <MessageSquare className="w-5 h-5" />
+                    Switch to 1-on-1 Chat
+                  </button>
+                )}
+
                 {/* Admin/Owner Settings Button */}
                 {(activeGroup.createdBy === currentUid || (userUid && activeGroup.createdBy === userUid) || activeGroup.members?.[currentUid]?.role === 'admin' || (userUid && activeGroup.members?.[userUid]?.role === 'admin')) && (
                   <button
@@ -2828,6 +2887,30 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                               >
                                 <MessageSquare className="w-3.5 h-3.5" />
                                 <span className="hidden sm:inline">Message</span>
+                              </button>
+                            )}
+
+                            {isOwnerOrAdmin && !isSelf && !isOwner && (
+                              <button
+                                onClick={() => handleToggleMemberRole(activeGroup, m.uid, m.role)}
+                                className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition shrink-0"
+                                title={m.role === 'admin' ? "Demote to Member" : "Promote to Admin"}
+                              >
+                                {m.role === 'admin' ? <Shield className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                              </button>
+                            )}
+
+                            {isOwnerOrAdmin && !isSelf && !isOwner && (
+                              <button
+                                onClick={() => handleToggleMemberMessaging(activeGroup, m.uid, m.canMessage !== false)}
+                                className={`p-1.5 rounded-xl transition shrink-0 ${
+                                  m.canMessage === false 
+                                    ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/50 dark:text-rose-400' 
+                                    : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-rose-500'
+                                }`}
+                                title={m.canMessage === false ? "Unmute Member" : "Mute Member"}
+                              >
+                                {m.canMessage === false ? <MessageSquare className="w-4 h-4" /> : <MessageSquareOff className="w-4 h-4" />}
                               </button>
                             )}
 

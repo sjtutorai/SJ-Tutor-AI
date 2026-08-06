@@ -741,6 +741,29 @@ export const updateGroupMemberRoleInFirestore = async (
   }
 };
 
+export const updateGroupMemberMessagingInFirestore = async (
+  groupId: string,
+  targetUid: string,
+  canMessage: boolean
+): Promise<boolean> => {
+  try {
+    const groupRef = doc(db, "groups", groupId);
+    const groupSnap = await getDoc(groupRef);
+    if (!groupSnap.exists()) return false;
+    const groupData = groupSnap.data() as StudyGroup;
+    const members = { ...(groupData.members || {}) };
+    if (members[targetUid]) {
+      members[targetUid] = { ...members[targetUid], canMessage };
+      await updateDoc(groupRef, { members, updatedAt: Date.now() });
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error updating group member messaging in Firestore:", error);
+    return false;
+  }
+};
+
 // =====================================
 // FRIENDSHIPS & DIRECT CHAT UTILITIES
 // =====================================

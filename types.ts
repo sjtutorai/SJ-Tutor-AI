@@ -241,6 +241,7 @@ export interface GroupMember {
   photoURL?: string;
   role: 'admin' | 'member';
   joinedAt: number;
+  canMessage?: boolean;
 }
 
 export interface GroupMessage {
@@ -277,6 +278,7 @@ export interface StudyGroup {
   members: Record<string, GroupMember>;
   memberCount: number;
   isPublic: boolean;
+  onlyAdminsCanMessage?: boolean;
   inviteCode: string;
   pinnedMessageId?: string;
   pinnedMessageText?: string;
