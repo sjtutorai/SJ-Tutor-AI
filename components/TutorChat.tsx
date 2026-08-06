@@ -32,8 +32,10 @@ import {
   Clock,
   Plus,
   BrainCircuit,
-  ArrowRight
+  ArrowRight,
+  ArrowDown
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
@@ -320,6 +322,23 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+      if (scrollHeight - scrollTop - clientHeight > 150) {
+        setShowScrollButton(true);
+      } else {
+        setShowScrollButton(false);
+      }
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   // File Upload Handlers
   const handleFilesSelected = (files: FileList | null) => {
@@ -419,7 +438,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
   // Scroll to bottom on new message or during stream
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!showScrollButton) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, isTyping, thinkingStep]);
 
   // Helper to format duration in MM:SS
@@ -998,7 +1019,11 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         </div>
 
         {/* Message Thread */}
-        <div className="flex-grow overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-50/40 dark:bg-slate-950/20">
+        <div 
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-grow overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-50/40 dark:bg-slate-950/20 relative"
+        >
           {/* Resume Session Prompt card */}
           {activeSessionId === null && messages.length === 1 && recentSessions && recentSessions.length > 0 && showResumePrompt && (
             (() => {
@@ -1304,6 +1329,22 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
           <div ref={messagesEndRef} />
         </div>
+
+        {/* SCROLL TO BOTTOM BUTTON */}
+        <AnimatePresence>
+          {showScrollButton && (
+            <motion.button
+              initial={{ opacity: 0, y: 10, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.9 }}
+              onClick={scrollToBottom}
+              className="absolute bottom-28 right-6 p-3 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg transition-colors z-30"
+              title="Scroll to bottom"
+            >
+              <ArrowDown className="w-5 h-5" />
+            </motion.button>
+          )}
+        </AnimatePresence>
 
         {/* Input Control Console */}
         <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-3">

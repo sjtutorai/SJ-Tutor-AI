@@ -30,7 +30,8 @@ import {
   Settings,
   Shield,
   ShieldCheck,
-  MessageSquareOff
+  MessageSquareOff,
+  ArrowDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -116,6 +117,24 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [messages, setMessages] = useState<GroupMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [replyingTo, setReplyingTo] = useState<GroupMessage | null>(null);
+  
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+      if (scrollHeight - scrollTop - clientHeight > 150) {
+        setShowScrollButton(true);
+      } else {
+        setShowScrollButton(false);
+      }
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -334,7 +353,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Auto scroll on new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!showScrollButton) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   // Handle Send Text Message
@@ -1383,7 +1404,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             )}
 
             {/* Messages Scroll View */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar">
+            <div 
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar relative"
+            >
               {messages.map((msg) => {
                 const isMe = msg.senderId === currentUid;
                 const isAi = msg.isAi || msg.senderId === 'ai_tutor';
@@ -1619,6 +1644,22 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
               <div ref={messagesEndRef} />
             </div>
+
+            {/* SCROLL TO BOTTOM BUTTON */}
+            <AnimatePresence>
+              {showScrollButton && (
+                <motion.button
+                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                  onClick={scrollToBottom}
+                  className="absolute bottom-24 right-6 p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg transition-colors z-30"
+                  title="Scroll to bottom"
+                >
+                  <ArrowDown className="w-5 h-5" />
+                </motion.button>
+              )}
+            </AnimatePresence>
 
             {/* Replying Banner */}
             {replyingTo && (

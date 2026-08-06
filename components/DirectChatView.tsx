@@ -35,7 +35,8 @@ import {
   Image as ImageIcon,
   CheckCheck,
   Info,
-  ShieldCheck
+  ShieldCheck,
+  ArrowDown
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -81,6 +82,23 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
   const [showFriendInfoModal, setShowFriendInfoModal] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+      if (scrollHeight - scrollTop - clientHeight > 150) {
+        setShowScrollButton(true);
+      } else {
+        setShowScrollButton(false);
+      }
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   // 1. Subscribe to Friendships
   useEffect(() => {
@@ -117,7 +135,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!showScrollButton) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   // Handle Initial Target User (e.g. passed from Profile or Leaderboard)
@@ -701,7 +721,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
         </div>
 
         {/* RIGHT MAIN PANEL: Active 1-on-1 Chat Room */}
-        <div className={`flex-1 flex flex-col bg-white dark:bg-slate-900 ${!activeChatId ? "hidden md:flex items-center justify-center" : "flex"}`}>
+        <div className={`flex-1 flex flex-col bg-white dark:bg-slate-900 relative ${!activeChatId ? "hidden md:flex items-center justify-center" : "flex"}`}>
           {activeChatId && activeFriendDetails ? (
             <>
               {/* CHAT HEADER */}
@@ -744,7 +764,11 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
               </div>
 
               {/* MESSAGES SCROLL AREA */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30 dark:bg-slate-950/20">
+              <div 
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30 dark:bg-slate-950/20 custom-scrollbar relative"
+              >
                 {messages.length === 0 ? (
                   <div className="text-center py-16">
                     <Sparkles className="w-10 h-10 text-amber-500/40 mx-auto mb-3" />
@@ -827,6 +851,22 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                 )}
                 <div ref={messagesEndRef} />
               </div>
+
+              {/* SCROLL TO BOTTOM BUTTON */}
+              <AnimatePresence>
+                {showScrollButton && (
+                  <motion.button
+                    initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                    onClick={scrollToBottom}
+                    className="absolute bottom-24 right-6 p-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full shadow-lg transition-colors z-10"
+                    title="Scroll to bottom"
+                  >
+                    <ArrowDown className="w-5 h-5" />
+                  </motion.button>
+                )}
+              </AnimatePresence>
 
               {/* IMAGE PREVIEW BAR */}
               {selectedImage && (
