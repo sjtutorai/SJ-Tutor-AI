@@ -55,11 +55,13 @@ import {
   deleteGroupInFirestore
 } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
+import { DirectChatView } from './DirectChatView';
 
 interface GroupsViewProps {
   userProfile: UserProfile;
   userUid?: string | null;
   onNavigateToNotes?: () => void;
+  onOpenAuthModal?: () => void;
 }
 
 // Demo groups removed
@@ -68,11 +70,16 @@ const DEFAULT_MESSAGES: Record<string, GroupMessage[]> = {};
 
 export const GroupsView: React.FC<GroupsViewProps> = ({
   userProfile,
-  userUid
+  userUid,
+  onOpenAuthModal
 }) => {
   const { triggerToast, sendNotification } = useNotifications();
   const currentUid = userUid || 'guest_user_' + (userProfile.displayName || 'scholar').toLowerCase().replace(/\s+/g, '_');
   const currentName = userProfile.displayName || 'Scholar User';
+
+  // Main Mode State (Study Groups vs 1-on-1 Friend Chat)
+  const [groupsMainTab, setGroupsMainTab] = useState<'groups' | 'direct_chat'>('groups');
+  const [targetDirectUser, setTargetDirectUser] = useState<{ uid: string; displayName: string; photoURL?: string } | null>(null);
 
   // Group States
   const [groups, setGroups] = useState<StudyGroup[]>(() => {
@@ -929,8 +936,58 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     return matchesTab && matchesSearch;
   });
 
+  if (groupsMainTab === 'direct_chat') {
+    return (
+      <div className="space-y-4 max-w-7xl mx-auto">
+        {/* Main Header Toggle */}
+        <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm max-w-md">
+          <button
+            onClick={() => setGroupsMainTab('groups')}
+            className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all"
+          >
+            <Users className="w-4 h-4" />
+            <span>Study Groups</span>
+          </button>
+          <button
+            onClick={() => setGroupsMainTab('direct_chat')}
+            className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 shadow-md transition-all"
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>1-on-1 Friend Chat</span>
+          </button>
+        </div>
+
+        <DirectChatView
+          user={userUid ? { uid: userUid } : null}
+          userProfile={userProfile}
+          onOpenAuthModal={onOpenAuthModal || (() => {})}
+          initialTargetUser={targetDirectUser}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-7xl mx-auto h-[calc(100vh-6rem)] min-h-[600px] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex overflow-hidden">
+    <div className="flex flex-col space-y-4 max-w-7xl mx-auto">
+      {/* Main Mode Toggle Header */}
+      <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm max-w-md">
+        <button
+          onClick={() => setGroupsMainTab('groups')}
+          className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-md transition-all"
+        >
+          <Users className="w-4 h-4" />
+          <span>Study Groups</span>
+        </button>
+        <button
+          onClick={() => setGroupsMainTab('direct_chat')}
+          className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all"
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span>1-on-1 Friend Chat</span>
+        </button>
+      </div>
+
+      <div className="h-[calc(100vh-10rem)] min-h-[600px] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex overflow-hidden">
       {/* LEFT SIDEBAR: GROUP LIST */}
       <div
         className={`${
@@ -2641,6 +2698,21 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                               </span>
                             ) : null}
 
+                            {!isSelf && (
+                              <button
+                                onClick={() => {
+                                  setShowGroupInfo(false);
+                                  setTargetDirectUser({ uid: m.uid, displayName: m.displayName, photoURL: m.photoURL });
+                                  setGroupsMainTab('direct_chat');
+                                }}
+                                className="p-1.5 bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 text-amber-600 dark:text-amber-400 rounded-xl transition text-[10px] font-bold flex items-center gap-1 shrink-0"
+                                title={`Direct message ${m.displayName}`}
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Message</span>
+                              </button>
+                            )}
+
                             {canRemove && (
                               <button
                                 onClick={() => handleRemoveMember(activeGroup, m.uid, m.displayName)}
@@ -2684,6 +2756,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           </div>
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 };

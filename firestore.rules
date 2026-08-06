@@ -92,6 +92,20 @@ service cloud.firestore {
       }
     }
 
+    // Friendships collection
+    match /friendships/{friendshipId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Direct chats collection
+    match /direct_chats/{chatId} {
+      allow read, write: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
     // Shared content collection - zero-trust dynamic permissions
     match /sharedContent/{shareId} {
       allow read: if resource == null || 

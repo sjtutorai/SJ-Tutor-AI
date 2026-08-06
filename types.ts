@@ -287,3 +287,64 @@ export interface StudyGroup {
     timestamp: number;
   };
 }
+
+export type FriendshipStatus = 'pending' | 'accepted' | 'declined';
+
+export interface Friendship {
+  id: string;
+  users: string[]; // [uid1, uid2]
+  status: FriendshipStatus;
+  requestedBy: string; // UID of requester
+  createdAt: number;
+  updatedAt: number;
+  userDetails?: Record<string, {
+    uid: string;
+    displayName: string;
+    photoURL?: string;
+    email?: string;
+    registrationNumber?: string;
+    institution?: string;
+    grade?: string;
+  }>;
+}
+
+export interface DirectMessage {
+  id: string;
+  chatId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  text: string;
+  timestamp: number;
+  type: 'text' | 'image' | 'voice' | 'note' | 'system';
+  mediaUrl?: string;
+  voiceUrl?: string;
+  noteData?: { title: string; content: string; subject?: string };
+  replyTo?: { id: string; senderName: string; text: string };
+  reactions?: Record<string, string[]>; // { "👍": ["uid1"] }
+  status?: 'sent' | 'delivered' | 'read';
+}
+
+export interface DirectChat {
+  id: string;
+  participants: string[]; // [uid1, uid2]
+  participantDetails: Record<string, {
+    uid: string;
+    displayName: string;
+    photoURL?: string;
+    email?: string;
+    registrationNumber?: string;
+    lastActive?: number;
+  }>;
+  lastMessage?: {
+    text: string;
+    senderId: string;
+    senderName: string;
+    timestamp: number;
+    read?: boolean;
+  };
+  unreadCount?: Record<string, number>; // { [uid]: count }
+  createdAt: number;
+  updatedAt: number;
+}
+

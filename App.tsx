@@ -2494,6 +2494,7 @@ const App: React.FC = () => {
               userProfile={userProfile}
               userUid={user ? user.uid : null}
               onNavigateToNotes={() => setMode(AppMode.NOTES)}
+              onOpenAuthModal={() => setShowAuthModal(true)}
             />
           </div>
         );

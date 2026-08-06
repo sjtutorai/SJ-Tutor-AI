@@ -183,9 +183,67 @@
         "type": { "type": "string" }
       },
       "required": ["id", "groupId", "senderId", "senderName", "text", "timestamp", "type"]
+    },
+    "Friendship": {
+      "title": "Friendship",
+      "description": "1-on-1 friendship link or pending request between two users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "users": { "type": "array" },
+        "status": { "type": "string" },
+        "requestedBy": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "userDetails": { "type": "object" }
+      },
+      "required": ["id", "users", "status", "requestedBy", "createdAt"]
+    },
+    "DirectChat": {
+      "title": "DirectChat",
+      "description": "1-on-1 private chat session between two friends",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "participants": { "type": "array" },
+        "participantDetails": { "type": "object" },
+        "lastMessage": { "type": "object" },
+        "unreadCount": { "type": "object" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "participants", "createdAt", "updatedAt"]
+    },
+    "DirectMessage": {
+      "title": "DirectMessage",
+      "description": "Private message sent directly between two friends",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "chatId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "type": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "chatId", "senderId", "senderName", "text", "timestamp", "type"]
     }
   },
   "firestore": {
+    "/friendships/{friendshipId}": {
+      "schema": "Friendship",
+      "description": "Friendship requests and active connections"
+    },
+    "/direct_chats/{chatId}": {
+      "schema": "DirectChat",
+      "description": "1-on-1 private direct chats between friends"
+    },
+    "/direct_chats/{chatId}/messages/{messageId}": {
+      "schema": "DirectMessage",
+      "description": "1-on-1 private messages between friends"
+    },
     "/groups/{groupId}": {
       "schema": "Group",
       "description": "Study group records"

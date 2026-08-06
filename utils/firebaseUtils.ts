@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where, serverTimestamp, onSnapshot, orderBy, limit, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "../firebaseConfig";
-import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember } from "../types";
+import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember, Friendship, DirectChat, DirectMessage } from "../types";
+
 
 export const saveProfileToFirestore = async (uid: string, profile: Partial<UserProfile>) => {
   try {
@@ -703,6 +704,390 @@ export const deleteGroupInFirestore = async (groupId: string): Promise<boolean> 
       console.error("Error deleting group from Firestore:", err);
       return false;
     }
+  }
+};
+
+// =====================================
+// FRIENDSHIPS & DIRECT CHAT UTILITIES
+// =====================================
+
+export const getFriendshipId = (uid1: string, uid2: string): string => {
+  const sorted = [uid1, uid2].sort();
+  return `friendship_${sorted[0]}_${sorted[1]}`;
+};
+
+export const getDirectChatId = (uid1: string, uid2: string): string => {
+  const sorted = [uid1, uid2].sort();
+  return `chat_${sorted[0]}_${sorted[1]}`;
+};
+
+export const searchUsersInFirestore = async (searchTerm: string, currentUid: string): Promise<any[]> => {
+  if (!currentUid) return [];
+  try {
+    const colRef = collection(db, "users");
+    const snapshot = await getDocs(colRef);
+    const results: any[] = [];
+    const term = searchTerm.trim().toLowerCase();
+
+    snapshot.forEach((docSnap) => {
+      const uData = docSnap.data();
+      const uid = docSnap.id;
+      if (uid === currentUid) return;
+
+      const name = (uData.displayName || uData.name || "").toLowerCase();
+      const email = (uData.email || "").toLowerCase();
+      const regNo = (uData.registrationNumber || "").toLowerCase();
+      const institution = (uData.institution || "").toLowerCase();
+
+      if (!term || name.includes(term) || email.includes(term) || regNo.includes(term) || institution.includes(term)) {
+        results.push({
+          uid,
+          displayName: uData.displayName || uData.name || "Student",
+          email: uData.email || "",
+          photoURL: uData.photoURL || "",
+          registrationNumber: uData.registrationNumber || "",
+          institution: uData.institution || "",
+          grade: uData.grade || "",
+        });
+      }
+    });
+
+    return results;
+  } catch (error) {
+    console.error("Error searching users in Firestore:", error);
+    return [];
+  }
+};
+
+export const sendFriendRequestInFirestore = async (
+  currentUid: string,
+  currentUserProfile: Partial<UserProfile>,
+  targetUser: { uid: string; displayName: string; photoURL?: string; email?: string; registrationNumber?: string }
+): Promise<boolean> => {
+  if (!currentUid || !targetUser?.uid || currentUid === targetUser.uid) return false;
+  try {
+    const friendshipId = getFriendshipId(currentUid, targetUser.uid);
+    const friendshipRef = doc(db, "friendships", friendshipId);
+
+    const friendshipData: Friendship = {
+      id: friendshipId,
+      users: [currentUid, targetUser.uid],
+      status: "pending",
+      requestedBy: currentUid,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      userDetails: {
+        [currentUid]: {
+          uid: currentUid,
+          displayName: currentUserProfile.displayName || "Student",
+          photoURL: currentUserProfile.photoURL || "",
+          email: "",
+          registrationNumber: currentUserProfile.registrationNumber || "",
+          institution: currentUserProfile.institution || "",
+          grade: currentUserProfile.grade || "",
+        },
+        [targetUser.uid]: {
+          uid: targetUser.uid,
+          displayName: targetUser.displayName || "Student",
+          photoURL: targetUser.photoURL || "",
+          email: targetUser.email || "",
+          registrationNumber: targetUser.registrationNumber || "",
+        },
+      },
+    };
+
+    const cleanData = removeUndefinedFields(friendshipData);
+    await setDoc(friendshipRef, cleanData, { merge: true });
+    return true;
+  } catch (error) {
+    console.error("Error sending friend request:", error);
+    return false;
+  }
+};
+
+export const acceptFriendRequestInFirestore = async (friendshipId: string, currentUid: string): Promise<boolean> => {
+  try {
+    const friendshipRef = doc(db, "friendships", friendshipId);
+    const snap = await getDoc(friendshipRef);
+    if (!snap.exists()) return false;
+
+    const friendship = snap.data() as Friendship;
+    await updateDoc(friendshipRef, {
+      status: "accepted",
+      updatedAt: Date.now(),
+    });
+
+    // Also initialize the DirectChat room immediately
+    const otherUid = friendship.users.find((u) => u !== currentUid);
+    if (otherUid && friendship.userDetails) {
+      const userA = friendship.userDetails[currentUid];
+      const userB = friendship.userDetails[otherUid];
+      if (userA && userB) {
+        await getOrCreateDirectChatInFirestore(currentUid, userA, userB);
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error("Error accepting friend request:", error);
+    return false;
+  }
+};
+
+export const declineOrRemoveFriendInFirestore = async (friendshipId: string): Promise<boolean> => {
+  try {
+    const friendshipRef = doc(db, "friendships", friendshipId);
+    await deleteDoc(friendshipRef);
+    return true;
+  } catch (error) {
+    console.error("Error removing friend request:", error);
+    return false;
+  }
+};
+
+export const subscribeToUserFriendships = (
+  currentUid: string,
+  callback: (friendships: Friendship[]) => void
+): (() => void) => {
+  if (!currentUid) return () => {};
+  try {
+    const colRef = collection(db, "friendships");
+    const q = query(colRef, where("users", "array-contains", currentUid));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const friendships: Friendship[] = [];
+        snapshot.forEach((docSnap) => {
+          friendships.push(docSnap.data() as Friendship);
+        });
+        callback(friendships);
+      },
+      (err) => {
+        console.warn("Friendships subscription query error, using fallback:", err);
+        return onSnapshot(colRef, (snap) => {
+          const list: Friendship[] = [];
+          snap.forEach((d) => {
+            const data = d.data() as Friendship;
+            if (data.users && data.users.includes(currentUid)) {
+              list.push(data);
+            }
+          });
+          callback(list);
+        });
+      }
+    );
+  } catch (err) {
+    console.warn("Error setting up friendships subscription:", err);
+    return () => {};
+  }
+};
+
+export const getOrCreateDirectChatInFirestore = async (
+  currentUid: string,
+  currentUserDetails: { uid: string; displayName: string; photoURL?: string },
+  targetUserDetails: { uid: string; displayName: string; photoURL?: string }
+): Promise<string> => {
+  const chatId = getDirectChatId(currentUid, targetUserDetails.uid);
+  try {
+    const chatRef = doc(db, "direct_chats", chatId);
+    const snap = await getDoc(chatRef);
+
+    const participantDetails = {
+      [currentUid]: {
+        uid: currentUid,
+        displayName: currentUserDetails.displayName || "Student",
+        photoURL: currentUserDetails.photoURL || "",
+        lastActive: Date.now(),
+      },
+      [targetUserDetails.uid]: {
+        uid: targetUserDetails.uid,
+        displayName: targetUserDetails.displayName || "Friend",
+        photoURL: targetUserDetails.photoURL || "",
+        lastActive: Date.now(),
+      },
+    };
+
+    if (!snap.exists()) {
+      const newChat: DirectChat = {
+        id: chatId,
+        participants: [currentUid, targetUserDetails.uid],
+        participantDetails,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        unreadCount: { [currentUid]: 0, [targetUserDetails.uid]: 0 },
+      };
+      await setDoc(chatRef, removeUndefinedFields(newChat));
+    } else {
+      await updateDoc(chatRef, {
+        participantDetails: removeUndefinedFields(participantDetails),
+        updatedAt: Date.now(),
+      });
+    }
+    return chatId;
+  } catch (error) {
+    console.error("Error creating/getting direct chat in Firestore:", error);
+    return chatId;
+  }
+};
+
+export const subscribeToUserDirectChats = (
+  currentUid: string,
+  callback: (chats: DirectChat[]) => void
+): (() => void) => {
+  if (!currentUid) return () => {};
+  try {
+    const colRef = collection(db, "direct_chats");
+    const q = query(colRef, where("participants", "array-contains", currentUid));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const chats: DirectChat[] = [];
+        snapshot.forEach((docSnap) => {
+          chats.push(docSnap.data() as DirectChat);
+        });
+        chats.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        callback(chats);
+      },
+      (err) => {
+        console.warn("Direct chats subscription error, fallback listener:", err);
+        return onSnapshot(colRef, (snap) => {
+          const list: DirectChat[] = [];
+          snap.forEach((d) => {
+            const data = d.data() as DirectChat;
+            if (data.participants && data.participants.includes(currentUid)) {
+              list.push(data);
+            }
+          });
+          list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+          callback(list);
+        });
+      }
+    );
+  } catch (err) {
+    console.warn("Error setting up direct chats subscription:", err);
+    return () => {};
+  }
+};
+
+export const subscribeToDirectMessages = (
+  chatId: string,
+  callback: (messages: DirectMessage[]) => void
+): (() => void) => {
+  if (!chatId) return () => {};
+  try {
+    const messagesRef = collection(db, "direct_chats", chatId, "messages");
+    const q = query(messagesRef, orderBy("timestamp", "asc"), limit(200));
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const messages: DirectMessage[] = [];
+        snapshot.forEach((d) => {
+          messages.push(d.data() as DirectMessage);
+        });
+        callback(messages);
+      },
+      (err) => {
+        console.warn("Direct messages query error, using fallback listener:", err);
+        return onSnapshot(messagesRef, (snap) => {
+          const msgs: DirectMessage[] = [];
+          snap.forEach((d) => msgs.push(d.data() as DirectMessage));
+          msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          callback(msgs);
+        });
+      }
+    );
+  } catch (err) {
+    console.warn("Error subscribing to direct messages:", err);
+    return () => {};
+  }
+};
+
+export const sendDirectMessageInFirestore = async (
+  chatId: string,
+  message: DirectMessage,
+  recipientUid: string
+): Promise<boolean> => {
+  try {
+    const cleanMsg = removeUndefinedFields(message);
+    const msgRef = doc(db, "direct_chats", chatId, "messages", cleanMsg.id);
+    await setDoc(msgRef, cleanMsg);
+
+    // Update parent DirectChat document's lastMessage and increment unread for recipient
+    const chatRef = doc(db, "direct_chats", chatId);
+    const chatSnap = await getDoc(chatRef);
+    let currentUnread = 0;
+
+    if (chatSnap.exists()) {
+      const chatData = chatSnap.data() as DirectChat;
+      currentUnread = chatData.unreadCount?.[recipientUid] || 0;
+    }
+
+    await updateDoc(chatRef, {
+      updatedAt: cleanMsg.timestamp || Date.now(),
+      lastMessage: removeUndefinedFields({
+        text: cleanMsg.text || (cleanMsg.type === 'voice' ? '🎤 Voice Note' : cleanMsg.type === 'image' ? '📷 Image' : 'Message'),
+        senderId: cleanMsg.senderId,
+        senderName: cleanMsg.senderName,
+        timestamp: cleanMsg.timestamp || Date.now(),
+        read: false,
+      }),
+      [`unreadCount.${recipientUid}`]: currentUnread + 1,
+      [`unreadCount.${cleanMsg.senderId}`]: 0,
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error sending direct message:", error);
+    return false;
+  }
+};
+
+export const clearDirectChatUnreadInFirestore = async (chatId: string, userUid: string): Promise<boolean> => {
+  try {
+    const chatRef = doc(db, "direct_chats", chatId);
+    await updateDoc(chatRef, {
+      [`unreadCount.${userUid}`]: 0,
+    });
+    return true;
+  } catch (error) {
+    console.warn("Error clearing direct chat unread count:", error);
+    return false;
+  }
+};
+
+export const toggleDirectMessageReactionInFirestore = async (
+  chatId: string,
+  messageId: string,
+  emoji: string,
+  userUid: string
+): Promise<boolean> => {
+  try {
+    const messageRef = doc(db, "direct_chats", chatId, "messages", messageId);
+    const msgSnap = await getDoc(messageRef);
+    if (!msgSnap.exists()) return false;
+
+    const msgData = msgSnap.data() as DirectMessage;
+    const reactions = msgData.reactions || {};
+    const currentUsers = reactions[emoji] || [];
+
+    let newUsers: string[];
+    if (currentUsers.includes(userUid)) {
+      newUsers = currentUsers.filter((u) => u !== userUid);
+    } else {
+      newUsers = [...currentUsers, userUid];
+    }
+
+    const newReactions = { ...reactions };
+    if (newUsers.length === 0) {
+      delete newReactions[emoji];
+    } else {
+      newReactions[emoji] = newUsers;
+    }
+
+    await updateDoc(messageRef, { reactions: newReactions });
+    return true;
+  } catch (error) {
+    console.error("Error toggling direct message reaction:", error);
+    return false;
   }
 };
 
