@@ -27,7 +27,9 @@ import {
   ExternalLink,
   Lock,
   Clock,
-  Settings
+  Settings,
+  Shield,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -52,7 +54,9 @@ import {
   leaveGroupInFirestore,
   toggleGroupMessageReactionInFirestore,
   voteGroupPollInFirestore,
-  deleteGroupInFirestore
+  deleteGroupInFirestore,
+  deleteGroupMessageInFirestore,
+  updateGroupMemberRoleInFirestore
 } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
 import { DirectChatView } from './DirectChatView';
@@ -133,6 +137,17 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Active group object
   const activeGroup = groups.find((g) => g.id === activeGroupId) || null;
   const isMemberOfActive = activeGroup ? isMemberOf(activeGroup) : false;
+
+  const isOwner = Boolean(
+    activeGroup && (activeGroup.createdBy === currentUid || (userUid && activeGroup.createdBy === userUid))
+  );
+  const isAdmin = Boolean(
+    isOwner ||
+      (activeGroup?.members &&
+        (activeGroup.members[currentUid]?.role === 'admin' ||
+          (userUid && activeGroup.members[userUid]?.role === 'admin')))
+  );
+  const isPostingRestricted = Boolean(activeGroup?.onlyAdminsCanPost && !isAdmin);
 
   // Persist active group selection
   useEffect(() => {
@@ -320,6 +335,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Handle Send Text Message
   const handleSendMessage = async (textToSend?: string, typeOverride?: 'text' | 'image' | 'poll' | 'voice', extraData?: any) => {
+    if (isPostingRestricted) {
+      triggerToast('Posting Restricted 🔒', 'Only group admins can send messages in this group.', 'Important Alerts');
+      return;
+    }
+
     const finalText = textToSend || inputText;
     if (!finalText.trim() && typeOverride !== 'image' && typeOverride !== 'poll' && typeOverride !== 'voice') return;
 
@@ -663,6 +683,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [editGroupIconType, setEditGroupIconType] = useState<'emoji' | 'url' | 'file'>('emoji');
   const [editGroupIconEmoji, setEditGroupIconEmoji] = useState('📚');
   const [editGroupIconUrl, setEditGroupIconUrl] = useState('');
+  const [editOnlyAdminsCanPost, setEditOnlyAdminsCanPost] = useState(false);
+  const [editOnlyAdminsCanEditInfo, setEditOnlyAdminsCanEditInfo] = useState(false);
 
   // Custom Image File Upload Handler
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
@@ -806,10 +828,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     setEditGroupIconEmoji(activeGroup.iconEmoji || '📚');
     setEditGroupIconUrl(activeGroup.iconUrl || '');
     setEditGroupIconType(activeGroup.iconUrl ? 'url' : 'emoji');
+    setEditOnlyAdminsCanPost(Boolean(activeGroup.onlyAdminsCanPost));
+    setEditOnlyAdminsCanEditInfo(Boolean(activeGroup.onlyAdminsCanEditInfo));
     setShowEditModal(true);
   };
 
-  // Save Group Settings (Privacy, Icon, Info)
+  // Save Group Settings (Privacy, Icon, Info, Permissions)
   const handleSaveGroupSettings = async () => {
     if (!activeGroup || !editGroupName.trim() || !editGroupSubject.trim()) {
       alert('Please fill in group name and subject.');
@@ -824,7 +848,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       description: editGroupDescription.trim(),
       isPublic: editGroupIsPublic,
       iconEmoji: editGroupIconEmoji,
-      iconUrl: finalIconUrl
+      iconUrl: finalIconUrl,
+      onlyAdminsCanPost: editOnlyAdminsCanPost,
+      onlyAdminsCanEditInfo: editOnlyAdminsCanEditInfo
     };
 
     setGroups((prev) =>
@@ -832,9 +858,44 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     );
 
     setShowEditModal(false);
-    triggerToast('Settings Saved ⚙️', 'Group privacy and settings updated successfully!', 'Important Alerts');
+    triggerToast('Settings Saved ⚙️', 'Group privacy and admin permissions updated successfully!', 'Important Alerts');
 
     await updateGroupInFirestore(activeGroup.id, updates);
+  };
+
+  // Owner: Promote Member to Admin / Revoke Admin
+  const handleToggleMemberRole = async (group: StudyGroup, memberUid: string, currentRole?: string) => {
+    const newRole: 'admin' | 'member' = currentRole === 'admin' ? 'member' : 'admin';
+    const actionLabel = newRole === 'admin' ? 'Promoted to Admin 🛡️' : 'Demoted to Member';
+
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== group.id) return g;
+        const updatedMembers = { ...g.members };
+        if (updatedMembers[memberUid]) {
+          updatedMembers[memberUid] = { ...updatedMembers[memberUid], role: newRole };
+        }
+        return { ...g, members: updatedMembers };
+      })
+    );
+
+    triggerToast(actionLabel, `Member status updated to ${newRole}.`, 'Important Alerts');
+    await updateGroupMemberRoleInFirestore(group.id, memberUid, newRole);
+  };
+
+  // Delete message for everyone in group (Owner / Admin / Message Author)
+  const handleDeleteMessageForEveryone = async (messageId: string) => {
+    if (!activeGroupId) return;
+    if (!window.confirm('Are you sure you want to delete this message for everyone in the group?')) return;
+
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+
+    const success = await deleteGroupMessageInFirestore(activeGroupId, messageId);
+    if (success) {
+      triggerToast('Message Deleted 🗑️', 'Message removed for everyone in group.', 'Important Alerts');
+    } else {
+      triggerToast('Delete Error', 'Failed to delete message from group server.', 'Important Alerts');
+    }
   };
 
   const handleInviteUser = async () => {
@@ -2275,6 +2336,63 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                         <span className="block text-xs font-bold">Private Group</span>
                         <span className="text-[10px] opacity-80 block leading-tight">Hide from Explore Hubs.</span>
                       </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Admin Permissions & Controls */}
+                <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Group Permissions & Controls
+                  </label>
+
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        Only Admins Can Send Messages
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                        Restrict non-admin members from posting messages in group chat.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditOnlyAdminsCanPost(!editOnlyAdminsCanPost)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        editOnlyAdminsCanPost ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          editOnlyAdminsCanPost ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <span className="block text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                        <Shield className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                        Only Admins Can Edit Group Info
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                        Only group owners and admins can update icon, description, or permissions.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditOnlyAdminsCanEditInfo(!editOnlyAdminsCanEditInfo)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        editOnlyAdminsCanEditInfo ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          editOnlyAdminsCanEditInfo ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
                     </button>
                   </div>
                 </div>

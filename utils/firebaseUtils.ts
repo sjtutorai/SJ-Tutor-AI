@@ -707,6 +707,40 @@ export const deleteGroupInFirestore = async (groupId: string): Promise<boolean> 
   }
 };
 
+export const deleteGroupMessageInFirestore = async (groupId: string, messageId: string): Promise<boolean> => {
+  try {
+    const msgRef = doc(db, "groups", groupId, "messages", messageId);
+    await deleteDoc(msgRef);
+    return true;
+  } catch (error) {
+    console.error("Error deleting group message in Firestore:", error);
+    return false;
+  }
+};
+
+export const updateGroupMemberRoleInFirestore = async (
+  groupId: string,
+  targetUid: string,
+  newRole: 'admin' | 'member'
+): Promise<boolean> => {
+  try {
+    const groupRef = doc(db, "groups", groupId);
+    const groupSnap = await getDoc(groupRef);
+    if (!groupSnap.exists()) return false;
+    const groupData = groupSnap.data() as StudyGroup;
+    const members = { ...(groupData.members || {}) };
+    if (members[targetUid]) {
+      members[targetUid] = { ...members[targetUid], role: newRole };
+      await updateDoc(groupRef, { members, updatedAt: Date.now() });
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error updating group member role in Firestore:", error);
+    return false;
+  }
+};
+
 // =====================================
 // FRIENDSHIPS & DIRECT CHAT UTILITIES
 // =====================================

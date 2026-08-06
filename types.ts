@@ -281,6 +281,8 @@ export interface StudyGroup {
   pinnedMessageId?: string;
   pinnedMessageText?: string;
   joinRequests?: Record<string, { uid: string; displayName: string; photoURL?: string; requestedAt: number }>;
+  onlyAdminsCanPost?: boolean;
+  onlyAdminsCanEditInfo?: boolean;
   lastMessage?: {
     text: string;
     senderName: string;
