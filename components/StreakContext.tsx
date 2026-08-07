@@ -263,13 +263,12 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const streakFromUsers = userDocData ? (userDocData.streak ?? userDocData.currentStreak ?? 0) : 0;
           const streakFromLocal = localData ? (localData.currentStreak ?? 0) : 0;
 
-          const maxCurrentStreak = Math.max(streakFromStreaks, streakFromUsers, streakFromLocal);
-
           const highestFromStreaks = streakDocData?.highestStreak ?? 0;
           const highestFromUsers = userDocData?.highestStreak ?? 0;
           const highestFromLocal = localData?.highestStreak ?? 0;
 
-          const maxHighestStreak = Math.max(highestFromStreaks, highestFromUsers, highestFromLocal, maxCurrentStreak);
+          const maxHighestStreak = Math.max(highestFromStreaks, highestFromUsers, highestFromLocal);
+          const maxCurrentStreak = Math.max(streakFromStreaks, streakFromUsers, streakFromLocal, maxHighestStreak);
 
           let lastStudy = streakDocData?.lastStudyDate || streakDocData?.lastActivityDate ||
                           userDocData?.lastStudyDate || userDocData?.lastActivityDate ||
@@ -343,7 +342,6 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Record an activity completion with accurate calendar day criteria
   const recordActivity = useCallback(async () => {
     const today = getLocalDateString();
-    const yesterday = getYesterdayDateString();
     
     return new Promise<{ success: boolean; incremented: boolean; milestoneReached?: number }>((resolve) => {
       setStreak((prev) => {
@@ -353,19 +351,15 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         let didIncrement = false;
 
         if (lastStudy === today) {
-          // Already recorded today!
+          // Already recorded today! Ensure current streak is at least 1
           didIncrement = false;
-        } else if (lastStudy === yesterday || (prev.currentStreak > 0 && !lastStudy)) {
-          // Consecutive study day!
-          newCount = prev.currentStreak + 1;
-          didIncrement = true;
-        } else if (prev.currentStreak === 0 || !lastStudy) {
-          // First time starting streak
-          newCount = 1;
-          didIncrement = true;
+          newCount = prev.currentStreak > 0 ? prev.currentStreak : 1;
         } else {
-          // Missed 1 or more days, start fresh at 1
-          newCount = 1;
+          // New activity day: ALWAYS continue from previous streak or highest streak!
+          const previousStreakValue = prev.currentStreak > 0 
+            ? prev.currentStreak 
+            : (prev.highestStreak > 0 ? prev.highestStreak : 0);
+          newCount = previousStreakValue + 1;
           didIncrement = true;
         }
 

@@ -36,7 +36,8 @@ import {
   CheckCheck,
   Info,
   ShieldCheck,
-  ArrowDown
+  ArrowDown,
+  Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -222,6 +223,24 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
   };
 
   // Start 1-on-1 Direct Chat with a Friend
+  const handleDownloadImage = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Error downloading image:", error);
+      window.open(url, "_blank"); // Fallback
+    }
+  };
+
   const handleStartDirectChat = async (targetUserDetails: { uid: string; displayName: string; photoURL?: string }) => {
     if (!user) {
       onOpenAuthModal();
@@ -795,11 +814,22 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                         >
                           {/* Image Attachment */}
                           {msg.mediaUrl && (
-                            <img
-                              src={msg.mediaUrl}
-                              alt="Attachment"
-                              className="rounded-xl mb-2 max-h-60 w-full object-cover"
-                            />
+                            <div className="relative group/image mb-2">
+                              <img
+                                src={msg.mediaUrl}
+                                alt="Attachment"
+                                className="rounded-xl max-h-60 w-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+                                <button 
+                                  onClick={() => handleDownloadImage(msg.mediaUrl!, `attachment-${msg.id}.jpg`)}
+                                  className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-full backdrop-blur-sm transition-all cursor-pointer"
+                                  title="Download Image"
+                                >
+                                  <Download className="w-5 h-5" />
+                                </button>
+                              </div>
+                            </div>
                           )}
 
                           {/* Text Message */}
