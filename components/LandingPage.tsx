@@ -1227,14 +1227,31 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
                 SJ Tutor AI acts as a flexible study companion. Utilizing advanced Large Language reasoning, we capture the exact knowledge gap of a student, producing customized examples, interactive curve plotting math aids, and targeted MCQs instantly. It acts like a private private educator available 24/7.
               </p>
 
-              {/* Founder Sign-off */}
-              <div className="flex items-center gap-4 pt-4 border-t border-slate-900">
-                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-extrabold text-sm shadow-md">
-                  SJ
-                </div>
-                <div>
-                  <h4 className="font-bold text-white text-sm">S. J. Tutor AI Founders Group</h4>
-                  <span className="text-[11px] text-slate-500 uppercase tracking-widest font-black block">Pristine Educational Systems Group</span>
+              {/* Innovators & Inventors Sign-off */}
+              <div className="pt-6 border-t border-slate-900 space-y-3">
+                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest block">Innovators &amp; Inventors</span>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white font-extrabold text-xs shadow-md">
+                      SJ
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Sadanand Jyoti</h4>
+                      <span className="text-[10px] text-slate-400 font-medium block">Lead Innovator &amp; Founder</span>
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:block w-px h-8 bg-slate-800"></div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white font-extrabold text-xs shadow-md">
+                      SP
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Samanyu S Patil</h4>
+                      <span className="text-[10px] text-slate-400 font-medium block">Innovator &amp; Co-Inventor</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1488,7 +1505,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
 
           {/* Subfooter */}
           <div className="max-w-7xl mx-auto px-6 pt-8 border-t border-slate-900/90 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
-            <p>Copyright © 2026 SJ Tutor AI Operations Group. All rights reserved.</p>
+            <p>Copyright © 2026 SJ Tutor AI. Innovated by Sadanand Jyoti &amp; Samanyu S Patil. All rights reserved.</p>
             <p className="text-[10px] font-black uppercase tracking-widest text-[#00d4ff]">
               Your smart path to better grades is here.
             </p>

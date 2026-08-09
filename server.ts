@@ -29,6 +29,40 @@ app.use((req, res, next) => {
 // API routes
 app.use("/api/auth", authRoutes);
 
+app.post("/api/generate-image", async (req, res, next) => {
+  try {
+    console.log("process.env keys:", Object.keys(process.env).filter(k => k.includes('KEY')));
+    const { prompt } = req.body;
+    if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY || '' });
+    const interaction = await ai.interactions.create({
+      model: 'gemini-3.1-flash-lite-image',
+      input: prompt,
+      response_modalities: ['image'],
+      generation_config: {
+        image_config: {
+          aspect_ratio: "1:1",
+          image_size: "1K"
+        }
+      }
+    });
+    let imageUrl = "";
+    for (const step of interaction.steps) {
+      if (step.type === 'model_output') {
+        const imageContent = step.content?.find((c: any) => c.type === 'image');
+        if (imageContent && imageContent.data) {
+          const mimeType = imageContent.mime_type || 'image/png';
+          imageUrl = `data:${mimeType};base64,${imageContent.data}`;
+        }
+      }
+    }
+    res.json({ imageUrl });
+  } catch (error: any) {
+    next(error);
+  }
+});
+
 // Global Error Handler
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {

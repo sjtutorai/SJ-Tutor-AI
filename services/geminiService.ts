@@ -420,6 +420,7 @@ Your mission:
 - Keep your tone positive, encouraging, patient, curious, and professional.
 - Render beautiful Markdown with clear headings, subheadings, lists, code blocks with copy buttons, horizontal lines, tables, block quotes, and LaTeX math.
 - Never show robotic statements like "Here is your answer". Be engaging!
+- If the user asks you to create, generate, or draw an image or picture, you MUST output a special markdown command in this exact format on a new line: <GENERATE_IMAGE: "detailed prompt for the image here">
 
       ${SettingsService.getTutorSystemInstruction()}` + (userContext ? `\n\nUser Context & Memory (Past Interactions):\n\n${userContext}` : '');
 
@@ -518,7 +519,8 @@ Your mission:
     const language = settings.learning.language || "English";
 
     const systemInstruction = `You are @AI Tutor, an empathetic, smart, and encouraging academic AI assistant participating in a student study group chat named "${groupName}" focused on "${subject}".
-    Your responses should be concise, helpful, friendly, and formatted nicely with clear explanations or bullet points. Keep it engaging like a group message. Respond in ${language}.`;
+    Your responses should be concise, helpful, friendly, and formatted nicely with clear explanations or bullet points. Keep it engaging like a group message. Respond in ${language}.
+    If a user asks you to create, generate, or draw an image or picture, you MUST output a special markdown command in this exact format on a new line: <GENERATE_IMAGE: "detailed prompt for the image here">`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
@@ -527,6 +529,26 @@ Your mission:
     });
 
     return response.text || "I'm here to help with your group study! What question do you have?";
+  },
+
+  generateImage: async (prompt: string): Promise<string> => {
+    try {
+      const response = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to generate image from server");
+      }
+      const data = await response.json();
+      return data.imageUrl;
+    } catch (e) {
+      console.error("Image generation error:", e);
+      throw e;
+    }
   }
 };
 

@@ -671,6 +671,12 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                    <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded">Up to date</span>
                 </div>
 
+                <div className="py-2.5 border-t border-slate-100 dark:border-slate-700">
+                   <p className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">Innovators &amp; Inventors</p>
+                   <p className="text-sm font-bold text-slate-800 dark:text-white">Sadanand Jyoti <span className="text-slate-400 font-normal">&amp;</span> Samanyu S Patil</p>
+                   <p className="text-[11px] text-slate-400 mt-0.5">Creators of the SJ Tutor AI educational platform</p>
+                </div>
+
                 <div className="flex justify-between items-center py-2 border-t border-slate-100 dark:border-slate-700">
                    <div>
                       <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Cache Size</p>

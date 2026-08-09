@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Target, Zap, Shield, Heart, Mail, Phone, Globe, Lock } from 'lucide-react';
+import { Target, Zap, Shield, Heart, Mail, Phone, Globe, Lock, Lightbulb, Award, Sparkles } from 'lucide-react';
 import Logo from './Logo';
 
 interface AboutViewProps {
@@ -34,6 +34,56 @@ const AboutView: React.FC<AboutViewProps> = ({ onNavigateToLegal }) => {
         </p>
       </div>
 
+      {/* Innovators & Inventors Showcase Section */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-primary-500/10 to-blue-500/10 dark:from-amber-500/20 dark:via-primary-500/20 dark:to-blue-500/20 rounded-3xl p-8 border border-amber-500/20 dark:border-amber-500/30 shadow-sm relative overflow-hidden">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <Lightbulb className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+              Innovators &amp; Inventors
+              <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">The creative minds pioneering SJ Tutor AI</p>
+          </div>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-6">
+          {/* Innovator 1 */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm flex items-start gap-4 hover:shadow-md transition-all">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-black text-lg flex items-center justify-center shadow-md shrink-0">
+              SJ
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider mb-1">
+                <Award className="w-3 h-3" /> Lead Innovator &amp; Founder
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Sadanand Jyoti</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                Visionary architect behind SJ Tutor AI&apos;s intelligent learning frameworks, adaptive tutoring models, and personalized student study workflows.
+              </p>
+            </div>
+          </div>
+
+          {/* Innovator 2 */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm flex items-start gap-4 hover:shadow-md transition-all">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 text-white font-black text-lg flex items-center justify-center shadow-md shrink-0">
+              SP
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider mb-1">
+                <Award className="w-3 h-3" /> Innovator &amp; Co-Inventor
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Samanyu S Patil</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                Co-inventor pioneering smart learning algorithms, automated study aids, and interactive student success tools.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main Content Grid */}
       <div className="grid md:grid-cols-2 gap-6">
         
@@ -59,7 +109,7 @@ const AboutView: React.FC<AboutViewProps> = ({ onNavigateToLegal }) => {
            </p>
            <ul className="space-y-2 text-sm text-slate-500 dark:text-slate-400">
               <li className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div> Generate instant summaries & essays
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div> Generate instant summaries &amp; essays
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div> Create practice quizzes from any topic
@@ -141,11 +191,9 @@ const AboutView: React.FC<AboutViewProps> = ({ onNavigateToLegal }) => {
                   We are constantly improving and your feedback shapes the future of SJ Tutor AI.
                </p>
                
-               <div className="space-y-4">
-                  <div>
-                     <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Founder</p>
-                     <p className="text-xl font-semibold">Sadanand Jyoti</p>
-                  </div>
+               <div className="space-y-3">
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Innovators &amp; Inventors</p>
+                  <p className="text-lg font-bold text-amber-400">Sadanand Jyoti <span className="text-white font-normal">&amp;</span> Samanyu S Patil</p>
                </div>
             </div>
 
@@ -189,7 +237,7 @@ const AboutView: React.FC<AboutViewProps> = ({ onNavigateToLegal }) => {
             </button>
          </div>
          <p className="text-slate-400 text-xs text-center leading-relaxed max-w-md">
-            © {new Date().getFullYear()} SJ Tutor AI. All rights reserved. <br/>
+            © {new Date().getFullYear()} SJ Tutor AI. Innovated by Sadanand Jyoti &amp; Samanyu S Patil. All rights reserved. <br/>
             Designed to empower students through intelligent AI-driven learning experiences.
          </p>
       </div>
