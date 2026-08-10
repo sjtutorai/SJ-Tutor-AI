@@ -113,6 +113,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [inviteRegId, setInviteRegId] = useState('');
   const [inviting, setInviting] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
+  const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [isEnlarged, setIsEnlarged] = useState(false);
 
@@ -1370,6 +1371,21 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
               {/* Actions Header */}
               <div className="flex items-center gap-1.5">
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowRequestsModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition relative mr-1"
+                    title="View Join Requests"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Requests</span>
+                    {activeGroup.joinRequests && Object.keys(activeGroup.joinRequests).length > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {Object.keys(activeGroup.joinRequests).length}
+                      </span>
+                    )}
+                  </button>
+                )}
                 <a
                   href="https://sjtutorai.vercel.app/"
                   target="_blank"
@@ -2678,6 +2694,75 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 >
                   Send Image
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* JOIN REQUESTS MODAL */}
+      <AnimatePresence>
+        {showRequestsModal && activeGroup && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[85vh]"
+            >
+              <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-amber-500" />
+                  Join Requests for {activeGroup.name}
+                </h3>
+                <button
+                  onClick={() => setShowRequestsModal(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 overflow-y-auto">
+                {!activeGroup.joinRequests || Object.keys(activeGroup.joinRequests).length === 0 ? (
+                  <div className="text-center py-10">
+                    <UserPlus className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">No Pending Requests</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Share the group link to invite more members.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {Object.values(activeGroup.joinRequests).map((req) => (
+                      <div key={req.uid} className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-full overflow-hidden bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700 shrink-0">
+                            {req.photoURL ? <img src={req.photoURL} alt={req.displayName} className="w-full h-full object-cover" /> : req.displayName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{req.displayName}</p>
+                            <span className="text-xs text-slate-400 block">{new Date(req.requestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => handleApproveJoinRequest(activeGroup.id, req)}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleDeclineJoinRequest(activeGroup.id, req.uid)}
+                            className="px-3 py-1.5 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-200 dark:hover:bg-rose-900/50 rounded-xl text-xs font-bold transition shadow-sm"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>
