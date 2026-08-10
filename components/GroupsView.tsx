@@ -1120,9 +1120,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
                   Study Groups
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  WhatsApp-style study rooms
-                </p>
               </div>
             </div>
 
@@ -1137,7 +1134,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 title={isEnlarged ? "Exit Enlarge" : "Enlarge Study Groups"}
               >
                 {isEnlarged ? <Minimize2 className="w-4 h-4 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-4 h-4" />}
-                <span className="hidden sm:inline">{isEnlarged ? "Minimize" : "Enlarge"}</span>
+                <span>{isEnlarged ? "Minimize" : "Enlarge"}</span>
               </button>
 
               <button
@@ -1151,11 +1148,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="p-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold shrink-0"
+                className="p-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center shrink-0"
                 title="Create New Study Group"
               >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">New Group</span>
+                <Plus className="w-5 h-5" />
               </button>
             </div>
           </div>

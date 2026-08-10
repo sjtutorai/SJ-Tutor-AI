@@ -16,6 +16,7 @@ import {
   subscribeToDirectMessages,
   sendDirectMessageInFirestore,
   clearDirectChatUnreadInFirestore,
+  clearDirectChatForUserInFirestore,
   toggleDirectMessageReactionInFirestore
 } from "../utils/firebaseUtils";
 import { useNotifications } from "./NotificationContext";
@@ -39,7 +40,9 @@ import {
   ArrowDown,
   Download,
   Maximize2,
-  Minimize2
+  Minimize2,
+  BookOpen,
+  Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -83,6 +86,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
   // Reactions & Friend Info Modal
   const [showFriendInfoModal, setShowFriendInfoModal] = useState(false);
+  const [activeMediaTab, setActiveMediaTab] = useState<'photos'|'links'|'audio'|'documents'>('photos');
   const [isEnlarged, setIsEnlarged] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -368,6 +372,13 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
     );
   }
 
+  const visibleMessages = messages.filter(msg => !activeChat?.clearedAt?.[user?.uid] || msg.timestamp > activeChat.clearedAt[user.uid]);
+  
+  const chatPhotos = visibleMessages.filter(m => m.type === 'image' && m.mediaUrl);
+  const chatLinks = visibleMessages.filter(m => /https?:\/\/[^\s]+/.test(m.text));
+  const chatAudio = visibleMessages.filter(m => m.type === 'voice' && m.voiceUrl);
+  const chatDocs = visibleMessages.filter(m => m.type === 'note' && m.noteData);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       {/* Top Header & Section Tabs */}
@@ -512,14 +523,16 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                             <h4 className="text-sm font-semibold truncate text-slate-900 dark:text-white">
                               {friendDetails.displayName}
                             </h4>
-                            {chat.lastMessage?.timestamp && (
+                            {chat.lastMessage?.timestamp && (!chat.clearedAt?.[user.uid] || chat.lastMessage.timestamp > chat.clearedAt[user.uid]) && (
                               <span className="text-[10px] text-slate-400">
                                 {new Date(chat.lastMessage.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             )}
                           </div>
                           <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                            {chat.lastMessage?.text || "Started a conversation"}
+                            {(chat.clearedAt?.[user.uid] && chat.lastMessage?.timestamp && chat.lastMessage.timestamp <= chat.clearedAt[user.uid]) 
+                              ? "Chat cleared" 
+                              : chat.lastMessage?.text || "Started a conversation"}
                           </p>
                         </div>
 
@@ -793,6 +806,17 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                     {isEnlarged ? <Minimize2 className="w-5 h-5 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-5 h-5" />}
                   </button>
                   <button
+                    onClick={async () => {
+                      if (!user || !activeChatId) return;
+                      if (!window.confirm("Are you sure you want to clear this chat? This will remove the messages from your view, but the other user will still see them.")) return;
+                      await clearDirectChatForUserInFirestore(activeChatId, user.uid);
+                    }}
+                    className="p-2 text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all cursor-pointer"
+                    title="Clear Chat"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                  <button
                     onClick={() => setShowFriendInfoModal(true)}
                     className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
                     title="Friend Info"
@@ -808,7 +832,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                 onScroll={handleScroll}
                 className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30 dark:bg-slate-950/20 custom-scrollbar relative"
               >
-                {messages.length === 0 ? (
+                {visibleMessages.length === 0 ? (
                   <div className="text-center py-16">
                     <Sparkles className="w-10 h-10 text-amber-500/40 mx-auto mb-3" />
                     <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Start Your Direct Conversation</p>
@@ -817,7 +841,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                     </p>
                   </div>
                 ) : (
-                  messages.map((msg) => {
+                  visibleMessages.map((msg) => {
                     const isMe = msg.senderId === user.uid;
 
                     return (
@@ -1036,6 +1060,91 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                   <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" /> Direct Encrypted Session
                   </span>
+                </div>
+              </div>
+
+              {/* Shared Media Section */}
+              <div className="mb-6">
+                <div className="flex flex-wrap gap-2 mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">
+                  {(['photos', 'links', 'audio', 'documents'] as const).map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveMediaTab(tab)}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors capitalize ${
+                        activeMediaTab === tab
+                          ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                          : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="h-48 overflow-y-auto pr-2 custom-scrollbar space-y-2">
+                  {activeMediaTab === 'photos' && (
+                    chatPhotos.length > 0 ? (
+                      <div className="grid grid-cols-3 gap-2">
+                        {chatPhotos.map(msg => (
+                          <div key={msg.id} className="relative aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 group">
+                            <img src={msg.mediaUrl} alt="Shared Photo" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-center text-slate-400 py-8">No photos shared yet</p>
+                    )
+                  )}
+
+                  {activeMediaTab === 'links' && (
+                    chatLinks.length > 0 ? (
+                      <div className="space-y-2">
+                        {chatLinks.map(msg => (
+                          <div key={msg.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-xs flex flex-col gap-1">
+                            <span className="font-bold text-slate-900 dark:text-white">{msg.senderName}</span>
+                            <a href={msg.text.match(/https?:\/\/[^\s]+/)?.[0] || "#"} target="_blank" rel="noopener noreferrer" className="text-amber-600 dark:text-amber-400 truncate hover:underline">
+                              {msg.text.match(/https?:\/\/[^\s]+/)?.[0] || "Link"}
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-center text-slate-400 py-8">No links shared yet</p>
+                    )
+                  )}
+
+                  {activeMediaTab === 'audio' && (
+                    chatAudio.length > 0 ? (
+                      <div className="space-y-2">
+                        {chatAudio.map(msg => (
+                          <div key={msg.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-slate-900 dark:text-white">{msg.senderName}</span>
+                            <audio controls src={msg.voiceUrl} className="h-8 w-40" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-center text-slate-400 py-8">No audio shared yet</p>
+                    )
+                  )}
+
+                  {activeMediaTab === 'documents' && (
+                    chatDocs.length > 0 ? (
+                      <div className="space-y-2">
+                        {chatDocs.map(msg => (
+                          <div key={msg.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-xs flex flex-col gap-1">
+                            <span className="font-bold text-slate-900 dark:text-white">{msg.senderName}</span>
+                            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                              <span className="p-1.5 bg-white dark:bg-slate-700 rounded-lg"><BookOpen className="w-3.5 h-3.5 text-amber-500" /></span>
+                              <span className="font-medium truncate">{msg.noteData?.title || 'Shared Note'}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-center text-slate-400 py-8">No documents shared yet</p>
+                    )
+                  )}
                 </div>
               </div>
 

@@ -1080,6 +1080,19 @@ export const sendDirectMessageInFirestore = async (
   }
 };
 
+export const clearDirectChatForUserInFirestore = async (chatId: string, userUid: string): Promise<boolean> => {
+  try {
+    const chatRef = doc(db, "direct_chats", chatId);
+    await updateDoc(chatRef, {
+      [`clearedAt.${userUid}`]: Date.now(),
+    });
+    return true;
+  } catch (error) {
+    console.warn("Error clearing direct chat:", error);
+    return false;
+  }
+};
+
 export const clearDirectChatUnreadInFirestore = async (chatId: string, userUid: string): Promise<boolean> => {
   try {
     const chatRef = doc(db, "direct_chats", chatId);

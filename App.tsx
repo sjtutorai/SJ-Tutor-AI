@@ -362,7 +362,7 @@ const App: React.FC = () => {
     } catch (e) {
       console.warn("Could not read sidebar open state", e);
     }
-    return false;
+    return window.innerWidth >= 1024;
   });
 
   const isExpanded = isSidebarOpen || isSidebarHovered;
@@ -1199,10 +1199,10 @@ const App: React.FC = () => {
   const validateForm = () => {
     if (!formData.subject || !formData.gradeClass || !formData.chapterName) {
       setError("Please fill in at least Subject, Class, and Chapter Name.");
-      return false;
+      return window.innerWidth >= 1024;
     }
     setError(null);
-    return true;
+    return window.innerWidth >= 1024;
   };
 
   const addToHistory = (type: AppMode, content: any) => {
@@ -1433,9 +1433,9 @@ const App: React.FC = () => {
         credits: userProfile.credits - amount,
       };
       handleProfileSave(updatedProfile, false);
-      return true;
+      return window.innerWidth >= 1024;
     }
-    return false;
+    return window.innerWidth >= 1024;
   };
 
   const handleGenerate = async () => {

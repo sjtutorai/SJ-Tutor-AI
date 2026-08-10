@@ -1049,7 +1049,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               title={isEnlarged ? "Exit Enlarge" : "Enlarge Messages"}
             >
               {isEnlarged ? <Minimize2 className="w-4 h-4 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-4 h-4" />}
-              <span className="text-xs font-black hidden sm:inline">{isEnlarged ? "Minimize" : "Enlarge"}</span>
+              <span className="text-xs font-black">{isEnlarged ? "Minimize" : "Enlarge"}</span>
             </button>
           </div>
         </div>

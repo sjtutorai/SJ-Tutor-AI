@@ -348,6 +348,7 @@ export interface DirectChat {
     read?: boolean;
   };
   unreadCount?: Record<string, number>; // { [uid]: count }
+  clearedAt?: Record<string, number>; // { [uid]: timestamp }
   createdAt: number;
   updatedAt: number;
 }
