@@ -36,8 +36,10 @@ import {
   Minimize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { QRCodeSVG } from "qrcode.react";
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { compressImage } from "../utils/imageUtils";
 import {
   StudyGroup,
   GroupMessage,
@@ -146,7 +148,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Attachment Modal Forms
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
-  const [imageUrlInput, setImageUrlInput] = useState('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Audio simulation state
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -651,11 +653,24 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     setShowPollCreator(false);
   };
 
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const compressed = await compressImage(reader.result as string);
+        setSelectedImage(compressed);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // Image Attachment Submit
   const handleCreateImageSubmit = () => {
-    if (!imageUrlInput.trim()) return;
-    handleSendMessage(`📷 Image Attachment`, 'image', { mediaUrl: imageUrlInput.trim() });
-    setImageUrlInput('');
+    if (!selectedImage) return;
+    handleSendMessage(`📷 Image Attachment`, 'image', { mediaUrl: selectedImage });
+    setSelectedImage(null);
     setShowImageModal(false);
   };
 
@@ -1882,20 +1897,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 </div>
               </div>
 
-              <button
-                onClick={() => {
-                  const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
-                  navigator.clipboard.writeText(shareUrl);
-                  triggerToast('Copied Group Link! 🔗', 'Share link copied to clipboard.', 'Important Alerts');
-                }}
-                className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition"
-                title="Share Group Link"
-              >
-                <Share2 className="w-5 h-5" />
-              </button>
             </div>
 
-            {/* Preview Body */}
+            {/* Preview Body */ }
             <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center text-center custom-scrollbar">
               <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-xl border border-slate-200/80 dark:border-slate-800 space-y-6">
                 <div className="flex justify-center">
@@ -1948,18 +1952,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                       Ask Owner to Join Group 📩
                     </button>
                   )}
-
-                  <button
-                    onClick={() => {
-                      const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
-                      navigator.clipboard.writeText(shareUrl);
-                      triggerToast('Copied Group Link! 🔗', 'Share link copied to clipboard.', 'Important Alerts');
-                    }}
-                    className="w-full sm:w-auto py-3 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2"
-                  >
-                    <Share2 className="w-4 h-4" />
-                    Share
-                  </button>
                 </div>
               </div>
             </div>
@@ -2656,7 +2648,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <ImageIcon className="w-5 h-5 text-emerald-500" />
-                  Share Image URL
+                  Share Image
                 </h3>
                 <button
                   onClick={() => setShowImageModal(false)}
@@ -2669,15 +2661,27 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               <div className="p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Image Direct URL *
+                    Upload Image *
                   </label>
-                  <input
-                    type="url"
-                    placeholder="https://example.com/study-diagram.jpg"
-                    value={imageUrlInput}
-                    onChange={(e) => setImageUrlInput(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
+                  {selectedImage ? (
+                    <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
+                      <img src={selectedImage} alt="Preview" className="w-full h-40 object-cover" />
+                      <button
+                        onClick={() => setSelectedImage(null)}
+                        className="absolute top-2 right-2 p-1 bg-black/50 hover:bg-black/70 text-white rounded-full"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <ImageIcon className="w-8 h-8 text-slate-400 mb-2" />
+                        <p className="mb-2 text-sm text-slate-500 dark:text-slate-400"><span className="font-semibold">Click to upload</span></p>
+                      </div>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                    </label>
+                  )}
                 </div>
               </div>
 
@@ -2901,6 +2905,15 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                     Group Share & Invite Link
                   </h4>
+
+                  <div className="flex justify-center p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+                    <QRCodeSVG 
+                      value={`${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`}
+                      size={150}
+                      level="H"
+                      className="rounded-lg shadow-sm"
+                    />
+                  </div>
 
                   <button
                     onClick={() => {

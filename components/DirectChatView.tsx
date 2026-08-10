@@ -44,6 +44,7 @@ import {
   BookOpen,
   Trash2
 } from "lucide-react";
+import { compressImage } from "../utils/imageUtils";
 import { motion, AnimatePresence } from "motion/react";
 
 interface DirectChatViewProps {
@@ -284,8 +285,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
+      reader.onloadend = async () => {
+        const compressed = await compressImage(reader.result as string);
+        setSelectedImage(compressed);
       };
       reader.readAsDataURL(file);
     }

@@ -125,21 +125,21 @@ export class NotificationService {
         if (registration) {
           registration.showNotification(title, {
             body,
-            icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-            badge: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+            icon: '/logo.png',
+            badge: '/logo.png',
             vibrate: [200, 100, 200],
             data: { category }
           } as NotificationOptions & { vibrate?: number[] });
         } else {
           new Notification(title, {
             body,
-            icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
+            icon: '/logo.png'
           });
         }
       } catch {
         new Notification(title, {
           body,
-          icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
+          icon: '/logo.png'
         });
       }
     }
