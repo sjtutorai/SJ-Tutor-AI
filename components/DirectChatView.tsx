@@ -37,7 +37,9 @@ import {
   Info,
   ShieldCheck,
   ArrowDown,
-  Download
+  Download,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -81,6 +83,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
   // Reactions & Friend Info Modal
   const [showFriendInfoModal, setShowFriendInfoModal] = useState(false);
+  const [isEnlarged, setIsEnlarged] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -442,7 +445,11 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
       </div>
 
       {/* MAIN CONTAINER */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xl overflow-hidden min-h-[600px] flex flex-col md:flex-row">
+      <div className={`bg-white dark:bg-slate-900 shadow-xl flex flex-col md:flex-row transition-all duration-300 ${
+        isEnlarged
+          ? 'h-[calc(100vh-5.5rem)] min-h-[650px] rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden'
+          : 'rounded-3xl border border-slate-200/80 dark:border-slate-800 min-h-[600px] overflow-hidden'
+      }`}>
         {/* LEFT SIDEBAR: Conversation List / Friends List */}
         <div className={`w-full md:w-80 lg:w-96 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50 ${activeChatId ? "hidden md:flex" : "flex"}`}>
           
@@ -773,13 +780,26 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                   </div>
                 </div>
 
-                <button
-                  onClick={() => setShowFriendInfoModal(true)}
-                  className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-                  title="Friend Info"
-                >
-                  <Info className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setIsEnlarged(!isEnlarged)}
+                    className={`p-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                      isEnlarged 
+                        ? 'text-amber-600 bg-amber-100 dark:bg-amber-950/40 ring-2 ring-amber-500 font-bold' 
+                        : 'text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                    title={isEnlarged ? "Exit Enlarge" : "Enlarge Messages"}
+                  >
+                    {isEnlarged ? <Minimize2 className="w-5 h-5 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-5 h-5" />}
+                  </button>
+                  <button
+                    onClick={() => setShowFriendInfoModal(true)}
+                    className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                    title="Friend Info"
+                  >
+                    <Info className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {/* MESSAGES SCROLL AREA */}

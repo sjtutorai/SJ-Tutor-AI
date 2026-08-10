@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile, UserSettings, SJTUTOR_AVATAR } from '../types';
 import { SettingsService } from '../services/settingsService';
 import { calculateProfileCompletion } from '../utils/profileUtils';
@@ -18,6 +18,7 @@ interface SettingsViewProps {
   onNavigateToProfile: () => void;
   onOpenPremium: () => void;
   onNavigateToLegal: (mode: 'PRIVACY' | 'TERMS') => void;
+  onUpdateProfile?: (updatedProfile: UserProfile) => void;
 }
 
 type SettingsTab = 'account' | 'learning' | 'aiTutor' | 'chat' | 'notifications' | 'appearance' | 'privacy' | 'system' | 'billing' | 'help';
@@ -28,13 +29,38 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     onLogout, 
     onNavigateToProfile, 
     onOpenPremium,
-    onNavigateToLegal
+    onNavigateToLegal,
+    onUpdateProfile
   } = props;
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
-  const [settings, setSettings] = useState<UserSettings>(SettingsService.getSettings());
+  const [settings, setSettings] = useState<UserSettings>(() => {
+    const s = SettingsService.getSettings();
+    if (userProfile.grade) {
+      s.learning.grade = userProfile.grade;
+    }
+    return s;
+  });
   const [hasChanges, setHasChanges] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
-  
+
+  // Synchronize settings grade with userProfile grade
+  useEffect(() => {
+    if (userProfile.grade) {
+      setSettings(prev => {
+        if (prev.learning.grade !== userProfile.grade) {
+          return {
+            ...prev,
+            learning: {
+              ...prev.learning,
+              grade: userProfile.grade
+            }
+          };
+        }
+        return prev;
+      });
+    }
+  }, [userProfile.grade]);
+
   // Help Center State
   const [helpTab, setHelpTab] = useState<'FAQ' | 'TERMS'>('FAQ');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
@@ -53,6 +79,13 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const saveSettings = () => {
     SettingsService.saveSettings(settings);
     setHasChanges(false);
+
+    if (onUpdateProfile && settings.learning.grade && settings.learning.grade !== userProfile.grade) {
+      onUpdateProfile({
+        ...userProfile,
+        grade: settings.learning.grade
+      });
+    }
     
     // Trigger global event for theme update
     window.dispatchEvent(new Event('settings-changed'));

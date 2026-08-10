@@ -28,6 +28,8 @@ import GroupsView from "./components/GroupsView";
 import GroupInviteView from "./components/GroupInviteView";
 import SettingsView from "./components/SettingsView";
 import AboutView from "./components/AboutView";
+import AboutModal from "./components/AboutModal";
+import ShortcutsModal from "./components/ShortcutsModal";
 import IdCardView from "./components/IdCardView";
 import LandingPage from "./components/LandingPage";
 import StudyTimerView from "./components/StudyTimerView";
@@ -91,9 +93,13 @@ import {
   Search,
   X,
   Trash2,
+  Info,
+  Keyboard,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
+
+const sanitizeSlug = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") : "general";
 
 const THEME_COLORS: Record<string, Record<string, string>> = {
   Gold: {
@@ -244,6 +250,8 @@ const App: React.FC = () => {
     setShowAuthModal(true);
   };
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showCompletionReminder, setShowCompletionReminder] = useState(false);
@@ -483,6 +491,81 @@ const App: React.FC = () => {
       board: userProfile.board || INITIAL_FORM_DATA.board || "",
     });
   };
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts if user is typing in form input, textarea, or contentEditable
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      const isMod = e.ctrlKey || e.metaKey;
+
+      if (isMod) {
+        const key = e.key.toLowerCase();
+
+        if (e.shiftKey && key === 'a') {
+          e.preventDefault();
+          setShowAboutModal(true);
+          triggerToast('About SJ Tutor AI', 'Opened Creators & Innovators showcase modal.', 'Important Alerts');
+          return;
+        }
+
+        switch (key) {
+          case 's':
+            e.preventDefault();
+            navigateToMode(AppMode.SUMMARY);
+            triggerToast('Instant Summary Mode', 'Navigated via Ctrl+S shortcut.', 'Important Alerts');
+            break;
+          case 'q':
+            e.preventDefault();
+            navigateToMode(AppMode.QUIZ);
+            triggerToast('Quiz Creator Mode', 'Navigated via Ctrl+Q shortcut.', 'Quiz Updates');
+            break;
+          case 'h':
+            e.preventDefault();
+            navigateToMode(AppMode.HOMEWORK);
+            triggerToast('Homework Solver Mode', 'Navigated via Ctrl+H shortcut.', 'Important Alerts');
+            break;
+          case 't':
+            e.preventDefault();
+            navigateToMode(AppMode.TUTOR);
+            triggerToast('AI Tutor Sessions Mode', 'Navigated via Ctrl+T shortcut.', 'Important Alerts');
+            break;
+          case 'g':
+            e.preventDefault();
+            navigateToMode(AppMode.GROUPS);
+            triggerToast('Study Groups Mode', 'Navigated via Ctrl+G shortcut.', 'Important Alerts');
+            break;
+          case 'n':
+            e.preventDefault();
+            navigateToMode(AppMode.NOTES);
+            triggerToast('Notes & Schedule Mode', 'Navigated via Ctrl+N shortcut.', 'Important Alerts');
+            break;
+          case 'd':
+            e.preventDefault();
+            setMode(AppMode.DASHBOARD);
+            setDashboardView('OVERVIEW');
+            triggerToast('Dashboard Overview', 'Returned to Dashboard via Ctrl+D shortcut.', 'Important Alerts');
+            break;
+          case 'k':
+            e.preventDefault();
+            setShowShortcutsModal(prev => !prev);
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   // Notification Timer Ref
   const lastNotificationCheck = useRef(Date.now());
@@ -1000,6 +1083,14 @@ const App: React.FC = () => {
     redirectDashboard = false,
   ) => {
     setUserProfile(newProfile);
+    if (newProfile.grade) {
+      SettingsService.updateSettings({
+        learning: {
+          ...SettingsService.getSettings().learning,
+          grade: newProfile.grade
+        }
+      });
+    }
     if (user) {
       localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
       await saveProfileToFirestore(user.uid, newProfile);
@@ -1603,6 +1694,7 @@ const App: React.FC = () => {
     { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
+    { id: AppMode.ABOUT, label: "About Us", icon: Info },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
   ];
 
@@ -1746,34 +1838,64 @@ const App: React.FC = () => {
               {categoryLabel} History
             </h3>
 
-            {/* Premium Search Bar */}
-            {baseFiltered.length > 0 && (
-              <div className="relative w-full sm:max-w-xs group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary-500 transition-colors">
-                  <Search className="w-4 h-4" />
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+              {/* Delete All Button */}
+              {baseFiltered.length > 0 && (
+                <button
+                  onClick={async () => {
+                    if (!window.confirm(`Are you sure you want to delete all ${categoryLabel.toLowerCase()} history? This action cannot be undone.`)) return;
+                    
+                    const itemsToDelete = baseFiltered.map(item => item.id);
+                    const updatedHistory = history.filter(h => !itemsToDelete.includes(h.id));
+                    
+                    setHistory(updatedHistory);
+                    const currentUid = user ? user.uid : "guest";
+                    localStorage.setItem(`history_${currentUid}`, JSON.stringify(updatedHistory));
+                    
+                    if (user) {
+                      // Delete each item from Firestore
+                      for (const id of itemsToDelete) {
+                        await deleteHistoryItemFromFirestore(user.uid, id);
+                      }
+                    }
+                  }}
+                  className="flex items-center px-4 py-2 text-sm font-medium text-rose-600 bg-rose-50 dark:bg-rose-900/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors shrink-0"
+                  title={`Delete all ${categoryLabel.toLowerCase()}`}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Clear All
+                </button>
+              )}
+
+              {/* Premium Search Bar */}
+              {baseFiltered.length > 0 && (
+                <div className="relative w-full sm:max-w-xs group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary-500 transition-colors">
+                    <Search className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder={`Search ${categoryLabel.toLowerCase()}...`}
+                    value={historySearchQuery}
+                    onChange={(e) => setHistorySearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-9 py-2 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700/60 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 text-xs font-semibold text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 transition-all outline-none"
+                  />
+                  <AnimatePresence>
+                    {historySearchQuery && (
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        onClick={() => setHistorySearchQuery("")}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        <X className="w-3.5 h-3.5 bg-slate-100 dark:bg-slate-700 rounded-full p-0.5" />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
                 </div>
-                <input
-                  type="text"
-                  placeholder={`Search ${categoryLabel.toLowerCase()}...`}
-                  value={historySearchQuery}
-                  onChange={(e) => setHistorySearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-9 py-2 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700/60 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 text-xs font-semibold text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 transition-all outline-none"
-                />
-                <AnimatePresence>
-                  {historySearchQuery && (
-                    <motion.button
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      onClick={() => setHistorySearchQuery("")}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                    >
-                      <X className="w-3.5 h-3.5 bg-slate-100 dark:bg-slate-700 rounded-full p-0.5" />
-                    </motion.button>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {baseFiltered.length === 0 ? (
@@ -2359,7 +2481,7 @@ const App: React.FC = () => {
 
       case AppMode.TUTOR:
         return (
-          <div className="max-w-5xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="max-w-7xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             <TutorChat
               onDeductCredit={deductCredit}
               currentCredits={userProfile.credits}
@@ -2453,6 +2575,7 @@ const App: React.FC = () => {
               onNavigateToProfile={() => setMode(AppMode.PROFILE)}
               onOpenPremium={() => setShowPremiumModal(true)}
               onNavigateToLegal={(legalMode) => setMode(legalMode as any)}
+              onUpdateProfile={handleProfileSave}
             />
           </div>
         );
@@ -2752,9 +2875,13 @@ const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => {
-                    if (
+                    if (item.id === AppMode.ABOUT) {
+                      setShowAboutModal(true);
+                      if (window.innerWidth < 1024) {
+                        setIsSidebarOpen(false);
+                      }
+                    } else if (
                       item.id !== AppMode.DASHBOARD &&
-                      item.id !== AppMode.ABOUT &&
                       !user
                     ) {
                       setShowAuthModal(true);
@@ -2906,6 +3033,13 @@ const App: React.FC = () => {
               onNavigate={(m) => setMode(m)}
               currentMode={mode}
             />
+            <button
+              onClick={() => setShowShortcutsModal(true)}
+              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors hidden sm:flex items-center gap-1"
+              title="Keyboard Shortcuts (Ctrl+K)"
+            >
+              <Keyboard className="w-5 h-5 text-amber-500" />
+            </button>
             <button
               onClick={handleThemeToggle}
               className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors hidden sm:block"
@@ -3191,6 +3325,17 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      <AboutModal
+        isOpen={showAboutModal}
+        onClose={() => setShowAboutModal(false)}
+        onNavigateToLegal={(legalMode) => setMode(legalMode as any)}
+      />
+
+      <ShortcutsModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
+      />
     </div>
   );
 };

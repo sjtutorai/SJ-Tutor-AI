@@ -31,7 +31,9 @@ import {
   Shield,
   ShieldCheck,
   MessageSquareOff,
-  ArrowDown
+  ArrowDown,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -112,6 +114,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [inviting, setInviting] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
+  const [isEnlarged, setIsEnlarged] = useState(false);
 
   // Message States
   const [messages, setMessages] = useState<GroupMessage[]>([]);
@@ -1095,7 +1098,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
         </button>
       </div>
 
-      <div className="h-[calc(100vh-10rem)] min-h-[600px] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex overflow-hidden">
+      <div className={`bg-white dark:bg-slate-900 shadow-2xl flex overflow-hidden transition-all duration-300 ${
+        isEnlarged 
+          ? 'h-[calc(100vh-5.5rem)] min-h-[650px] rounded-2xl border border-slate-200 dark:border-slate-800' 
+          : 'h-[calc(100vh-10rem)] min-h-[600px] rounded-3xl border border-slate-200 dark:border-slate-800'
+      }`}>
       {/* LEFT SIDEBAR: GROUP LIST */}
       <div
         className={`${
@@ -1120,6 +1127,19 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             </div>
 
             <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setIsEnlarged(!isEnlarged)}
+                className={`p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-xs font-bold shrink-0 ${
+                  isEnlarged 
+                    ? 'text-amber-600 bg-amber-100 dark:bg-amber-950/40 ring-2 ring-amber-500' 
+                    : 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title={isEnlarged ? "Exit Enlarge" : "Enlarge Study Groups"}
+              >
+                {isEnlarged ? <Minimize2 className="w-4 h-4 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-4 h-4" />}
+                <span className="hidden sm:inline">{isEnlarged ? "Minimize" : "Enlarge"}</span>
+              </button>
+
               <button
                 onClick={() => setShowJoinByIdModal(true)}
                 className="p-2 sm:px-3 py-2 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 rounded-xl transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold shrink-0"
@@ -1386,8 +1406,20 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 </button>
 
                 <button
+                  onClick={() => setIsEnlarged(!isEnlarged)}
+                  className={`p-2 rounded-xl transition-all cursor-pointer ${
+                    isEnlarged 
+                      ? 'text-amber-600 bg-amber-100 dark:bg-amber-950/40 ring-2 ring-amber-500 font-bold' 
+                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  title={isEnlarged ? "Exit Enlarge" : "Enlarge Messages"}
+                >
+                  {isEnlarged ? <Minimize2 className="w-5 h-5 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-5 h-5" />}
+                </button>
+
+                <button
                   onClick={() => setShowGroupInfo(true)}
-                  className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+                  className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
                   title="Group Info & Settings"
                 >
                   <Info className="w-5 h-5" />

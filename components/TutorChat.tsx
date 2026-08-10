@@ -33,7 +33,9 @@ import {
   Plus,
   BrainCircuit,
   ArrowRight,
-  ArrowDown
+  ArrowDown,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -246,6 +248,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   const [isSaved, setIsSaved] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
+  const [isEnlarged, setIsEnlarged] = useState(false);
+  const [enlargedMessage, setEnlargedMessage] = useState<ExtendedChatMessage | null>(null);
   const [starredTimestamps, setStarredTimestamps] = useState<number[]>(() => {
     try {
       const saved = localStorage.getItem('sjtutor_starred_messages');
@@ -943,7 +947,11 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
 
   return (
-    <div className="h-[calc(100vh-140px)] flex bg-slate-50 dark:bg-slate-950 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative font-sans">
+    <div className={`flex bg-slate-50 dark:bg-slate-950 font-sans transition-all duration-300 ${
+      isEnlarged 
+        ? 'h-[calc(100vh-5.5rem)] min-h-[650px] rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative' 
+        : 'h-[calc(100vh-140px)] rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative'
+    }`}>
       
       {/* Drag & Drop Overlay */}
       {isDragOver && (
@@ -1034,6 +1042,14 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               {recentSessions && recentSessions.length > 0 && (
                 <span className="flex h-1.5 w-1.5 rounded-full bg-primary-500" />
               )}
+            </button>
+            <button
+              onClick={() => setIsEnlarged(!isEnlarged)}
+              className={`p-2 rounded-xl transition-all flex items-center gap-1.5 ${isEnlarged ? 'text-amber-600 bg-amber-100 dark:bg-amber-950/40 ring-2 ring-amber-500 font-bold' : 'text-slate-500 dark:text-slate-400 hover:text-primary-600 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+              title={isEnlarged ? "Exit Enlarge" : "Enlarge Messages"}
+            >
+              {isEnlarged ? <Minimize2 className="w-4 h-4 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-4 h-4" />}
+              <span className="text-xs font-black hidden sm:inline">{isEnlarged ? "Minimize" : "Enlarge"}</span>
             </button>
           </div>
         </div>
@@ -1213,6 +1229,13 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                               title="Regenerate this answer"
                             >
                               <RotateCw className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setEnlargedMessage(msg)}
+                              className="p-1.5 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-400 hover:text-amber-500 rounded-lg transition"
+                              title="Enlarge message"
+                            >
+                              <Maximize2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
@@ -1717,6 +1740,57 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           grade: grade
         }}
       />
+
+      {/* Enlarged Message Modal Overlay */}
+      {enlargedMessage && (
+        <div className="fixed inset-0 z-[200] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden relative">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-500" />
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  {enlargedMessage.role === 'user' ? 'Enlarged Student Prompt' : 'Enlarged AI Tutor Response'}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleCopyMessage(enlargedMessage.id, enlargedMessage.text)}
+                  className="p-2 text-slate-500 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                  title="Copy Text"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setEnlargedMessage(null)}
+                  className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {enlargedMessage.images && enlargedMessage.images.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {enlargedMessage.images.map((img, idx) => (
+                    <img key={idx} src={img} alt="Attached" className="max-h-60 rounded-xl border border-slate-200 dark:border-slate-800 object-contain" />
+                  ))}
+                </div>
+              )}
+              <div className="prose dark:prose-invert max-w-none text-base sm:text-lg leading-relaxed text-slate-800 dark:text-slate-100 font-medium">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{enlargedMessage.text}</ReactMarkdown>
+              </div>
+            </div>
+            <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-end">
+              <button
+                onClick={() => setEnlargedMessage(null)}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 font-bold text-xs rounded-xl shadow transition cursor-pointer"
+              >
+                Close Enlarged View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
