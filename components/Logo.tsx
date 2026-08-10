@@ -14,7 +14,7 @@ export default function Logo({
   textColor = "text-slate-900",
   iconOnly = false 
 }: LogoProps) {
-  const logoUrl = "/logo.png";
+  const logoUrl = "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg";
   
   return (
     <div className={`flex items-center gap-3 ${iconOnly ? 'w-full h-full justify-center' : ''}`}>
