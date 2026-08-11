@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { X, Check, Crown, Zap, Shield, Upload, Loader2, Image as ImageIcon, AlertCircle, ExternalLink } from 'lucide-react';
+import { X, Check, Crown, Zap, Shield, Upload, Loader2, Image as ImageIcon, AlertCircle, ExternalLink, QrCode, Copy, CheckCircle } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 import { SJTUTOR_AVATAR } from '../types';
 
@@ -15,8 +15,11 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess }
   const [paymentScreenshot, setPaymentScreenshot] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [copiedUpi, setCopiedUpi] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const upiId = '8105423488@ybl';
 
   const plans = {
     STARTER: {
@@ -52,6 +55,15 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess }
   };
 
   const currentPlan = plans[selectedPlan];
+
+  const upiPayString = `upi://pay?pa=${upiId}&pn=SHIVABASAVARAJ%20SADASHIVAPPA%20JYOTI&am=${currentPlan.price}&cu=INR&tn=SJ%20Tutor%20AI%20${currentPlan.name}%20Plan`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiPayString)}`;
+
+  const copyUpiToClipboard = () => {
+    navigator.clipboard.writeText(upiId);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2000);
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -175,25 +187,75 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess }
                    <p className="text-slate-500 mt-1 font-semibold text-lg">Total: ₹{currentPlan.price}</p>
                 </div>
                 
-                <div className="bg-emerald-50/80 border border-emerald-200/80 p-5 rounded-2xl text-left text-sm text-emerald-900 shadow-sm">
-                  <p className="flex items-center gap-2 mb-1.5 font-extrabold text-emerald-950 text-base">
-                    <Zap className="w-5 h-5 text-emerald-600 fill-emerald-500 animate-pulse" /> Official Online Payment
+                {/* QR Code Payment Box */}
+                <div className="bg-gradient-to-b from-slate-900 to-slate-950 p-5 rounded-3xl text-center text-white shadow-xl border border-slate-800 relative overflow-hidden">
+                  <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-amber-400 bg-amber-500/10 py-1 px-3 rounded-full w-fit mx-auto mb-3 border border-amber-500/20">
+                    <QrCode className="w-3.5 h-3.5" />
+                    <span>Scan QR Code to Pay</span>
+                  </div>
+
+                  {/* QR Image */}
+                  <div className="bg-white p-3 rounded-2xl w-44 h-44 mx-auto shadow-inner flex items-center justify-center border-4 border-slate-800">
+                    <img 
+                      src={qrCodeUrl} 
+                      alt={`Pay ₹${currentPlan.price} via UPI QR`} 
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 font-medium mt-2.5">
+                    Scan using Google Pay, PhonePe, Paytm or BHIM
                   </p>
-                  <p className="text-xs mb-4 text-emerald-800/90 leading-relaxed font-medium">
-                    Instant activation via secure Razorpay checkout. Supports UPI (Google Pay, PhonePe, Paytm), Credit/Debit Cards, Netbanking & Wallets.
-                  </p>
-                  <button
-                    onClick={() => window.open(currentPlan.paymentUrl, '_blank')}
-                    className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-extrabold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 transition-all"
+
+                  {/* UPI ID Copy Box */}
+                  <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2 bg-slate-900/80 px-3 py-2 rounded-xl text-left">
+                    <div className="min-w-0">
+                      <span className="text-[9px] text-slate-400 font-semibold block uppercase">UPI ID</span>
+                      <span className="text-xs font-mono font-bold text-amber-300 truncate block">{upiId}</span>
+                    </div>
+                    <button
+                      onClick={copyUpiToClipboard}
+                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition text-xs font-semibold flex items-center gap-1 shrink-0"
+                      title="Copy UPI ID"
+                    >
+                      {copiedUpi ? (
+                        <>
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-[10px] text-emerald-400">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span className="text-[10px]">Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Mobile Direct Pay */}
+                  <a
+                    href={upiPayString}
+                    className="mt-2.5 w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5"
                   >
-                    💳 Pay ₹{currentPlan.price} Online <ExternalLink className="w-4 h-4" />
-                  </button>
+                    ⚡ Open UPI App (GPay / PhonePe / Paytm)
+                  </a>
+
+                  <div className="mt-2 text-center">
+                    <a
+                      href={currentPlan.paymentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-slate-400 hover:text-amber-400 underline transition inline-flex items-center gap-1"
+                    >
+                      Or pay via Razorpay web link <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
                 </div>
 
-                <div className="space-y-3 pt-2">
+                <div className="space-y-2 pt-1">
                   <button
                     onClick={() => setStep('VERIFY')}
-                    className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-sm transition-all text-xs flex items-center justify-center gap-2"
+                    className="w-full py-3 px-4 bg-primary-600 hover:bg-primary-700 text-white font-extrabold rounded-xl shadow-md transition-all text-xs flex items-center justify-center gap-2"
                   >
                     <Upload className="w-4 h-4" /> I&apos;ve Paid — Verify Screenshot
                   </button>

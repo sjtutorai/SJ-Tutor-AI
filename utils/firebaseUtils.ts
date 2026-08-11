@@ -43,11 +43,22 @@ export const getProfileFromFirestore = async (uid: string): Promise<UserProfile 
   }
 };
 
+export const sanitizeForFirestore = <T>(data: T): T => {
+  if (data === undefined || data === null) return data;
+  try {
+    return JSON.parse(JSON.stringify(data));
+  } catch (e) {
+    console.warn("Error sanitizing data for Firestore:", e);
+    return data;
+  }
+};
+
 export const saveHistoryItemToFirestore = async (uid: string, item: HistoryItem) => {
   if (!uid || uid === "guest") return false;
   try {
     const docRef = doc(db, "users", uid, "history", item.id);
-    await setDoc(docRef, item, { merge: true });
+    const cleanItem = sanitizeForFirestore(item);
+    await setDoc(docRef, cleanItem, { merge: true });
     return true;
   } catch (error: any) {
     console.warn("Error saving history item to Firestore:", error);
@@ -903,6 +914,12 @@ export const declineOrRemoveFriendInFirestore = async (friendshipId: string): Pr
   try {
     const friendshipRef = doc(db, "friendships", friendshipId);
     await deleteDoc(friendshipRef);
+
+    // Derive and delete the associated direct chat between the two users
+    const chatId = friendshipId.replace(/^friendship_/, "chat_");
+    if (chatId !== friendshipId) {
+      await deleteDirectChatEntirelyInFirestore(chatId);
+    }
     return true;
   } catch (error) {
     console.error("Error removing friend request:", error);

@@ -19,7 +19,8 @@ import {
   clearDirectChatForUserInFirestore,
   deleteDirectMessageInFirestore,
   deleteDirectChatEntirelyInFirestore,
-  toggleDirectMessageReactionInFirestore
+  toggleDirectMessageReactionInFirestore,
+  getDirectChatId
 } from "../utils/firebaseUtils";
 import { useNotifications } from "./NotificationContext";
 import {
@@ -306,6 +307,11 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
     const recipientUid = activeChat.participants.find((p) => p !== user.uid) || "";
 
+    if (recipientUid && !acceptedFriendUids.has(recipientUid)) {
+      triggerToast("Friendship Required 🔒", "You are no longer friends with this user. Chat disabled.", "Important Alerts");
+      return;
+    }
+
     const messageText = msgType === 'voice' 
       ? `🎤 Voice Note (${recordingTimer || 3}s)` 
       : messageInput.trim();
@@ -348,10 +354,21 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
   // Delete Friend
   const handleRemoveFriend = async (friendshipId: string, friendName: string) => {
-    if (!window.confirm(`Are you sure you want to remove ${friendName} from your friends? This will delete your friend connection.`)) return;
+    if (!user) return;
+    if (!window.confirm(`Are you sure you want to remove ${friendName} from your friends? This will delete your friend connection and end the direct chat.`)) return;
+    
+    const friendship = friendships.find(f => f.id === friendshipId);
+    const friendUid = friendship?.users.find(u => u !== user.uid);
+
     const success = await declineOrRemoveFriendInFirestore(friendshipId);
     if (success) {
-      triggerToast("Friend Removed 🗑️", `${friendName} was removed from your friends list.`, "Important Alerts");
+      if (friendUid) {
+        const chatId = getDirectChatId(user.uid, friendUid);
+        if (activeChatId === chatId) {
+          setActiveChatId(null);
+        }
+      }
+      triggerToast("Friend Removed 🗑️", `${friendName} was removed from your friends list and chat ended.`, "Important Alerts");
       setFriendships(prev => prev.filter(f => f.id !== friendshipId));
     } else {
       triggerToast("Error", "Failed to remove friend. Please try again.", "Important Alerts");
@@ -391,10 +408,19 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
     (f) => f.status === "pending" && f.requestedBy !== user?.uid
   );
   const acceptedFriends = friendships.filter((f) => f.status === "accepted");
+  const acceptedFriendUids = new Set(
+    acceptedFriends.flatMap((f) => f.users).filter((uid) => uid !== user?.uid)
+  );
+
+  const activeDirectChats = directChats.filter((chat) => {
+    const friendUid = chat.participants.find((p) => p !== user?.uid) || "";
+    return acceptedFriendUids.has(friendUid);
+  });
 
   const activeChat = directChats.find((c) => c.id === activeChatId);
   const activeFriendUid = activeChat?.participants.find((p) => p !== user?.uid);
   const activeFriendDetails = activeChat && activeFriendUid ? activeChat.participantDetails?.[activeFriendUid] : null;
+  const isFriendConnected = activeFriendUid ? acceptedFriendUids.has(activeFriendUid) : false;
 
   if (!user) {
     return (
@@ -513,11 +539,11 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
             <div className="flex-1 flex flex-col">
               <div className="p-4 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">Direct Messages</h3>
-                <span className="text-xs text-slate-500">{directChats.length} Conversations</span>
+                <span className="text-xs text-slate-500">{activeDirectChats.length} Conversations</span>
               </div>
 
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                {directChats.length === 0 ? (
+                {activeDirectChats.length === 0 ? (
                   <div className="text-center py-12 px-4">
                     <MessageSquare className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No Direct Messages Yet</p>
@@ -530,7 +556,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                     </button>
                   </div>
                 ) : (
-                  directChats.map((chat) => {
+                  activeDirectChats.map((chat) => {
                     const friendUid = chat.participants.find((p) => p !== user.uid) || "";
                     const friendDetails = chat.participantDetails?.[friendUid] || { displayName: "Friend", photoURL: "" };
                     const unread = chat.unreadCount?.[user.uid] || 0;
@@ -1025,51 +1051,62 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                 </div>
               )}
 
-              {/* INPUT FORM BAR */}
-              <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSendMessage("text");
-                  }}
-                  className="flex items-center gap-2"
-                >
-                  <label className="p-2.5 text-slate-400 hover:text-amber-500 cursor-pointer rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-                    <ImageIcon className="w-5 h-5" />
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={toggleVoiceNoteRecording}
-                    className={`p-2.5 rounded-xl transition-all ${
-                      isRecordingVoice 
-                        ? "bg-rose-500 text-white animate-pulse" 
-                        : "text-slate-400 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    }`}
-                    title={isRecordingVoice ? "Click to send voice note" : "Record voice note"}
+              {/* INPUT FORM BAR OR DISCONNECTED BANNER */}
+              {!isFriendConnected && activeFriendUid ? (
+                <div className="p-4 bg-amber-500/10 border-t border-amber-500/20 text-center">
+                  <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                    🔒 You are no longer connected as friends with {activeFriendDetails?.displayName || "this user"}.
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Messaging is disabled. Re-add as a friend to resume chatting.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendMessage("text");
+                    }}
+                    className="flex items-center gap-2"
                   >
-                    <Mic className="w-5 h-5" />
-                  </button>
+                    <label className="p-2.5 text-slate-400 hover:text-amber-500 cursor-pointer rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
+                      <ImageIcon className="w-5 h-5" />
+                      <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                    </label>
 
-                  <input
-                    type="text"
-                    placeholder={isRecordingVoice ? `Recording Voice Note... (${recordingTimer}s)` : "Type a direct message..."}
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    disabled={isRecordingVoice}
-                    className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-xs text-slate-900 dark:text-white rounded-2xl border border-transparent focus:border-amber-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all"
-                  />
+                    <button
+                      type="button"
+                      onClick={toggleVoiceNoteRecording}
+                      className={`p-2.5 rounded-xl transition-all ${
+                        isRecordingVoice 
+                          ? "bg-rose-500 text-white animate-pulse" 
+                          : "text-slate-400 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      }`}
+                      title={isRecordingVoice ? "Click to send voice note" : "Record voice note"}
+                    >
+                      <Mic className="w-5 h-5" />
+                    </button>
 
-                  <button
-                    type="submit"
-                    disabled={!messageInput.trim() && !selectedImage && !isRecordingVoice}
-                    className="p-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-bold rounded-2xl shadow-md transition-all shrink-0"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </form>
-              </div>
+                    <input
+                      type="text"
+                      placeholder={isRecordingVoice ? `Recording Voice Note... (${recordingTimer}s)` : "Type a direct message..."}
+                      value={messageInput}
+                      onChange={(e) => setMessageInput(e.target.value)}
+                      disabled={isRecordingVoice}
+                      className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-xs text-slate-900 dark:text-white rounded-2xl border border-transparent focus:border-amber-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all"
+                    />
+
+                    <button
+                      type="submit"
+                      disabled={!messageInput.trim() && !selectedImage && !isRecordingVoice}
+                      className="p-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-bold rounded-2xl shadow-md transition-all shrink-0"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </form>
+                </div>
+              )}
             </>
           ) : (
             <div className="text-center p-8 max-w-sm">
