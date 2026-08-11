@@ -349,8 +349,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     if (!files) return;
     Array.from(files).forEach(file => {
       const reader = new FileReader();
-      const isImg = file.type.startsWith('image/');
-      const isPdf = file.type === 'application/pdf';
+      const isImg = file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(file.name);
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
       const isText = file.type.startsWith('text/') || 
                      file.name.endsWith('.csv') || 
                      file.name.endsWith('.json') || 
@@ -621,11 +621,12 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
     if (!isRegeneratingMessageId) {
       // Append user message
-      const imgUrls = activeFiles.filter(f => f.type.startsWith('image/')).map(f => f.dataUrl);
+      const imgUrls = activeFiles.filter(f => f.type.startsWith('image/') || f.dataUrl.startsWith('data:image/')).map(f => f.dataUrl).filter(Boolean);
+      const displayText = textToSend.trim() || (activeFiles.length > 0 ? "Examine and explain this attached image/file" : "");
       const newUserMsg: ExtendedChatMessage = {
         id: userMessageId,
         role: 'user',
-        text: textToSend,
+        text: displayText,
         images: imgUrls.length > 0 ? imgUrls : undefined,
         timestamp: Date.now()
       };

@@ -3,14 +3,25 @@ import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate, HomeworkF
 import { SettingsService } from "./settingsService";
 
 // Helper to initialize AI client.
-// The API key is retrieved exclusively from the environment variable process.env.API_KEY.
-// This variable is mapped in vite.config.ts from your .env file or Vercel settings.
 const getAI = () => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("API_KEY_MISSING: Please set the API_KEY environment variable.");
   }
   return new GoogleGenAI({ apiKey });
+};
+
+// Helper to parse base64 dataUrl accurately
+const parseDataUrl = (str: string) => {
+  if (!str) return null;
+  if (str.startsWith('data:')) {
+    const parts = str.split(';base64,');
+    if (parts.length === 2) {
+      const mimeType = parts[0].replace('data:', '');
+      return { mimeType, data: parts[1] };
+    }
+  }
+  return null;
 };
 
 export const GeminiService = {
@@ -424,60 +435,60 @@ Your mission:
 
       ${SettingsService.getTutorSystemInstruction()}` + (userContext ? `\n\nUser Context & Memory (Past Interactions):\n\n${userContext}` : '');
 
-    // Process chat history
-    const formattedHistory = history.map(msg => ({
-      role: msg.role === 'model' ? 'model' : 'user',
-      parts: msg.images ? [
-        ...msg.images.map((img: string) => {
-          const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-          const isPdf = img.startsWith('data:application/pdf');
-          const mime = isPdf ? 'application/pdf' : 'image/jpeg';
-          return {
-            inlineData: { mimeType: mime, data: cleanBase64 }
-          };
-        }),
-        { text: msg.text }
-      ] : [{ text: msg.text }]
-    }));
+    // Process chat history safely
+    const formattedHistory = history.map(msg => {
+      const parts: any[] = [];
+      if (msg.images && Array.isArray(msg.images)) {
+        msg.images.forEach((img: string) => {
+          const parsed = parseDataUrl(img);
+          if (parsed) {
+            parts.push({ inlineData: { mimeType: parsed.mimeType, data: parsed.data } });
+          }
+        });
+      }
+      parts.push({ text: msg.text && msg.text.trim() ? msg.text : " " });
+      return {
+        role: msg.role === 'model' ? 'model' : 'user',
+        parts
+      };
+    });
 
-    // Build the current prompt parts
+    // Build current prompt parts
     const currentParts: any[] = [];
 
-    // Append context from attached files that were read as text (TXT, CSV, code, etc.)
+    // Append context from attached files
     let fileContext = '';
     extraFiles.forEach(f => {
       if (f.textContent) {
         fileContext += `\n[Attached File: ${f.name}]\nType: ${f.type}\nContent:\n${f.textContent}\n`;
-      } else if (f.dataUrl.startsWith('data:application/pdf')) {
-        // Pass PDF native base64 inline to Gemini
-        const cleanBase = f.dataUrl.replace(/^data:application\/pdf;base64,/, "");
-        currentParts.push({
-          inlineData: { mimeType: 'application/pdf', data: cleanBase }
-        });
-      } else if (f.dataUrl.startsWith('data:image')) {
-        // Pass Image base64 inline
-        const cleanBase = f.dataUrl.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-        currentParts.push({
-          inlineData: { mimeType: 'image/jpeg', data: cleanBase }
-        });
+      } else if (f.dataUrl) {
+        const parsed = parseDataUrl(f.dataUrl);
+        if (parsed) {
+          currentParts.push({ inlineData: { mimeType: parsed.mimeType, data: parsed.data } });
+        }
       }
     });
 
-    let finalPrompt = text;
+    // Append extra base64 images passed directly
+    imagesBase64.forEach(img => {
+      const parsed = parseDataUrl(img);
+      if (parsed) {
+        currentParts.push({ inlineData: { mimeType: parsed.mimeType, data: parsed.data } });
+      }
+    });
+
+    let finalPrompt = text ? text.trim() : "";
     if (fileContext) {
-      finalPrompt = `${fileContext}\n\nUser Question:\n${text}`;
+      finalPrompt = `${fileContext}\n\nUser Question:\n${finalPrompt}`;
+    }
+    if (!finalPrompt) {
+      finalPrompt = "Please examine and explain the attached image/file step-by-step.";
     }
 
     currentParts.push({ text: finalPrompt });
 
-    // Handle extra base64 images passed separately
-    imagesBase64.forEach(img => {
-      const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-      currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
-    });
-
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.6-flash',
       contents: [...formattedHistory, { role: 'user', parts: currentParts }],
       config: { systemInstruction }
     });
@@ -487,13 +498,16 @@ Your mission:
 
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
     const ai = getAI();
-    const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+    const parsed = parseDataUrl(imageBase64);
+    const cleanData = parsed ? parsed.data : imageBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, "");
+    const mimeType = parsed ? parsed.mimeType : 'image/jpeg';
+
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.6-flash',
       contents: {
         parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } },
+          { inlineData: { mimeType, data: cleanData } },
           { text: prompt }
         ]
       },
@@ -523,7 +537,7 @@ Your mission:
     If a user asks you to create, generate, or draw an image or picture, you MUST output a special markdown command in this exact format on a new line: <GENERATE_IMAGE: "detailed prompt for the image here">`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.6-flash',
       contents: prompt,
       config: { systemInstruction }
     });

@@ -1095,6 +1095,40 @@ export const clearDirectChatForUserInFirestore = async (chatId: string, userUid:
   }
 };
 
+export const deleteDirectMessageInFirestore = async (chatId: string, messageId: string): Promise<boolean> => {
+  try {
+    const msgRef = doc(db, "direct_chats", chatId, "messages", messageId);
+    await deleteDoc(msgRef);
+    return true;
+  } catch (error) {
+    console.warn("Error deleting direct message:", error);
+    return false;
+  }
+};
+
+export const deleteDirectChatEntirelyInFirestore = async (chatId: string): Promise<boolean> => {
+  try {
+    const messagesRef = collection(db, "direct_chats", chatId, "messages");
+    const msgsSnap = await getDocs(messagesRef);
+    const batch = writeBatch(db);
+    msgsSnap.forEach((mDoc) => {
+      batch.delete(mDoc.ref);
+    });
+    batch.delete(doc(db, "direct_chats", chatId));
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.warn("Batch direct chat delete failed, falling back to doc delete:", error);
+    try {
+      await deleteDoc(doc(db, "direct_chats", chatId));
+      return true;
+    } catch (err) {
+      console.error("Error deleting direct chat entirely:", err);
+      return false;
+    }
+  }
+};
+
 export const clearDirectChatUnreadInFirestore = async (chatId: string, userUid: string): Promise<boolean> => {
   try {
     const chatRef = doc(db, "direct_chats", chatId);

@@ -17,6 +17,8 @@ import {
   sendDirectMessageInFirestore,
   clearDirectChatUnreadInFirestore,
   clearDirectChatForUserInFirestore,
+  deleteDirectMessageInFirestore,
+  deleteDirectChatEntirelyInFirestore,
   toggleDirectMessageReactionInFirestore
 } from "../utils/firebaseUtils";
 import { useNotifications } from "./NotificationContext";
@@ -344,6 +346,46 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
     await toggleDirectMessageReactionInFirestore(activeChatId, msgId, emoji, user.uid);
   };
 
+  // Delete Friend
+  const handleRemoveFriend = async (friendshipId: string, friendName: string) => {
+    if (!window.confirm(`Are you sure you want to remove ${friendName} from your friends? This will delete your friend connection.`)) return;
+    const success = await declineOrRemoveFriendInFirestore(friendshipId);
+    if (success) {
+      triggerToast("Friend Removed 🗑️", `${friendName} was removed from your friends list.`, "Important Alerts");
+      setFriendships(prev => prev.filter(f => f.id !== friendshipId));
+    } else {
+      triggerToast("Error", "Failed to remove friend. Please try again.", "Important Alerts");
+    }
+  };
+
+  // Delete Chat History
+  const handleDeleteChat = async (chatId: string, friendName: string) => {
+    if (!user) return;
+    if (!window.confirm(`Are you sure you want to delete the chat history with ${friendName}? Messages will be cleared for you.`)) return;
+    const success = await clearDirectChatForUserInFirestore(chatId, user.uid);
+    if (success) {
+      triggerToast("Chat Deleted 🗑️", `Chat history with ${friendName} was cleared.`, "Important Alerts");
+      if (activeChatId === chatId) {
+        setActiveChatId(null);
+      }
+    } else {
+      triggerToast("Error", "Failed to clear chat history.", "Important Alerts");
+    }
+  };
+
+  // Delete Individual Message
+  const handleDeleteDirectMessage = async (msgId: string) => {
+    if (!activeChatId) return;
+    if (!window.confirm("Are you sure you want to delete this message?")) return;
+    setMessages(prev => prev.filter(m => m.id !== msgId));
+    const success = await deleteDirectMessageInFirestore(activeChatId, msgId);
+    if (success) {
+      triggerToast("Message Deleted 🗑️", "Message was permanently removed.", "Important Alerts");
+    } else {
+      triggerToast("Error", "Failed to delete message from server.", "Important Alerts");
+    }
+  };
+
   // Computed Lists
   const pendingRequests = friendships.filter(
     (f) => f.status === "pending" && f.requestedBy !== user?.uid
@@ -538,12 +580,24 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                           </p>
                         </div>
 
-                        {/* Unread badge */}
-                        {unread > 0 && (
-                          <span className="w-5 h-5 bg-amber-500 text-slate-950 text-[10px] font-extrabold rounded-full flex items-center justify-center shrink-0">
-                            {unread}
-                          </span>
-                        )}
+                        {/* Unread badge & Delete chat action */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {unread > 0 && (
+                            <span className="w-5 h-5 bg-amber-500 text-slate-950 text-[10px] font-extrabold rounded-full flex items-center justify-center">
+                              {unread}
+                            </span>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteChat(chat.id, friendDetails.displayName);
+                            }}
+                            className="p-1.5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg transition"
+                            title="Delete Chat"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </button>
                     );
                   })
@@ -610,6 +664,13 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
                             <span>Chat</span>
+                          </button>
+                          <button
+                            onClick={() => handleRemoveFriend(friendship.id, friendInfo.displayName)}
+                            className="p-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white dark:text-rose-400 text-xs font-semibold rounded-xl transition-all flex items-center justify-center"
+                            title="Remove Friend"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -808,13 +869,13 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                     {isEnlarged ? <Minimize2 className="w-5 h-5 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-5 h-5" />}
                   </button>
                   <button
-                    onClick={async () => {
-                      if (!user || !activeChatId) return;
-                      if (!window.confirm("Are you sure you want to clear this chat? This will remove the messages from your view, but the other user will still see them.")) return;
-                      await clearDirectChatForUserInFirestore(activeChatId, user.uid);
+                    onClick={() => {
+                      if (activeChatId && activeFriendDetails) {
+                        handleDeleteChat(activeChatId, activeFriendDetails.displayName);
+                      }
                     }}
                     className="p-2 text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all cursor-pointer"
-                    title="Clear Chat"
+                    title="Delete Chat History"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
@@ -909,7 +970,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                           )}
                         </div>
 
-                        {/* Quick Reaction Bar Trigger */}
+                        {/* Quick Reaction & Delete Action Bar */}
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-2 py-0.5 shadow-md">
                           {["👍", "❤️", "😂", "🔥", "💡"].map((emoji) => (
                             <button
@@ -920,6 +981,13 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                               {emoji}
                             </button>
                           ))}
+                          <button
+                            onClick={() => handleDeleteDirectMessage(msg.id)}
+                            className="p-1 text-slate-400 hover:text-rose-500 transition-colors border-l border-slate-200 dark:border-slate-700 ml-1 pl-1.5"
+                            title="Delete Message"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
                     );
@@ -1148,6 +1216,34 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                     )
                   )}
                 </div>
+              </div>
+
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => {
+                    if (activeChatId && activeFriendDetails) {
+                      handleDeleteChat(activeChatId, activeFriendDetails.displayName);
+                      setShowFriendInfoModal(false);
+                    }
+                  }}
+                  className="flex-1 py-2.5 bg-rose-500/10 hover:bg-rose-500 text-rose-600 hover:text-white dark:text-rose-400 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Clear Chat
+                </button>
+                {activeFriendUid && (
+                  <button
+                    onClick={() => {
+                      const fDoc = friendships.find(f => f.users.includes(activeFriendUid));
+                      if (fDoc && activeFriendDetails) {
+                        handleRemoveFriend(fDoc.id, activeFriendDetails.displayName);
+                        setShowFriendInfoModal(false);
+                      }
+                    }}
+                    className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Remove Friend
+                  </button>
+                )}
               </div>
 
               <button

@@ -215,7 +215,22 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess }
                       <Upload className="w-8 h-8" />
                   </div>
                   <h3 className="text-xl font-bold text-slate-800">Verify Payment</h3>
-                  <p className="text-sm text-slate-400 mt-1">Upload a screenshot of your successful transaction.</p>
+                  <p className="text-sm text-slate-400 mt-1">Upload screenshot or share directly via WhatsApp for manual verification.</p>
+                  
+                  <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-left flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-bold text-emerald-900">Need Instant Manual Verification?</p>
+                      <p className="text-[11px] text-emerald-700">Share screenshot on WhatsApp: <span className="font-mono font-bold">+91 8105423488</span></p>
+                    </div>
+                    <a
+                      href="https://wa.me/918105423488?text=Hello%2C%20I%20have%20sent%20my%20payment%20screenshot%20for%20SJ%20Tutor%20AI%20verification."
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm whitespace-nowrap flex items-center gap-1"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> WhatsApp
+                    </a>
+                  </div>
                </div>
 
                <div className="space-y-4">
