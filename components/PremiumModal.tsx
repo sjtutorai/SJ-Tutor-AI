@@ -1,22 +1,33 @@
 
-import React, { useState, useRef } from 'react';
-import { X, Check, Crown, Zap, Shield, Upload, Loader2, Image as ImageIcon, AlertCircle, ExternalLink, QrCode, Copy, CheckCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { X, Check, Crown, Zap, Shield, Upload, Loader2, Image as ImageIcon, AlertCircle, ExternalLink, QrCode, Copy, CheckCircle, Clock } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
-import { SJTUTOR_AVATAR } from '../types';
+import { SJTUTOR_AVATAR, UserProfile } from '../types';
+import { calculateTrialInfo, TrialInfo } from './TrialTimerWidget';
 
 interface PremiumModalProps {
   onClose: () => void;
   onPaymentSuccess: (credits: number, planName: 'STARTER' | 'SCHOLAR' | 'ACHIEVER') => void;
+  userProfile?: UserProfile;
+  uid?: string;
 }
 
-const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess }) => {
+const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess, userProfile, uid }) => {
   const [selectedPlan, setSelectedPlan] = useState<'STARTER' | 'SCHOLAR' | 'ACHIEVER'>('SCHOLAR');
   const [step, setStep] = useState<'PLANS' | 'VERIFY'>('PLANS');
   const [paymentScreenshot, setPaymentScreenshot] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [copiedUpi, setCopiedUpi] = useState(false);
-  
+  const [trial, setTrial] = useState<TrialInfo>(() => calculateTrialInfo(userProfile, uid));
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTrial(calculateTrialInfo(userProfile, uid));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [userProfile, uid]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const upiId = '8105423488@ybl';
@@ -127,9 +138,34 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess }
 
         {/* Left Side: Plans Selection (Visible on PLANS step) */}
         <div className={`flex-1 p-6 md:p-10 overflow-y-auto bg-slate-50/50 ${step !== 'PLANS' ? 'hidden md:block opacity-50 pointer-events-none' : ''}`}>
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <h2 className="text-3xl font-bold text-slate-800 mb-2">Upgrade to Premium</h2>
-            <p className="text-slate-500">Choose the plan that fits your learning needs.</p>
+            <p className="text-slate-500 mb-4">Choose the plan that fits your learning needs.</p>
+
+            {/* Trial Status Callout */}
+            {!trial.isPro && (
+              <div className="max-w-md mx-auto p-3.5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl border border-indigo-500/30 shadow-md flex items-center justify-between gap-3 text-left">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
+                    <Clock className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
+                      {trial.isExpired ? '10-Day Trial Expired' : '10-Day Free Trial Active'}
+                    </span>
+                    <span className="text-xs font-mono font-extrabold text-white">
+                      {trial.isExpired ? 'Trial Finished' : `${trial.days}d ${trial.hours}h ${trial.minutes}m ${trial.seconds}s Remaining`}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-slate-300 block">Status</span>
+                  <span className="text-[11px] font-extrabold text-amber-300">
+                    {trial.isExpired ? 'Free Tier' : 'Full Access'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-4">

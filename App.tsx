@@ -40,6 +40,7 @@ import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
 import { useStreak } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
+import { TrialHeaderBadge } from "./components/TrialTimerWidget";
 import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
 import {
@@ -2027,7 +2028,7 @@ const App: React.FC = () => {
 
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
-        <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
               Welcome back, {userProfile.displayName || "Scholar"}! 👋
@@ -3074,14 +3075,11 @@ const App: React.FC = () => {
               <QrCode className="w-5 h-5" />
             </button>
 
-            {user && (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm border border-emerald-400 rounded-full">
-                <Zap className="w-3.5 h-3.5 fill-current text-white animate-pulse" />
-                <span className="text-xs font-extrabold select-none">
-                  10-Day Free Unlimited Pass
-                </span>
-              </div>
-            )}
+            <TrialHeaderBadge 
+              userProfile={userProfile} 
+              uid={user?.uid} 
+              onOpenUpgrade={() => setShowPremiumModal(true)} 
+            />
           </div>
         </header>
 
@@ -3110,6 +3108,8 @@ const App: React.FC = () => {
         <PremiumModal
           onClose={() => setShowPremiumModal(false)}
           onPaymentSuccess={handlePaymentSuccess}
+          userProfile={userProfile}
+          uid={user?.uid}
         />
       )}
 
