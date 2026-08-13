@@ -310,6 +310,18 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   const [interimTranscript, setInterimTranscript] = useState('');
   const [recordingDuration, setRecordingDuration] = useState(0);
   const initialInputRef = useRef('');
+  const currentInputRef = useRef('');
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [autoSendVoice, setAutoSendVoice] = useState(true);
+  const autoSendVoiceRef = useRef(true);
+  
+  useEffect(() => {
+    currentInputRef.current = input;
+  }, [input]);
+  useEffect(() => {
+    autoSendVoiceRef.current = autoSendVoice;
+  }, [autoSendVoice]);
+
   const [error, setError] = useState<string | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
 
@@ -498,6 +510,20 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         return base ? base + ' ' + finalTrimmed : finalTrimmed;
       });
       setInterimTranscript(sessionInterim);
+
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      if (autoSendVoiceRef.current && sessionFinal.trim().length > 0 && sessionInterim.trim().length === 0) {
+        silenceTimerRef.current = setTimeout(() => {
+          setIsListening(false);
+          const finalMsg = currentInputRef.current;
+          if (finalMsg.trim()) {
+             // We can't use handleSend directly because it accesses state, but we can do sendMessageToAi
+             sendMessageToAi(finalMsg);
+             setInput('');
+             setInterimTranscript('');
+          }
+        }, 2000);
+      }
     };
 
     rec.onerror = (err: any) => {
@@ -1479,6 +1505,15 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                   >
                     Cancel
                   </button>
+                  <label className="flex items-center gap-1.5 cursor-pointer mr-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={autoSendVoice}
+                      onChange={(e) => setAutoSendVoice(e.target.checked)}
+                      className="w-3 h-3 text-rose-600 rounded border-slate-300 focus:ring-rose-500"
+                    />
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Hands-Free</span>
+                  </label>
                   <button
                     onClick={() => {
                       setIsListening(false);

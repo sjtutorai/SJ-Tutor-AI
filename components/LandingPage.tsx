@@ -8,7 +8,7 @@ import {
   Languages, 
   CheckCircle2, 
   ArrowRight,
-  ShieldCheck,
+
   TrendingUp,
   Award,
   Star,
@@ -25,10 +25,12 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
+import AboutView from './AboutView';
 
 interface LandingPageProps {
   onGetStarted: (mode?: 'signin' | 'signup') => void;
   countryCode?: string | null;
+  onNavigateToLegal?: (mode: 'PRIVACY' | 'TERMS') => void;
 }
 
 // Corrected, pristine Google Brand SVG Path for trust badges / login references
@@ -42,7 +44,7 @@ const CorrectGoogleLogo: React.FC<{ className?: string; noBg?: boolean }> = ({ c
   </svg>
 );
 
-export default function LandingPage({ onGetStarted }: LandingPageProps) {
+export default function LandingPage({ onGetStarted, onNavigateToLegal }: LandingPageProps) {
   // Canvas Animation Reference
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -1169,96 +1171,13 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
         </section>
 
         {/* ABOUT US SECTION (Strictly Present Only On This Landing Page) */}
-        <section id="about" className="bg-[#020617]/95 py-24 border-t border-slate-900/80 relative">
-          
+        {/* ABOUT US SECTION (From AboutView) */}
+        <section id="about" className="bg-[#020617] py-24 border-t border-slate-900/80 relative">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[150px] pointer-events-none" />
-
-          <div className="max-w-6xl mx-auto px-6 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            
-            {/* Visual illustration side */}
-            <div className="lg:col-span-5 relative order-last lg:order-first">
-              <div className="bg-[#0F172A]/70 border border-slate-800 p-8 rounded-3xl relative overflow-hidden shadow-2xl text-left space-y-6">
-                
-                <div className="w-12 h-12 bg-purple-950 border border-purple-800/40 rounded-xl flex items-center justify-center text-purple-400">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  &quot;SJ Tutor AI operates with safe, aligned academic credentials. Unlike standard AI playgrounds that output hallucinated or misleading search logs, our platform processes answers directly referenced against standard educational core methodologies.&quot;
-                </p>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Double-Checked Scientific Explanations</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Encrypted study tracking profile structures</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>No data resale, strictly classroom focused</span>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-slate-900/70 border border-slate-850 rounded-lg text-[10px] text-slate-500 text-center font-bold">
-                  SJ SECURE LEARNING ENVIRONMENT INTEGRATION
-                </div>
-              </div>
-            </div>
-
-            {/* Mission Text Side */}
-            <div className="lg:col-span-7 space-y-6 text-left">
-              <span className="text-xs text-cyan-400 font-extrabold uppercase tracking-[0.25em]">ABOUT OUR MISSION</span>
-              <h2 className="text-3xl md:text-5xl font-black text-white leading-tight">
-                Democratizing Elite 1-on-1 Tutoring of Every School Student
-              </h2>
-              
-              <p className="text-slate-300 text-sm md:text-base leading-relaxed">
-                SJ Tutor AI was established with a singular, clear objective: to make highly adaptive, premium personal education available to students worldwide, unconditionally. 
-              </p>
-              
-              <p className="text-slate-400 text-sm leading-relaxed">
-                We believe that every single scholar learns at their own specific pace. Yet, contemporary classroom environments are forced to stream identical lessons to thousands of individuals without room for personalized speed adjustments.
-              </p>
-
-              <p className="text-slate-400 text-sm leading-relaxed">
-                SJ Tutor AI acts as a flexible study companion. Utilizing advanced Large Language reasoning, we capture the exact knowledge gap of a student, producing customized examples, interactive curve plotting math aids, and targeted MCQs instantly. It acts like a private private educator available 24/7.
-              </p>
-
-              {/* Innovators & Inventors Sign-off */}
-              <div className="pt-6 border-t border-slate-900 space-y-3">
-                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest block">Innovators &amp; Inventors</span>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white font-extrabold text-xs shadow-md">
-                      SJ
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-white text-sm">Sadanand Jyoti</h4>
-                      <span className="text-[10px] text-slate-400 font-medium block">Lead Innovator &amp; Founder</span>
-                    </div>
-                  </div>
-
-                  <div className="hidden sm:block w-px h-8 bg-slate-800"></div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white font-extrabold text-xs shadow-md">
-                      SP
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-white text-sm">Samanyu S Patil</h4>
-                      <span className="text-[10px] text-slate-400 font-medium block">Innovator &amp; Co-Inventor</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
+          <div className="relative z-10 dark">
+            <AboutView onNavigateToLegal={onNavigateToLegal} />
           </div>
         </section>
-
         {/* PRICING SECTION */}
         <section id="pricing" className="max-w-7xl mx-auto px-6 py-24 select-none">
           <div className="text-center space-y-4 mb-20">
@@ -1495,8 +1414,8 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <div className="space-y-4 text-left">
               <h4 className="text-xs font-bold text-white uppercase tracking-wider">Legal &amp; Policy</h4>
               <ul className="space-y-2.5 text-xs text-slate-400">
-                <li><span className="cursor-pointer hover:text-blue-400">Privacy Policy</span></li>
-                <li><span className="cursor-pointer hover:text-blue-400">Terms of Service</span></li>
+                <li><span className="cursor-pointer hover:text-blue-400" onClick={() => onNavigateToLegal?.('PRIVACY')}>Privacy Policy</span></li>
+                <li><span className="cursor-pointer hover:text-blue-400" onClick={() => onNavigateToLegal?.('TERMS')}>Terms of Service</span></li>
                 <li><span className="cursor-pointer hover:text-blue-400">Cookie Preferences</span></li>
               </ul>
             </div>
