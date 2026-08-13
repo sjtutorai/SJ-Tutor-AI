@@ -14,7 +14,7 @@ export default function Logo({
   textColor = "text-slate-900",
   iconOnly = false 
 }: LogoProps) {
-  const logoUrl = "https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg";
+  const logoUrl = "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg";
   
   return (
     <div className={`flex items-center gap-3 ${iconOnly ? 'w-full h-full justify-center' : ''}`}>

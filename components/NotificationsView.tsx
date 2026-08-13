@@ -202,7 +202,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
   // Dispatch scheduled broadcast immediately
   const handleDispatchNow = async (sched: SchedItem) => {
     try {
-      const confirmed = true;
+      const confirmed = window.confirm('Are you sure you want to dispatch this scheduled notification now?');
       if (!confirmed) return;
 
       setIsSending(true);
@@ -232,7 +232,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
   // Cancel scheduled broadcast
   const handleCancelScheduled = async (id: string) => {
     try {
-      const confirmed = true;
+      const confirmed = window.confirm('Are you sure you want to delete this scheduled notification?');
       if (!confirmed) return;
 
       await deleteDoc(doc(db, 'notifications', id));
@@ -248,7 +248,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
   // Retry failed delivery log
   const handleRetryFailed = async (log: LogItem) => {
     try {
-      const confirmed = true;
+      const confirmed = window.confirm('Do you want to retry sending this notification to the registered targets?');
       if (!confirmed) return;
 
       setIsSending(true);

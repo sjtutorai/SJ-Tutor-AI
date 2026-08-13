@@ -476,8 +476,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if ('Notification' in window && Notification.permission === 'granted') {
       const options = {
         body,
-        icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-        badge: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+        icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+        badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
         data: { url }
       };
 
