@@ -33,6 +33,12 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
           try {
             console.log("Scanned QR Text:", decodedText);
             const trimmed = decodedText.trim();
+            // Handle HTTP/HTTPS URLs cleanly
+            if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+              setError(`Scanned QR code is a website URL (${trimmed}). Please scan an SJ Tutor Student ID card QR code or use the Group QR Scanner.`);
+              return;
+            }
+
             // Handle JSON format
             let data: ScannedUser;
             if (trimmed.startsWith('{') && trimmed.endsWith('}')) {

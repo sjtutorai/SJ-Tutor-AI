@@ -41,10 +41,31 @@ export const GroupQRScannerModal: React.FC<GroupQRScannerModalProps> = ({ onClos
       try {
         const url = new URL(trimmed);
         const params = new URLSearchParams(url.search);
-        extractedGroupIdOrCode = params.get('groupId') || params.get('groupInvite') || params.get('invite') || params.get('id');
+        extractedGroupIdOrCode = params.get('groupId') || params.get('groupInvite') || params.get('invite') || params.get('inviteCode') || params.get('code') || params.get('id');
+
+        // Check path if params are missing (e.g. /group/group_123 or /groups/group_123)
+        if (!extractedGroupIdOrCode) {
+          const pathSegments = url.pathname.split('/').filter(Boolean);
+          const groupIdx = pathSegments.findIndex(s => s === 'group' || s === 'groups');
+          if (groupIdx !== -1 && pathSegments[groupIdx + 1]) {
+            extractedGroupIdOrCode = pathSegments[groupIdx + 1];
+          }
+        }
+
+        if (!extractedGroupIdOrCode) {
+          setScanError(`The scanned QR link (${trimmed}) does not contain a Group ID or Invite Code. Please scan a valid Group QR Code.`);
+          setLoadingGroup(false);
+          return;
+        }
       } catch {
-        const match = trimmed.match(/(?:groupId|groupInvite|invite)=([^&]+)/);
-        if (match) extractedGroupIdOrCode = match[1];
+        const match = trimmed.match(/(?:groupId|groupInvite|invite|code)=([^&]+)/);
+        if (match) {
+          extractedGroupIdOrCode = match[1];
+        } else {
+          setScanError(`The scanned QR link (${trimmed}) does not contain a Group ID or Invite Code. Please scan a valid Group QR Code.`);
+          setLoadingGroup(false);
+          return;
+        }
       }
     }
 
@@ -69,8 +90,13 @@ export const GroupQRScannerModal: React.FC<GroupQRScannerModalProps> = ({ onClos
       }
     }
 
-    // 3. Fallback to raw text as ID or Invite Code
+    // 3. Fallback to raw text as ID or Invite Code (only if NOT an http/https URL)
     if (!extractedGroupIdOrCode) {
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        setScanError(`The scanned URL (${trimmed}) is not a Group QR Code. Please scan a Group QR Code.`);
+        setLoadingGroup(false);
+        return;
+      }
       extractedGroupIdOrCode = trimmed;
     }
 
@@ -101,13 +127,7 @@ export const GroupQRScannerModal: React.FC<GroupQRScannerModalProps> = ({ onClos
           groupData: foundGroup
         });
       } else {
-        // Unknown or raw string group ID
-        setScannedResult({
-          type: 'group',
-          rawText: trimmed,
-          groupId: extractedGroupIdOrCode || trimmed,
-          groupData: null
-        });
+        setScanError(`No active study group found for code: "${extractedGroupIdOrCode}". Please check the QR code or try joining with a link/ID.`);
       }
     } catch (err) {
       console.error('Error resolving group from QR:', err);

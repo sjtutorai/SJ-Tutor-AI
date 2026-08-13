@@ -184,29 +184,44 @@ const App: React.FC = () => {
   // Process group invite link parameters from URL (e.g. ?groupId=xxx or ?groupInvite=xxx or ?invite=xxx)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const groupIdFromUrl = params.get("groupId") || params.get("groupInvite") || params.get("invite");
+    const groupIdFromUrl = params.get("groupId") || params.get("groupInvite") || params.get("invite") || params.get("inviteCode") || params.get("code") || params.get("id");
     const inviterFromUrl = params.get("inviter") || "A student";
 
     if (groupIdFromUrl) {
       const checkAndRouteGroupInvite = async () => {
         try {
+          let foundGroupId = groupIdFromUrl;
+          let groupData: StudyGroup | null = null;
+
+          // 1. Direct doc check
           const groupRef = doc(db, "groups", groupIdFromUrl);
           const groupSnap = await getDoc(groupRef);
           
           if (groupSnap.exists()) {
-            const groupData = groupSnap.data() as StudyGroup;
+            groupData = groupSnap.data() as StudyGroup;
+          } else {
+            // 2. Query by inviteCode
+            const q = query(collection(db, "groups"), where("inviteCode", "==", groupIdFromUrl));
+            const querySnap = await getDocs(q);
+            if (!querySnap.empty) {
+              groupData = querySnap.docs[0].data() as StudyGroup;
+              foundGroupId = groupData.id;
+            }
+          }
+
+          if (groupData) {
             const currentUid = auth.currentUser ? auth.currentUser.uid : null;
             const isMember = currentUid && groupData.members && !!groupData.members[currentUid];
 
             if (isMember) {
               // Already a member -> redirect directly to group chat
-              localStorage.setItem('sjtutor_active_group_id', groupIdFromUrl);
+              localStorage.setItem('sjtutor_active_group_id', foundGroupId);
               setMode(AppMode.GROUPS);
               triggerToast('Welcome Back! 🎉', `Opened "${groupData.name}" group chat.`, 'Important Alerts');
             } else {
               // Not a member yet -> open group invite view with Accept/Decline buttons
               setPendingGroupInvite({
-                groupId: groupIdFromUrl,
+                groupId: foundGroupId,
                 inviterName: inviterFromUrl,
                 groupName: groupData.name,
               });

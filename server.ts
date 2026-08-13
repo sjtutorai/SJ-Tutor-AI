@@ -104,7 +104,18 @@ async function startServer() {
       } else {
          const indexPath = path.resolve(resolvedDirname, "dist", "index.html");
          let html = await fs.promises.readFile(indexPath, 'utf-8');
-         html = html.replace('<title>SJ Tutor AI - Your AI Study Buddy</title>', metaTags);
+         
+         // Remove default SEO tags to prevent duplicates
+         html = html.replace(/<title>.*?<\/title>/g, '');
+         html = html.replace(/<meta\s+name="description".*?>/g, '');
+         html = html.replace(/<meta\s+property="og:title".*?>/g, '');
+         html = html.replace(/<meta\s+property="og:description".*?>/g, '');
+         html = html.replace(/<meta\s+name="twitter:title".*?>/g, '');
+         html = html.replace(/<meta\s+name="twitter:description".*?>/g, '');
+         
+         // Inject the new dynamic meta tags for the quiz
+         html = html.replace('<head>', `<head>\n${metaTags}`);
+         
          res.send(html);
       }
     } catch (e) {

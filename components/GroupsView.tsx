@@ -288,10 +288,29 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       try {
         const url = new URL(rawInput);
         const params = new URLSearchParams(url.search);
-        targetId = params.get('groupId') || params.get('groupInvite') || params.get('invite') || params.get('id') || rawInput;
+        const extracted = params.get('groupId') || params.get('groupInvite') || params.get('invite') || params.get('inviteCode') || params.get('code') || params.get('id');
+        
+        if (extracted) {
+          targetId = extracted;
+        } else {
+          // Check path (e.g. /group/group_123 or /groups/group_123)
+          const pathSegments = url.pathname.split('/').filter(Boolean);
+          const groupIdx = pathSegments.findIndex(s => s === 'group' || s === 'groups');
+          if (groupIdx !== -1 && pathSegments[groupIdx + 1]) {
+            targetId = pathSegments[groupIdx + 1];
+          } else {
+            triggerToast('Invalid Group Link', 'The link does not contain a Group ID or Invite Code. Please verify your link or code.', 'Important Alerts');
+            return;
+          }
+        }
       } catch {
-        const match = rawInput.match(/(?:groupId|groupInvite|invite)=([^&]+)/);
-        if (match) targetId = match[1];
+        const match = rawInput.match(/(?:groupId|groupInvite|invite|code)=([^&]+)/);
+        if (match) {
+          targetId = match[1];
+        } else {
+          triggerToast('Invalid Group Link', 'The link does not contain a Group ID or Invite Code. Please verify your link or code.', 'Important Alerts');
+          return;
+        }
       }
     }
 
