@@ -23,7 +23,6 @@ export const createUserProfile = async (user: User) => {
       streak: 0,
       totalStudyTime: 0,
       points: 0,
-      trialStartDate: Date.now(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),

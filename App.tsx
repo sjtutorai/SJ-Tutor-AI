@@ -40,7 +40,6 @@ import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
 import { useStreak } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
-import { TrialHeaderBadge } from "./components/TrialTimerWidget";
 import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
 import {
@@ -184,44 +183,29 @@ const App: React.FC = () => {
   // Process group invite link parameters from URL (e.g. ?groupId=xxx or ?groupInvite=xxx or ?invite=xxx)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const groupIdFromUrl = params.get("groupId") || params.get("groupInvite") || params.get("invite") || params.get("inviteCode") || params.get("code") || params.get("id");
+    const groupIdFromUrl = params.get("groupId") || params.get("groupInvite") || params.get("invite");
     const inviterFromUrl = params.get("inviter") || "A student";
 
     if (groupIdFromUrl) {
       const checkAndRouteGroupInvite = async () => {
         try {
-          let foundGroupId = groupIdFromUrl;
-          let groupData: StudyGroup | null = null;
-
-          // 1. Direct doc check
           const groupRef = doc(db, "groups", groupIdFromUrl);
           const groupSnap = await getDoc(groupRef);
           
           if (groupSnap.exists()) {
-            groupData = groupSnap.data() as StudyGroup;
-          } else {
-            // 2. Query by inviteCode
-            const q = query(collection(db, "groups"), where("inviteCode", "==", groupIdFromUrl));
-            const querySnap = await getDocs(q);
-            if (!querySnap.empty) {
-              groupData = querySnap.docs[0].data() as StudyGroup;
-              foundGroupId = groupData.id;
-            }
-          }
-
-          if (groupData) {
+            const groupData = groupSnap.data() as StudyGroup;
             const currentUid = auth.currentUser ? auth.currentUser.uid : null;
             const isMember = currentUid && groupData.members && !!groupData.members[currentUid];
 
             if (isMember) {
               // Already a member -> redirect directly to group chat
-              localStorage.setItem('sjtutor_active_group_id', foundGroupId);
+              localStorage.setItem('sjtutor_active_group_id', groupIdFromUrl);
               setMode(AppMode.GROUPS);
               triggerToast('Welcome Back! 🎉', `Opened "${groupData.name}" group chat.`, 'Important Alerts');
             } else {
               // Not a member yet -> open group invite view with Accept/Decline buttons
               setPendingGroupInvite({
-                groupId: foundGroupId,
+                groupId: groupIdFromUrl,
                 inviterName: inviterFromUrl,
                 groupName: groupData.name,
               });
@@ -1208,10 +1192,10 @@ const App: React.FC = () => {
   const validateForm = () => {
     if (!formData.subject || !formData.gradeClass || !formData.chapterName) {
       setError("Please fill in at least Subject, Class, and Chapter Name.");
-      return false;
+      return window.innerWidth >= 1024;
     }
     setError(null);
-    return true;
+    return window.innerWidth >= 1024;
   };
 
   const addToHistory = (type: AppMode, content: any) => {
@@ -1442,9 +1426,9 @@ const App: React.FC = () => {
         credits: userProfile.credits - amount,
       };
       handleProfileSave(updatedProfile, false);
-      return true;
+      return window.innerWidth >= 1024;
     }
-    return false;
+    return window.innerWidth >= 1024;
   };
 
   const handleGenerate = async () => {
@@ -2043,7 +2027,7 @@ const App: React.FC = () => {
 
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
               Welcome back, {userProfile.displayName || "Scholar"}! 👋
@@ -3090,11 +3074,14 @@ const App: React.FC = () => {
               <QrCode className="w-5 h-5" />
             </button>
 
-            <TrialHeaderBadge 
-              userProfile={userProfile} 
-              uid={user?.uid} 
-              onOpenUpgrade={() => setShowPremiumModal(true)} 
-            />
+            {user && (
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm border border-emerald-400 rounded-full">
+                <Zap className="w-3.5 h-3.5 fill-current text-white animate-pulse" />
+                <span className="text-xs font-extrabold select-none">
+                  10-Day Free Unlimited Pass
+                </span>
+              </div>
+            )}
           </div>
         </header>
 
@@ -3123,8 +3110,6 @@ const App: React.FC = () => {
         <PremiumModal
           onClose={() => setShowPremiumModal(false)}
           onPaymentSuccess={handlePaymentSuccess}
-          userProfile={userProfile}
-          uid={user?.uid}
         />
       )}
 

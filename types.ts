@@ -89,7 +89,6 @@ export interface UserProfile {
   emblems?: string[];
   hasCompletedOnboarding?: boolean;
   isRegisteredInFirestore?: boolean;
-  trialStartDate?: number;
 }
 
 export interface UserSettings {

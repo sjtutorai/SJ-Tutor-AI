@@ -33,13 +33,10 @@ import {
   MessageSquareOff,
   ArrowDown,
   Maximize2,
-  Minimize2,
-  QrCode,
-  Download
+  Minimize2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from "qrcode.react";
-import { GroupQRScannerModal } from './GroupQRScannerModal';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { compressImage } from "../utils/imageUtils";
@@ -113,7 +110,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [activeTab, setActiveTab] = useState<'my' | 'explore'>('my');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinByIdModal, setShowJoinByIdModal] = useState(false);
-  const [showQRScannerModal, setShowQRScannerModal] = useState(false);
   const [joinInput, setJoinInput] = useState('');
   const [joiningById, setJoiningById] = useState(false);
   const [inviteRegId, setInviteRegId] = useState('');
@@ -277,40 +273,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     if (!rawInput) return;
 
     let targetId = rawInput;
-    if (rawInput.startsWith('{') && rawInput.endsWith('}')) {
-      try {
-        const parsed = JSON.parse(rawInput);
-        targetId = parsed.groupId || parsed.inviteCode || parsed.id || rawInput;
-      } catch (e) {
-        console.warn('JSON parse warn:', e);
-      }
-    } else if (rawInput.startsWith('http://') || rawInput.startsWith('https://') || rawInput.includes('groupId=')) {
+    if (rawInput.includes('groupId=')) {
       try {
         const url = new URL(rawInput);
         const params = new URLSearchParams(url.search);
-        const extracted = params.get('groupId') || params.get('groupInvite') || params.get('invite') || params.get('inviteCode') || params.get('code') || params.get('id');
-        
-        if (extracted) {
-          targetId = extracted;
-        } else {
-          // Check path (e.g. /group/group_123 or /groups/group_123)
-          const pathSegments = url.pathname.split('/').filter(Boolean);
-          const groupIdx = pathSegments.findIndex(s => s === 'group' || s === 'groups');
-          if (groupIdx !== -1 && pathSegments[groupIdx + 1]) {
-            targetId = pathSegments[groupIdx + 1];
-          } else {
-            triggerToast('Invalid Group Link', 'The link does not contain a Group ID or Invite Code. Please verify your link or code.', 'Important Alerts');
-            return;
-          }
-        }
+        targetId = params.get('groupId') || params.get('groupInvite') || params.get('invite') || rawInput;
       } catch {
-        const match = rawInput.match(/(?:groupId|groupInvite|invite|code)=([^&]+)/);
-        if (match) {
-          targetId = match[1];
-        } else {
-          triggerToast('Invalid Group Link', 'The link does not contain a Group ID or Invite Code. Please verify your link or code.', 'Important Alerts');
-          return;
-        }
+        const match = rawInput.match(/(?:groupId|groupInvite|invite)=([^&]+)/);
+        if (match) targetId = match[1];
       }
     }
 
@@ -385,41 +355,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     } finally {
       setJoiningById(false);
     }
-  };
-
-  const handleDownloadGroupQR = (group: StudyGroup) => {
-    const svgElement = document.getElementById(`group-qr-svg-${group.id}`) as SVGElement | null;
-    if (!svgElement) {
-      triggerToast('QR Error', 'Could not locate QR code element.', 'Important Alerts');
-      return;
-    }
-
-    const svgData = new XMLSerializer().serializeToString(svgElement);
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(svgBlob);
-
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 320;
-      canvas.height = 320;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, 320, 320);
-        ctx.drawImage(img, 20, 20, 280, 280);
-        const pngUrl = canvas.toDataURL('image/png');
-        const downloadLink = document.createElement('a');
-        downloadLink.href = pngUrl;
-        downloadLink.download = `${group.name.replace(/[^a-zA-Z0-9]/g, '_')}_QR.png`;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-        URL.revokeObjectURL(url);
-        triggerToast('QR Code Downloaded! 📷', 'Saved Group QR Code image to your device.', 'Important Alerts');
-      }
-    };
-    img.src = url;
   };
 
   // Auto scroll on new messages
@@ -1216,15 +1151,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               >
                 {isEnlarged ? <Minimize2 className="w-4 h-4 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-4 h-4" />}
                 <span>{isEnlarged ? "Minimize" : "Enlarge"}</span>
-              </button>
-
-              <button
-                onClick={() => setShowQRScannerModal(true)}
-                className="p-2 sm:px-3 py-2 bg-gradient-to-r from-amber-500/15 to-yellow-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-xl transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold shrink-0"
-                title="Scan or Put Group QR Code Image to Join"
-              >
-                <QrCode className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                <span className="hidden sm:inline">Scan QR</span>
               </button>
 
               <button
@@ -2050,13 +1976,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 Explore Public Groups
               </button>
               <button
-                onClick={() => setShowQRScannerModal(true)}
-                className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition flex items-center gap-2 active:scale-95"
-              >
-                <QrCode className="w-4 h-4" />
-                Scan / Put QR Code
-              </button>
-              <button
                 onClick={() => setShowJoinByIdModal(true)}
                 className="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition flex items-center gap-2"
               >
@@ -2092,25 +2011,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               </div>
 
               <div className="p-6 space-y-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowJoinByIdModal(false);
-                    setShowQRScannerModal(true);
-                  }}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-extrabold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition active:scale-95"
-                >
-                  <QrCode className="w-4 h-4 text-slate-950" />
-                  <span>Scan or Put Group QR Code Image</span>
-                </button>
-
-                <div className="relative flex items-center justify-center my-2">
-                  <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
-                  <span className="bg-white dark:bg-slate-900 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0">
-                    or enter manually
-                  </span>
-                </div>
-
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                   Paste the <strong className="text-slate-800 dark:text-white">Group ID</strong>, <strong className="text-slate-800 dark:text-white">Invite Code</strong>, or paste the entire <strong className="text-slate-800 dark:text-white">Group Invite Link</strong> to join directly.
                 </p>
@@ -3006,39 +2906,26 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     Group Share & Invite Link
                   </h4>
 
-                  <div className="flex flex-col items-center p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                  <div className="flex justify-center p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
                     <QRCodeSVG 
-                      id={`group-qr-svg-${activeGroup.id}`}
                       value={`${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`}
                       size={150}
                       level="H"
                       className="rounded-lg shadow-sm"
                     />
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center font-medium">
-                      Scan or put/upload this QR Code image in Groups to join
-                    </p>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleDownloadGroupQR(activeGroup)}
-                      className="flex-1 py-2.5 px-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      Download QR
-                    </button>
-                    <button
-                      onClick={() => {
-                        const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
-                        navigator.clipboard.writeText(shareUrl);
-                        triggerToast('Copied Group Link! 🔗', 'Share this link with any student. When opened, they can Accept or Decline your invitation.', 'Important Alerts');
-                      }}
-                      className="flex-1 py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-1.5 active:scale-95"
-                    >
-                      <Share2 className="w-3.5 h-3.5" />
-                      Copy Link
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
+                      navigator.clipboard.writeText(shareUrl);
+                      triggerToast('Copied Group Link! 🔗', 'Share this link with any student. When opened, they can Accept or Decline your invitation.', 'Important Alerts');
+                    }}
+                    className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Copy Group Invite Link
+                  </button>
 
                   <div className="p-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
                     <div className="flex items-center justify-between text-xs">
@@ -3237,14 +3124,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
           </div>
         )}
       </AnimatePresence>
-
-      {/* GROUP QR CODE SCANNER & IMAGE UPLOADER MODAL */}
-      {showQRScannerModal && (
-        <GroupQRScannerModal
-          onClose={() => setShowQRScannerModal(false)}
-          onJoinGroup={(targetId) => handleJoinGroupById(targetId)}
-        />
-      )}
       </div>
     </div>
   );

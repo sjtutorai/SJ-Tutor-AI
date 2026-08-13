@@ -43,22 +43,11 @@ export const getProfileFromFirestore = async (uid: string): Promise<UserProfile 
   }
 };
 
-export const sanitizeForFirestore = <T>(data: T): T => {
-  if (data === undefined || data === null) return data;
-  try {
-    return JSON.parse(JSON.stringify(data));
-  } catch (e) {
-    console.warn("Error sanitizing data for Firestore:", e);
-    return data;
-  }
-};
-
 export const saveHistoryItemToFirestore = async (uid: string, item: HistoryItem) => {
   if (!uid || uid === "guest") return false;
   try {
     const docRef = doc(db, "users", uid, "history", item.id);
-    const cleanItem = sanitizeForFirestore(item);
-    await setDoc(docRef, cleanItem, { merge: true });
+    await setDoc(docRef, item, { merge: true });
     return true;
   } catch (error: any) {
     console.warn("Error saving history item to Firestore:", error);
@@ -914,12 +903,6 @@ export const declineOrRemoveFriendInFirestore = async (friendshipId: string): Pr
   try {
     const friendshipRef = doc(db, "friendships", friendshipId);
     await deleteDoc(friendshipRef);
-
-    // Derive and delete the associated direct chat between the two users
-    const chatId = friendshipId.replace(/^friendship_/, "chat_");
-    if (chatId !== friendshipId) {
-      await deleteDirectChatEntirelyInFirestore(chatId);
-    }
     return true;
   } catch (error) {
     console.error("Error removing friend request:", error);
@@ -1109,40 +1092,6 @@ export const clearDirectChatForUserInFirestore = async (chatId: string, userUid:
   } catch (error) {
     console.warn("Error clearing direct chat:", error);
     return false;
-  }
-};
-
-export const deleteDirectMessageInFirestore = async (chatId: string, messageId: string): Promise<boolean> => {
-  try {
-    const msgRef = doc(db, "direct_chats", chatId, "messages", messageId);
-    await deleteDoc(msgRef);
-    return true;
-  } catch (error) {
-    console.warn("Error deleting direct message:", error);
-    return false;
-  }
-};
-
-export const deleteDirectChatEntirelyInFirestore = async (chatId: string): Promise<boolean> => {
-  try {
-    const messagesRef = collection(db, "direct_chats", chatId, "messages");
-    const msgsSnap = await getDocs(messagesRef);
-    const batch = writeBatch(db);
-    msgsSnap.forEach((mDoc) => {
-      batch.delete(mDoc.ref);
-    });
-    batch.delete(doc(db, "direct_chats", chatId));
-    await batch.commit();
-    return true;
-  } catch (error) {
-    console.warn("Batch direct chat delete failed, falling back to doc delete:", error);
-    try {
-      await deleteDoc(doc(db, "direct_chats", chatId));
-      return true;
-    } catch (err) {
-      console.error("Error deleting direct chat entirely:", err);
-      return false;
-    }
   }
 };
 
