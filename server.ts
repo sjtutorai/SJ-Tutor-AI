@@ -26,6 +26,91 @@ app.use((req, res, next) => {
   next();
 });
 
+// SEO Crawler endpoints
+app.get("/robots.txt", (req, res) => {
+  const robotsPath = path.resolve(resolvedDirname, "public", "robots.txt");
+  if (fs.existsSync(robotsPath)) {
+    res.setHeader("Content-Type", "text/plain");
+    res.sendFile(robotsPath);
+  } else {
+    res.setHeader("Content-Type", "text/plain");
+    res.send(`User-agent: *
+Allow: /
+Allow: /public/
+Allow: /assets/
+Allow: /*.css$
+Allow: /*.js$
+Allow: /*.png$
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.svg$
+Allow: /*.ico$
+
+Disallow: /dashboard
+Disallow: /api/
+Disallow: /admin
+Disallow: /profile
+Disallow: /notes
+Disallow: /quiz
+Disallow: /chat
+Disallow: /groups
+Disallow: /notifications
+Disallow: /history
+Disallow: /auth
+
+Sitemap: https://sjtutorai.com/sitemap.xml`);
+  }
+});
+
+app.get("/sitemap.xml", (req, res) => {
+  const sitemapPath = path.resolve(resolvedDirname, "public", "sitemap.xml");
+  if (fs.existsSync(sitemapPath)) {
+    res.setHeader("Content-Type", "application/xml");
+    res.sendFile(sitemapPath);
+  } else {
+    res.setHeader("Content-Type", "application/xml");
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://sjtutorai.com/</loc>
+    <lastmod>2026-08-13</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://sjtutorai.com/about</loc>
+    <lastmod>2026-08-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sjtutorai.com/features</loc>
+    <lastmod>2026-08-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sjtutorai.com/contact</loc>
+    <lastmod>2026-08-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://sjtutorai.com/privacy</loc>
+    <lastmod>2026-08-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://sjtutorai.com/terms</loc>
+    <lastmod>2026-08-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>`);
+  }
+});
+
 // API routes
 app.use("/api/auth", authRoutes);
 

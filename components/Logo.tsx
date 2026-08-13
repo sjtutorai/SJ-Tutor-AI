@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface LogoProps {
   className?: string;
@@ -14,16 +14,22 @@ export default function Logo({
   textColor = "text-slate-900",
   iconOnly = false 
 }: LogoProps) {
-  const logoUrl = "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg";
-  
+  const primaryLogoUrl = "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg";
+  const [imgSrc, setImgSrc] = useState(primaryLogoUrl);
+
   return (
     <div className={`flex items-center gap-3 ${iconOnly ? 'w-full h-full justify-center' : ''}`}>
       <div className={`${className} rounded-full overflow-hidden border-2 border-primary-500 shadow-sm flex-shrink-0 bg-white flex items-center justify-center`}>
         <img 
-          src={logoUrl} 
-          alt="SJ Tutor AI" 
+          src={imgSrc} 
+          alt="SJ Tutor AI Logo" 
           className="w-full h-full object-cover"
           referrerPolicy="no-referrer"
+          onError={() => {
+            if (imgSrc !== '/logo.jpg' && imgSrc !== '/logo.png') {
+              setImgSrc('/logo.jpg');
+            }
+          }}
         />
       </div>
       

@@ -26,6 +26,7 @@ import NotesView from "./components/NotesView";
 import GroupsView from "./components/GroupsView";
 import GroupInviteView from "./components/GroupInviteView";
 import SettingsView from "./components/SettingsView";
+import AboutView from "./components/AboutView";
 import AboutModal from "./components/AboutModal";
 import ShortcutsModal from "./components/ShortcutsModal";
 import IdCardView from "./components/IdCardView";
@@ -91,7 +92,7 @@ import {
   Search,
   X,
   Trash2,
-
+  Info,
   Keyboard,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -1686,6 +1687,7 @@ const App: React.FC = () => {
     { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
+    { id: AppMode.ABOUT, label: "About Us", icon: Info },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
   ];
 
@@ -2575,6 +2577,15 @@ const App: React.FC = () => {
           </div>
         );
 
+      case AppMode.ABOUT:
+        return (
+          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <AboutView
+              onNavigateToLegal={(legalMode) => setMode(legalMode as any)}
+            />
+          </div>
+        );
+
       case AppMode.PRIVACY:
         return (
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -2696,6 +2707,7 @@ const App: React.FC = () => {
     // If we have shared content loaded or viewing public pages, show it in a public layout
     const hasSharedContent = summaryContent || homeworkContent || quizData;
     const isPublicPage =
+      mode === AppMode.ABOUT ||
       mode === AppMode.PRIVACY ||
       mode === AppMode.TERMS;
 
@@ -2760,7 +2772,6 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
         <LandingPage
-          onNavigateToLegal={(legalMode) => setMode(legalMode as any)}
           onGetStarted={(mode) => openAuthModal(mode)}
           countryCode={detectedCountry}
         />
@@ -2861,7 +2872,12 @@ const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => {
-                    if (
+                    if (item.id === AppMode.ABOUT) {
+                      setShowAboutModal(true);
+                      if (window.innerWidth < 1024) {
+                        setIsSidebarOpen(false);
+                      }
+                    } else if (
                       item.id !== AppMode.DASHBOARD &&
                       !user
                     ) {
@@ -2886,7 +2902,8 @@ const App: React.FC = () => {
                   />
                   {isExpanded && <span className="truncate">{item.label}</span>}
                   {isExpanded && !user &&
-                    item.id !== AppMode.DASHBOARD && (
+                    item.id !== AppMode.DASHBOARD &&
+                    item.id !== AppMode.ABOUT && (
                       <div className="ml-auto flex-shrink-0">
                         <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
                       </div>
