@@ -387,17 +387,24 @@ Generate notes based on:
     const formattedHistory = history.map(msg => ({
       role: msg.role === 'model' ? 'model' : 'user',
       parts: msg.images ? [
-        ...msg.images.map((img: string) => ({
-          inlineData: { mimeType: 'image/jpeg', data: img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "") }
-        })),
+        ...msg.images.map((img: string) => {
+          const mimeMatch = img.match(/^data:([^;]+);base64,/);
+          const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+          const cleanBase64 = img.replace(/^data:[^;]+;base64,/, "");
+          return {
+            inlineData: { mimeType: mime, data: cleanBase64 }
+          };
+        }),
         { text: msg.text }
       ] : [{ text: msg.text }]
     }));
 
     const currentParts: any[] = [{ text }];
     imagesBase64.forEach(img => {
-      const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-      currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
+      const mimeMatch = img.match(/^data:([^;]+);base64,/);
+      const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const cleanBase64 = img.replace(/^data:[^;]+;base64,/, "");
+      currentParts.push({ inlineData: { mimeType: mime, data: cleanBase64 } });
     });
 
     const response = await ai.models.generateContent({
@@ -429,9 +436,9 @@ Your mission:
       role: msg.role === 'model' ? 'model' : 'user',
       parts: msg.images ? [
         ...msg.images.map((img: string) => {
-          const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-          const isPdf = img.startsWith('data:application/pdf');
-          const mime = isPdf ? 'application/pdf' : 'image/jpeg';
+          const mimeMatch = img.match(/^data:([^;]+);base64,/);
+          const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+          const cleanBase64 = img.replace(/^data:[^;]+;base64,/, "");
           return {
             inlineData: { mimeType: mime, data: cleanBase64 }
           };
@@ -472,8 +479,10 @@ Your mission:
 
     // Handle extra base64 images passed separately
     imagesBase64.forEach(img => {
-      const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-      currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
+      const mimeMatch = img.match(/^data:([^;]+);base64,/);
+      const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const cleanBase64 = img.replace(/^data:[^;]+;base64,/, "");
+      currentParts.push({ inlineData: { mimeType: mime, data: cleanBase64 } });
     });
 
     const response = await ai.models.generateContentStream({

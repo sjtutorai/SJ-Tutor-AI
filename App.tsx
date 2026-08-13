@@ -1445,7 +1445,7 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!process.env.API_KEY) {
+    if (!process.env.GEMINI_API_KEY && !process.env.API_KEY) {
       setError(
         "Configuration Error: API_KEY is missing. Please check your environment variables.",
       );
@@ -1836,7 +1836,7 @@ const App: React.FC = () => {
               {baseFiltered.length > 0 && (
                 <button
                   onClick={async () => {
-                    if (!window.confirm(`Are you sure you want to delete all ${categoryLabel.toLowerCase()} history? This action cannot be undone.`)) return;
+                    
                     
                     const itemsToDelete = baseFiltered.map(item => item.id);
                     const updatedHistory = history.filter(h => !itemsToDelete.includes(h.id));
@@ -1995,7 +1995,7 @@ const App: React.FC = () => {
                     <button
                       onClick={async (e) => {
                         e.stopPropagation();
-                        if (!window.confirm("Are you sure you want to delete this study history item?")) return;
+                        
                         const updatedHistory = history.filter(h => h.id !== item.id);
                         setHistory(updatedHistory);
                         const currentUid = user ? user.uid : "guest";
@@ -2181,7 +2181,7 @@ const App: React.FC = () => {
                     <button
                       onClick={async (e) => {
                         e.stopPropagation();
-                        if (!window.confirm("Are you sure you want to delete this study history item?")) return;
+                        
                         const updatedHistory = history.filter(h => h.id !== item.id);
                         setHistory(updatedHistory);
                         const currentUid = user ? user.uid : "guest";
@@ -2989,14 +2989,22 @@ const App: React.FC = () => {
             )}
 
             {user && (
-              <button
-                onClick={() => setShowPremiumModal(true)}
-                title={!isExpanded ? "Upgrade Plan" : undefined}
-                className={`w-full flex items-center justify-center ${isExpanded ? "py-2 gap-1.5 text-xs font-bold" : "p-2"} bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg shadow-sm transition-all`}
-              >
-                <Crown className="w-3.5 h-3.5 flex-shrink-0" />
-                {isExpanded && <span>Upgrade Plan</span>}
-              </button>
+              <div className="space-y-2 w-full">
+                <button
+                  onClick={() => setShowPremiumModal(true)}
+                  title={!isExpanded ? "Upgrade Plan" : undefined}
+                  className={`w-full flex items-center justify-center ${isExpanded ? "py-2 gap-1.5 text-xs font-bold" : "p-2"} bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg shadow-sm transition-all`}
+                >
+                  <Crown className="w-3.5 h-3.5 flex-shrink-0" />
+                  {isExpanded && <span>Upgrade Plan</span>}
+                </button>
+                {userProfile.trialEndsAt && userProfile.trialEndsAt > Date.now() && isExpanded && (
+                  <div className="text-[10px] text-center font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 py-1.5 rounded-lg border border-amber-200/50 dark:border-amber-900/50">
+                    <Clock className="w-3 h-3 inline mr-1 -mt-0.5" />
+                    {Math.ceil((userProfile.trialEndsAt - Date.now()) / (1000 * 60 * 60 * 24))} Days Free Trial
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

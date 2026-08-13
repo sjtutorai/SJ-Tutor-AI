@@ -20,6 +20,7 @@ export const createUserProfile = async (user: User) => {
       role: "student",
       phoneNumber: user.phoneNumber || "",
       hasCompletedOnboarding: false,
+      trialEndsAt: Date.now() + 10 * 24 * 60 * 60 * 1000,
       streak: 0,
       totalStudyTime: 0,
       points: 0,

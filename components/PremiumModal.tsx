@@ -1,6 +1,7 @@
 
 import React, { useState, useRef } from 'react';
-import { X, Check, Crown, Zap, Shield, Upload, Loader2, Image as ImageIcon, AlertCircle, ExternalLink } from 'lucide-react';
+import { X, Check, Crown, Zap, Shield, Upload, Loader2, Image as ImageIcon, AlertCircle, ExternalLink, QrCode } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { GeminiService } from '../services/geminiService';
 import { SJTUTOR_AVATAR } from '../types';
 
@@ -175,19 +176,25 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess }
                    <p className="text-slate-500 mt-1 font-semibold text-lg">Total: ₹{currentPlan.price}</p>
                 </div>
                 
-                <div className="bg-emerald-50/80 border border-emerald-200/80 p-5 rounded-2xl text-left text-sm text-emerald-900 shadow-sm">
-                  <p className="flex items-center gap-2 mb-1.5 font-extrabold text-emerald-950 text-base">
-                    <Zap className="w-5 h-5 text-emerald-600 fill-emerald-500 animate-pulse" /> Official Online Payment
+                <div className="bg-emerald-50/80 border border-emerald-200/80 p-5 rounded-2xl text-left text-sm text-emerald-900 shadow-sm flex flex-col items-center">
+                  <p className="flex items-center gap-2 mb-1.5 font-extrabold text-emerald-950 text-base w-full">
+                    <QrCode className="w-5 h-5 text-emerald-600 fill-emerald-500" /> Scan QR to Pay
                   </p>
-                  <p className="text-xs mb-4 text-emerald-800/90 leading-relaxed font-medium">
-                    Instant activation via secure Razorpay checkout. Supports UPI (Google Pay, PhonePe, Paytm), Credit/Debit Cards, Netbanking & Wallets.
+                  <p className="text-xs mb-4 text-emerald-800/90 leading-relaxed font-medium w-full">
+                    Scan this QR Code using any UPI App (Google Pay, PhonePe, Paytm) to instantly pay ₹{currentPlan.price} and activate your plan.
                   </p>
+                  <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-sm mb-3">
+                    <QRCodeSVG value={currentPlan.paymentUrl} size={150} level="M" />
+                  </div>
                   <button
                     onClick={() => window.open(currentPlan.paymentUrl, '_blank')}
-                    className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-extrabold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 transition-all"
+                    className="w-full py-2 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all mb-3"
                   >
-                    💳 Pay ₹{currentPlan.price} Online <ExternalLink className="w-4 h-4" />
+                    💳 Or click here to pay online <ExternalLink className="w-3 h-3" />
                   </button>
+                  <p className="text-[11px] text-center text-emerald-800/80 font-semibold w-full mt-2 border-t border-emerald-200/50 pt-2">
+                    ✅ After payment, verify by sharing the screenshot to <br/><a href="https://wa.me/918105423488" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-bold">+91 8105423488</a>
+                  </p>
                 </div>
 
                 <div className="space-y-3 pt-2">

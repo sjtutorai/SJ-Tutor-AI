@@ -67,6 +67,7 @@ import {
 } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
 import { DirectChatView } from './DirectChatView';
+import QRScanner from './QRScanner';
 
 interface GroupsViewProps {
   userProfile: UserProfile;
@@ -110,6 +111,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [activeTab, setActiveTab] = useState<'my' | 'explore'>('my');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinByIdModal, setShowJoinByIdModal] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const [joinInput, setJoinInput] = useState('');
   const [joiningById, setJoiningById] = useState(false);
   const [inviteRegId, setInviteRegId] = useState('');
@@ -466,7 +468,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Delete Group (Admin / Creator only)
   const handleDeleteGroup = async (group: StudyGroup) => {
-    if (!window.confirm(`Are you sure you want to delete "${group.name}"? This action will permanently remove this group for all members on all devices and cannot be undone.`)) return;
+    
     
     setShowGroupInfo(false);
 
@@ -497,7 +499,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Owner/Admin: Remove a member from the group
   const handleRemoveMember = async (group: StudyGroup, memberUid: string, memberName: string) => {
-    if (!window.confirm(`Are you sure you want to remove ${memberName} from "${group.name}"?`)) return;
+    
 
     // 1. Remove in Firestore
     const success = await leaveGroupInFirestore(group.id, memberUid);
@@ -952,7 +954,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Delete message for everyone in group (Owner / Admin / Message Author)
   const handleDeleteMessageForEveryone = async (messageId: string) => {
     if (!activeGroupId) return;
-    if (!window.confirm('Are you sure you want to delete this message for everyone in the group?')) return;
+    
 
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
 
@@ -2037,6 +2039,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowQRScanner(true)}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-indigo-200 dark:border-indigo-700 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 flex items-center justify-center gap-2"
+                  >
+                    <QrCode className="w-4 h-4" />
+                    Scan QR
+                  </button>
                   <button
                     type="button"
                     onClick={() => setShowJoinByIdModal(false)}
@@ -3125,6 +3135,21 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
         )}
       </AnimatePresence>
       </div>
+      {/* QR SCANNER */}
+      <AnimatePresence>
+        {showQRScanner && (
+          <QRScanner
+            onClose={() => setShowQRScanner(false)}
+            onScan={(text) => {
+              setJoinInput(text);
+              setShowQRScanner(false);
+              setTimeout(() => {
+                handleJoinGroupById(text);
+              }, 300);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

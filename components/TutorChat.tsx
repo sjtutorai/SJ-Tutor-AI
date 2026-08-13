@@ -435,7 +435,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   };
 
   const clearAllBookmarks = () => {
-    if (window.confirm("Are you sure you want to clear all bookmarked messages?")) {
+    if (true) {
       setStarredTimestamps([]);
     }
   };

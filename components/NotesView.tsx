@@ -162,7 +162,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   };
 
   const handleDeleteNote = (noteId: string) => {
-    if (!window.confirm("Are you sure you want to delete this note?")) return;
+    
     const updatedNotes = notes.filter(n => n.id !== noteId);
     setNotes(updatedNotes);
     

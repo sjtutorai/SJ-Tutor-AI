@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface QRScannerProps {
   onClose: () => void;
+  onScan?: (text: string) => void;
 }
 
 interface ScannedUser {
@@ -17,7 +18,7 @@ interface ScannedUser {
   phone?: string;
 }
 
-const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
+const QRScanner: React.FC<QRScannerProps> = ({ onClose, onScan }) => {
   const [scannedData, setScannedData] = useState<ScannedUser | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
@@ -33,6 +34,11 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
           try {
             console.log("Scanned QR Text:", decodedText);
             const trimmed = decodedText.trim();
+            if (onScan) {
+              onScan(trimmed);
+              if (scannerRef.current) scannerRef.current.clear().catch(() => {});
+              return;
+            }
             // Handle JSON format
             let data: ScannedUser;
             if (trimmed.startsWith('{') && trimmed.endsWith('}')) {

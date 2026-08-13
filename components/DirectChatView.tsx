@@ -810,7 +810,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                   <button
                     onClick={async () => {
                       if (!user || !activeChatId) return;
-                      if (!window.confirm("Are you sure you want to clear this chat? This will remove the messages from your view, but the other user will still see them.")) return;
+                      
                       await clearDirectChatForUserInFirestore(activeChatId, user.uid);
                     }}
                     className="p-2 text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all cursor-pointer"
