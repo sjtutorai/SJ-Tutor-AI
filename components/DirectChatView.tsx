@@ -563,21 +563,13 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                     const isSelected = activeChatId === chat.id;
 
                     return (
-                      <div
+                      <button
                         key={chat.id}
-                        role="button"
-                        tabIndex={0}
                         onClick={() => {
                           setActiveChatId(chat.id);
                           clearDirectChatUnreadInFirestore(chat.id, user.uid);
                         }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            setActiveChatId(chat.id);
-                            clearDirectChatUnreadInFirestore(chat.id, user.uid);
-                          }
-                        }}
-                        className={`w-full text-left p-3 rounded-2xl transition-all flex items-center gap-3 relative cursor-pointer ${
+                        className={`w-full text-left p-3 rounded-2xl transition-all flex items-center gap-3 relative ${
                           isSelected
                             ? "bg-amber-500/10 border border-amber-500/30 text-slate-900 dark:text-white"
                             : "hover:bg-slate-200/50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300"
@@ -632,7 +624,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      </div>
+                      </button>
                     );
                   })
                 )}

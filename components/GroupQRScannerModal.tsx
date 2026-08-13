@@ -124,53 +124,30 @@ export const GroupQRScannerModal: React.FC<GroupQRScannerModalProps> = ({ onClos
 
   // Camera Scanner Lifecycle
   useEffect(() => {
-    let timerId: any = null;
-    let isCancelled = false;
-
     if (activeTab === 'camera' && !scannedResult) {
-      // Use short delay to ensure DOM element is mounted inside animation wrapper
-      timerId = setTimeout(() => {
-        if (isCancelled) return;
-        const readerElem = document.getElementById('group-qr-reader');
-        if (!readerElem) return;
+      const scanner = new Html5QrcodeScanner(
+        'group-qr-reader',
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        false
+      );
+      scannerRef.current = scanner;
 
-        try {
-          const scanner = new Html5QrcodeScanner(
-            'group-qr-reader',
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            false
-          );
-          scannerRef.current = scanner;
-
-          scanner.render(
-            (decodedText) => {
-              try {
-                if (scannerRef.current) {
-                  scannerRef.current.clear().catch(() => {});
-                }
-              } catch (e) {}
-              processDecodedText(decodedText);
-            },
-            () => {
-              // silent failure callback
-            }
-          );
-        } catch (err) {
-          console.warn('Camera scanner initialization error:', err);
+      scanner.render(
+        (decodedText) => {
+          scanner.clear().catch(() => {});
+          processDecodedText(decodedText);
+        },
+        () => {
+          // failure callback
         }
-      }, 150);
-    }
+      );
 
-    return () => {
-      isCancelled = true;
-      if (timerId) clearTimeout(timerId);
-      if (scannerRef.current) {
-        try {
+      return () => {
+        if (scannerRef.current) {
           scannerRef.current.clear().catch(() => {});
-        } catch (e) {}
-        scannerRef.current = null;
-      }
-    };
+        }
+      };
+    }
   }, [activeTab, scannedResult]);
 
   // Handle File Upload Scan ("Put Group QR Code Image")
@@ -182,21 +159,12 @@ export const GroupQRScannerModal: React.FC<GroupQRScannerModalProps> = ({ onClos
     setScanError(null);
 
     try {
-      const tempElem = document.getElementById('group-qr-temp-element');
-      if (!tempElem) {
-        setScanError('Scanner element unavailable. Please try again.');
-        setIsScanningFile(false);
-        return;
-      }
-
       const html5QrCode = new Html5Qrcode('group-qr-temp-element');
       const decodedText = await html5QrCode.scanFile(file, true);
-      try {
-        await html5QrCode.clear();
-      } catch (e) {}
+      html5QrCode.clear();
       await processDecodedText(decodedText);
     } catch (err: any) {
-      // Expected exception when image doesn't contain a QR code
+      console.error('QR File Scan Error:', err);
       setScanError('No QR code detected in this image. Please select a clear Group QR Code image.');
     } finally {
       setIsScanningFile(false);

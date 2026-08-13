@@ -23,20 +23,11 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
-    let isCancelled = false;
-
-    const timerId = setTimeout(() => {
-      if (isCancelled) return;
-      const readerElem = document.getElementById("qr-reader");
-      if (!readerElem) return;
-
-      try {
-        const scanner = new Html5QrcodeScanner(
-          "qr-reader",
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          /* verbose= */ false
-        );
-        scannerRef.current = scanner;
+    scannerRef.current = new Html5QrcodeScanner(
+      "qr-reader",
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      /* verbose= */ false
+    );
 
         const onScanSuccess = (decodedText: string) => {
           try {
@@ -68,9 +59,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
             if (data.id) {
               setScannedData(data);
               if (scannerRef.current) {
-                try {
-                  scannerRef.current.clear().catch(() => {});
-                } catch (e) {}
+                scannerRef.current.clear().catch(() => {});
               }
             } else {
               setError("Unrecognized ID format.");
@@ -81,24 +70,17 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
           }
         };
 
-        const onScanFailure = () => {
-          // Optional: handle scan failures
-        };
+    const onScanFailure = () => {
+      // Optional: handle scan failures
+    };
 
-        scanner.render(onScanSuccess, onScanFailure);
-      } catch (err) {
-        console.warn("Scanner initialization warning:", err);
-      }
-    }, 150);
+    scannerRef.current.render(onScanSuccess, onScanFailure);
 
     return () => {
-      isCancelled = true;
-      clearTimeout(timerId);
       if (scannerRef.current) {
-        try {
-          scannerRef.current.clear().catch(() => {});
-        } catch (e) {}
-        scannerRef.current = null;
+        scannerRef.current.clear().catch(err => {
+          console.error("Failed to clear scanner", err);
+        });
       }
     };
   }, []);
