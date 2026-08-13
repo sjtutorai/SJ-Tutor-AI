@@ -6,7 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="google-site-verification" content="DvLZ1hhoITDEB1YvZ7W89uaCN4S8k9eSZ-hNyWpq0To" />
     <title>SJ Tutor AI - Your AI Study Buddy</title>
-    <!-- Favicon and App Icons for Browsers and Search Engine Crawlers (Google, Bing, etc.) -->
+
+    <!-- Core Search Engine & SEO Metadata -->
+    <meta name="description" content="Master any subject with personalized AI-powered learning, instant explanations, adaptive practice, real-time feedback, and intelligent study guidance." />
+    <meta name="keywords" content="SJ Tutor AI, AI Study Buddy, AI Tutor, Personal Learning Assistant, Homework Helper, Smart Flashcards, Interactive Quizzes, Group Study, AI Education" />
+    <meta name="author" content="SJ Tutor AI" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://sjtutorai.vercel.app/" />
+
+    <!-- Mobile & PWA Branding -->
+    <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SJ Tutor AI" />
+    <meta name="application-name" content="SJ Tutor AI" />
+
+    <!-- Favicons & Touch Icons (Google, Bing, Safari, Chrome) -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="icon" type="image/png" href="/favicon.png" />
@@ -15,24 +31,55 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- Open Graph / Search Engine Preview Meta Tags -->
+    <!-- Open Graph (WhatsApp, Facebook, LinkedIn, iMessage) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://sjtutorai.vercel.app/" />
     <meta property="og:title" content="SJ Tutor AI - Your AI Study Buddy" />
     <meta property="og:description" content="Master any subject with personalized AI-powered learning, instant explanations, adaptive practice, real-time feedback, and intelligent study guidance." />
-    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image" content="https://sjtutorai.vercel.app/og-image.png" />
+    <meta property="og:image:secure_url" content="https://sjtutorai.vercel.app/og-image.png" />
     <meta property="og:image:type" content="image/png" />
-    <meta property="og:type" content="website" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="SJ Tutor AI Logo - Your AI Study Buddy" />
     <meta property="og:site_name" content="SJ Tutor AI" />
+    <meta property="og:locale" content="en_US" />
 
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="SJ Tutor AI - Your AI Study Buddy" />
     <meta name="twitter:description" content="Master any subject with personalized AI-powered learning, instant explanations, adaptive practice, real-time feedback, and intelligent study guidance." />
-    <meta name="twitter:image" content="/og-image.png" />
-    <!-- Tailwind CSS via CDN kept for simplicity in this setup -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="twitter:image" content="https://sjtutorai.vercel.app/og-image.png" />
+    <meta name="twitter:image:alt" content="SJ Tutor AI Logo" />
+
+    <!-- Schema.org JSON-LD Structured Data for Search Engine Authority -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "SJ Tutor AI",
+        "shortName": "SJ Tutor AI",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "All",
+        "url": "https://sjtutorai.vercel.app/",
+        "logo": "https://sjtutorai.vercel.app/logo.png",
+        "image": "https://sjtutorai.vercel.app/og-image.png",
+        "description": "Master any subject with personalized AI-powered learning, instant explanations, adaptive practice, real-time feedback, and intelligent study guidance.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
+
+    <!-- Typography: Plus Jakarta Sans & Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS via CDN kept for simplicity in this setup -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
       (function() {
         try {
