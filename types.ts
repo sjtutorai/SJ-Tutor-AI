@@ -291,6 +291,8 @@ export interface StudyGroup {
     senderName: string;
     timestamp: number;
   };
+  chatBgImage?: string;
+  chatBgColor?: string;
 }
 
 export type FriendshipStatus = 'pending' | 'accepted' | 'declined';
@@ -352,5 +354,7 @@ export interface DirectChat {
   clearedAt?: Record<string, number>; // { [uid]: timestamp }
   createdAt: number;
   updatedAt: number;
+  chatBgImage?: string;
+  chatBgColor?: string;
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Zap, Crown, CheckCircle2, ChevronRight, X, AlertTriangle, Sparkles } from 'lucide-react';
+import { Clock, Zap, Crown, CheckCircle2, ChevronRight, X, Sparkles } from 'lucide-react';
 import { UserProfile } from '../types';
 
 const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000; // 10 days in milliseconds

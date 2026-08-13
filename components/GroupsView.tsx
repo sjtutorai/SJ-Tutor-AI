@@ -118,6 +118,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [isEnlarged, setIsEnlarged] = useState(false);
+  const [bgEditUrl, setBgEditUrl] = useState('');
 
   // Message States
   const [messages, setMessages] = useState<GroupMessage[]>([]);
@@ -949,6 +950,16 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     await updateGroupMemberMessagingInFirestore(group.id, memberUid, newStatus);
   };
 
+  const handleUpdateGroupBg = async (url: string) => {
+    if (!activeGroup) return;
+    setGroups((prev) =>
+      prev.map((g) => (g.id === activeGroup.id ? { ...g, chatBgImage: url, updatedAt: Date.now() } : g))
+    );
+    triggerToast('Background Updated 🎨', url ? 'Custom chat background applied.' : 'Chat background cleared.', 'Important Alerts');
+    await updateGroupInFirestore(activeGroup.id, { chatBgImage: url });
+    setBgEditUrl('');
+  };
+
   // Delete message for everyone in group (Owner / Admin / Message Author)
   const handleDeleteMessageForEveryone = async (messageId: string) => {
     if (!activeGroupId) return;
@@ -1348,8 +1359,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       <div
         className={`${
           !showMobileChat ? 'hidden lg:flex' : 'flex'
-        } flex-1 flex-col bg-slate-100/60 dark:bg-slate-950 relative overflow-hidden`}
+        } flex-1 flex-col ${activeGroup?.chatBgImage ? '' : 'bg-slate-100/60 dark:bg-slate-950'} relative overflow-hidden`}
+        style={activeGroup?.chatBgImage ? { backgroundImage: `url(${activeGroup.chatBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
       >
+        {/* Semi-transparent overlay if background image exists for better text readability */}
+        {activeGroup?.chatBgImage && <div className="absolute inset-0 bg-white/40 dark:bg-black/60 pointer-events-none z-0"></div>}
+        
         {activeGroup && isMemberOfActive ? (
           <>
             {/* Top Group Chat Header Bar */}
@@ -2898,6 +2913,36 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
                     {activeGroup.description}
                   </p>
+                </div>
+
+                {/* Chat Background Settings */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Chat Background
+                  </h4>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="url"
+                      placeholder="Image URL..."
+                      value={bgEditUrl}
+                      onChange={(e) => setBgEditUrl(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      onClick={() => handleUpdateGroupBg(bgEditUrl)}
+                      className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition"
+                    >
+                      Set
+                    </button>
+                  </div>
+                  {activeGroup.chatBgImage && (
+                    <button
+                      onClick={() => handleUpdateGroupBg('')}
+                      className="w-full py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl font-bold text-xs transition border border-rose-200 dark:border-rose-800"
+                    >
+                      Clear Background
+                    </button>
+                  )}
                 </div>
 
                 {/* Share Group Link & Group ID */}

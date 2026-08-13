@@ -74,7 +74,6 @@ import {
   ArrowLeft,
   Calendar,
   LogOut,
-  Zap,
   Crown,
   Plus,
   Clock,

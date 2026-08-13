@@ -1097,6 +1097,21 @@ export const sendDirectMessageInFirestore = async (
   }
 };
 
+export const updateDirectChatInFirestore = async (chatId: string, updates: Partial<DirectChat>): Promise<boolean> => {
+  try {
+    const cleanUpdates = removeUndefinedFields({
+      ...updates,
+      updatedAt: Date.now()
+    });
+    const chatDocRef = doc(db, "direct_chats", chatId);
+    await updateDoc(chatDocRef, cleanUpdates);
+    return true;
+  } catch (error) {
+    console.error("Error updating direct chat in Firestore:", error);
+    return false;
+  }
+};
+
 export const clearDirectChatForUserInFirestore = async (chatId: string, userUid: string): Promise<boolean> => {
   try {
     const chatRef = doc(db, "direct_chats", chatId);

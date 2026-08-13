@@ -18,7 +18,6 @@ import {
   clearDirectChatUnreadInFirestore,
   clearDirectChatForUserInFirestore,
   deleteDirectMessageInFirestore,
-  deleteDirectChatEntirelyInFirestore,
   toggleDirectMessageReactionInFirestore,
   getDirectChatId
 } from "../utils/firebaseUtils";
@@ -92,10 +91,25 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
   const [showFriendInfoModal, setShowFriendInfoModal] = useState(false);
   const [activeMediaTab, setActiveMediaTab] = useState<'photos'|'links'|'audio'|'documents'>('photos');
   const [isEnlarged, setIsEnlarged] = useState(false);
+  const [bgEditUrl, setBgEditUrl] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+
+  const handleUpdateChatBg = async (url: string) => {
+    if (!activeChatId) return;
+    setDirectChats((prev) =>
+      prev.map((c) => (c.id === activeChatId ? { ...c, chatBgImage: url, updatedAt: Date.now() } : c))
+    );
+    triggerToast('Background Updated 🎨', url ? 'Custom chat background applied.' : 'Chat background cleared.', 'Important Alerts');
+    
+    // We need updateDirectChatInFirestore which was added to firebaseUtils
+    const { updateDirectChatInFirestore } = await import("../utils/firebaseUtils");
+    await updateDirectChatInFirestore(activeChatId, { chatBgImage: url });
+    
+    setBgEditUrl('');
+  };
 
   const handleScroll = () => {
     if (scrollContainerRef.current) {
@@ -849,11 +863,19 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
         </div>
 
         {/* RIGHT MAIN PANEL: Active 1-on-1 Chat Room */}
-        <div className={`flex-1 flex flex-col bg-white dark:bg-slate-900 relative ${!activeChatId ? "hidden md:flex items-center justify-center" : "flex"}`}>
+        <div 
+          className={`flex-1 flex flex-col relative ${!activeChatId ? "hidden md:flex items-center justify-center" : "flex"} ${
+            activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage ? "" : "bg-white dark:bg-slate-900"
+          }`}
+          style={activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage ? { backgroundImage: `url(${activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+        >
+          {activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage && (
+            <div className="absolute inset-0 bg-white/40 dark:bg-black/60 pointer-events-none z-0"></div>
+          )}
           {activeChatId && activeFriendDetails ? (
             <>
               {/* CHAT HEADER */}
-              <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
+              <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm z-10">
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setActiveChatId(null)}
@@ -1253,6 +1275,36 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                     )
                   )}
                 </div>
+              </div>
+              
+              {/* Chat Background Settings */}
+              <div className="mb-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  Chat Background
+                </h4>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="url"
+                    placeholder="Image URL..."
+                    value={bgEditUrl}
+                    onChange={(e) => setBgEditUrl(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <button
+                    onClick={() => handleUpdateChatBg(bgEditUrl)}
+                    className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-bold transition"
+                  >
+                    Set
+                  </button>
+                </div>
+                {activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage && (
+                  <button
+                    onClick={() => handleUpdateChatBg('')}
+                    className="w-full py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl font-bold text-xs transition border border-rose-200 dark:border-rose-800"
+                  >
+                    Clear Background
+                  </button>
+                )}
               </div>
 
               <div className="flex gap-2 mb-3">
