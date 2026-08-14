@@ -62,17 +62,20 @@ interface CallModalProps {
   // Group call state (if any)
   activeGroupCall: GroupCall | null;
   onCloseGroupCall: () => void;
+  // Direct call accepted callback
+  onDirectCallAccepted?: (call: DirectCall) => void;
   // Toast trigger
   triggerToast?: (title: string, message: string, category?: string) => void;
 }
 
 export const CallModal: React.FC<CallModalProps> = ({
-  currentUser,
+  currentUser = { uid: "guest_user", displayName: "Scholar User" },
   activeDirectCall,
   incomingDirectCall,
   onCloseDirectCall,
   activeGroupCall,
   onCloseGroupCall,
+  onDirectCallAccepted,
   triggerToast,
 }) => {
   // Local media stream states
@@ -105,12 +108,56 @@ export const CallModal: React.FC<CallModalProps> = ({
   const peerConnRef = useRef<RTCPeerConnection | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
+  const addedIceCandidatesRef = useRef<Set<string>>(new Set());
+
+  // Track if incoming call was answered/dismissed to transition UI immediately
+  const [incomingCallDismissed, setIncomingCallDismissed] = useState(false);
 
   // Live real-time synced state for 1-on-1 call
   const [liveDirectCall, setLiveDirectCall] = useState<DirectCall | null>(activeDirectCall);
   // Live real-time synced state for Group call
   const [liveGroupCall, setLiveGroupCall] = useState<GroupCall | null>(activeGroupCall);
+
+  // Reset incoming dismissed state when incomingDirectCall changes
+  useEffect(() => {
+    if (incomingDirectCall) {
+      setIncomingCallDismissed(false);
+    }
+  }, [incomingDirectCall?.id]);
+
+  // Tab Title Flashing & Mobile Vibration for Incoming Calls
+  useEffect(() => {
+    let titleInterval: any = null;
+    const originalTitle = document.title || "SJ Tutor AI";
+
+    if (incomingDirectCall && !incomingCallDismissed) {
+      let toggle = false;
+      titleInterval = setInterval(() => {
+        document.title = toggle
+          ? `🔴 Incoming Call: ${incomingDirectCall.callerName}!`
+          : `📞 Ringing - SJ Tutor AI`;
+        toggle = !toggle;
+      }, 1000);
+
+      // Trigger device vibration if supported
+      if ("vibrate" in navigator) {
+        try {
+          navigator.vibrate([400, 200, 400, 200, 400]);
+        } catch (err) {
+          console.warn("Vibration notice:", err);
+        }
+      }
+    } else {
+      document.title = originalTitle;
+    }
+
+    return () => {
+      if (titleInterval) clearInterval(titleInterval);
+      document.title = originalTitle;
+    };
+  }, [incomingDirectCall?.id, incomingCallDismissed]);
 
   // ----------------------------------------------------
   // Direct Call Live Sync
@@ -275,8 +322,20 @@ export const CallModal: React.FC<CallModalProps> = ({
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch((err) => console.warn("Remote video play notice:", err));
     }
-  }, [remoteStream]);
+  }, [remoteStream, isVideoOff]);
+
+  // Ensure remote audio playback across all devices and call types
+  useEffect(() => {
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.muted = isSpeakerMuted;
+      remoteAudioRef.current
+        .play()
+        .catch((err) => console.warn("Autoplay audio blocked by browser policy, will play on interaction:", err));
+    }
+  }, [remoteStream, isSpeakerMuted]);
 
   // ----------------------------------------------------
   // WebRTC Peer Connection (1-on-1)
@@ -285,39 +344,45 @@ export const CallModal: React.FC<CallModalProps> = ({
     try {
       const pc = new RTCPeerConnection(ICE_SERVERS);
       peerConnRef.current = pc;
+      addedIceCandidatesRef.current.clear();
 
-      // Add local stream tracks
+      // Add local stream tracks to connection
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream);
       });
 
-      // Handle remote track
+      // Handle remote incoming stream tracks
       pc.ontrack = (event) => {
         const [incomingStream] = event.streams;
         if (incomingStream) {
           setRemoteStream(incomingStream);
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = incomingStream;
+            remoteAudioRef.current.play().catch(() => {});
+          }
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = incomingStream;
+            remoteVideoRef.current.play().catch(() => {});
           }
-          // Meter remote audio
+          // Meter remote audio for visual speaking ripples
           createAudioLevelMeter(incomingStream, (level) => {
             setRemoteAudioLevel(level);
           });
         }
       };
 
-      // Handle ICE Candidates
+      // Handle local ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           addDirectCallIceCandidate(call.id, call.callerId === currentUser.uid, event.candidate);
         }
       };
 
-      // If we are Caller, create Offer
+      // If we are Caller, create Offer with both Audio and Video reception
       if (call.callerId === currentUser.uid) {
         const offer = await pc.createOffer({
           offerToReceiveAudio: true,
-          offerToReceiveVideo: call.type === "video",
+          offerToReceiveVideo: true,
         });
         await pc.setLocalDescription(offer);
         await setDirectCallOffer(call.id, offer);
@@ -331,23 +396,39 @@ export const CallModal: React.FC<CallModalProps> = ({
   useEffect(() => {
     if (!liveDirectCall || !peerConnRef.current) return;
     const pc = peerConnRef.current;
+    const isCaller = liveDirectCall.callerId === currentUser.uid;
 
     // Caller receives Answer
-    if (liveDirectCall.callerId === currentUser.uid && liveDirectCall.answer && !pc.currentRemoteDescription) {
+    if (isCaller && liveDirectCall.answer && !pc.currentRemoteDescription) {
       const desc = new RTCSessionDescription(liveDirectCall.answer as any);
-      pc.setRemoteDescription(desc).catch((err) => console.warn("Failed to set remote description", err));
+      pc.setRemoteDescription(desc)
+        .then(() => {
+          // Process any queued receiver candidates
+          if (liveDirectCall.receiverCandidates && liveDirectCall.receiverCandidates.length > 0) {
+            liveDirectCall.receiverCandidates.forEach((cand) => {
+              const key = JSON.stringify(cand);
+              if (!addedIceCandidatesRef.current.has(key)) {
+                addedIceCandidatesRef.current.add(key);
+                pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+              }
+            });
+          }
+        })
+        .catch((err) => console.warn("Failed to set remote description", err));
     }
 
-    // Add candidate pairs
-    const isCaller = liveDirectCall.callerId === currentUser.uid;
+    // Add candidate pairs once remoteDescription is established
     const candidateList = isCaller ? liveDirectCall.receiverCandidates : liveDirectCall.callerCandidates;
-
     if (candidateList && candidateList.length > 0 && pc.remoteDescription) {
       candidateList.forEach((cand) => {
-        try {
-          pc.addIceCandidate(new RTCIceCandidate(cand));
-        } catch {
-          // ignore already added
+        const key = JSON.stringify(cand);
+        if (!addedIceCandidatesRef.current.has(key)) {
+          addedIceCandidatesRef.current.add(key);
+          try {
+            pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          } catch {
+            // ignore
+          }
         }
       });
     }
@@ -362,6 +443,7 @@ export const CallModal: React.FC<CallModalProps> = ({
       peerConnRef.current.close();
       peerConnRef.current = null;
     }
+    addedIceCandidatesRef.current.clear();
     stopAllStreamTracks(localStream);
     stopAllStreamTracks(screenStream);
     setLocalStream(null);
@@ -392,6 +474,7 @@ export const CallModal: React.FC<CallModalProps> = ({
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
       peerConnRef.current = pc;
+      addedIceCandidatesRef.current.clear();
 
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream);
@@ -401,8 +484,13 @@ export const CallModal: React.FC<CallModalProps> = ({
         const [incoming] = event.streams;
         if (incoming) {
           setRemoteStream(incoming);
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = incoming;
+            remoteAudioRef.current.play().catch(() => {});
+          }
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = incoming;
+            remoteVideoRef.current.play().catch(() => {});
           }
           createAudioLevelMeter(incoming, (lvl) => setRemoteAudioLevel(lvl));
         }
@@ -416,12 +504,32 @@ export const CallModal: React.FC<CallModalProps> = ({
 
       if (incomingDirectCall.offer) {
         await pc.setRemoteDescription(new RTCSessionDescription(incomingDirectCall.offer as any));
+        
+        // Add any early caller candidates
+        if (incomingDirectCall.callerCandidates && incomingDirectCall.callerCandidates.length > 0) {
+          incomingDirectCall.callerCandidates.forEach((cand) => {
+            const key = JSON.stringify(cand);
+            if (!addedIceCandidatesRef.current.has(key)) {
+              addedIceCandidatesRef.current.add(key);
+              pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+            }
+          });
+        }
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         await answerDirectCall(incomingDirectCall.id, answer);
       } else {
         await answerDirectCall(incomingDirectCall.id, { type: "answer", sdp: "" } as any);
       }
+
+      const connectedCall: DirectCall = {
+        ...incomingDirectCall,
+        status: "connected",
+      };
+      setIncomingCallDismissed(true);
+      setLiveDirectCall(connectedCall);
+      onDirectCallAccepted?.(connectedCall);
 
       triggerToast?.("Call Connected! 📞", `Connected with ${incomingDirectCall.callerName}.`, "Important Alerts");
     } catch (err) {
@@ -584,7 +692,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   // =========================================================================
   // 1. INCOMING CALL POPUP MODAL (Ringing)
   // =========================================================================
-  if (incomingDirectCall) {
+  if (incomingDirectCall && !incomingCallDismissed && (!liveDirectCall || liveDirectCall.status === "ringing")) {
     return (
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
         <motion.div
@@ -669,6 +777,8 @@ export const CallModal: React.FC<CallModalProps> = ({
     if (isMinimized) {
       return (
         <div className="fixed bottom-6 right-6 z-[9999] bg-slate-900 text-white p-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-fade-in backdrop-blur-lg">
+          {/* Dedicated Audio Element for Minimized State */}
+          <audio ref={remoteAudioRef} autoPlay muted={isSpeakerMuted} className="hidden" />
           <div className="relative">
             <div className="w-10 h-10 rounded-xl bg-amber-500 text-white font-bold flex items-center justify-center overflow-hidden">
               {otherPersonAvatar ? (
@@ -718,6 +828,14 @@ export const CallModal: React.FC<CallModalProps> = ({
     // Full Screen Direct Call Modal
     return (
       <div className="fixed inset-0 z-[9999] bg-slate-950 flex flex-col justify-between overflow-hidden">
+        {/* Dedicated Hidden Audio Element to ensure two-way voice stream playback */}
+        <audio
+          ref={remoteAudioRef}
+          autoPlay
+          muted={isSpeakerMuted}
+          className="hidden"
+        />
+
         {/* Top Floating Info Bar */}
         <div className="p-4 sm:p-6 flex items-center justify-between z-20 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
           <div className="flex items-center gap-3">

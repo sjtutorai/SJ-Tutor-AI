@@ -3,6 +3,7 @@ import {
   setDoc,
   getDoc,
   updateDoc,
+  arrayUnion,
   onSnapshot,
   collection,
   query,
@@ -440,20 +441,16 @@ export async function endDirectCall(callId: string, durationSeconds?: number) {
 export async function addDirectCallIceCandidate(callId: string, isCaller: boolean, candidate: RTCIceCandidate) {
   try {
     const callRef = doc(db, "calls", callId);
-    const snap = await getDoc(callRef);
-    if (!snap.exists()) return;
-
-    const data = snap.data() as DirectCall;
     const candidateJson = candidate.toJSON();
 
     if (isCaller) {
-      const candidates = data.callerCandidates || [];
-      candidates.push(candidateJson);
-      await updateDoc(callRef, { callerCandidates: candidates });
+      await updateDoc(callRef, {
+        callerCandidates: arrayUnion(candidateJson),
+      });
     } else {
-      const candidates = data.receiverCandidates || [];
-      candidates.push(candidateJson);
-      await updateDoc(callRef, { receiverCandidates: candidates });
+      await updateDoc(callRef, {
+        receiverCandidates: arrayUnion(candidateJson),
+      });
     }
   } catch (e) {
     console.warn("Failed to add ICE candidate", e);

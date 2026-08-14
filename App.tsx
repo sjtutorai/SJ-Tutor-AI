@@ -630,10 +630,14 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [user]);
 
+  // Notified call IDs tracker to prevent duplicate system notification triggers
+  const alertedIncomingCallIdRef = useRef<string | null>(null);
+
   // Subscribe to real-time incoming 1-on-1 calls for current user
   useEffect(() => {
     if (!user || !user.uid) {
       setIncomingDirectCall(null);
+      alertedIncomingCallIdRef.current = null;
       return;
     }
 
@@ -641,8 +645,43 @@ const App: React.FC = () => {
       // If ringing incoming call and user is not in an active direct call
       if (call && (!activeDirectCall || activeDirectCall.id === call.id)) {
         setIncomingDirectCall(call);
+
+        // Deliver native device system notification & vibration on call arrival
+        if (call.id !== alertedIncomingCallIdRef.current) {
+          alertedIncomingCallIdRef.current = call.id;
+
+          if ("Notification" in window) {
+            if (Notification.permission === "granted") {
+              try {
+                const notif = new Notification(`📞 Incoming ${call.type === "video" ? "Video" : "Audio"} Call`, {
+                  body: `${call.callerName} is calling you on SJ Tutor AI. Tap to answer.`,
+                  icon: call.callerAvatar || "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg",
+                  tag: `call_${call.id}`,
+                  requireInteraction: true,
+                });
+                notif.onclick = () => {
+                  window.focus();
+                  notif.close();
+                };
+              } catch (e) {
+                console.warn("Desktop notification trigger notice:", e);
+              }
+            } else if (Notification.permission === "default") {
+              Notification.requestPermission();
+            }
+          }
+
+          if ("vibrate" in navigator) {
+            try {
+              navigator.vibrate([400, 200, 400, 200, 400, 1000]);
+            } catch (err) {
+              console.warn("Vibration notice:", err);
+            }
+          }
+        }
       } else if (!call) {
         setIncomingDirectCall(null);
+        alertedIncomingCallIdRef.current = null;
       }
     });
 
@@ -3409,21 +3448,26 @@ const App: React.FC = () => {
       {/* Global 1-on-1 & Group Audio/Video Calling Engine */}
       {(activeDirectCall || incomingDirectCall || activeGroupCall) && (
         <CallModal
-          currentUserId={user ? user.uid : 'guest_user'}
-          currentUserName={userProfile.displayName || 'Scholar User'}
-          currentUserAvatar={userProfile.photoURL || ''}
+          currentUser={{
+            uid: user ? user.uid : 'guest_user',
+            displayName: userProfile.displayName || 'Scholar User',
+            photoURL: userProfile.photoURL || '',
+          }}
           activeDirectCall={activeDirectCall}
           incomingDirectCall={incomingDirectCall}
-          activeGroupCall={activeGroupCall}
-          onClose={() => {
+          onCloseDirectCall={() => {
             setActiveDirectCall(null);
             setIncomingDirectCall(null);
+          }}
+          activeGroupCall={activeGroupCall}
+          onCloseGroupCall={() => {
             setActiveGroupCall(null);
           }}
           onDirectCallAccepted={(call) => {
             setIncomingDirectCall(null);
             setActiveDirectCall(call);
           }}
+          triggerToast={triggerToast}
         />
       )}
     </div>
