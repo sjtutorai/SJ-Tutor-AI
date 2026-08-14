@@ -71,7 +71,8 @@ import {
   deleteGroupInFirestore,
   deleteGroupMessageInFirestore,
   updateGroupMemberRoleInFirestore,
-  updateGroupMemberMessagingInFirestore
+  updateGroupMemberMessagingInFirestore,
+  updateMemberLastActiveInFirestore
 } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
 import { DirectChatView } from './DirectChatView';
@@ -172,6 +173,32 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const recordingTimerRef = useRef<any>(null);
 
+  // Personal Group Wallpapers (Personal to this user, not shared with other group members)
+  const [personalGroupBgs, setPersonalGroupBgs] = useState<Record<string, ChatBgSettings>>(() => {
+    try {
+      const storageKey = `sjtutor_personal_group_bg_${userProfile?.uid || user?.uid || 'guest'}`;
+      const saved = localStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Reload personal wallpapers if current user changes
+  useEffect(() => {
+    try {
+      const storageKey = `sjtutor_personal_group_bg_${currentUid}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        setPersonalGroupBgs(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.warn("Failed to load personal group backgrounds", e);
+    }
+  }, [currentUid]);
+
+  const currentGroupBg = activeGroupId ? personalGroupBgs[activeGroupId] : undefined;
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Helper check for membership
@@ -181,6 +208,19 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Active group object
   const activeGroup = groups.find((g) => g.id === activeGroupId) || null;
   const isMemberOfActive = activeGroup ? isMemberOf(activeGroup) : false;
+
+  // Helper check for active / online status (active currently or within last 5 minutes = 300,000 ms)
+  const isMemberOnline = (m?: GroupMember) => {
+    if (!m) return false;
+    if (m.uid === currentUid || (userUid && m.uid === userUid)) return true;
+    if (m.lastActive && Date.now() - m.lastActive <= 5 * 60 * 1000) return true;
+    return false;
+  };
+
+  const onlineMembersCount = useMemo(() => {
+    if (!activeGroup?.members) return 0;
+    return Object.values(activeGroup.members).filter((m) => isMemberOnline(m)).length;
+  }, [activeGroup?.members, currentUid, userUid]);
 
   const isOwner = Boolean(
     activeGroup && (activeGroup.createdBy === currentUid || (userUid && activeGroup.createdBy === userUid))
@@ -207,6 +247,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       subtitle: `Notify all ${activeGroup.memberCount || Object.keys(activeGroup.members).length} members in this group`,
       role: 'all' as const,
       isMe: false,
+      isOnline: true,
     };
 
     const allOption = {
@@ -216,6 +257,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       subtitle: `Mention all group members`,
       role: 'all' as const,
       isMe: false,
+      isOnline: true,
     };
 
     const memberList = Object.values(activeGroup.members).map((m) => ({
@@ -226,6 +268,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       photoURL: m.photoURL,
       role: m.role,
       isMe: m.uid === currentUid,
+      isOnline: isMemberOnline(m),
     }));
 
     const results: Array<{
@@ -236,6 +279,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       role: string;
       isMe: boolean;
       photoURL?: string;
+      isOnline?: boolean;
     }> = [];
 
     if (!q || 'everyone'.startsWith(q) || 'all'.startsWith(q)) {
@@ -537,6 +581,18 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     }, 60);
     return () => clearTimeout(timer);
   }, [activeGroupId]);
+
+  // Periodic heartbeat to keep user's active status updated in Firestore for the active group
+  useEffect(() => {
+    if (!activeGroupId || !currentUid || currentUid === 'guest') return;
+    updateMemberLastActiveInFirestore(activeGroupId, currentUid);
+
+    const interval = setInterval(() => {
+      updateMemberLastActiveInFirestore(activeGroupId, currentUid);
+    }, 2 * 60 * 1000); // every 2 minutes
+
+    return () => clearInterval(interval);
+  }, [activeGroupId, currentUid]);
 
   // Handle Send Text Message
   const handleSendMessage = async (textToSend?: string, typeOverride?: 'text' | 'image' | 'poll' | 'voice', extraData?: any) => {
@@ -1252,50 +1308,35 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     await updateGroupMemberMessagingInFirestore(group.id, memberUid, newStatus);
   };
 
-  const handleSaveGroupBgSettings = async (settings: ChatBgSettings) => {
-    if (!activeGroup) return;
-    const { imageUrl = '', bgColor = '', overlayOpacity = 0.5, blur = 0 } = settings;
-    
-    setGroups((prev) =>
-      prev.map((g) => (g.id === activeGroup.id ? { 
-        ...g, 
-        chatBgImage: imageUrl, 
-        chatBgColor: bgColor,
-        chatBgOverlay: overlayOpacity,
-        chatBgBlur: blur,
-        updatedAt: Date.now() 
-      } : g))
-    );
-    
-    triggerToast('Chat Background Saved! 🎨', 'Applied new wallpaper to this group chat.', 'Important Alerts');
-    
-    await updateGroupInFirestore(activeGroup.id, {
-      chatBgImage: imageUrl,
-      chatBgColor: bgColor,
-      chatBgOverlay: overlayOpacity,
-      chatBgBlur: blur,
+  const handleSaveGroupBgSettings = (settings: ChatBgSettings) => {
+    if (!activeGroupId) return;
+    setPersonalGroupBgs((prev) => {
+      const updated = { ...prev, [activeGroupId]: settings };
+      try {
+        const storageKey = `sjtutor_personal_group_bg_${currentUid}`;
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch (err) {
+        console.error("Failed to save personal group wallpaper", err);
+      }
+      return updated;
     });
+    triggerToast('Personal Wallpaper Saved! 🎨', 'Applied personal wallpaper to your screen for this group chat.', 'Important Alerts');
   };
 
-  const handleClearGroupBgSettings = async () => {
-    if (!activeGroup) return;
-    setGroups((prev) =>
-      prev.map((g) => (g.id === activeGroup.id ? { 
-        ...g, 
-        chatBgImage: '', 
-        chatBgColor: '',
-        chatBgOverlay: 0.5,
-        chatBgBlur: 0,
-        updatedAt: Date.now() 
-      } : g))
-    );
-    triggerToast('Background Reset', 'Reset to default theme.', 'Important Alerts');
-    await updateGroupInFirestore(activeGroup.id, {
-      chatBgImage: '',
-      chatBgColor: '',
-      chatBgOverlay: 0.5,
-      chatBgBlur: 0,
+  const handleClearGroupBgSettings = () => {
+    if (!activeGroupId) return;
+    setPersonalGroupBgs((prev) => {
+      const updated = { ...prev };
+      delete updated[activeGroupId];
+      try {
+        const storageKey = `sjtutor_personal_group_bg_${currentUid}`;
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch (err) {
+        console.error("Failed to clear personal group wallpaper", err);
+      }
+      return updated;
     });
+    triggerToast('Wallpaper Reset', 'Reset to default theme for your view.', 'Important Alerts');
   };
 
   // Delete message for everyone in group (Owner / Admin / Message Author)
@@ -1689,28 +1730,28 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       <div
         className={`${
           !showMobileChat ? 'hidden lg:flex' : 'flex'
-        } flex-1 flex-col ${activeGroup?.chatBgImage || activeGroup?.chatBgColor ? '' : 'bg-slate-100/60 dark:bg-slate-950'} relative overflow-hidden`}
+        } flex-1 flex-col ${currentGroupBg?.imageUrl || currentGroupBg?.bgColor ? '' : 'bg-slate-100/60 dark:bg-slate-950'} relative overflow-hidden`}
         style={{
-          background: activeGroup?.chatBgColor || undefined,
+          background: currentGroupBg?.bgColor || undefined,
         }}
       >
-        {/* Background Image Layer with Blur */}
-        {activeGroup?.chatBgImage && (
+        {/* Background Image Layer with Blur (Personal Wallpaper) */}
+        {currentGroupBg?.imageUrl && (
           <div 
             className="absolute inset-0 bg-cover bg-center pointer-events-none z-0 transition-all"
             style={{
-              backgroundImage: `url(${activeGroup.chatBgImage})`,
-              filter: (activeGroup.chatBgBlur || 0) > 0 ? `blur(${activeGroup.chatBgBlur}px)` : undefined,
-              transform: (activeGroup.chatBgBlur || 0) > 0 ? 'scale(1.05)' : undefined,
+              backgroundImage: `url(${currentGroupBg.imageUrl})`,
+              filter: (currentGroupBg.blur || 0) > 0 ? `blur(${currentGroupBg.blur}px)` : undefined,
+              transform: (currentGroupBg.blur || 0) > 0 ? 'scale(1.05)' : undefined,
             }}
           />
         )}
 
         {/* Semi-transparent overlay for text readability */}
-        {(activeGroup?.chatBgImage || activeGroup?.chatBgColor) && (
+        {(currentGroupBg?.imageUrl || currentGroupBg?.bgColor) && (
           <div 
             className="absolute inset-0 bg-black pointer-events-none z-0 transition-opacity" 
-            style={{ opacity: activeGroup.chatBgOverlay ?? 0.45 }}
+            style={{ opacity: currentGroupBg.overlayOpacity ?? 0.45 }}
           />
         )}
         
@@ -1737,9 +1778,17 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     <h2 className="font-bold text-slate-900 dark:text-white text-base truncate group-hover:text-primary-600 transition">
                       {activeGroup.name}
                     </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 truncate">
-                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                        {activeGroup.memberCount} members
+                    <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 truncate">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        {activeGroup.memberCount} {activeGroup.memberCount === 1 ? 'member' : 'members'}
+                      </span>
+                      <span>•</span>
+                      <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        {onlineMembersCount} online
                       </span>
                       <span>•</span>
                       <span>{activeGroup.subject}</span>
@@ -1856,15 +1905,23 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     >
                       {/* Avatar */}
                       {!isMe && (
-                        <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 bg-white flex-shrink-0 mt-1">
-                          {isAi ? (
-                            <img src={SJTUTOR_AVATAR} alt="AI Tutor" className="w-full h-full object-cover" />
-                          ) : msg.senderAvatar ? (
-                            <img src={msg.senderAvatar} alt={msg.senderName} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full bg-primary-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-primary-700 dark:text-primary-300">
-                              {msg.senderName.charAt(0).toUpperCase()}
-                            </div>
+                        <div className="relative flex-shrink-0 mt-1">
+                          <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 bg-white">
+                            {isAi ? (
+                              <img src={SJTUTOR_AVATAR} alt="AI Tutor" className="w-full h-full object-cover" />
+                            ) : msg.senderAvatar ? (
+                              <img src={msg.senderAvatar} alt={msg.senderName} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-primary-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-primary-700 dark:text-primary-300">
+                                {msg.senderName.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          {!isAi && activeGroup?.members?.[msg.senderId] && isMemberOnline(activeGroup.members[msg.senderId]) && (
+                            <span
+                              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-slate-800 rounded-full shadow-xs"
+                              title="Online now"
+                            />
                           )}
                         </div>
                       )}
@@ -2189,15 +2246,25 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                               <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
                                 <Users className="w-4 h-4" />
                               </div>
-                            ) : candidate.photoURL ? (
-                              <img
-                                src={candidate.photoURL}
-                                alt={candidate.displayName}
-                                className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
-                              />
                             ) : (
-                              <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-                                {candidate.displayName.slice(0, 2).toUpperCase()}
+                              <div className="relative shrink-0">
+                                {candidate.photoURL ? (
+                                  <img
+                                    src={candidate.photoURL}
+                                    alt={candidate.displayName}
+                                    className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                                    {candidate.displayName.slice(0, 2).toUpperCase()}
+                                  </div>
+                                )}
+                                {candidate.isOnline && (
+                                  <span
+                                    className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white dark:border-slate-800 rounded-full shadow-xs"
+                                    title="Online now"
+                                  />
+                                )}
                               </div>
                             )}
 
@@ -3350,22 +3417,22 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   </p>
                 </div>
 
-                {/* Chat Background Settings */}
+                {/* Personal Chat Background Settings */}
                 <div className="space-y-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                       <Palette className="w-4 h-4 text-amber-500" />
-                      Chat Background & Theme
+                      Personal Wallpaper
                     </h4>
-                    {activeGroup.chatBgImage && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded-full">
-                        Customized
+                    {(currentGroupBg?.imageUrl || currentGroupBg?.bgColor) && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full">
+                        Personal
                       </span>
                     )}
                   </div>
                   
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Set AI-generated artwork, study aesthetic wallpapers, or solid color gradients.
+                    Customize your personal wallpaper for this group (visible only on your screen). Set AI art, aesthetic wallpapers, or gradients.
                   </p>
 
                   <div className="flex gap-2">
@@ -3380,7 +3447,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                       Customize Wallpaper
                     </button>
 
-                    {(activeGroup.chatBgImage || activeGroup.chatBgColor) && (
+                    {(currentGroupBg?.imageUrl || currentGroupBg?.bgColor) && (
                       <button
                         onClick={handleClearGroupBgSettings}
                         className="py-2.5 px-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold transition border border-rose-200 dark:border-rose-800/60"
@@ -3498,6 +3565,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
                       Group Members ({activeGroup.memberCount})
                     </h4>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      {onlineMembersCount} Online
+                    </span>
                   </div>
 
                   <div className="space-y-2">
@@ -3512,26 +3583,53 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                           (userUid && activeGroup.members?.[userUid]?.role === 'admin');
 
                         const canRemove = isOwnerOrAdmin && !isSelf && !isOwner;
+                        const isOnline = isMemberOnline(m);
 
                         return (
                           <div
                             key={m.uid}
                             className="flex items-center gap-3 p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800"
                           >
-                            <div className="w-8 h-8 rounded-full overflow-hidden bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-700 flex-shrink-0">
-                              {m.photoURL ? (
-                                <img src={m.photoURL} alt={m.displayName} className="w-full h-full object-cover" />
-                              ) : (
-                                m.displayName.charAt(0).toUpperCase()
+                            <div className="relative flex-shrink-0">
+                              <div className="w-9 h-9 rounded-full overflow-hidden bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-700">
+                                {m.photoURL ? (
+                                  <img src={m.photoURL} alt={m.displayName} className="w-full h-full object-cover" />
+                                ) : (
+                                  m.displayName.charAt(0).toUpperCase()
+                                )}
+                              </div>
+                              {isOnline && (
+                                <span
+                                  className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-800 rounded-full shadow-xs flex items-center justify-center"
+                                  title="Online / Active now"
+                                >
+                                  <span className="w-1 h-1 rounded-full bg-white opacity-80" />
+                                </span>
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-bold text-slate-800 dark:text-white truncate flex items-center gap-1.5">
                                 <span className="truncate">{m.displayName}</span>
                                 {isSelf && <span className="text-[10px] text-slate-400 font-normal shrink-0">(You)</span>}
+                                {isOnline ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.2 rounded-full border border-emerald-200/60 dark:border-emerald-800/40 shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    Online
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 font-normal shrink-0">Offline</span>
+                                )}
                               </p>
                               <span className="text-[10px] text-slate-400 block">
-                                Joined {new Date(m.joinedAt).toLocaleDateString()}
+                                {isOnline
+                                  ? 'Active within last 5m'
+                                  : m.lastActive
+                                  ? `Active ${
+                                      Math.floor((Date.now() - m.lastActive) / 60000) < 60
+                                        ? `${Math.max(1, Math.floor((Date.now() - m.lastActive) / 60000))}m ago`
+                                        : new Date(m.lastActive).toLocaleDateString()
+                                    }`
+                                  : `Joined ${new Date(m.joinedAt).toLocaleDateString()}`}
                               </span>
                             </div>
 
@@ -3665,12 +3763,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       <AnimatePresence>
         {showBgModal && activeGroup && (
           <ChatBackgroundModal
-            title={`Customize "${activeGroup.name}" Chat Background`}
-            subtitle="Generate with Gemini AI, pick aesthetic study wallpapers, or set color gradients"
-            currentBgImage={activeGroup.chatBgImage || ''}
-            currentBgColor={activeGroup.chatBgColor || ''}
-            currentOverlayOpacity={activeGroup.chatBgOverlay ?? 0.45}
-            currentBlur={activeGroup.chatBgBlur ?? 0}
+            title={`Personal Wallpaper for "${activeGroup.name}"`}
+            subtitle="Personal to your account (only visible to you). Generate with Gemini AI, pick aesthetic study wallpapers, or set color gradients"
+            currentBgImage={currentGroupBg?.imageUrl || ''}
+            currentBgColor={currentGroupBg?.bgColor || ''}
+            currentOverlayOpacity={currentGroupBg?.overlayOpacity ?? 0.45}
+            currentBlur={currentGroupBg?.blur ?? 0}
             onSave={(settings) => {
               handleSaveGroupBgSettings(settings);
             }}

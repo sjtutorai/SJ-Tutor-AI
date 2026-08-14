@@ -243,6 +243,7 @@ export interface GroupMember {
   role: 'admin' | 'member';
   joinedAt: number;
   canMessage?: boolean;
+  lastActive?: number;
 }
 
 export interface GroupMessage {

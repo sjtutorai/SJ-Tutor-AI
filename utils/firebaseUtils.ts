@@ -460,19 +460,39 @@ export const sendGroupMessageInFirestore = async (groupId: string, message: Grou
     const messageDocRef = doc(db, "groups", groupId, "messages", cleanMessage.id);
     await setDoc(messageDocRef, cleanMessage);
 
-    // Update group's lastMessage and updatedAt
+    // Update group's lastMessage, updatedAt, and sender's lastActive
     const groupDocRef = doc(db, "groups", groupId);
-    await updateDoc(groupDocRef, {
+    const updatePayload: Record<string, any> = {
       updatedAt: cleanMessage.timestamp || Date.now(),
       lastMessage: removeUndefinedFields({
         text: cleanMessage.text || '',
         senderName: cleanMessage.senderName || 'Member',
         timestamp: cleanMessage.timestamp || Date.now(),
       }),
-    });
+    };
+
+    if (cleanMessage.senderId && !cleanMessage.isAi) {
+      updatePayload[`members.${cleanMessage.senderId}.lastActive`] = cleanMessage.timestamp || Date.now();
+    }
+
+    await updateDoc(groupDocRef, updatePayload);
     return true;
   } catch (error) {
     console.error("Error sending group message to Firestore:", error);
+    return false;
+  }
+};
+
+export const updateMemberLastActiveInFirestore = async (groupId: string, memberUid: string): Promise<boolean> => {
+  if (!groupId || !memberUid || memberUid === 'guest') return false;
+  try {
+    const groupDocRef = doc(db, "groups", groupId);
+    await updateDoc(groupDocRef, {
+      [`members.${memberUid}.lastActive`]: Date.now(),
+    });
+    return true;
+  } catch (error) {
+    console.warn("Error updating member last active in Firestore:", error);
     return false;
   }
 };

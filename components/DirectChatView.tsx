@@ -96,56 +96,65 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
   const [activeMediaTab, setActiveMediaTab] = useState<'photos'|'links'|'audio'|'documents'>('photos');
   const [isEnlarged, setIsEnlarged] = useState(false);
 
+  // Personal Direct Chat Wallpapers (Personal to this user, not shared with the other friend)
+  const [personalDirectBgs, setPersonalDirectBgs] = useState<Record<string, ChatBgSettings>>(() => {
+    try {
+      const storageKey = `sjtutor_personal_direct_bg_${userProfile?.uid || user?.uid || 'guest'}`;
+      const saved = localStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const storageKey = `sjtutor_personal_direct_bg_${currentUid}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        setPersonalDirectBgs(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.warn("Failed to load personal direct backgrounds", e);
+    }
+  }, [currentUid]);
+
+  const currentChatBg = activeChatId ? personalDirectBgs[activeChatId] : undefined;
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  const handleSaveChatBgSettings = async (settings: ChatBgSettings) => {
+  const handleSaveChatBgSettings = (settings: ChatBgSettings) => {
     if (!activeChatId) return;
-    const { imageUrl = '', bgColor = '', overlayOpacity = 0.5, blur = 0 } = settings;
-
-    setDirectChats((prev) =>
-      prev.map((c) => (c.id === activeChatId ? { 
-        ...c, 
-        chatBgImage: imageUrl, 
-        chatBgColor: bgColor,
-        chatBgOverlay: overlayOpacity,
-        chatBgBlur: blur,
-        updatedAt: Date.now() 
-      } : c))
-    );
-    
-    triggerToast('Chat Wallpaper Saved! 🎨', 'Applied new atmosphere to this 1-on-1 chat.', 'Important Alerts');
-
-    const { updateDirectChatInFirestore } = await import("../utils/firebaseUtils");
-    await updateDirectChatInFirestore(activeChatId, {
-      chatBgImage: imageUrl,
-      chatBgColor: bgColor,
-      chatBgOverlay: overlayOpacity,
-      chatBgBlur: blur,
+    setPersonalDirectBgs((prev) => {
+      const updated = { ...prev, [activeChatId]: settings };
+      try {
+        const storageKey = `sjtutor_personal_direct_bg_${currentUid}`;
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch (err) {
+        console.error("Failed to save personal direct wallpaper", err);
+      }
+      return updated;
     });
+    
+    triggerToast('Personal Wallpaper Saved! 🎨', 'Applied personal wallpaper to your screen for this 1-on-1 chat.', 'Important Alerts');
   };
 
-  const handleClearChatBgSettings = async () => {
+  const handleClearChatBgSettings = () => {
     if (!activeChatId) return;
-    setDirectChats((prev) =>
-      prev.map((c) => (c.id === activeChatId ? { 
-        ...c, 
-        chatBgImage: '', 
-        chatBgColor: '',
-        chatBgOverlay: 0.5,
-        chatBgBlur: 0,
-        updatedAt: Date.now() 
-      } : c))
-    );
-    triggerToast('Background Reset', 'Reset to default clean theme.', 'Important Alerts');
-    const { updateDirectChatInFirestore } = await import("../utils/firebaseUtils");
-    await updateDirectChatInFirestore(activeChatId, {
-      chatBgImage: '',
-      chatBgColor: '',
-      chatBgOverlay: 0.5,
-      chatBgBlur: 0,
+    setPersonalDirectBgs((prev) => {
+      const updated = { ...prev };
+      delete updated[activeChatId];
+      try {
+        const storageKey = `sjtutor_personal_direct_bg_${currentUid}`;
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch (err) {
+        console.error("Failed to clear personal direct wallpaper", err);
+      }
+      return updated;
     });
+    triggerToast('Wallpaper Reset', 'Reset to default theme for your view.', 'Important Alerts');
   };
 
   const handleScroll = () => {
@@ -906,8 +915,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
         {/* RIGHT MAIN PANEL: Active 1-on-1 Chat Room */}
         {(() => {
-          const currentChat = activeDirectChats.find(c => c.id === activeChatId);
-          const hasBg = Boolean(currentChat?.chatBgImage || currentChat?.chatBgColor);
+          const hasBg = Boolean(currentChatBg?.imageUrl || currentChatBg?.bgColor);
 
           return (
             <div 
@@ -915,17 +923,17 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                 hasBg ? "" : "bg-white dark:bg-slate-900"
               } overflow-hidden`}
               style={{
-                background: currentChat?.chatBgColor || undefined,
+                background: currentChatBg?.bgColor || undefined,
               }}
             >
-              {/* Background Image Layer with Blur */}
-              {currentChat?.chatBgImage && (
+              {/* Background Image Layer with Blur (Personal Wallpaper) */}
+              {currentChatBg?.imageUrl && (
                 <div 
                   className="absolute inset-0 bg-cover bg-center pointer-events-none z-0 transition-all"
                   style={{
-                    backgroundImage: `url(${currentChat.chatBgImage})`,
-                    filter: (currentChat.chatBgBlur || 0) > 0 ? `blur(${currentChat.chatBgBlur}px)` : undefined,
-                    transform: (currentChat.chatBgBlur || 0) > 0 ? 'scale(1.05)' : undefined,
+                    backgroundImage: `url(${currentChatBg.imageUrl})`,
+                    filter: (currentChatBg.blur || 0) > 0 ? `blur(${currentChatBg.blur}px)` : undefined,
+                    transform: (currentChatBg.blur || 0) > 0 ? 'scale(1.05)' : undefined,
                   }}
                 />
               )}
@@ -934,7 +942,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
               {hasBg && (
                 <div 
                   className="absolute inset-0 bg-black pointer-events-none z-0 transition-opacity" 
-                  style={{ opacity: currentChat?.chatBgOverlay ?? 0.45 }}
+                  style={{ opacity: currentChatBg?.overlayOpacity ?? 0.45 }}
                 />
               )}
 
@@ -1356,27 +1364,26 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                 </div>
               </div>
               
-              {/* Chat Background Settings */}
+              {/* Personal Chat Background Settings */}
               {(() => {
-                const currentChat = activeDirectChats.find(c => c.id === activeChatId);
-                const isCustom = Boolean(currentChat?.chatBgImage || currentChat?.chatBgColor);
+                const isCustom = Boolean(currentChatBg?.imageUrl || currentChatBg?.bgColor);
 
                 return (
                   <div className="mb-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                         <Palette className="w-4 h-4 text-amber-500" />
-                        Chat Wallpaper & Atmosphere
+                        Personal Wallpaper
                       </h4>
                       {isCustom && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded-full">
-                          Customized
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-full">
+                          Personal
                         </span>
                       )}
                     </div>
                     
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Personalize this 1-on-1 chat with AI-generated art, aesthetic wallpapers, or gradients.
+                      Personalize this 1-on-1 chat with AI art, aesthetic wallpapers, or gradients (visible only on your screen).
                     </p>
 
                     <div className="flex gap-2">
@@ -1447,12 +1454,12 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
       <AnimatePresence>
         {showBgModal && activeChatId && activeFriendDetails && (
           <ChatBackgroundModal
-            title={`Customize Chat Wallpaper for "${activeFriendDetails.displayName}"`}
-            subtitle="Generate with Gemini AI, select aesthetic study templates, or upload from your device"
-            currentBgImage={activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage || ''}
-            currentBgColor={activeDirectChats.find(c => c.id === activeChatId)?.chatBgColor || ''}
-            currentOverlayOpacity={activeDirectChats.find(c => c.id === activeChatId)?.chatBgOverlay ?? 0.45}
-            currentBlur={activeDirectChats.find(c => c.id === activeChatId)?.chatBgBlur ?? 0}
+            title={`Personal Wallpaper for "${activeFriendDetails.displayName}"`}
+            subtitle="Personal to your account (only visible to you). Generate with Gemini AI, select aesthetic study templates, or upload from your device"
+            currentBgImage={currentChatBg?.imageUrl || ''}
+            currentBgColor={currentChatBg?.bgColor || ''}
+            currentOverlayOpacity={currentChatBg?.overlayOpacity ?? 0.45}
+            currentBlur={currentChatBg?.blur ?? 0}
             onSave={(settings) => {
               handleSaveChatBgSettings(settings);
             }}
