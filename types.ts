@@ -358,3 +358,28 @@ export interface DirectChat {
   chatBgColor?: string;
 }
 
+export type TimerStateType = 'IDLE' | 'RUNNING' | 'PAUSED';
+
+export interface UserTimerState {
+  timerState: TimerStateType;
+  timeLeftMs: number;
+  initialTimeMs: number;
+  expectedEndTime: number | null;
+  isFocusModeActive: boolean;
+  selectedApps: string[];
+  inputH: string;
+  inputM: string;
+  inputS: string;
+  updatedAt: number;
+  deviceId?: string;
+}
+
+export interface StudySessionRecord {
+  id?: string;
+  date: string;
+  duration: number;
+  completed: boolean;
+  focusMode: boolean;
+  timestamp?: number;
+}
+

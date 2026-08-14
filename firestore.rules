@@ -61,6 +61,16 @@ service cloud.firestore {
       allow write: if isOwner(userId) && isValidId(userId) && isValidId(historyId);
     }
 
+    // Real-time Timer subcollection for cross-device sync
+    match /users/{userId}/timer/{timerId} {
+      allow read, write: if isOwner(userId) && isValidId(userId);
+    }
+
+    // Study Sessions subcollection
+    match /users/{userId}/study_sessions/{sessionId} {
+      allow read, write: if isOwner(userId) && isValidId(userId);
+    }
+
     // Global notifications
     match /global_notifications/{notificationId} {
       allow read: if isSignedIn();

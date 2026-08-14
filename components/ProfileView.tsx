@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
+import { calculateTrialInfo } from './TrialTimerWidget';
 import { 
   User, 
   Phone, 
@@ -413,7 +414,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                  <span className="text-slate-500 font-medium">Credits</span>
                  <div className="flex items-center gap-1 font-extrabold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-slate-900 border border-emerald-100 dark:border-emerald-950 px-2 py-0.5 rounded text-xs">
                     <Zap className="w-3 h-3 fill-emerald-400 text-emerald-500 animate-pulse" />
-                    Unlimited Access
+                    {!calculateTrialInfo(formData).isExpired ? "Unlimited Access" : `${formData.credits} Credits`}
                  </div>
                </div>
                

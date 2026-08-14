@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where, serverTimestamp, onSnapshot, orderBy, limit, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "../firebaseConfig";
-import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember, Friendship, DirectChat, DirectMessage } from "../types";
+import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember, Friendship, DirectChat, DirectMessage, UserTimerState, StudySessionRecord } from "../types";
 
 
 export const saveProfileToFirestore = async (uid: string, profile: Partial<UserProfile>) => {
@@ -1208,6 +1208,92 @@ export const toggleDirectMessageReactionInFirestore = async (
   } catch (error) {
     console.error("Error toggling direct message reaction:", error);
     return false;
+  }
+};
+
+/**
+ * Real-time Timer Synchronization across multiple devices for the same user account
+ */
+export const saveUserTimerState = async (
+  uid: string,
+  timerState: Partial<UserTimerState>
+): Promise<boolean> => {
+  if (!uid || uid === "guest") return false;
+  try {
+    const timerDocRef = doc(db, "users", uid, "timer", "current");
+    const payload = {
+      ...timerState,
+      updatedAt: Date.now(),
+    };
+    await setDoc(timerDocRef, payload, { merge: true });
+    return true;
+  } catch (error: any) {
+    console.warn("Error syncing timer state to Firestore:", error?.message || error);
+    return false;
+  }
+};
+
+export const subscribeToUserTimerState = (
+  uid: string,
+  onUpdate: (timer: UserTimerState | null) => void,
+  onError?: (error: any) => void
+) => {
+  if (!uid || uid === "guest") {
+    onUpdate(null);
+    return () => {};
+  }
+  const timerDocRef = doc(db, "users", uid, "timer", "current");
+  return onSnapshot(
+    timerDocRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        onUpdate(docSnap.data() as UserTimerState);
+      } else {
+        onUpdate(null);
+      }
+    },
+    (error) => {
+      console.warn("Error in user timer snapshot listener:", error);
+      if (onError) onError(error);
+    }
+  );
+};
+
+export const saveStudySessionToFirestore = async (
+  uid: string,
+  session: StudySessionRecord
+): Promise<boolean> => {
+  if (!uid || uid === "guest") return false;
+  try {
+    const sessionId = session.id || `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const sessionRef = doc(db, "users", uid, "study_sessions", sessionId);
+    await setDoc(sessionRef, {
+      ...session,
+      id: sessionId,
+      timestamp: session.timestamp || Date.now(),
+    });
+    return true;
+  } catch (error) {
+    console.warn("Error saving study session to Firestore:", error);
+    return false;
+  }
+};
+
+export const getStudySessionsFromFirestore = async (
+  uid: string
+): Promise<StudySessionRecord[]> => {
+  if (!uid || uid === "guest") return [];
+  try {
+    const colRef = collection(db, "users", uid, "study_sessions");
+    const snap = await getDocs(query(colRef, orderBy("timestamp", "desc"), limit(100)));
+    const list: StudySessionRecord[] = [];
+    snap.forEach((d) => {
+      list.push(d.data() as StudySessionRecord);
+    });
+    return list;
+  } catch (error) {
+    console.warn("Error fetching study sessions from Firestore:", error);
+    return [];
   }
 };
 

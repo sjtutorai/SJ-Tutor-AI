@@ -67,23 +67,30 @@ export const getCurrentUserProfile = async (user: User) => {
 
     if (docSnap.exists()) {
       // Update existing profile
+      const data = docSnap.data();
+      const trialStartDate = data.trialStartDate || Date.now();
       try {
-        await updateDoc(userRef, {
+        const updatePayload: Record<string, any> = {
           lastLoginAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          name: user.displayName || docSnap.data().name || "",
-          displayName: user.displayName || docSnap.data().displayName || docSnap.data().name || "",
-          email: user.email || docSnap.data().email || "",
-          photoURL: user.photoURL || docSnap.data().photoURL || "",
-        });
+          name: user.displayName || data.name || "",
+          displayName: user.displayName || data.displayName || data.name || "",
+          email: user.email || data.email || "",
+          photoURL: user.photoURL || data.photoURL || "",
+        };
+        if (!data.trialStartDate) {
+          updatePayload.trialStartDate = trialStartDate;
+        }
+        await updateDoc(userRef, updatePayload);
       } catch (updateError) {
         console.error("Error updating user login info in Firestore:", updateError);
       }
       return {
-        ...docSnap.data(),
+        ...data,
+        trialStartDate,
         uid: user.uid,
         isRegisteredInFirestore: true,
-        hasCompletedOnboarding: docSnap.data().hasCompletedOnboarding ?? true,
+        hasCompletedOnboarding: data.hasCompletedOnboarding ?? true,
       };
     } else {
       // Create new profile

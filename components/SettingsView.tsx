@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, UserSettings, SJTUTOR_AVATAR } from '../types';
 import { SettingsService } from '../services/settingsService';
+import { calculateTrialInfo } from './TrialTimerWidget';
 import { calculateProfileCompletion } from '../utils/profileUtils';
 import { auth } from '../firebaseConfig';
 import { verifyBeforeUpdateEmail } from 'firebase/auth';
@@ -180,9 +181,21 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                <div className="flex-1">
                  <h4 className="font-bold text-slate-800 dark:text-white text-lg">{userProfile.displayName || 'Scholar'}</h4>
                  <p className="text-sm text-slate-500 dark:text-slate-400">{userProfile.institution}</p>
-                 <button onClick={onNavigateToProfile} className="text-primary-600 dark:text-primary-400 text-sm font-semibold mt-1 hover:underline">
-                   Edit Profile Details
-                 </button>
+                 <div className="flex items-center gap-3 mt-1">
+                   {(() => {
+                     const trialInfo = calculateTrialInfo(userProfile, auth.currentUser?.uid);
+                     const hasUnlimited = !trialInfo.isExpired;
+                     return (
+                       <span className="flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800" title={hasUnlimited ? "Unlimited Credits (Active Trial)" : "Your Credits"}>
+                         <Zap className="w-3 h-3 text-amber-500" />
+                         {hasUnlimited ? "Unlimited" : `${userProfile.credits} Credits`}
+                       </span>
+                     );
+                   })()}
+                   <button onClick={onNavigateToProfile} className="text-primary-600 dark:text-primary-400 text-sm font-semibold hover:underline">
+                     Edit Profile Details
+                   </button>
+                 </div>
                </div>
             </div>
 

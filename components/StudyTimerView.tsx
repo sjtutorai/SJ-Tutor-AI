@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, RotateCcw, Shield, AlertTriangle, Settings2, Smartphone, Check } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Shield, AlertTriangle, Settings2, Smartphone, Check, Cloud } from 'lucide-react';
 import confetti from 'canvas-confetti';
-
-interface UserProfile {
-  // Add necessary types if needed, or any
-  [key: string]: any;
-}
+import { UserProfile, TimerStateType, UserTimerState } from '../types';
+import { saveUserTimerState, subscribeToUserTimerState, saveStudySessionToFirestore } from '../utils/firebaseUtils';
 
 interface StudyTimerViewProps {
   userProfile?: UserProfile;
+  userId?: string | null;
+  userEmail?: string | null;
 }
-
-type TimerState = 'IDLE' | 'RUNNING' | 'PAUSED';
 
 const APPS_TO_BLOCK = [
   { id: 'insta', name: 'Instagram', default: true },
@@ -28,17 +25,31 @@ const APPS_TO_BLOCK = [
   { id: 'games', name: 'Games', default: false },
 ];
 
-const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
+const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) => {
+  // Generate or retrieve unique device session ID to identify local vs remote updates
+  const deviceIdRef = useRef<string>(() => {
+    let id = sessionStorage.getItem('sjtutor_device_id');
+    if (!id) {
+      id = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      sessionStorage.setItem('sjtutor_device_id', id);
+    }
+    return id;
+  });
+
   // Input states
   const [inputH, setInputH] = useState('00');
   const [inputM, setInputM] = useState('25');
   const [inputS, setInputS] = useState('00');
 
   // Timer internal state
-  const [timerState, setTimerState] = useState<TimerState>('IDLE');
+  const [timerState, setTimerState] = useState<TimerStateType>('IDLE');
   const [timeLeftMs, setTimeLeftMs] = useState(0);
   const [initialTimeMs, setInitialTimeMs] = useState(0);
   const expectedEndTimeRef = useRef<number | null>(null);
+
+  // Sync status
+  const [isSynced, setIsSynced] = useState<boolean>(false);
+  const isLocalUpdateRef = useRef<boolean>(false);
 
   // Modals / Overlays
   const [showFocusSetup, setShowFocusSetup] = useState(false);
@@ -54,6 +65,55 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
   const [hasAccessibilityPerm, setHasAccessibilityPerm] = useState<boolean | null>(null);
   const [showPermDialog, setShowPermDialog] = useState(false);
 
+  // Real-time synchronization across all devices for this user account
+  useEffect(() => {
+    if (!userId || userId === 'guest') {
+      setIsSynced(false);
+      return;
+    }
+
+    const unsubscribe = subscribeToUserTimerState(userId, (remoteTimer: UserTimerState | null) => {
+      setIsSynced(true);
+      if (!remoteTimer) return;
+
+      // If update was initiated by this device very recently, ignore to prevent stutter
+      if (remoteTimer.deviceId === deviceIdRef.current && isLocalUpdateRef.current) {
+        isLocalUpdateRef.current = false;
+        return;
+      }
+
+      if (remoteTimer.timerState === 'RUNNING') {
+        const now = Date.now();
+        const expectedEnd = remoteTimer.expectedEndTime || (now + remoteTimer.timeLeftMs);
+        const remaining = Math.max(0, expectedEnd - now);
+
+        expectedEndTimeRef.current = expectedEnd;
+        setTimerState('RUNNING');
+        setTimeLeftMs(remaining);
+        setInitialTimeMs(remoteTimer.initialTimeMs || remaining);
+        setIsFocusModeActive(Boolean(remoteTimer.isFocusModeActive));
+        if (remoteTimer.selectedApps) setSelectedApps(remoteTimer.selectedApps);
+      } else if (remoteTimer.timerState === 'PAUSED') {
+        expectedEndTimeRef.current = null;
+        setTimerState('PAUSED');
+        setTimeLeftMs(remoteTimer.timeLeftMs);
+        setInitialTimeMs(remoteTimer.initialTimeMs);
+        setIsFocusModeActive(Boolean(remoteTimer.isFocusModeActive));
+        if (remoteTimer.selectedApps) setSelectedApps(remoteTimer.selectedApps);
+      } else if (remoteTimer.timerState === 'IDLE') {
+        expectedEndTimeRef.current = null;
+        setTimerState('IDLE');
+        setTimeLeftMs(0);
+        setIsFocusModeActive(false);
+        if (remoteTimer.inputH) setInputH(remoteTimer.inputH);
+        if (remoteTimer.inputM) setInputM(remoteTimer.inputM);
+        if (remoteTimer.inputS) setInputS(remoteTimer.inputS);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
   // Update timer in background/foreground accurately
   useEffect(() => {
     let animationFrameId: number;
@@ -67,8 +127,6 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
 
         if (remaining === 0) {
           handleTimerComplete();
-        } else {
-          // fallback to interval for background if requestAnimationFrame pauses
         }
       }
     };
@@ -98,8 +156,6 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
     const handleVisibilityChange = () => {
       if (document.hidden && timerState === 'RUNNING' && isFocusModeActive) {
         // Tab went to background.
-        // In a real native app, the Accessibility Service handles this.
-        // We simulate it here by showing the blocking screen when they return if they left.
       } else if (!document.hidden && timerState === 'RUNNING' && isFocusModeActive) {
         // Returned to tab
         setShowBlockingOverlay(true);
@@ -132,17 +188,36 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
 
     setShowCompletion(true);
     saveStudySession(true);
+
+    // Sync IDLE state to all devices
+    if (userId && userId !== 'guest') {
+      isLocalUpdateRef.current = true;
+      saveUserTimerState(userId, {
+        timerState: 'IDLE',
+        timeLeftMs: 0,
+        initialTimeMs,
+        expectedEndTime: null,
+        isFocusModeActive: false,
+        selectedApps,
+        inputH,
+        inputM,
+        inputS,
+        deviceId: deviceIdRef.current as any,
+      });
+    }
   };
 
   const saveStudySession = (completed: boolean) => {
     const durationSec = Math.floor(initialTimeMs / 1000);
     const durationSpent = Math.floor((initialTimeMs - timeLeftMs) / 1000);
+    const actualDuration = completed ? durationSec : durationSpent;
     
     const session = {
       date: new Date().toISOString(),
-      duration: completed ? durationSec : durationSpent,
+      duration: actualDuration,
       completed,
-      focusMode: isFocusModeActive
+      focusMode: isFocusModeActive,
+      timestamp: Date.now()
     };
 
     try {
@@ -162,6 +237,11 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
       }
     } catch (e) {
       console.warn("Stats save error", e);
+    }
+
+    // Save session to Firestore for this user
+    if (userId && userId !== 'guest') {
+      saveStudySessionToFirestore(userId, session);
     }
   };
 
@@ -184,23 +264,74 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
   const startTimer = (withFocusMode: boolean) => {
     setIsFocusModeActive(withFocusMode);
     setTimerState('RUNNING');
-    expectedEndTimeRef.current = Date.now() + timeLeftMs;
+    const expectedEnd = Date.now() + timeLeftMs;
+    expectedEndTimeRef.current = expectedEnd;
     setShowFocusSetup(false);
     setShowPermDialog(false);
 
     if (Notification.permission === "default") {
       Notification.requestPermission();
     }
+
+    // Sync across all devices for this email
+    if (userId && userId !== 'guest') {
+      isLocalUpdateRef.current = true;
+      saveUserTimerState(userId, {
+        timerState: 'RUNNING',
+        timeLeftMs,
+        initialTimeMs: initialTimeMs || timeLeftMs,
+        expectedEndTime: expectedEnd,
+        isFocusModeActive: withFocusMode,
+        selectedApps,
+        inputH,
+        inputM,
+        inputS,
+        deviceId: deviceIdRef.current as any,
+      });
+    }
   };
 
   const handlePause = () => {
     setTimerState('PAUSED');
     expectedEndTimeRef.current = null;
+
+    if (userId && userId !== 'guest') {
+      isLocalUpdateRef.current = true;
+      saveUserTimerState(userId, {
+        timerState: 'PAUSED',
+        timeLeftMs,
+        initialTimeMs,
+        expectedEndTime: null,
+        isFocusModeActive,
+        selectedApps,
+        inputH,
+        inputM,
+        inputS,
+        deviceId: deviceIdRef.current as any,
+      });
+    }
   };
 
   const handleResume = () => {
     setTimerState('RUNNING');
-    expectedEndTimeRef.current = Date.now() + timeLeftMs;
+    const expectedEnd = Date.now() + timeLeftMs;
+    expectedEndTimeRef.current = expectedEnd;
+
+    if (userId && userId !== 'guest') {
+      isLocalUpdateRef.current = true;
+      saveUserTimerState(userId, {
+        timerState: 'RUNNING',
+        timeLeftMs,
+        initialTimeMs,
+        expectedEndTime: expectedEnd,
+        isFocusModeActive,
+        selectedApps,
+        inputH,
+        inputM,
+        inputS,
+        deviceId: deviceIdRef.current as any,
+      });
+    }
   };
 
   const handleStopRequest = () => {
@@ -213,6 +344,23 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
     setTimerState('IDLE');
     setIsFocusModeActive(false);
     setShowStopConfirm(false);
+    expectedEndTimeRef.current = null;
+
+    if (userId && userId !== 'guest') {
+      isLocalUpdateRef.current = true;
+      saveUserTimerState(userId, {
+        timerState: 'IDLE',
+        timeLeftMs: 0,
+        initialTimeMs,
+        expectedEndTime: null,
+        isFocusModeActive: false,
+        selectedApps,
+        inputH,
+        inputM,
+        inputS,
+        deviceId: deviceIdRef.current as any,
+      });
+    }
   };
 
   const cancelStop = () => {
@@ -225,6 +373,22 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
     setTimerState('PAUSED');
     setTimeLeftMs(initialTimeMs);
     expectedEndTimeRef.current = null;
+
+    if (userId && userId !== 'guest') {
+      isLocalUpdateRef.current = true;
+      saveUserTimerState(userId, {
+        timerState: 'PAUSED',
+        timeLeftMs: initialTimeMs,
+        initialTimeMs,
+        expectedEndTime: null,
+        isFocusModeActive,
+        selectedApps,
+        inputH,
+        inputM,
+        inputS,
+        deviceId: deviceIdRef.current as any,
+      });
+    }
   };
 
   // Format Helpers
@@ -236,7 +400,7 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
     return {
       h: h.toString().padStart(2, '0'),
       m: m.toString().padStart(2, '0'),
-      s: s.toString().padStart(2, '0')
+      s: totalSec >= 0 ? s.toString().padStart(2, '0') : '00'
     };
   };
 
@@ -264,6 +428,21 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
   return (
     <div className="max-w-xl mx-auto p-4 sm:p-6 animate-in fade-in duration-500 relative">
       
+      {/* Real-time Cross-Device Sync Badge */}
+      <div className="mb-4 flex items-center justify-center">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 shadow-sm transition-all">
+          <Cloud className={`w-3.5 h-3.5 ${isSynced ? 'text-emerald-500' : 'text-amber-500'}`} />
+          <span>
+            {userId && userEmail 
+              ? `Synced across all devices (${userEmail})` 
+              : 'Sign in to auto-sync timer across all your devices'}
+          </span>
+          {isSynced && (
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live sync active" />
+          )}
+        </div>
+      </div>
+
       {/* 5. BLOCKING SCREEN OVERLAY */}
       {showBlockingOverlay && (
         <div className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
@@ -412,20 +591,19 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = () => {
               <button onClick={() => setShowCompletion(false)} className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-colors">
                 Start Another Session
               </button>
-              <button onClick={() => { setShowCompletion(false); /* route to stats if available */ }} className="w-full py-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white rounded-xl font-bold transition-colors">
-                View Study Statistics
+              <button onClick={() => { setShowCompletion(false); }} className="w-full py-4 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white rounded-xl font-bold transition-colors">
+                Close
               </button>
             </div>
           </div>
         </div>
       )}
 
-
       {/* MAIN TIMER UI */}
       <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden relative">
         <div className="p-8 text-center bg-gradient-to-b from-primary-50 to-white dark:from-slate-900 dark:to-slate-800 border-b border-slate-100 dark:border-slate-700">
           <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Study Timer</h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">Set your duration and stay focused</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">Set your duration and stay focused across all your devices</p>
         </div>
 
         <div className="p-8 flex flex-col items-center">

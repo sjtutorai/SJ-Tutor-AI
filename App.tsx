@@ -40,7 +40,7 @@ import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
 import { useStreak } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
-import { TrialHeaderBadge, TrialBannerCard } from "./components/TrialTimerWidget";
+import { TrialHeaderBadge, TrialBannerCard, calculateTrialInfo } from "./components/TrialTimerWidget";
 import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
 import {
@@ -94,6 +94,7 @@ import {
   Trash2,
   Info,
   Keyboard,
+  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -1420,6 +1421,11 @@ const App: React.FC = () => {
   };
 
   const deductCredit = (amount: number) => {
+    const trialInfo = calculateTrialInfo(userProfile, user?.uid);
+    if (!trialInfo.isExpired) {
+      return true; // Unlimited credits during trial
+    }
+
     if (userProfile.credits >= amount) {
       const updatedProfile = {
         ...userProfile,
@@ -1438,7 +1444,8 @@ const App: React.FC = () => {
     }
 
     const cost = calculateCost(mode, formData);
-    if (userProfile.credits < cost) {
+    const trialInfo = calculateTrialInfo(userProfile, user?.uid);
+    if (userProfile.credits < cost && trialInfo.isExpired) {
       setError(
         `Insufficient credits. This generation requires ${cost} credits, but you have ${userProfile.credits}. Upgrade to Premium for more.`,
       );
@@ -3026,6 +3033,17 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {(() => {
+              const trialInfo = calculateTrialInfo(userProfile, user?.uid);
+              const hasUnlimited = !trialInfo.isExpired;
+              return (
+                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 rounded-full text-xs font-bold shadow-sm" title={hasUnlimited ? "Unlimited Credits (Active Trial)" : "Your Credits"}>
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  <span>{hasUnlimited ? "Unlimited" : `${userProfile.credits} Credits`}</span>
+                </div>
+              );
+            })()}
+            
             <button
               onClick={() => setShowShortcutsModal(true)}
               className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors hidden sm:flex items-center gap-1"
@@ -3092,7 +3110,11 @@ const App: React.FC = () => {
           <div className="w-full h-full">
             <div style={{ display: mode === AppMode.TIMER ? "block" : "none" }}>
               <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <StudyTimerView userProfile={userProfile} />
+                <StudyTimerView 
+                  userProfile={userProfile} 
+                  userId={user ? user.uid : null} 
+                  userEmail={user ? user.email : null} 
+                />
               </div>
             </div>
             {renderContent()}

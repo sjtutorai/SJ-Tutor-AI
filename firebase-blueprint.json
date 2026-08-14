@@ -214,6 +214,38 @@
       },
       "required": ["id", "participants", "createdAt", "updatedAt"]
     },
+    "UserTimer": {
+      "title": "UserTimer",
+      "description": "Real-time cross-device timer and focus mode synchronization state",
+      "type": "object",
+      "properties": {
+        "timerState": { "type": "string" },
+        "timeLeftMs": { "type": "number" },
+        "initialTimeMs": { "type": "number" },
+        "expectedEndTime": { "type": "number" },
+        "isFocusModeActive": { "type": "boolean" },
+        "selectedApps": { "type": "array" },
+        "inputH": { "type": "string" },
+        "inputM": { "type": "string" },
+        "inputS": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["timerState", "timeLeftMs", "initialTimeMs", "updatedAt"]
+    },
+    "StudySession": {
+      "title": "StudySession",
+      "description": "Completed or recorded study sessions for user analytics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "duration": { "type": "number" },
+        "completed": { "type": "boolean" },
+        "focusMode": { "type": "boolean" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["date", "duration", "completed"]
+    },
     "DirectMessage": {
       "title": "DirectMessage",
       "description": "Private message sent directly between two friends",
@@ -279,6 +311,14 @@
     "/users/{userId}/history/{historyId}": {
       "schema": "History",
       "description": "User specific generated course history, quizzes, and homework items"
+    },
+    "/users/{userId}/timer/{timerId}": {
+      "schema": "UserTimer",
+      "description": "Real-time timer synchronization across all devices for the user"
+    },
+    "/users/{userId}/study_sessions/{sessionId}": {
+      "schema": "StudySession",
+      "description": "User recorded study sessions"
     },
     "/global_notifications/{notificationId}": {
       "schema": "GlobalNotification",
