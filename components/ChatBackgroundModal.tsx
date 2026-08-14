@@ -247,27 +247,37 @@ export const ChatBackgroundModal: React.FC<ChatBackgroundModalProps> = ({
         enhancedPrompt = `Minimalist aesthetic clean vector design of ${prompt}, subtle geometric composition, soothing pastel tones`;
       }
 
-      const res = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: enhancedPrompt, aspectRatio: '16:9' }),
-      });
+      let generatedUrl = '';
 
-      if (!res.ok) {
-        throw new Error(`Server returned ${res.status}`);
+      try {
+        const res = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: enhancedPrompt, aspectRatio: '16:9' }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.imageUrl) {
+            generatedUrl = data.imageUrl;
+          }
+        }
+      } catch (fetchErr) {
+        console.warn('Backend image endpoint unreachable, using client-side AI synthesis:', fetchErr);
       }
 
-      const data = await res.json();
-      if (data.imageUrl) {
-        setBgImage(data.imageUrl);
-        setBgColor('');
-        triggerToast('AI Wallpaper Generated! ✨', 'Preview your custom generated background below.', 'Important Alerts');
-      } else {
-        throw new Error('No image returned from generation service');
+      // Direct fallback to Pollinations AI synthesis if backend didn't return image
+      if (!generatedUrl) {
+        const seed = Math.floor(Math.random() * 1000000);
+        const encoded = encodeURIComponent(`${enhancedPrompt}, aesthetic wallpaper 4k`);
+        generatedUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1600&height=900&nologo=true&seed=${seed}&model=flux`;
       }
+
+      setBgImage(generatedUrl);
+      setBgColor('');
+      triggerToast('AI Wallpaper Generated! ✨', 'Preview your custom generated background below or click Apply.', 'Important Alerts');
     } catch (err: any) {
       console.error('AI Wallpaper generation error:', err);
-      // Curated graceful fallback
       const fallbackUrl = 'https://images.unsplash.com/photo-1518655048521-f130df041f66?q=80&w=1600&auto=format&fit=crop';
       setBgImage(fallbackUrl);
       setBgColor('');
@@ -496,6 +506,35 @@ export const ChatBackgroundModal: React.FC<ChatBackgroundModalProps> = ({
                   ))}
                 </div>
               </div>
+
+              {/* Generated Result Action Card */}
+              {bgImage && (
+                <div className="p-3.5 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-2xl flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img 
+                      src={bgImage} 
+                      alt="AI Wallpaper" 
+                      className="w-14 h-10 object-cover rounded-lg border border-emerald-300 dark:border-emerald-700 flex-shrink-0"
+                    />
+                    <div className="truncate">
+                      <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                        AI Wallpaper Ready ✨
+                      </p>
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400 truncate">
+                        {aiPrompt || "Aesthetic Study Atmosphere"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleApply}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1 flex-shrink-0 active:scale-95"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Apply Now
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

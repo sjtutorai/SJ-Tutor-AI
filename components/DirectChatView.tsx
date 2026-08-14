@@ -203,6 +203,15 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
     }
   }, [messages]);
 
+  // Reset scroll and scroll to bottom when switching chats
+  useEffect(() => {
+    setShowScrollButton(false);
+    const timer = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [activeChatId]);
+
   // Handle Initial Target User (e.g. passed from Profile or Leaderboard)
   useEffect(() => {
     if (initialTargetUser && user) {
@@ -579,17 +588,17 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
       {/* MAIN CONTAINER */}
       <div className="flex-1 min-h-0 w-full bg-white dark:bg-slate-900 shadow-xl flex flex-col md:flex-row overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 transition-all duration-300">
         {/* LEFT SIDEBAR: Conversation List / Friends List */}
-        <div className={`w-full md:w-80 lg:w-96 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50 ${activeChatId ? "hidden md:flex" : "flex"}`}>
+        <div className={`w-full md:w-80 lg:w-96 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50 min-h-0 h-full ${activeChatId ? "hidden md:flex" : "flex"}`}>
           
           {/* TAB 1: Direct Message Conversations */}
           {activeTab === "chats" && (
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 min-h-0 flex flex-col">
               <div className="p-4 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">Direct Messages</h3>
                 <span className="text-xs text-slate-500">{activeDirectChats.length} Conversations</span>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 custom-scrollbar scroll-smooth overscroll-contain">
                 {activeDirectChats.length === 0 ? (
                   <div className="text-center py-12 px-4">
                     <MessageSquare className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
@@ -681,13 +690,13 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
           {/* TAB 2: Connected Friends List */}
           {activeTab === "friends" && (
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 min-h-0 flex flex-col">
               <div className="p-4 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">Connected Friends</h3>
                 <span className="text-xs text-slate-500">{acceptedFriends.length} Total</span>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 custom-scrollbar scroll-smooth overscroll-contain">
                 {acceptedFriends.length === 0 ? (
                   <div className="text-center py-12 px-4">
                     <Users className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
@@ -756,7 +765,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
           {/* TAB 3: Find Friends Search */}
           {activeTab === "add_friend" && (
-            <div className="flex-1 flex flex-col p-4">
+            <div className="flex-1 min-h-0 flex flex-col p-4">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1">Find & Connect Friends</h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3 leading-tight">
                 Search students by name, email, student ID, or institution to send friend requests.
@@ -773,7 +782,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                 />
               </form>
 
-              <div className="flex-1 overflow-y-auto space-y-2">
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-2 custom-scrollbar scroll-smooth overscroll-contain">
                 {isSearching ? (
                   <div className="text-center py-8 text-xs text-slate-500">Searching students...</div>
                 ) : searchResults.length === 0 ? (
@@ -841,10 +850,10 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
           {/* TAB 4: Incoming & Sent Requests */}
           {activeTab === "requests" && (
-            <div className="flex-1 flex flex-col p-4">
+            <div className="flex-1 min-h-0 flex flex-col p-4">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Incoming Friend Requests</h3>
               
-              <div className="flex-1 overflow-y-auto space-y-3">
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-3 custom-scrollbar scroll-smooth overscroll-contain">
                 {pendingRequests.length === 0 ? (
                   <div className="text-center py-8 text-xs text-slate-500">No pending friend requests.</div>
                 ) : (
@@ -902,7 +911,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
           return (
             <div 
-              className={`flex-1 flex flex-col relative ${!activeChatId ? "hidden md:flex items-center justify-center" : "flex"} ${
+              className={`flex-1 min-h-0 flex flex-col relative ${!activeChatId ? "hidden md:flex items-center justify-center" : "flex"} ${
                 hasBg ? "" : "bg-white dark:bg-slate-900"
               } overflow-hidden`}
               style={{
@@ -1007,7 +1016,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
               <div 
                 ref={scrollContainerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30 dark:bg-slate-950/20 custom-scrollbar relative"
+                className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-slate-50/30 dark:bg-slate-950/20 custom-scrollbar scroll-smooth overscroll-contain relative"
               >
                 {visibleMessages.length === 0 ? (
                   <div className="text-center py-16">
@@ -1114,14 +1123,16 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
               <AnimatePresence>
                 {showScrollButton && (
                   <motion.button
-                    initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                    initial={{ opacity: 0, y: 15, scale: 0.85 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                    exit={{ opacity: 0, y: 15, scale: 0.85 }}
+                    transition={{ duration: 0.15 }}
                     onClick={scrollToBottom}
-                    className="absolute bottom-24 right-6 p-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full shadow-lg transition-colors z-10"
-                    title="Scroll to bottom"
+                    className="absolute bottom-24 right-6 p-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full shadow-xl hover:shadow-2xl transition-all z-20 flex items-center justify-center gap-1.5 group cursor-pointer active:scale-95 border-2 border-white dark:border-slate-800"
+                    title="Scroll to latest messages"
                   >
-                    <ArrowDown className="w-5 h-5" />
+                    <ArrowDown className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
+                    <span className="text-xs font-bold pr-1 hidden sm:inline">Latest</span>
                   </motion.button>
                 )}
               </AnimatePresence>

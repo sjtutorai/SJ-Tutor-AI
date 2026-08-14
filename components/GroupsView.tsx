@@ -529,6 +529,15 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     }
   }, [messages]);
 
+  // Reset scroll and scroll to bottom when switching groups
+  useEffect(() => {
+    setShowScrollButton(false);
+    const timer = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [activeGroupId]);
+
   // Handle Send Text Message
   const handleSendMessage = async (textToSend?: string, typeOverride?: 'text' | 'image' | 'poll' | 'voice', extraData?: any) => {
     if (isPostingRestricted) {
