@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Users,
   Search,
@@ -33,7 +33,12 @@ import {
   MessageSquareOff,
   ArrowDown,
   Maximize2,
-  Minimize2
+  Minimize2,
+  QrCode,
+  Brush,
+  Palette,
+  ScanLine,
+  AtSign
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from "qrcode.react";
@@ -48,6 +53,9 @@ import {
   UserProfile,
   SJTUTOR_AVATAR
 } from '../types';
+import { GroupQRModal } from './GroupQRModal';
+import { GroupQRScannerModal } from './GroupQRScannerModal';
+import { ChatBackgroundModal, ChatBgSettings } from './ChatBackgroundModal';
 import {
   createGroupInFirestore,
   updateGroupInFirestore,
@@ -118,12 +126,20 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [isEnlarged, setIsEnlarged] = useState(false);
-  const [bgEditUrl, setBgEditUrl] = useState('');
+  const [showQRPassModal, setShowQRPassModal] = useState(false);
+  const [showQRScannerModal, setShowQRScannerModal] = useState(false);
+  const [showBgModal, setShowBgModal] = useState(false);
 
   // Message States
   const [messages, setMessages] = useState<GroupMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [replyingTo, setReplyingTo] = useState<GroupMessage | null>(null);
+
+  // Mention States
+  const [showMentionMenu, setShowMentionMenu] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -178,6 +194,154 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const isPostingRestricted = Boolean(activeGroup?.onlyAdminsCanPost && !isAdmin);
 
   const isMuted = Boolean(activeGroup?.members[currentUid]?.canMessage === false);
+
+  // Mention Suggestions Candidate List
+  const mentionCandidates = useMemo(() => {
+    if (!activeGroup || !activeGroup.members) return [];
+    const q = mentionQuery.toLowerCase().trim();
+
+    const everyoneOption = {
+      type: 'all' as const,
+      id: 'everyone',
+      displayName: 'everyone',
+      subtitle: `Notify all ${activeGroup.memberCount || Object.keys(activeGroup.members).length} members in this group`,
+      role: 'all' as const,
+      isMe: false,
+    };
+
+    const allOption = {
+      type: 'all' as const,
+      id: 'all',
+      displayName: 'all',
+      subtitle: `Mention all group members`,
+      role: 'all' as const,
+      isMe: false,
+    };
+
+    const memberList = Object.values(activeGroup.members).map((m) => ({
+      type: 'member' as const,
+      id: m.uid,
+      displayName: m.displayName || 'Scholar',
+      subtitle: m.role === 'admin' ? 'Group Admin' : 'Group Member',
+      photoURL: m.photoURL,
+      role: m.role,
+      isMe: m.uid === currentUid,
+    }));
+
+    const results: Array<{
+      type: 'all' | 'member';
+      id: string;
+      displayName: string;
+      subtitle: string;
+      role: string;
+      isMe: boolean;
+      photoURL?: string;
+    }> = [];
+
+    if (!q || 'everyone'.startsWith(q) || 'all'.startsWith(q)) {
+      results.push(everyoneOption);
+      if (q && 'all'.startsWith(q) && q !== 'everyone') {
+        results.push(allOption);
+      }
+    }
+
+    const filteredMembers = memberList.filter((m) =>
+      m.displayName.toLowerCase().includes(q) || m.role.toLowerCase().includes(q)
+    );
+
+    results.push(...filteredMembers);
+    return results;
+  }, [activeGroup, mentionQuery, currentUid]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputText(val);
+
+    const cursorPos = e.target.selectionStart ?? val.length;
+    const textBeforeCursor = val.slice(0, cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex !== -1) {
+      const isValidStart = lastAtIndex === 0 || /\s/.test(textBeforeCursor[lastAtIndex - 1]);
+      const queryText = textBeforeCursor.slice(lastAtIndex + 1);
+      const isValidQuery = !/[\r\n]/.test(queryText) && queryText.length <= 30;
+
+      if (isValidStart && isValidQuery) {
+        setShowMentionMenu(true);
+        setMentionQuery(queryText);
+        setSelectedMentionIndex(0);
+        return;
+      }
+    }
+    setShowMentionMenu(false);
+    setMentionQuery('');
+  };
+
+  const insertMention = (candidate: { displayName: string; type: 'all' | 'member' }) => {
+    const input = inputRef.current;
+    const cursorPos = input?.selectionStart ?? inputText.length;
+    const textBeforeCursor = inputText.slice(0, cursorPos);
+    const textAfterCursor = inputText.slice(cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    const mentionTag = `@${candidate.displayName} `;
+
+    if (lastAtIndex !== -1) {
+      const prefix = textBeforeCursor.slice(0, lastAtIndex);
+      const newText = prefix + mentionTag + textAfterCursor;
+      setInputText(newText);
+      setShowMentionMenu(false);
+      setMentionQuery('');
+
+      setTimeout(() => {
+        if (input) {
+          input.focus();
+          const newPos = prefix.length + mentionTag.length;
+          input.setSelectionRange(newPos, newPos);
+        }
+      }, 10);
+    } else {
+      const newText = inputText ? (inputText.endsWith(' ') ? `${inputText}${mentionTag}` : `${inputText} ${mentionTag}`) : mentionTag;
+      setInputText(newText);
+      setShowMentionMenu(false);
+      setMentionQuery('');
+      setTimeout(() => {
+        if (input) {
+          input.focus();
+          const newPos = newText.length;
+          input.setSelectionRange(newPos, newPos);
+        }
+      }, 10);
+    }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showMentionMenu && mentionCandidates.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedMentionIndex((prev) => (prev + 1) % mentionCandidates.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedMentionIndex((prev) => (prev - 1 + mentionCandidates.length) % mentionCandidates.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        const selected = mentionCandidates[selectedMentionIndex] || mentionCandidates[0];
+        if (selected) {
+          insertMention(selected);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowMentionMenu(false);
+        return;
+      }
+    }
+  };
 
   // Persist active group selection
   useEffect(() => {
@@ -406,6 +570,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     const updatedMessages = [...messages, newMsg];
     setMessages(updatedMessages);
     setInputText('');
+    setShowMentionMenu(false);
+    setMentionQuery('');
     setReplyingTo(null);
     setShowAttachmentMenu(false);
 
@@ -417,6 +583,46 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     const sentOk = await sendGroupMessageInFirestore(activeGroupId, newMsg);
     if (!sentOk) {
       triggerToast('Sync Issue ⚠️', 'Failed to deliver message to group server. Retrying...', 'Important Alerts');
+    }
+
+    // Handle @mentions notifications
+    if (activeGroup && activeGroup.members && finalText) {
+      const isMentionAll = /\b@(everyone|all)\b/i.test(finalText);
+      
+      Object.values(activeGroup.members).forEach((member) => {
+        if (member.uid === currentUid) return;
+
+        let shouldNotify = false;
+        let notifTitle = '';
+        
+        if (isMentionAll) {
+          shouldNotify = true;
+          notifTitle = `📢 ${currentName} mentioned @everyone`;
+        } else if (member.displayName) {
+          const escapedName = member.displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`@${escapedName}\\b`, 'i');
+          if (regex.test(finalText)) {
+            shouldNotify = true;
+            notifTitle = `🔔 ${currentName} mentioned you`;
+          }
+        }
+
+        if (shouldNotify) {
+          sendNotification(
+            notifTitle,
+            `In ${activeGroup.name}: "${finalText.length > 70 ? finalText.slice(0, 70) + '...' : finalText}"`,
+            'Important Alerts',
+            member.uid,
+            undefined,
+            {
+              type: 'group_mention',
+              groupId: activeGroup.id,
+              groupName: activeGroup.name,
+              senderName: currentName
+            }
+          ).catch((e) => console.warn('Failed to send mention notification:', e));
+        }
+      });
     }
 
     // Update group last message snippet
@@ -437,18 +643,38 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     );
   };
 
-  // Helper to render text with clickable URLs (like https://sjtutorai.vercel.app/)
-  const renderMessageWithClickableLinks = (text: string, isMe: boolean) => {
+  // Helper to render text with clickable URLs and @mentions
+  const renderMessageWithMentionsAndLinks = (text: string, isMe: boolean, group?: StudyGroup | null) => {
     if (!text) return null;
     const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const parts = text.split(urlRegex);
+    const urlParts = text.split(urlRegex);
 
-    return parts.map((part, index) => {
-      if (part.match(urlRegex)) {
+    // Extract member names for exact matching
+    const memberNames: string[] = [];
+    if (group?.members) {
+      Object.values(group.members).forEach((m) => {
+        if (m.displayName && m.displayName.trim()) {
+          memberNames.push(m.displayName.trim());
+        }
+      });
+    }
+    memberNames.sort((a, b) => b.length - a.length);
+
+    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const customNamesPattern = memberNames.length > 0 ? memberNames.map(escapeRegex).join('|') : '';
+
+    const mentionPatternStr = customNamesPattern
+      ? `(@everyone\\b|@all\\b|@(?:${customNamesPattern})\\b|@[a-zA-Z0-9_-]+)`
+      : `(@everyone\\b|@all\\b|@[a-zA-Z0-9_-]+)`;
+
+    const mentionRegex = new RegExp(mentionPatternStr, 'gi');
+
+    return urlParts.map((urlPart, urlIndex) => {
+      if (urlPart.match(urlRegex)) {
         return (
           <a
-            key={index}
-            href={part}
+            key={`url-${urlIndex}`}
+            href={urlPart}
             target="_blank"
             rel="noopener noreferrer"
             className={`inline-flex items-center gap-1 font-bold underline break-all transition-opacity hover:opacity-80 ${
@@ -456,12 +682,79 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <span>{part}</span>
+            <span>{urlPart}</span>
             <ExternalLink className="w-3 h-3 shrink-0 inline" />
           </a>
         );
       }
-      return <React.Fragment key={index}>{part}</React.Fragment>;
+
+      const mentionParts = urlPart.split(mentionRegex);
+
+      return (
+        <React.Fragment key={`text-block-${urlIndex}`}>
+          {mentionParts.map((part, mIndex) => {
+            if (!part) return null;
+            if (part.startsWith('@')) {
+              const cleanMention = part.slice(1).trim().toLowerCase();
+              const isAllMention = cleanMention === 'everyone' || cleanMention === 'all';
+              const isMeMention =
+                !isAllMention &&
+                (cleanMention === currentName.toLowerCase() ||
+                  (userProfile.displayName && cleanMention === userProfile.displayName.toLowerCase()));
+
+              if (isAllMention) {
+                return (
+                  <span
+                    key={`mention-${urlIndex}-${mIndex}`}
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs font-black mx-0.5 align-baseline shadow-xs border ${
+                      isMe
+                        ? 'bg-amber-300 text-amber-950 border-amber-400'
+                        : 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700/80'
+                    }`}
+                    title="Mentions all members in this group"
+                  >
+                    <Users className="w-3 h-3 shrink-0 inline" />
+                    <span>{part}</span>
+                  </span>
+                );
+              }
+
+              if (isMeMention) {
+                return (
+                  <span
+                    key={`mention-${urlIndex}-${mIndex}`}
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs font-black mx-0.5 align-baseline shadow-xs border ring-1 ${
+                      isMe
+                        ? 'bg-amber-300 text-amber-950 border-amber-400 ring-amber-400'
+                        : 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-600 ring-indigo-400/40'
+                    }`}
+                    title="You were mentioned!"
+                  >
+                    <AtSign className="w-3 h-3 shrink-0 inline text-indigo-600 dark:text-indigo-400" />
+                    <span>{part}</span>
+                  </span>
+                );
+              }
+
+              return (
+                <span
+                  key={`mention-${urlIndex}-${mIndex}`}
+                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-semibold mx-0.5 align-baseline border ${
+                    isMe
+                      ? 'bg-primary-700/70 text-white border-primary-500/50'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  <AtSign className="w-3 h-3 shrink-0 inline opacity-60" />
+                  <span>{part}</span>
+                </span>
+              );
+            }
+
+            return <React.Fragment key={`sub-${urlIndex}-${mIndex}`}>{part}</React.Fragment>;
+          })}
+        </React.Fragment>
+      );
     });
   };
 
@@ -950,14 +1243,50 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     await updateGroupMemberMessagingInFirestore(group.id, memberUid, newStatus);
   };
 
-  const handleUpdateGroupBg = async (url: string) => {
+  const handleSaveGroupBgSettings = async (settings: ChatBgSettings) => {
+    if (!activeGroup) return;
+    const { imageUrl = '', bgColor = '', overlayOpacity = 0.5, blur = 0 } = settings;
+    
+    setGroups((prev) =>
+      prev.map((g) => (g.id === activeGroup.id ? { 
+        ...g, 
+        chatBgImage: imageUrl, 
+        chatBgColor: bgColor,
+        chatBgOverlay: overlayOpacity,
+        chatBgBlur: blur,
+        updatedAt: Date.now() 
+      } : g))
+    );
+    
+    triggerToast('Chat Background Saved! 🎨', 'Applied new wallpaper to this group chat.', 'Important Alerts');
+    
+    await updateGroupInFirestore(activeGroup.id, {
+      chatBgImage: imageUrl,
+      chatBgColor: bgColor,
+      chatBgOverlay: overlayOpacity,
+      chatBgBlur: blur,
+    });
+  };
+
+  const handleClearGroupBgSettings = async () => {
     if (!activeGroup) return;
     setGroups((prev) =>
-      prev.map((g) => (g.id === activeGroup.id ? { ...g, chatBgImage: url, updatedAt: Date.now() } : g))
+      prev.map((g) => (g.id === activeGroup.id ? { 
+        ...g, 
+        chatBgImage: '', 
+        chatBgColor: '',
+        chatBgOverlay: 0.5,
+        chatBgBlur: 0,
+        updatedAt: Date.now() 
+      } : g))
     );
-    triggerToast('Background Updated 🎨', url ? 'Custom chat background applied.' : 'Chat background cleared.', 'Important Alerts');
-    await updateGroupInFirestore(activeGroup.id, { chatBgImage: url });
-    setBgEditUrl('');
+    triggerToast('Background Reset', 'Reset to default theme.', 'Important Alerts');
+    await updateGroupInFirestore(activeGroup.id, {
+      chatBgImage: '',
+      chatBgColor: '',
+      chatBgOverlay: 0.5,
+      chatBgBlur: 0,
+    });
   };
 
   // Delete message for everyone in group (Owner / Admin / Message Author)
@@ -1076,109 +1405,101 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   if (groupsMainTab === 'direct_chat') {
     return (
-      <div className="space-y-4 max-w-7xl mx-auto">
+      <div className="w-full h-full min-h-0 flex-1 flex flex-col space-y-3 max-w-7xl mx-auto">
         {/* Main Header Toggle */}
-        <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm max-w-md">
+        <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm max-w-xs sm:max-w-md shrink-0">
           <button
             onClick={() => setGroupsMainTab('groups')}
-            className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all"
+            className="flex-1 flex items-center justify-center gap-2 py-2 px-3 sm:px-4 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all"
           >
             <Users className="w-4 h-4" />
             <span>Study Groups</span>
           </button>
           <button
             onClick={() => setGroupsMainTab('direct_chat')}
-            className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 shadow-md transition-all"
+            className="flex-1 flex items-center justify-center gap-2 py-2 px-3 sm:px-4 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 shadow-md transition-all"
           >
             <MessageSquare className="w-4 h-4" />
             <span>1-on-1 Friend Chat</span>
           </button>
         </div>
 
-        <DirectChatView
-          user={userUid ? { uid: userUid } : null}
-          userProfile={userProfile}
-          onOpenAuthModal={onOpenAuthModal || (() => {})}
-          initialTargetUser={targetDirectUser}
-        />
+        <div className="flex-1 min-h-0 w-full flex flex-col">
+          <DirectChatView
+            user={userUid ? { uid: userUid } : null}
+            userProfile={userProfile}
+            onOpenAuthModal={onOpenAuthModal || (() => {})}
+            initialTargetUser={targetDirectUser}
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col space-y-4 max-w-7xl mx-auto">
+    <div className="w-full h-full min-h-0 flex-1 flex flex-col space-y-3 max-w-7xl mx-auto">
       {/* Main Mode Toggle Header */}
-      <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm max-w-md">
+      <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm max-w-xs sm:max-w-md shrink-0">
         <button
           onClick={() => setGroupsMainTab('groups')}
-          className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-md transition-all"
+          className="flex-1 flex items-center justify-center gap-2 py-2 px-3 sm:px-4 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-md transition-all"
         >
           <Users className="w-4 h-4" />
           <span>Study Groups</span>
         </button>
         <button
           onClick={() => setGroupsMainTab('direct_chat')}
-          className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all"
+          className="flex-1 flex items-center justify-center gap-2 py-2 px-3 sm:px-4 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all"
         >
           <MessageSquare className="w-4 h-4" />
           <span>1-on-1 Friend Chat</span>
         </button>
       </div>
 
-      <div className={`bg-white dark:bg-slate-900 shadow-2xl flex overflow-hidden transition-all duration-300 ${
-        isEnlarged 
-          ? 'h-[calc(100vh-5.5rem)] min-h-[650px] rounded-2xl border border-slate-200 dark:border-slate-800' 
-          : 'h-[calc(100vh-10rem)] min-h-[600px] rounded-3xl border border-slate-200 dark:border-slate-800'
-      }`}>
+      <div className="flex-1 min-h-0 w-full bg-white dark:bg-slate-900 shadow-xl flex overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 transition-all duration-300">
       {/* LEFT SIDEBAR: GROUP LIST */}
       <div
         className={`${
           showMobileChat ? 'hidden lg:flex' : 'flex'
-        } w-full lg:w-96 flex-col border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex-shrink-0`}
+        } w-full lg:w-80 xl:w-96 flex-col border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex-shrink-0 min-h-0 h-full`}
       >
         {/* Sidebar Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
-                <Users className="w-5 h-5" />
+        <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shrink-0">
+          <div className="flex items-center justify-between mb-3 gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 shrink-0">
+                <Users className="w-4 h-4" />
               </div>
-              <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+              <div className="min-w-0">
+                <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight truncate">
                   Study Groups
                 </h2>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 shrink-0">
               <button
-                onClick={() => setIsEnlarged(!isEnlarged)}
-                className={`p-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-xs font-bold shrink-0 ${
-                  isEnlarged 
-                    ? 'text-amber-600 bg-amber-100 dark:bg-amber-950/40 ring-2 ring-amber-500' 
-                    : 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
-                }`}
-                title={isEnlarged ? "Exit Enlarge" : "Enlarge Study Groups"}
+                onClick={() => setShowQRScannerModal(true)}
+                className="p-2 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 rounded-xl transition-all active:scale-95 flex items-center justify-center text-xs font-bold shrink-0 shadow-xs"
+                title="Scan or Upload Group QR Code"
               >
-                {isEnlarged ? <Minimize2 className="w-4 h-4 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-4 h-4" />}
-                <span>{isEnlarged ? "Minimize" : "Enlarge"}</span>
+                <ScanLine className="w-4 h-4" />
               </button>
 
               <button
                 onClick={() => setShowJoinByIdModal(true)}
-                className="p-2 sm:px-3 py-2 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 rounded-xl transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold shrink-0"
+                className="p-2 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 rounded-xl transition-all active:scale-95 flex items-center justify-center text-xs font-bold shrink-0"
                 title="Join Group by ID, Invite Code, or Link"
               >
-                <LinkIcon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Paste ID</span>
+                <LinkIcon className="w-4 h-4" />
               </button>
 
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="p-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center shrink-0"
+                className="p-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center shrink-0"
                 title="Create New Study Group"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -1359,11 +1680,30 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       <div
         className={`${
           !showMobileChat ? 'hidden lg:flex' : 'flex'
-        } flex-1 flex-col ${activeGroup?.chatBgImage ? '' : 'bg-slate-100/60 dark:bg-slate-950'} relative overflow-hidden`}
-        style={activeGroup?.chatBgImage ? { backgroundImage: `url(${activeGroup.chatBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+        } flex-1 flex-col ${activeGroup?.chatBgImage || activeGroup?.chatBgColor ? '' : 'bg-slate-100/60 dark:bg-slate-950'} relative overflow-hidden`}
+        style={{
+          background: activeGroup?.chatBgColor || undefined,
+        }}
       >
-        {/* Semi-transparent overlay if background image exists for better text readability */}
-        {activeGroup?.chatBgImage && <div className="absolute inset-0 bg-white/40 dark:bg-black/60 pointer-events-none z-0"></div>}
+        {/* Background Image Layer with Blur */}
+        {activeGroup?.chatBgImage && (
+          <div 
+            className="absolute inset-0 bg-cover bg-center pointer-events-none z-0 transition-all"
+            style={{
+              backgroundImage: `url(${activeGroup.chatBgImage})`,
+              filter: (activeGroup.chatBgBlur || 0) > 0 ? `blur(${activeGroup.chatBgBlur}px)` : undefined,
+              transform: (activeGroup.chatBgBlur || 0) > 0 ? 'scale(1.05)' : undefined,
+            }}
+          />
+        )}
+
+        {/* Semi-transparent overlay for text readability */}
+        {(activeGroup?.chatBgImage || activeGroup?.chatBgColor) && (
+          <div 
+            className="absolute inset-0 bg-black pointer-events-none z-0 transition-opacity" 
+            style={{ opacity: activeGroup.chatBgOverlay ?? 0.45 }}
+          />
+        )}
         
         {activeGroup && isMemberOfActive ? (
           <>
@@ -1416,16 +1756,24 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     )}
                   </button>
                 )}
-                <a
-                  href="https://sjtutorai.vercel.app/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-xl transition flex items-center gap-1.5 text-xs font-bold border border-indigo-200/60 dark:border-indigo-800/40"
-                  title="Visit SJ Tutor Website (https://sjtutorai.vercel.app/)"
+
+                {/* QR Code Pass Button */}
+                <button
+                  onClick={() => setShowQRPassModal(true)}
+                  className="p-2 text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 rounded-xl transition shadow-sm"
+                  title="View Group QR Pass & Share Poster"
                 >
-                  <Globe className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                  <span className="hidden sm:inline">Website</span>
-                </a>
+                  <QrCode className="w-5 h-5" />
+                </button>
+
+                {/* Chat Wallpaper Customizer Button */}
+                <button
+                  onClick={() => setShowBgModal(true)}
+                  className="p-2 text-amber-600 dark:text-amber-400 bg-amber-50/80 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 rounded-xl transition shadow-sm"
+                  title="Customize Chat Wallpaper & Atmosphere"
+                >
+                  <Palette className="w-5 h-5" />
+                </button>
 
                 <button
                   onClick={() => setShowPollCreator(true)}
@@ -1553,7 +1901,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                           {/* Message Text Content */}
                           {msg.type === 'text' && (
                             <div className="whitespace-pre-wrap leading-relaxed">
-                              {renderMessageWithClickableLinks(msg.text, isMe)}
+                              {renderMessageWithMentionsAndLinks(msg.text, isMe, activeGroup)}
                             </div>
                           )}
 
@@ -1565,7 +1913,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                                 alt="SharedAttachment"
                                 className="rounded-xl max-h-60 object-cover w-full border border-black/10"
                               />
-                              {msg.text && <p className="text-xs">{msg.text}</p>}
+                              {msg.text && (
+                                <div className="text-xs whitespace-pre-wrap">
+                                  {renderMessageWithMentionsAndLinks(msg.text, isMe, activeGroup)}
+                                </div>
+                              )}
                             </div>
                           )}
 
@@ -1760,7 +2112,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute bottom-20 left-4 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-3 grid grid-cols-2 gap-2 z-30 min-w-[240px]"
+                  className="absolute bottom-20 left-4 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-2.5 grid grid-cols-2 gap-2 z-30 min-w-[220px]"
                 >
                   <button
                     onClick={() => {
@@ -1783,23 +2135,97 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     <BarChart2 className="w-4 h-4 text-blue-500" />
                     <span>Create Poll</span>
                   </button>
-
-                  <button
-                    onClick={() => {
-                      setShowAttachmentMenu(false);
-                      setInputText((prev) => (prev ? `${prev} https://sjtutorai.vercel.app/` : 'https://sjtutorai.vercel.app/'));
-                    }}
-                    className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 transition col-span-2 border-t border-slate-100 dark:border-slate-700/60 pt-2"
-                  >
-                    <Globe className="w-4 h-4 text-indigo-500" />
-                    <span>Share Website (sjtutorai.vercel.app)</span>
-                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
 
             {/* Message Input Bar */}
-            <div className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-20">
+            <div className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-20 relative">
+              {/* Mention Suggestions Popover */}
+              <AnimatePresence>
+                {showMentionMenu && mentionCandidates.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute bottom-full left-3 right-3 sm:left-4 sm:right-auto sm:w-96 mb-3 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden z-40"
+                  >
+                    <div className="px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <AtSign className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        <span>Mention in Group</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        ↑↓ Navigate • ↵ Select
+                      </span>
+                    </div>
+
+                    <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 p-1.5 custom-scrollbar">
+                      {mentionCandidates.map((candidate, idx) => {
+                        const isSelected = idx === selectedMentionIndex;
+                        return (
+                          <button
+                            key={`${candidate.type}-${candidate.id}`}
+                            type="button"
+                            onMouseEnter={() => setSelectedMentionIndex(idx)}
+                            onClick={() => insertMention(candidate)}
+                            className={`w-full px-3 py-2 rounded-xl text-left flex items-center gap-3 transition-colors ${
+                              isSelected
+                                ? 'bg-indigo-50 dark:bg-indigo-950/70 text-indigo-950 dark:text-indigo-100'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-800 dark:text-slate-200'
+                            }`}
+                          >
+                            {candidate.type === 'all' ? (
+                              <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                                <Users className="w-4 h-4" />
+                              </div>
+                            ) : candidate.photoURL ? (
+                              <img
+                                src={candidate.photoURL}
+                                alt={candidate.displayName}
+                                className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                                {candidate.displayName.slice(0, 2).toUpperCase()}
+                              </div>
+                            )}
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-xs truncate">
+                                  @{candidate.displayName}
+                                </span>
+                                {candidate.isMe && (
+                                  <span className="px-1.5 py-0.2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] rounded font-medium">
+                                    You
+                                  </span>
+                                )}
+                                {candidate.role === 'admin' && (
+                                  <span className="px-1.5 py-0.2 bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 text-[10px] rounded font-bold">
+                                    Admin
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                {candidate.subtitle}
+                              </p>
+                            </div>
+
+                            {isSelected && (
+                              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold shrink-0 hidden sm:inline">
+                                Select
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -1811,46 +2237,46 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   type="button"
                   onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
                   className="p-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition flex-shrink-0"
-                  title="Attach Media, Poll, or Link"
+                  title="Attach Media or Poll"
                 >
                   <Paperclip className="w-5 h-5" />
                 </button>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputText((prev) => (prev ? (prev.endsWith(' ') ? `${prev}@` : `${prev} @`) : '@'));
+                    setShowMentionMenu(true);
+                    setMentionQuery('');
+                    setTimeout(() => {
+                      inputRef.current?.focus();
+                    }, 20);
+                  }}
+                  className="p-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition flex-shrink-0"
+                  title="Mention member or @everyone"
+                >
+                  <AtSign className="w-5 h-5" />
+                </button>
+
                 <div className="flex-1 relative">
                   <input
+                    ref={inputRef}
                     type="text"
                     disabled={isPostingRestricted || (isMuted && !isAdmin)}
-                    placeholder={isPostingRestricted ? "Posting is restricted to admins" : (isMuted && !isAdmin) ? "You are muted" : "Type a message or @Tutor to ask AI..."}
+                    placeholder={
+                      isPostingRestricted
+                        ? 'Posting is restricted to admins'
+                        : isMuted && !isAdmin
+                        ? 'You are muted'
+                        : 'Type a message or @ to mention...'
+                    }
                     value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    className={`w-full pl-4 pr-32 py-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/40 transition ${
+                    onChange={handleInputChange}
+                    onKeyDown={handleInputKeyDown}
+                    className={`w-full px-4 py-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/40 transition ${
                       isPostingRestricted || (isMuted && !isAdmin) ? 'opacity-60 cursor-not-allowed' : ''
                     }`}
                   />
-
-                  {/* Quick Action Chips inside Input Bar */}
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    {!inputText.includes('https://sjtutorai.vercel.app/') && (
-                      <button
-                        type="button"
-                        onClick={() => setInputText((prev) => (prev ? `${prev} https://sjtutorai.vercel.app/` : 'https://sjtutorai.vercel.app/'))}
-                        className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded-lg hover:bg-indigo-200 transition flex items-center gap-1"
-                        title="Insert website link"
-                      >
-                        <Globe className="w-3 h-3" />
-                        <span className="hidden sm:inline">Web</span>
-                      </button>
-                    )}
-                    {!inputText.includes('@Tutor') && (
-                      <button
-                        type="button"
-                        onClick={() => setInputText((prev) => (prev ? prev + ' @Tutor ' : '@Tutor '))}
-                        className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-lg hover:bg-purple-200 transition"
-                      >
-                        @Tutor
-                      </button>
-                    )}
-                  </div>
                 </div>
 
                 {/* Voice Note or Send Button */}
@@ -2916,40 +3342,63 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 </div>
 
                 {/* Chat Background Settings */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Chat Background
-                  </h4>
-                  <div className="flex gap-2 mb-2">
-                    <input
-                      type="url"
-                      placeholder="Image URL..."
-                      value={bgEditUrl}
-                      onChange={(e) => setBgEditUrl(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <button
-                      onClick={() => handleUpdateGroupBg(bgEditUrl)}
-                      className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition"
-                    >
-                      Set
-                    </button>
+                <div className="space-y-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Palette className="w-4 h-4 text-amber-500" />
+                      Chat Background & Theme
+                    </h4>
+                    {activeGroup.chatBgImage && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded-full">
+                        Customized
+                      </span>
+                    )}
                   </div>
-                  {activeGroup.chatBgImage && (
+                  
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Set AI-generated artwork, study aesthetic wallpapers, or solid color gradients.
+                  </p>
+
+                  <div className="flex gap-2">
                     <button
-                      onClick={() => handleUpdateGroupBg('')}
-                      className="w-full py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl font-bold text-xs transition border border-rose-200 dark:border-rose-800"
+                      onClick={() => {
+                        setShowGroupInfo(false);
+                        setShowBgModal(true);
+                      }}
+                      className="flex-1 py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
                     >
-                      Clear Background
+                      <Brush className="w-3.5 h-3.5" />
+                      Customize Wallpaper
                     </button>
-                  )}
+
+                    {(activeGroup.chatBgImage || activeGroup.chatBgColor) && (
+                      <button
+                        onClick={handleClearGroupBgSettings}
+                        className="py-2.5 px-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold transition border border-rose-200 dark:border-rose-800/60"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Share Group Link & Group ID */}
                 <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Group Share & Invite Link
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Group Share & Invite Link
+                    </h4>
+                    <button
+                      onClick={() => {
+                        setShowGroupInfo(false);
+                        setShowQRPassModal(true);
+                      }}
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      Full QR Pass
+                    </button>
+                  </div>
 
                   <div className="flex justify-center p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
                     <QRCodeSVG 
@@ -3167,6 +3616,60 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* GROUP QR PASS MODAL */}
+      <AnimatePresence>
+        {showQRPassModal && activeGroup && (
+          <GroupQRModal
+            group={activeGroup}
+            currentUserName={currentName}
+            onClose={() => setShowQRPassModal(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* GROUP QR SCANNER MODAL */}
+      <AnimatePresence>
+        {showQRScannerModal && (
+          <GroupQRScannerModal
+            currentUserId={currentUid || userUid || ''}
+            userProfile={userProfile}
+            onJoinedGroup={(joinedGroup) => {
+              setGroups((prev) => {
+                const exists = prev.some((g) => g.id === joinedGroup.id);
+                if (exists) {
+                  return prev.map((g) => (g.id === joinedGroup.id ? joinedGroup : g));
+                }
+                return [joinedGroup, ...prev];
+              });
+              setActiveGroupId(joinedGroup.id);
+              setShowMobileChat(true);
+            }}
+            onClose={() => setShowQRScannerModal(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* CHAT BACKGROUND CUSTOMIZER MODAL */}
+      <AnimatePresence>
+        {showBgModal && activeGroup && (
+          <ChatBackgroundModal
+            title={`Customize "${activeGroup.name}" Chat Background`}
+            subtitle="Generate with Gemini AI, pick aesthetic study wallpapers, or set color gradients"
+            currentBgImage={activeGroup.chatBgImage || ''}
+            currentBgColor={activeGroup.chatBgColor || ''}
+            currentOverlayOpacity={activeGroup.chatBgOverlay ?? 0.45}
+            currentBlur={activeGroup.chatBgBlur ?? 0}
+            onSave={(settings) => {
+              handleSaveGroupBgSettings(settings);
+            }}
+            onClear={() => {
+              handleClearGroupBgSettings();
+            }}
+            onClose={() => setShowBgModal(false)}
+          />
         )}
       </AnimatePresence>
       </div>

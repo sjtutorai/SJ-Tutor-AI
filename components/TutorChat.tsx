@@ -35,12 +35,14 @@ import {
   ArrowRight,
   ArrowDown,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Palette
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
+import { ChatBackgroundModal, ChatBgSettings } from './ChatBackgroundModal';
 import { SettingsService } from '../services/settingsService';
 import { jsPDF } from 'jspdf';
 
@@ -216,6 +218,36 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   const [loadedSessionId, setLoadedSessionId] = useState<string | null | undefined>(activeSessionId);
   const [isSessionsOpen, setIsSessionsOpen] = useState(false);
   const [showResumePrompt, setShowResumePrompt] = useState(true);
+  const [isBgModalOpen, setIsBgModalOpen] = useState(false);
+
+  // Background Settings with Local Persistence
+  const [tutorBgSettings, setTutorBgSettings] = useState<ChatBgSettings>(() => {
+    try {
+      const saved = localStorage.getItem('sjtutor_ai_chat_bg');
+      return saved ? JSON.parse(saved) : { imageUrl: '', bgColor: '', overlayOpacity: 0.35, blur: 0 };
+    } catch {
+      return { imageUrl: '', bgColor: '', overlayOpacity: 0.35, blur: 0 };
+    }
+  });
+
+  const handleSaveTutorBg = (settings: ChatBgSettings) => {
+    setTutorBgSettings(settings);
+    try {
+      localStorage.setItem('sjtutor_ai_chat_bg', JSON.stringify(settings));
+    } catch (err) {
+      console.error('Failed to save tutor background', err);
+    }
+  };
+
+  const handleClearTutorBg = () => {
+    const defaultSettings: ChatBgSettings = { imageUrl: '', bgColor: '', overlayOpacity: 0.35, blur: 0 };
+    setTutorBgSettings(defaultSettings);
+    try {
+      localStorage.removeItem('sjtutor_ai_chat_bg');
+    } catch (err) {
+      console.error('Failed to clear tutor background', err);
+    }
+  };
 
   // Sync messages state when switching sessions
   useEffect(() => {
@@ -1052,6 +1084,13 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               <Download className="w-4 h-4" />
             </button>
             <button
+              onClick={() => setIsBgModalOpen(true)}
+              className="p-2 text-amber-600 dark:text-amber-400 bg-amber-50/80 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 rounded-xl transition-all shadow-sm"
+              title="Customize Tutor Wallpaper & Atmosphere"
+            >
+              <Palette className="w-4 h-4" />
+            </button>
+            <button
               onClick={() => setShowBookmarks(!showBookmarks)}
               className={`p-2 rounded-xl transition-all flex items-center gap-1.5 ${showBookmarks ? 'text-amber-600 bg-amber-50 dark:bg-amber-950/20' : 'text-slate-500 dark:text-slate-400 hover:text-amber-550 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
               title="Starred Lessons"
@@ -1081,12 +1120,41 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           </div>
         </div>
 
-        {/* Message Thread */}
+        {/* Message Thread Container with Custom Wallpaper */}
         <div 
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
-          className="flex-grow overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-50/40 dark:bg-slate-950/20 relative"
+          className="flex-grow flex flex-col relative overflow-hidden"
+          style={{
+            background: tutorBgSettings.bgColor || undefined
+          }}
         >
+          {/* Wallpaper Image Layer with Blur */}
+          {tutorBgSettings.imageUrl && (
+            <div 
+              className="absolute inset-0 bg-cover bg-center pointer-events-none z-0 transition-all"
+              style={{
+                backgroundImage: `url(${tutorBgSettings.imageUrl})`,
+                filter: (tutorBgSettings.blur || 0) > 0 ? `blur(${tutorBgSettings.blur}px)` : undefined,
+                transform: (tutorBgSettings.blur || 0) > 0 ? 'scale(1.05)' : undefined,
+              }}
+            />
+          )}
+
+          {/* Overlay for text readability */}
+          {(tutorBgSettings.imageUrl || tutorBgSettings.bgColor) && (
+            <div 
+              className="absolute inset-0 bg-black pointer-events-none z-0 transition-opacity"
+              style={{ opacity: tutorBgSettings.overlayOpacity ?? 0.35 }}
+            />
+          )}
+
+          {/* Message Thread */}
+          <div 
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className={`flex-grow overflow-y-auto p-6 space-y-6 custom-scrollbar relative z-10 ${
+              tutorBgSettings.imageUrl || tutorBgSettings.bgColor ? '' : 'bg-slate-50/40 dark:bg-slate-950/20'
+            }`}
+          >
           {/* Resume Session Prompt card */}
           {activeSessionId === null && messages.length === 1 && recentSessions && recentSessions.length > 0 && showResumePrompt && (
             (() => {
@@ -1415,6 +1483,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             </motion.button>
           )}
         </AnimatePresence>
+        </div>
 
         {/* Input Control Console */}
         <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-3">
@@ -1827,6 +1896,26 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           </div>
         </div>
       )}
+      {/* CHAT BACKGROUND CUSTOMIZER MODAL */}
+      <AnimatePresence>
+        {isBgModalOpen && (
+          <ChatBackgroundModal
+            title="Customize SJ Tutor AI Atmosphere"
+            subtitle="Generate with Gemini AI, select aesthetic study themes, or upload your own wallpaper"
+            currentBgImage={tutorBgSettings.imageUrl}
+            currentBgColor={tutorBgSettings.bgColor}
+            currentOverlayOpacity={tutorBgSettings.overlayOpacity}
+            currentBlur={tutorBgSettings.blur}
+            onSave={(settings) => {
+              handleSaveTutorBg(settings);
+            }}
+            onClear={() => {
+              handleClearTutorBg();
+            }}
+            onClose={() => setIsBgModalOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -44,10 +44,13 @@ import {
   Maximize2,
   Minimize2,
   BookOpen,
-  Trash2
+  Trash2,
+  Palette,
+  Brush
 } from "lucide-react";
 import { compressImage } from "../utils/imageUtils";
 import { motion, AnimatePresence } from "motion/react";
+import { ChatBackgroundModal, ChatBgSettings } from "./ChatBackgroundModal";
 
 interface DirectChatViewProps {
   user: any;
@@ -89,26 +92,60 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
   // Reactions & Friend Info Modal
   const [showFriendInfoModal, setShowFriendInfoModal] = useState(false);
+  const [showBgModal, setShowBgModal] = useState(false);
   const [activeMediaTab, setActiveMediaTab] = useState<'photos'|'links'|'audio'|'documents'>('photos');
   const [isEnlarged, setIsEnlarged] = useState(false);
-  const [bgEditUrl, setBgEditUrl] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  const handleUpdateChatBg = async (url: string) => {
+  const handleSaveChatBgSettings = async (settings: ChatBgSettings) => {
+    if (!activeChatId) return;
+    const { imageUrl = '', bgColor = '', overlayOpacity = 0.5, blur = 0 } = settings;
+
+    setDirectChats((prev) =>
+      prev.map((c) => (c.id === activeChatId ? { 
+        ...c, 
+        chatBgImage: imageUrl, 
+        chatBgColor: bgColor,
+        chatBgOverlay: overlayOpacity,
+        chatBgBlur: blur,
+        updatedAt: Date.now() 
+      } : c))
+    );
+    
+    triggerToast('Chat Wallpaper Saved! 🎨', 'Applied new atmosphere to this 1-on-1 chat.', 'Important Alerts');
+
+    const { updateDirectChatInFirestore } = await import("../utils/firebaseUtils");
+    await updateDirectChatInFirestore(activeChatId, {
+      chatBgImage: imageUrl,
+      chatBgColor: bgColor,
+      chatBgOverlay: overlayOpacity,
+      chatBgBlur: blur,
+    });
+  };
+
+  const handleClearChatBgSettings = async () => {
     if (!activeChatId) return;
     setDirectChats((prev) =>
-      prev.map((c) => (c.id === activeChatId ? { ...c, chatBgImage: url, updatedAt: Date.now() } : c))
+      prev.map((c) => (c.id === activeChatId ? { 
+        ...c, 
+        chatBgImage: '', 
+        chatBgColor: '',
+        chatBgOverlay: 0.5,
+        chatBgBlur: 0,
+        updatedAt: Date.now() 
+      } : c))
     );
-    triggerToast('Background Updated 🎨', url ? 'Custom chat background applied.' : 'Chat background cleared.', 'Important Alerts');
-    
-    // We need updateDirectChatInFirestore which was added to firebaseUtils
+    triggerToast('Background Reset', 'Reset to default clean theme.', 'Important Alerts');
     const { updateDirectChatInFirestore } = await import("../utils/firebaseUtils");
-    await updateDirectChatInFirestore(activeChatId, { chatBgImage: url });
-    
-    setBgEditUrl('');
+    await updateDirectChatInFirestore(activeChatId, {
+      chatBgImage: '',
+      chatBgColor: '',
+      chatBgOverlay: 0.5,
+      chatBgBlur: 0,
+    });
   };
 
   const handleScroll = () => {
@@ -464,32 +501,32 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
   const chatDocs = visibleMessages.filter(m => m.type === 'note' && m.noteData);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="w-full h-full min-h-0 flex-1 flex flex-col space-y-3">
       {/* Top Header & Section Tabs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl">
-              <MessageSquare className="w-5 h-5" />
+            <span className="p-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl">
+              <MessageSquare className="w-4 h-4" />
             </span>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Direct Friend Chat</h1>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">Direct Friend Chat</h1>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Private 1-on-1 messaging, friend connections, and direct study support
           </p>
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700/60 overflow-x-auto">
+        <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700/60 overflow-x-auto shrink-0">
           <button
             onClick={() => { setActiveTab("chats"); }}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
               activeTab === "chats"
                 ? "bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <MessageSquare className="w-4 h-4" />
+            <MessageSquare className="w-3.5 h-3.5" />
             <span>Messages</span>
             {directChats.some((c) => (c.unreadCount?.[user.uid] || 0) > 0) && (
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
@@ -498,25 +535,25 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
           <button
             onClick={() => setActiveTab("friends")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
               activeTab === "friends"
                 ? "bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <Users className="w-4 h-4" />
+            <Users className="w-3.5 h-3.5" />
             <span>Friends ({acceptedFriends.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab("requests")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all whitespace-nowrap relative ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap relative ${
               activeTab === "requests"
                 ? "bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <Clock className="w-4 h-4" />
+            <Clock className="w-3.5 h-3.5" />
             <span>Requests</span>
             {pendingRequests.length > 0 && (
               <span className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-500 text-slate-950 rounded-full">
@@ -527,24 +564,20 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
           <button
             onClick={() => setActiveTab("add_friend")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
               activeTab === "add_friend"
                 ? "bg-amber-500 text-slate-950 font-bold shadow-md"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <UserPlus className="w-4 h-4" />
+            <UserPlus className="w-3.5 h-3.5" />
             <span>Find Friends</span>
           </button>
         </div>
       </div>
 
       {/* MAIN CONTAINER */}
-      <div className={`bg-white dark:bg-slate-900 shadow-xl flex flex-col md:flex-row transition-all duration-300 ${
-        isEnlarged
-          ? 'h-[calc(100vh-5.5rem)] min-h-[650px] rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden'
-          : 'rounded-3xl border border-slate-200/80 dark:border-slate-800 min-h-[600px] overflow-hidden'
-      }`}>
+      <div className="flex-1 min-h-0 w-full bg-white dark:bg-slate-900 shadow-xl flex flex-col md:flex-row overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 transition-all duration-300">
         {/* LEFT SIDEBAR: Conversation List / Friends List */}
         <div className={`w-full md:w-80 lg:w-96 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50 ${activeChatId ? "hidden md:flex" : "flex"}`}>
           
@@ -863,79 +896,112 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
         </div>
 
         {/* RIGHT MAIN PANEL: Active 1-on-1 Chat Room */}
-        <div 
-          className={`flex-1 flex flex-col relative ${!activeChatId ? "hidden md:flex items-center justify-center" : "flex"} ${
-            activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage ? "" : "bg-white dark:bg-slate-900"
-          }`}
-          style={activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage ? { backgroundImage: `url(${activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
-        >
-          {activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage && (
-            <div className="absolute inset-0 bg-white/40 dark:bg-black/60 pointer-events-none z-0"></div>
-          )}
-          {activeChatId && activeFriendDetails ? (
-            <>
-              {/* CHAT HEADER */}
-              <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm z-10">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setActiveChatId(null)}
-                    className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white md:hidden"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
+        {(() => {
+          const currentChat = activeDirectChats.find(c => c.id === activeChatId);
+          const hasBg = Boolean(currentChat?.chatBgImage || currentChat?.chatBgColor);
 
-                  <div className="relative">
-                    <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center overflow-hidden border border-amber-500/30">
-                      {activeFriendDetails.photoURL ? (
-                        <img src={activeFriendDetails.photoURL} alt={activeFriendDetails.displayName} className="w-full h-full object-cover" />
-                      ) : (
-                        activeFriendDetails.displayName.charAt(0).toUpperCase()
-                      )}
+          return (
+            <div 
+              className={`flex-1 flex flex-col relative ${!activeChatId ? "hidden md:flex items-center justify-center" : "flex"} ${
+                hasBg ? "" : "bg-white dark:bg-slate-900"
+              } overflow-hidden`}
+              style={{
+                background: currentChat?.chatBgColor || undefined,
+              }}
+            >
+              {/* Background Image Layer with Blur */}
+              {currentChat?.chatBgImage && (
+                <div 
+                  className="absolute inset-0 bg-cover bg-center pointer-events-none z-0 transition-all"
+                  style={{
+                    backgroundImage: `url(${currentChat.chatBgImage})`,
+                    filter: (currentChat.chatBgBlur || 0) > 0 ? `blur(${currentChat.chatBgBlur}px)` : undefined,
+                    transform: (currentChat.chatBgBlur || 0) > 0 ? 'scale(1.05)' : undefined,
+                  }}
+                />
+              )}
+
+              {/* Semi-transparent overlay for text readability */}
+              {hasBg && (
+                <div 
+                  className="absolute inset-0 bg-black pointer-events-none z-0 transition-opacity" 
+                  style={{ opacity: currentChat?.chatBgOverlay ?? 0.45 }}
+                />
+              )}
+
+              {activeChatId && activeFriendDetails ? (
+                <>
+                  {/* CHAT HEADER */}
+                  <div className="p-4 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm z-10">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setActiveChatId(null)}
+                        className="p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white md:hidden"
+                      >
+                        <ArrowLeft className="w-5 h-5" />
+                      </button>
+
+                      <div className="relative">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center overflow-hidden border border-amber-500/30">
+                          {activeFriendDetails.photoURL ? (
+                            <img src={activeFriendDetails.photoURL} alt={activeFriendDetails.displayName} className="w-full h-full object-cover" />
+                          ) : (
+                            activeFriendDetails.displayName.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full" />
+                      </div>
+
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          {activeFriendDetails.displayName}
+                          <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                        </h3>
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Online & Direct Connected</p>
+                      </div>
                     </div>
-                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full" />
-                  </div>
 
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                      {activeFriendDetails.displayName}
-                      <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                    </h3>
-                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Online & Direct Connected</p>
-                  </div>
-                </div>
+                    <div className="flex items-center gap-1">
+                      {/* Wallpaper Customizer Button */}
+                      <button
+                        onClick={() => setShowBgModal(true)}
+                        className="p-2 text-amber-600 dark:text-amber-400 bg-amber-50/80 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 rounded-xl transition-all cursor-pointer shadow-sm"
+                        title="Customize 1-on-1 Chat Wallpaper & Atmosphere"
+                      >
+                        <Palette className="w-5 h-5" />
+                      </button>
 
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setIsEnlarged(!isEnlarged)}
-                    className={`p-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
-                      isEnlarged 
-                        ? 'text-amber-600 bg-amber-100 dark:bg-amber-950/40 ring-2 ring-amber-500 font-bold' 
-                        : 'text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                    title={isEnlarged ? "Exit Enlarge" : "Enlarge Messages"}
-                  >
-                    {isEnlarged ? <Minimize2 className="w-5 h-5 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-5 h-5" />}
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (activeChatId && activeFriendDetails) {
-                        handleDeleteChat(activeChatId, activeFriendDetails.displayName);
-                      }
-                    }}
-                    className="p-2 text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all cursor-pointer"
-                    title="Delete Chat History"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => setShowFriendInfoModal(true)}
-                    className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
-                    title="Friend Info"
-                  >
-                    <Info className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+                      <button
+                        onClick={() => setIsEnlarged(!isEnlarged)}
+                        className={`p-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                          isEnlarged 
+                            ? 'text-amber-600 bg-amber-100 dark:bg-amber-950/40 ring-2 ring-amber-500 font-bold' 
+                            : 'text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                        title={isEnlarged ? "Exit Enlarge" : "Enlarge Messages"}
+                      >
+                        {isEnlarged ? <Minimize2 className="w-5 h-5 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-5 h-5" />}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (activeChatId && activeFriendDetails) {
+                            handleDeleteChat(activeChatId, activeFriendDetails.displayName);
+                          }
+                        }}
+                        className="p-2 text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all cursor-pointer"
+                        title="Delete Chat History"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => setShowFriendInfoModal(true)}
+                        className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                        title="Friend Info"
+                      >
+                        <Info className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
 
               {/* MESSAGES SCROLL AREA */}
               <div 
@@ -1142,7 +1208,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
             </div>
           )}
         </div>
-      </div>
+      );
+    })()}
+  </div>
 
       {/* FRIEND INFO MODAL */}
       <AnimatePresence>
@@ -1278,34 +1346,52 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
               </div>
               
               {/* Chat Background Settings */}
-              <div className="mb-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                  Chat Background
-                </h4>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="url"
-                    placeholder="Image URL..."
-                    value={bgEditUrl}
-                    onChange={(e) => setBgEditUrl(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                  <button
-                    onClick={() => handleUpdateChatBg(bgEditUrl)}
-                    className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-bold transition"
-                  >
-                    Set
-                  </button>
-                </div>
-                {activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage && (
-                  <button
-                    onClick={() => handleUpdateChatBg('')}
-                    className="w-full py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl font-bold text-xs transition border border-rose-200 dark:border-rose-800"
-                  >
-                    Clear Background
-                  </button>
-                )}
-              </div>
+              {(() => {
+                const currentChat = activeDirectChats.find(c => c.id === activeChatId);
+                const isCustom = Boolean(currentChat?.chatBgImage || currentChat?.chatBgColor);
+
+                return (
+                  <div className="mb-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                        <Palette className="w-4 h-4 text-amber-500" />
+                        Chat Wallpaper & Atmosphere
+                      </h4>
+                      {isCustom && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded-full">
+                          Customized
+                        </span>
+                      )}
+                    </div>
+                    
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Personalize this 1-on-1 chat with AI-generated art, aesthetic wallpapers, or gradients.
+                    </p>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setShowFriendInfoModal(false);
+                          setShowBgModal(true);
+                        }}
+                        className="flex-1 py-2.5 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <Brush className="w-3.5 h-3.5" />
+                        Customize Wallpaper
+                      </button>
+
+                      {isCustom && (
+                        <button
+                          onClick={handleClearChatBgSettings}
+                          className="py-2.5 px-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold transition border border-rose-200 dark:border-rose-800/60"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="flex gap-2 mb-3">
                 <button
@@ -1343,6 +1429,27 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
               </button>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* CHAT BACKGROUND CUSTOMIZER MODAL */}
+      <AnimatePresence>
+        {showBgModal && activeChatId && activeFriendDetails && (
+          <ChatBackgroundModal
+            title={`Customize Chat Wallpaper for "${activeFriendDetails.displayName}"`}
+            subtitle="Generate with Gemini AI, select aesthetic study templates, or upload from your device"
+            currentBgImage={activeDirectChats.find(c => c.id === activeChatId)?.chatBgImage || ''}
+            currentBgColor={activeDirectChats.find(c => c.id === activeChatId)?.chatBgColor || ''}
+            currentOverlayOpacity={activeDirectChats.find(c => c.id === activeChatId)?.chatBgOverlay ?? 0.45}
+            currentBlur={activeDirectChats.find(c => c.id === activeChatId)?.chatBgBlur ?? 0}
+            onSave={(settings) => {
+              handleSaveChatBgSettings(settings);
+            }}
+            onClear={() => {
+              handleClearChatBgSettings();
+            }}
+            onClose={() => setShowBgModal(false)}
+          />
         )}
       </AnimatePresence>
     </div>

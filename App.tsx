@@ -2616,7 +2616,7 @@ const App: React.FC = () => {
 
       case AppMode.GROUPS:
         return (
-          <div className="max-w-7xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="w-full h-full min-h-0 flex-1 flex flex-col max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <GroupsView
               userProfile={userProfile}
               userUid={user ? user.uid : null}
@@ -2628,7 +2628,7 @@ const App: React.FC = () => {
 
       case AppMode.GROUP_INVITE:
         return (
-          <div className="max-w-7xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="w-full h-full min-h-0 flex-1 flex flex-col max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             {pendingGroupInvite && user ? (
               <GroupInviteView
                 groupId={pendingGroupInvite.groupId}
@@ -3106,8 +3106,8 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar">
-          <div className="w-full h-full">
+        <div className={`flex-1 min-h-0 ${mode === AppMode.GROUPS || mode === AppMode.GROUP_INVITE || mode === AppMode.TUTOR ? 'p-2 sm:p-4 lg:p-5 overflow-hidden flex flex-col' : 'overflow-y-auto p-4 sm:p-5 lg:p-6 custom-scrollbar'}`}>
+          <div className="w-full h-full min-h-0 flex-1 flex flex-col">
             <div style={{ display: mode === AppMode.TIMER ? "block" : "none" }}>
               <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <StudyTimerView 

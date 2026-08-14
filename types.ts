@@ -293,6 +293,18 @@ export interface StudyGroup {
   };
   chatBgImage?: string;
   chatBgColor?: string;
+  chatBgOverlay?: number;
+  chatBgBlur?: number;
+  chatBgOverlay?: number; // 0 to 1
+  chatBgBlur?: number; // 0 to 20 px
+}
+
+export interface ChatBackgroundConfig {
+  imageUrl?: string;
+  bgColor?: string;
+  overlayOpacity?: number; // 0 to 1
+  blur?: number; // px
+  themePreset?: string;
 }
 
 export type FriendshipStatus = 'pending' | 'accepted' | 'declined';
@@ -356,6 +368,8 @@ export interface DirectChat {
   updatedAt: number;
   chatBgImage?: string;
   chatBgColor?: string;
+  chatBgOverlay?: number;
+  chatBgBlur?: number;
 }
 
 export type TimerStateType = 'IDLE' | 'RUNNING' | 'PAUSED';
