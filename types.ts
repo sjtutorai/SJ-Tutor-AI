@@ -398,3 +398,53 @@ export interface StudySessionRecord {
   timestamp?: number;
 }
 
+export type CallType = 'audio' | 'video';
+
+export type DirectCallStatus = 'ringing' | 'connected' | 'ended' | 'declined' | 'busy' | 'missed';
+
+export interface DirectCall {
+  id: string;
+  chatId: string;
+  callerId: string;
+  callerName: string;
+  callerAvatar?: string;
+  receiverId: string;
+  receiverName: string;
+  receiverAvatar?: string;
+  type: CallType;
+  status: DirectCallStatus;
+  startedAt: number;
+  offer?: { type: string; sdp: string };
+  answer?: { type: string; sdp: string };
+  callerCandidates?: any[];
+  receiverCandidates?: any[];
+  connectedAt?: number;
+  endedAt?: number;
+  duration?: number;
+}
+
+export interface GroupCallParticipant {
+  uid: string;
+  displayName: string;
+  photoURL?: string;
+  isMuted: boolean;
+  isVideoOff: boolean;
+  isScreenSharing: boolean;
+  isHandRaised: boolean;
+  joinedAt: number;
+  role?: 'host' | 'participant';
+}
+
+export interface GroupCall {
+  id: string;
+  groupId: string;
+  groupName: string;
+  hostUid: string;
+  hostName: string;
+  type: CallType;
+  status: 'active' | 'ended';
+  startedAt: number;
+  endedAt?: number;
+  participants: Record<string, GroupCallParticipant>;
+}
+

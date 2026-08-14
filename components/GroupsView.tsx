@@ -38,7 +38,10 @@ import {
   Brush,
   Palette,
   ScanLine,
-  AtSign
+  AtSign,
+  Phone,
+  PhoneCall,
+  Video,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from "qrcode.react";
@@ -51,11 +54,14 @@ import {
   GroupMember,
   GroupPoll,
   UserProfile,
-  SJTUTOR_AVATAR
+  SJTUTOR_AVATAR,
+  DirectCall,
+  GroupCall,
 } from '../types';
 import { GroupQRModal } from './GroupQRModal';
 import { GroupQRScannerModal } from './GroupQRScannerModal';
 import { ChatBackgroundModal, ChatBgSettings } from './ChatBackgroundModal';
+import { startOrJoinGroupCall, subscribeToAllActiveGroupCalls } from '../services/webrtcService';
 import {
   createGroupInFirestore,
   updateGroupInFirestore,
@@ -82,6 +88,9 @@ interface GroupsViewProps {
   userUid?: string | null;
   onNavigateToNotes?: () => void;
   onOpenAuthModal?: () => void;
+  onStartDirectCall?: (call: DirectCall) => void;
+  onStartOrJoinGroupCall?: (group: StudyGroup, type: 'audio' | 'video') => void;
+  activeGroupCall?: GroupCall | null;
 }
 
 // Demo groups removed
@@ -91,11 +100,23 @@ const DEFAULT_MESSAGES: Record<string, GroupMessage[]> = {};
 export const GroupsView: React.FC<GroupsViewProps> = ({
   userProfile,
   userUid,
-  onOpenAuthModal
+  onOpenAuthModal,
+  onStartDirectCall,
+  onStartOrJoinGroupCall,
 }) => {
   const { triggerToast, sendNotification } = useNotifications();
   const currentUid = userUid || 'guest_user_' + (userProfile.displayName || 'scholar').toLowerCase().replace(/\s+/g, '_');
   const currentName = userProfile.displayName || 'Scholar User';
+
+  // Active Group Calls across all study groups
+  const [activeGroupCallsMap, setActiveGroupCallsMap] = useState<Record<string, GroupCall>>({});
+
+  useEffect(() => {
+    const unsub = subscribeToAllActiveGroupCalls((map) => {
+      setActiveGroupCallsMap(map);
+    });
+    return () => unsub();
+  }, []);
 
   // Main Mode State (Study Groups vs 1-on-1 Friend Chat)
   const [groupsMainTab, setGroupsMainTab] = useState<'groups' | 'direct_chat'>('groups');
@@ -1049,6 +1070,43 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     setRecordingSeconds(0);
   };
 
+  // Start or Join Group Live Audio / Video Call
+  const handleStartOrJoinGroupCall = async (group: StudyGroup, type: 'audio' | 'video') => {
+    if (!userUid) {
+      onOpenAuthModal?.();
+      return;
+    }
+
+    try {
+      await startOrJoinGroupCall(
+        group.id,
+        group.name,
+        {
+          uid: currentUid,
+          displayName: currentName,
+          photoURL: userProfile.photoURL || '',
+        },
+        type
+      );
+
+      // Post system message in group
+      handleSendMessage(`🎙️ Started a Group Study ${type === 'video' ? 'Video' : 'Voice'} Call • Click Join Call above!`, 'text');
+
+      if (onStartOrJoinGroupCall) {
+        onStartOrJoinGroupCall(group, type);
+      }
+
+      triggerToast(
+        `Joined Live Study Room! 🎙️`,
+        `Connected to ${group.name} group ${type === 'video' ? 'video' : 'voice'} lounge.`,
+        'Important Alerts'
+      );
+    } catch (e) {
+      console.error('Failed to start/join group call:', e);
+      triggerToast('Call Error', 'Could not access group audio/video lounge.', 'Important Alerts');
+    }
+  };
+
   // Render group avatar icon helper
   const renderGroupIcon = (group: Partial<StudyGroup>, sizeClass = "w-11 h-11 text-xl") => {
     if (group.iconUrl) {
@@ -1480,6 +1538,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             userProfile={userProfile}
             onOpenAuthModal={onOpenAuthModal || (() => {})}
             initialTargetUser={targetDirectUser}
+            onStartDirectCall={onStartDirectCall}
           />
         </div>
       </div>
@@ -1799,6 +1858,24 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
               {/* Actions Header */}
               <div className="flex items-center gap-1.5">
+                {/* Start Group Voice Call */}
+                <button
+                  onClick={() => handleStartOrJoinGroupCall(activeGroup, "audio")}
+                  className="p-2 text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 rounded-xl transition shadow-sm flex items-center gap-1"
+                  title="Start/Join Group Voice Lounge"
+                >
+                  <Phone className="w-5 h-5" />
+                </button>
+
+                {/* Start Group Video Call */}
+                <button
+                  onClick={() => handleStartOrJoinGroupCall(activeGroup, "video")}
+                  className="p-2 text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 rounded-xl transition shadow-sm flex items-center gap-1"
+                  title="Start/Join Group HD Video Room"
+                >
+                  <Video className="w-5 h-5" />
+                </button>
+
                 {isAdmin && (
                   <button
                     onClick={() => setShowRequestsModal(true)}
@@ -1874,6 +1951,36 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Live Group Study Call in Progress Banner */}
+            {activeGroupCallsMap[activeGroup.id] && (
+              <div className="mx-4 mt-3 p-3.5 bg-gradient-to-r from-emerald-500/15 via-teal-500/15 to-indigo-500/15 border border-emerald-500/30 dark:border-emerald-500/20 rounded-2xl flex items-center justify-between z-10 shadow-sm backdrop-blur-md animate-fade-in">
+                <div className="flex items-center gap-3">
+                  <span className="relative flex h-3.5 w-3.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                  </span>
+                  <div>
+                    <p className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                      Live Study Call in Progress
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 text-[10px] font-bold">
+                        {Object.keys(activeGroupCallsMap[activeGroup.id].participants || {}).length} in room
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                      Started by {activeGroupCallsMap[activeGroup.id].hostName} • Click Join to collaborate live!
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleStartOrJoinGroupCall(activeGroup, activeGroupCallsMap[activeGroup.id].type)}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                >
+                  <PhoneCall className="w-4 h-4" />
+                  <span>Join Call</span>
+                </button>
+              </div>
+            )}
 
             {/* Pinned Message Banner */}
             {activeGroup.pinnedMessageText && (

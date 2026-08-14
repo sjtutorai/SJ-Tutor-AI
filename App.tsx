@@ -8,6 +8,8 @@ import {
   UserProfile,
   SJTUTOR_AVATAR,
   HomeworkFile,
+  DirectCall,
+  GroupCall,
 } from "./types";
 import { calculateProfileCompletion } from "./utils/profileUtils";
 import InputForm from "./components/InputForm";
@@ -25,6 +27,8 @@ import DashboardSkeleton from "./components/DashboardSkeleton";
 import NotesView from "./components/NotesView";
 import GroupsView from "./components/GroupsView";
 import GroupInviteView from "./components/GroupInviteView";
+import { CallModal } from "./components/CallModal";
+import { subscribeToIncomingCalls } from "./services/webrtcService";
 import SettingsView from "./components/SettingsView";
 import AboutView from "./components/AboutView";
 import AboutModal from "./components/AboutModal";
@@ -173,6 +177,11 @@ const App: React.FC = () => {
   }, [sendNotification]);
 
   const { recordActivity } = useStreak();
+
+  // Video & Audio Calling States (1-on-1 & Group)
+  const [activeDirectCall, setActiveDirectCall] = useState<DirectCall | null>(null);
+  const [incomingDirectCall, setIncomingDirectCall] = useState<DirectCall | null>(null);
+  const [activeGroupCall, setActiveGroupCall] = useState<GroupCall | null>(null);
 
   const [pendingGroupInvite, setPendingGroupInvite] = useState<{ groupId: string; inviterName: string; groupName: string } | null>(null);
 
@@ -620,6 +629,25 @@ const App: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [user]);
+
+  // Subscribe to real-time incoming 1-on-1 calls for current user
+  useEffect(() => {
+    if (!user || !user.uid) {
+      setIncomingDirectCall(null);
+      return;
+    }
+
+    const unsub = subscribeToIncomingCalls(user.uid, (call) => {
+      // If ringing incoming call and user is not in an active direct call
+      if (call && (!activeDirectCall || activeDirectCall.id === call.id)) {
+        setIncomingDirectCall(call);
+      } else if (!call) {
+        setIncomingDirectCall(null);
+      }
+    });
+
+    return () => unsub();
+  }, [user?.uid, activeDirectCall]);
 
   // Check for shared content on load
   useEffect(() => {
@@ -2622,6 +2650,33 @@ const App: React.FC = () => {
               userUid={user ? user.uid : null}
               onNavigateToNotes={() => setMode(AppMode.NOTES)}
               onOpenAuthModal={() => setShowAuthModal(true)}
+              onStartDirectCall={(call) => {
+                setActiveDirectCall(call);
+              }}
+              onStartOrJoinGroupCall={(group, type) => {
+                setActiveGroupCall({
+                  id: group.id,
+                  groupId: group.id,
+                  groupName: group.name,
+                  hostId: user ? user.uid : 'guest',
+                  hostName: userProfile.displayName || 'Scholar User',
+                  type,
+                  startedAt: Date.now(),
+                  status: 'active',
+                  participants: {
+                    [user ? user.uid : 'guest']: {
+                      uid: user ? user.uid : 'guest',
+                      displayName: userProfile.displayName || 'Scholar User',
+                      photoURL: userProfile.photoURL || '',
+                      joinedAt: Date.now(),
+                      isAudioMuted: false,
+                      isVideoMuted: type === 'audio',
+                      isScreenSharing: false,
+                    }
+                  }
+                });
+              }}
+              activeGroupCall={activeGroupCall}
             />
           </div>
         );
@@ -3350,6 +3405,27 @@ const App: React.FC = () => {
         isOpen={showShortcutsModal}
         onClose={() => setShowShortcutsModal(false)}
       />
+
+      {/* Global 1-on-1 & Group Audio/Video Calling Engine */}
+      {(activeDirectCall || incomingDirectCall || activeGroupCall) && (
+        <CallModal
+          currentUserId={user ? user.uid : 'guest_user'}
+          currentUserName={userProfile.displayName || 'Scholar User'}
+          currentUserAvatar={userProfile.photoURL || ''}
+          activeDirectCall={activeDirectCall}
+          incomingDirectCall={incomingDirectCall}
+          activeGroupCall={activeGroupCall}
+          onClose={() => {
+            setActiveDirectCall(null);
+            setIncomingDirectCall(null);
+            setActiveGroupCall(null);
+          }}
+          onDirectCallAccepted={(call) => {
+            setIncomingDirectCall(null);
+            setActiveDirectCall(call);
+          }}
+        />
+      )}
     </div>
   );
 };

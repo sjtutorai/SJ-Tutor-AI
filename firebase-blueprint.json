@@ -261,10 +261,53 @@
         "status": { "type": "string" }
       },
       "required": ["id", "chatId", "senderId", "senderName", "text", "timestamp", "type"]
+    },
+    "DirectCall": {
+      "title": "DirectCall",
+      "description": "1-on-1 audio and video calling session between friends",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "chatId": { "type": "string" },
+        "callerId": { "type": "string" },
+        "callerName": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "receiverName": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string" },
+        "startedAt": { "type": "number" }
+      },
+      "required": ["id", "callerId", "callerName", "receiverId", "receiverName", "type", "status", "startedAt"]
+    },
+    "GroupCall": {
+      "title": "GroupCall",
+      "description": "Group study room audio and video calls",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "groupName": { "type": "string" },
+        "hostUid": { "type": "string" },
+        "hostName": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string" },
+        "startedAt": { "type": "number" },
+        "participants": { "type": "object" }
+      },
+      "required": ["id", "groupId", "groupName", "hostUid", "hostName", "type", "status", "startedAt"]
     }
   },
   "firestore": {
+    "/calls/{callId}": {
+      "schema": "DirectCall",
+      "description": "1-on-1 direct audio and video call signaling and records"
+    },
+    "/group_calls/{callId}": {
+      "schema": "GroupCall",
+      "description": "Group study live audio/video calls"
+    },
     "/friendships/{friendshipId}": {
+
       "schema": "Friendship",
       "description": "Friendship requests and active connections"
     },

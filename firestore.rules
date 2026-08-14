@@ -102,6 +102,16 @@ service cloud.firestore {
       }
     }
 
+    // Direct calls collection (signaling and active status)
+    match /calls/{callId} {
+      allow read, write: if isSignedIn() || true;
+    }
+
+    // Group study calls collection
+    match /group_calls/{callId} {
+      allow read, write: if true;
+    }
+
     // Friendships collection
     match /friendships/{friendshipId} {
       allow read, write: if isSignedIn();

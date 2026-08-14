@@ -3,7 +3,8 @@ import {
   UserProfile,
   Friendship,
   DirectChat,
-  DirectMessage
+  DirectMessage,
+  DirectCall,
 } from "../types";
 import {
   searchUsersInFirestore,
@@ -21,6 +22,7 @@ import {
   toggleDirectMessageReactionInFirestore,
   getDirectChatId
 } from "../utils/firebaseUtils";
+import { initiateDirectCall } from "../services/webrtcService";
 import { useNotifications } from "./NotificationContext";
 import {
   MessageSquare,
@@ -46,7 +48,9 @@ import {
   BookOpen,
   Trash2,
   Palette,
-  Brush
+  Brush,
+  Phone,
+  Video,
 } from "lucide-react";
 import { compressImage } from "../utils/imageUtils";
 import { motion, AnimatePresence } from "motion/react";
@@ -57,15 +61,20 @@ interface DirectChatViewProps {
   userProfile: UserProfile;
   onOpenAuthModal: () => void;
   initialTargetUser?: { uid: string; displayName: string; photoURL?: string } | null;
+  onStartDirectCall?: (call: DirectCall) => void;
 }
 
 export const DirectChatView: React.FC<DirectChatViewProps> = ({
   user,
   userProfile,
   onOpenAuthModal,
-  initialTargetUser
+  initialTargetUser,
+  onStartDirectCall,
 }) => {
   const { triggerToast, sendNotification } = useNotifications();
+  const currentUid = user?.uid || "guest";
+  const currentName = userProfile?.displayName || "Scholar User";
+  const currentPhoto = userProfile?.photoURL || "";
 
   // Navigation / Tab state
   const [activeTab, setActiveTab] = useState<"chats" | "friends" | "add_friend" | "requests">("chats");
@@ -459,6 +468,59 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
     }
   };
 
+  // Initiate 1-on-1 Audio or Video Call
+  const handleStartCall = async (type: "audio" | "video") => {
+    if (!user || user.isAnonymous) {
+      onOpenAuthModal();
+      return;
+    }
+    if (!activeChatId || !activeFriendDetails) return;
+
+    try {
+      const callId = await initiateDirectCall({
+        chatId: activeChatId,
+        callerId: currentUid,
+        callerName: currentName,
+        callerAvatar: currentPhoto,
+        receiverId: activeFriendDetails.uid,
+        receiverName: activeFriendDetails.displayName,
+        receiverAvatar: activeFriendDetails.photoURL || "",
+        type,
+      });
+
+      sendNotification({
+        targetUserId: activeFriendDetails.uid,
+        title: `Incoming ${type === "video" ? "Video" : "Audio"} Call 📞`,
+        body: `${currentName} is calling you. Open SJ Tutor AI to answer.`,
+        category: "Direct Messages",
+      });
+
+      if (onStartDirectCall) {
+        onStartDirectCall({
+          id: callId,
+          chatId: activeChatId,
+          callerId: currentUid,
+          callerName: currentName,
+          callerAvatar: currentPhoto,
+          receiverId: activeFriendDetails.uid,
+          receiverName: activeFriendDetails.displayName,
+          receiverAvatar: activeFriendDetails.photoURL || "",
+          type,
+          status: "ringing",
+          startedAt: Date.now(),
+        });
+      }
+      triggerToast(
+        `Calling ${activeFriendDetails.displayName}... 📞`,
+        `Starting 1-on-1 ${type === "video" ? "Video" : "Audio"} Call...`,
+        "Important Alerts"
+      );
+    } catch (err) {
+      console.error("Failed to start direct call:", err);
+      triggerToast("Call Error", "Could not start call. Please verify permissions.", "Important Alerts");
+    }
+  };
+
   // Delete Individual Message
   const handleDeleteDirectMessage = async (msgId: string) => {
     if (!activeChatId) return;
@@ -628,13 +690,22 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                     const isSelected = activeChatId === chat.id;
 
                     return (
-                      <button
+                      <div
                         key={chat.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => {
                           setActiveChatId(chat.id);
                           clearDirectChatUnreadInFirestore(chat.id, user.uid);
                         }}
-                        className={`w-full text-left p-3 rounded-2xl transition-all flex items-center gap-3 relative ${
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setActiveChatId(chat.id);
+                            clearDirectChatUnreadInFirestore(chat.id, user.uid);
+                          }
+                        }}
+                        className={`w-full text-left p-3 rounded-2xl transition-all flex items-center gap-3 relative cursor-pointer select-none ${
                           isSelected
                             ? "bg-amber-500/10 border border-amber-500/30 text-slate-900 dark:text-white"
                             : "hover:bg-slate-200/50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300"
@@ -679,17 +750,18 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                             </span>
                           )}
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDeleteChat(chat.id, friendDetails.displayName);
                             }}
-                            className="p-1.5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg transition"
+                            className="p-1.5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg transition cursor-pointer"
                             title="Delete Chat"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      </button>
+                      </div>
                     );
                   })
                 )}
@@ -979,6 +1051,24 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1">
+                      {/* Audio Call Button */}
+                      <button
+                        onClick={() => handleStartCall("audio")}
+                        className="p-2 text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 rounded-xl transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                        title={`Start 1-on-1 Voice Call with ${activeFriendDetails.displayName}`}
+                      >
+                        <Phone className="w-5 h-5" />
+                      </button>
+
+                      {/* Video Call Button */}
+                      <button
+                        onClick={() => handleStartCall("video")}
+                        className="p-2 text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 rounded-xl transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                        title={`Start 1-on-1 HD Video Call with ${activeFriendDetails.displayName}`}
+                      >
+                        <Video className="w-5 h-5" />
+                      </button>
+
                       {/* Wallpaper Customizer Button */}
                       <button
                         onClick={() => setShowBgModal(true)}
