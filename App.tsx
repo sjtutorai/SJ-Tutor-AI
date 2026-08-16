@@ -96,7 +96,6 @@ import {
   Search,
   X,
   Trash2,
-  Info,
   Keyboard,
   Zap,
 } from "lucide-react";
@@ -1761,7 +1760,6 @@ const App: React.FC = () => {
     { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
-    { id: AppMode.ABOUT, label: "About Us", icon: Info },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
   ];
 
@@ -2973,12 +2971,7 @@ const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => {
-                    if (item.id === AppMode.ABOUT) {
-                      setShowAboutModal(true);
-                      if (window.innerWidth < 1024) {
-                        setIsSidebarOpen(false);
-                      }
-                    } else if (
+                    if (
                       item.id !== AppMode.DASHBOARD &&
                       !user
                     ) {
@@ -3003,8 +2996,7 @@ const App: React.FC = () => {
                   />
                   {isExpanded && <span className="truncate">{item.label}</span>}
                   {isExpanded && !user &&
-                    item.id !== AppMode.DASHBOARD &&
-                    item.id !== AppMode.ABOUT && (
+                    item.id !== AppMode.DASHBOARD && (
                       <div className="ml-auto flex-shrink-0">
                         <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
                       </div>

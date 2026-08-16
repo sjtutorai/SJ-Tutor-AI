@@ -8,7 +8,6 @@ import {
   Languages, 
   CheckCircle2, 
   ArrowRight,
-  ShieldCheck,
   TrendingUp,
   Award,
   Star,
@@ -21,7 +20,14 @@ import {
   Zap,
   Quote,
   Flame,
-  Cpu
+  Cpu,
+  Mail,
+  Phone,
+  Heart,
+  Target,
+  Lock,
+  Lightbulb,
+  Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
@@ -349,7 +355,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <a href="#how" className="hover:text-blue-400 transition-colors">How It Works</a>
             <a href="#demo" className="hover:text-blue-400 transition-colors">Simulator Demo</a>
             <a href="#subjects" className="hover:text-blue-400 transition-colors">Subjects</a>
-            <a href="#about" className="hover:text-blue-400 transition-colors">Our Vision</a>
+            <a href="#about" className="hover:text-blue-400 transition-colors">About Us</a>
             <a href="#pricing" className="hover:text-blue-400 transition-colors">Pricing Plans</a>
           </div>
 
@@ -1168,90 +1174,218 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
           </div>
         </section>
 
-        {/* ABOUT US SECTION (Strictly Present Only On This Landing Page) */}
-        <section id="about" className="bg-[#020617]/95 py-24 border-t border-slate-900/80 relative">
+        {/* ABOUT US SECTION */}
+        <section id="about" className="bg-[#020617]/95 py-24 border-t border-slate-900/80 relative overflow-hidden">
           
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[150px] pointer-events-none" />
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[180px] pointer-events-none" />
+          <div className="absolute bottom-10 right-10 w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[150px] pointer-events-none" />
 
-          <div className="max-w-6xl mx-auto px-6 relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          <div className="max-w-6xl mx-auto px-6 relative z-10 space-y-16">
             
-            {/* Visual illustration side */}
-            <div className="lg:col-span-5 relative order-last lg:order-first">
-              <div className="bg-[#0F172A]/70 border border-slate-800 p-8 rounded-3xl relative overflow-hidden shadow-2xl text-left space-y-6">
-                
-                <div className="w-12 h-12 bg-purple-950 border border-purple-800/40 rounded-xl flex items-center justify-center text-purple-400">
-                  <ShieldCheck className="w-6 h-6" />
+            {/* Header */}
+            <div className="text-center space-y-4 max-w-3xl mx-auto">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-950/60 border border-blue-500/30 rounded-full text-cyan-400 text-xs font-extrabold uppercase tracking-widest">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                <span>ABOUT SJ TUTOR AI</span>
+              </div>
+              <h2 className="text-3xl md:text-5xl font-black text-white leading-tight">
+                Empowering Students with <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-cyan-400">Intelligent Learning</span>
+              </h2>
+              <p className="text-slate-300 text-sm md:text-base leading-relaxed">
+                An all-in-one AI study companion designed to simplify complex concepts, generate custom study materials, and provide 24/7 academic support for students worldwide.
+              </p>
+            </div>
+
+            {/* Innovators & Inventors Spotlight */}
+            <div className="bg-gradient-to-r from-amber-500/10 via-blue-500/10 to-purple-500/10 border border-amber-500/20 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-2xl backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                  <Lightbulb className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    Innovators &amp; Inventors
+                    <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium">The creative minds pioneering SJ Tutor AI</p>
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-6">
+                {/* Sadanand Jyoti */}
+                <div className="bg-[#0F172A]/80 border border-slate-800 p-6 rounded-2xl flex items-start gap-4 hover:border-amber-500/40 transition-all group">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-black text-lg flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
+                    SJ
+                  </div>
+                  <div className="space-y-1 text-left">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider border border-amber-500/30">
+                      <Award className="w-3 h-3" /> Lead Innovator &amp; Founder
+                    </div>
+                    <h4 className="text-lg font-bold text-white">Sadanand Jyoti</h4>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Visionary architect behind SJ Tutor AI&apos;s intelligent learning frameworks, adaptive tutoring models, and personalized student study workflows.
+                    </p>
+                  </div>
                 </div>
 
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  &quot;SJ Tutor AI operates with safe, aligned academic credentials. Unlike standard AI playgrounds that output hallucinated or misleading search logs, our platform processes answers directly referenced against standard educational core methodologies.&quot;
-                </p>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Double-Checked Scientific Explanations</span>
+                {/* Samanyu S Patil */}
+                <div className="bg-[#0F172A]/80 border border-slate-800 p-6 rounded-2xl flex items-start gap-4 hover:border-blue-500/40 transition-all group">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 text-white font-black text-lg flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
+                    SP
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Encrypted study tracking profile structures</span>
+                  <div className="space-y-1 text-left">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider border border-blue-500/30">
+                      <Award className="w-3 h-3" /> Innovator &amp; Co-Inventor
+                    </div>
+                    <h4 className="text-lg font-bold text-white">Samanyu S Patil</h4>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Co-inventor pioneering smart learning algorithms, automated study aids, and interactive student success tools.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>No data resale, strictly classroom focused</span>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-slate-900/70 border border-slate-850 rounded-lg text-[10px] text-slate-500 text-center font-bold">
-                  SJ SECURE LEARNING ENVIRONMENT INTEGRATION
                 </div>
               </div>
             </div>
 
-            {/* Mission Text Side */}
-            <div className="lg:col-span-7 space-y-6 text-left">
-              <span className="text-xs text-cyan-400 font-extrabold uppercase tracking-[0.25em]">ABOUT OUR MISSION</span>
-              <h2 className="text-3xl md:text-5xl font-black text-white leading-tight">
-                Democratizing Elite 1-on-1 Tutoring of Every School Student
-              </h2>
+            {/* 4 Core Pillars Grid */}
+            <div className="grid md:grid-cols-2 gap-6 text-left">
               
-              <p className="text-slate-300 text-sm md:text-base leading-relaxed">
-                SJ Tutor AI was established with a singular, clear objective: to make highly adaptive, premium personal education available to students worldwide, unconditionally. 
-              </p>
-              
-              <p className="text-slate-400 text-sm leading-relaxed">
-                We believe that every single scholar learns at their own specific pace. Yet, contemporary classroom environments are forced to stream identical lessons to thousands of individuals without room for personalized speed adjustments.
-              </p>
+              {/* Mission */}
+              <div className="bg-[#0F172A]/60 border border-slate-800 p-7 rounded-2xl hover:border-slate-700 transition-all group space-y-4">
+                <div className="w-11 h-11 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
+                  <Target className="w-5 h-5" />
+                </div>
+                <h3 className="text-xl font-bold text-white">Our Mission</h3>
+                <p className="text-slate-300 text-sm leading-relaxed">
+                  To democratize access to quality personalized education. We believe every student deserves a tutor that understands their individual learning style and pace, available whenever inspiration strikes.
+                </p>
+              </div>
 
-              <p className="text-slate-400 text-sm leading-relaxed">
-                SJ Tutor AI acts as a flexible study companion. Utilizing advanced Large Language reasoning, we capture the exact knowledge gap of a student, producing customized examples, interactive curve plotting math aids, and targeted MCQs instantly. It acts like a private private educator available 24/7.
-              </p>
+              {/* What We Do */}
+              <div className="bg-[#0F172A]/60 border border-slate-800 p-7 rounded-2xl hover:border-slate-700 transition-all group space-y-4">
+                <div className="w-11 h-11 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <h3 className="text-xl font-bold text-white">What We Do</h3>
+                <p className="text-slate-300 text-sm leading-relaxed mb-2">
+                  We combine advanced Large Language Models with proven pedagogical methods to deliver:
+                </p>
+                <ul className="space-y-2 text-xs text-slate-400">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span>Instant chapter summaries &amp; essay structuring</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span>Practice quiz generator tailored to your curriculum</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span>Step-by-step homework help and coordinate plotting</span>
+                  </li>
+                </ul>
+              </div>
 
-              {/* Innovators & Inventors Sign-off */}
-              <div className="pt-6 border-t border-slate-900 space-y-3">
-                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest block">Innovators &amp; Inventors</span>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white font-extrabold text-xs shadow-md">
-                      SJ
+              {/* Core Values */}
+              <div className="bg-[#0F172A]/60 border border-slate-800 p-7 rounded-2xl hover:border-slate-700 transition-all group space-y-4">
+                <div className="w-11 h-11 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                  <Heart className="w-5 h-5" />
+                </div>
+                <h3 className="text-xl font-bold text-white">Core Values</h3>
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                    <p className="text-xs font-bold text-white">Student First</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Optimized for genuine learning outcomes.</p>
+                  </div>
+                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                    <p className="text-xs font-bold text-white">Integrity</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Promoting deep comprehension, not shortcuts.</p>
+                  </div>
+                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                    <p className="text-xs font-bold text-white">Innovation</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Continuously evolving with modern AI.</p>
+                  </div>
+                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                    <p className="text-xs font-bold text-white">Accessibility</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Universal access for students everywhere.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Privacy Promise */}
+              <div className="bg-[#0F172A]/60 border border-slate-800 p-7 rounded-2xl hover:border-slate-700 transition-all group space-y-4">
+                <div className="w-11 h-11 bg-purple-500/10 border border-purple-500/30 rounded-xl flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <h3 className="text-xl font-bold text-white">Privacy &amp; Safety Promise</h3>
+                <p className="text-slate-300 text-sm leading-relaxed mb-2">
+                  We maintain strict privacy safeguards tailored for students and parents:
+                </p>
+                <ul className="space-y-2 text-xs text-slate-400">
+                  <li className="flex items-center gap-2">
+                    <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>All study data is encrypted and securely stored</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Zero data sale to third-party advertisers</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Full control to delete notes and data at any time</span>
+                  </li>
+                </ul>
+              </div>
+
+            </div>
+
+            {/* Get In Touch / Contact Section */}
+            <div className="bg-gradient-to-br from-slate-900 via-[#0F172A] to-slate-900 border border-slate-800 rounded-3xl p-8 md:p-10 shadow-2xl relative overflow-hidden">
+              <div className="relative z-10 grid md:grid-cols-2 gap-8 items-center text-left">
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full text-xs font-bold uppercase tracking-wider text-slate-300 mb-4 border border-white/10">
+                    <Mail className="w-3 h-3 text-cyan-400" /> Get in touch
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-black text-white mb-3">
+                    We&apos;d love to hear from you
+                  </h3>
+                  <p className="text-slate-400 text-sm leading-relaxed mb-6">
+                    Have feedback, feature requests, or questions about SJ Tutor AI? Reach out directly to the creators.
+                  </p>
+                  
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Innovators &amp; Inventors</span>
+                    <p className="text-base font-bold text-amber-400">
+                      Sadanand Jyoti <span className="text-slate-400 font-normal">&amp;</span> Samanyu S Patil
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <a 
+                    href="mailto:sadanandj2011@gmail.com" 
+                    className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all border border-white/5 group"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Mail className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-white text-sm">Sadanand Jyoti</h4>
-                      <span className="text-[10px] text-slate-400 font-medium block">Lead Innovator &amp; Founder</span>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Email Us</p>
+                      <p className="font-mono text-sm text-white break-all">sadanandj2011@gmail.com</p>
                     </div>
-                  </div>
+                  </a>
 
-                  <div className="hidden sm:block w-px h-8 bg-slate-800"></div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white font-extrabold text-xs shadow-md">
-                      SP
+                  <a 
+                    href="tel:+918105423488" 
+                    className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all border border-white/5 group"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Phone className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-white text-sm">Samanyu S Patil</h4>
-                      <span className="text-[10px] text-slate-400 font-medium block">Innovator &amp; Co-Inventor</span>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Call Us</p>
+                      <p className="font-mono text-sm text-white">+91 8105423488</p>
                     </div>
-                  </div>
+                  </a>
                 </div>
               </div>
             </div>
@@ -1484,7 +1618,7 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <div className="space-y-4 text-left">
               <h4 className="text-xs font-bold text-white uppercase tracking-wider">Company</h4>
               <ul className="space-y-2.5 text-xs text-slate-400">
-                <li><a href="#about" className="hover:text-blue-300 transition-colors">About Mission</a></li>
+                <li><a href="#about" className="hover:text-blue-300 transition-colors">About Us</a></li>
                 <li><span className="text-slate-500">Press Kit</span></li>
                 <li><span className="text-slate-500">Inquiry Team</span></li>
                 <li><span className="text-slate-500">We are Hiring!</span></li>
