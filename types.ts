@@ -221,7 +221,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   },
 };
 
-export const SJTUTOR_AVATAR = "https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg";
+export const SJTUTOR_AVATAR = "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg";
 
 export interface GroupPollOption {
   id: string;

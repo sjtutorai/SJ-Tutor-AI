@@ -29,8 +29,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: body,
-    icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-    badge: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+    icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+    badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
     vibrate: [100, 50, 100],
     data: {
       url: self.location.origin,
