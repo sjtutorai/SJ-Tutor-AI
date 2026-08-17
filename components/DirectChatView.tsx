@@ -24,7 +24,6 @@ import {
 } from "../utils/firebaseUtils";
 import { initiateDirectCall } from "../services/webrtcService";
 import { useNotifications } from "./NotificationContext";
-import { executeRecaptcha } from "../firebaseConfig";
 import {
   MessageSquare,
   UserPlus,
@@ -380,8 +379,6 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
     if (!user || !activeChatId) return;
 
     if (msgType === 'text' && !messageInput.trim() && !selectedImage) return;
-
-    await executeRecaptcha('SEND_DIRECT_MESSAGE');
 
     const activeChat = directChats.find((c) => c.id === activeChatId);
     if (!activeChat) return;

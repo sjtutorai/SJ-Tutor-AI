@@ -60,7 +60,7 @@ import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { SEOService } from "./services/seoService";
-import { db, auth, executeRecaptcha } from "./firebaseConfig";
+import { db, auth } from "./firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { StudyGroup } from "./types";
 import { getCurrentUserProfile } from "./utils/userService";
@@ -1651,7 +1651,6 @@ const App: React.FC = () => {
     setCurrentHistoryId(null);
 
     try {
-      await executeRecaptcha(`GENERATE_${mode}`);
       if (mode === AppMode.SUMMARY) {
         setSummaryContent("");
         const stream = await GeminiService.generateSummaryStream(formData);
