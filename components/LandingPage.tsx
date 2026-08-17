@@ -35,6 +35,7 @@ import Logo from './Logo';
 interface LandingPageProps {
   onGetStarted: (mode?: 'signin' | 'signup') => void;
   countryCode?: string | null;
+  onNavigateToLegal?: (mode: 'PRIVACY' | 'TERMS') => void;
 }
 
 // Corrected, pristine Google Brand SVG Path for trust badges / login references
@@ -48,7 +49,7 @@ const CorrectGoogleLogo: React.FC<{ className?: string; noBg?: boolean }> = ({ c
   </svg>
 );
 
-export default function LandingPage({ onGetStarted }: LandingPageProps) {
+export default function LandingPage({ onGetStarted, onNavigateToLegal }: LandingPageProps) {
   // Canvas Animation Reference
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -1629,8 +1630,22 @@ export default function LandingPage({ onGetStarted }: LandingPageProps) {
             <div className="space-y-4 text-left">
               <h4 className="text-xs font-bold text-white uppercase tracking-wider">Legal &amp; Policy</h4>
               <ul className="space-y-2.5 text-xs text-slate-400">
-                <li><span className="cursor-pointer hover:text-blue-400">Privacy Policy</span></li>
-                <li><span className="cursor-pointer hover:text-blue-400">Terms of Service</span></li>
+                <li>
+                  <button 
+                    onClick={() => onNavigateToLegal?.('PRIVACY')} 
+                    className="hover:text-blue-400 text-left transition-colors cursor-pointer"
+                  >
+                    Privacy Policy
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => onNavigateToLegal?.('TERMS')} 
+                    className="hover:text-blue-400 text-left transition-colors cursor-pointer"
+                  >
+                    Terms of Service
+                  </button>
+                </li>
                 <li><span className="cursor-pointer hover:text-blue-400">Cookie Preferences</span></li>
               </ul>
             </div>

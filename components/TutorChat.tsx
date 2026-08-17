@@ -479,9 +479,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   };
 
   const clearAllBookmarks = () => {
-    if (window.confirm("Are you sure you want to clear all bookmarked messages?")) {
-      setStarredTimestamps([]);
-    }
+    setStarredTimestamps([]);
   };
 
   // Scroll to bottom on new message or during stream

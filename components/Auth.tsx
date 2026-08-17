@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
-import { auth, googleProvider, githubProvider, appleProvider, yahooProvider } from '../firebaseConfig';
+import { auth, googleProvider, githubProvider, appleProvider, yahooProvider, executeRecaptcha } from '../firebaseConfig';
 import { 
   signInWithPopup, 
   getAdditionalUserInfo,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
-  
-  } from 'firebase/auth';
+} from 'firebase/auth';
 import { ArrowRight, Loader2, Mail, X, Github, Sparkles, User } from 'lucide-react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
@@ -42,10 +41,10 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
 
   
   const handleProviderSignIn = async (provider: any, providerName: string) => {
-
     setLoading(true);
     setError(null);
     try {
+      await executeRecaptcha(`SOCIAL_LOGIN_${providerName.toUpperCase()}`);
       const result = await signInWithPopup(auth, provider);
       const additionalUserInfo = getAdditionalUserInfo(result);
       
@@ -85,6 +84,9 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
     setError(null);
 
     try {
+      // Execute reCAPTCHA enterprise verification token
+      await executeRecaptcha(authMode === 'signup' ? 'SIGNUP' : 'LOGIN');
+
       if (authMode === 'signin') {
         await signInWithEmailAndPassword(auth, email, password);
         onClose();

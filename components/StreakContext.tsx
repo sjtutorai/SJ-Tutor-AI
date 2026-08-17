@@ -39,7 +39,32 @@ interface StreakContextType {
   setSoundEnabled: (val: boolean) => void;
 }
 
-const StreakContext = createContext<StreakContextType | undefined>(undefined);
+const defaultStreakData: StreakData = {
+  uid: 'guest',
+  displayName: 'Guest',
+  currentStreak: 0,
+  highestStreak: 0,
+  lastActivityDate: null,
+  streakHistory: [],
+  claimedMilestones: [],
+  updatedAt: Date.now(),
+};
+
+const defaultStreakContext: StreakContextType = {
+  streak: defaultStreakData,
+  leaderboard: [],
+  loading: false,
+  recordActivity: async () => ({ success: true, incremented: false }),
+  claimMilestone: async () => false,
+  fetchLeaderboard: async () => {},
+  triggerConfetti: () => {},
+  celebration: null,
+  setCelebration: () => {},
+  soundEnabled: true,
+  setSoundEnabled: () => {},
+};
+
+const StreakContext = createContext<StreakContextType>(defaultStreakContext);
 
 // Helper to get local date "YYYY-MM-DD"
 export const getLocalDateString = (date: Date = new Date()): string => {
@@ -519,8 +544,5 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
 export const useStreak = () => {
   const context = useContext(StreakContext);
-  if (context === undefined) {
-    throw new Error('useStreak must be used within a StreakProvider');
-  }
-  return context;
+  return context || defaultStreakContext;
 };

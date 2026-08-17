@@ -59,7 +59,8 @@ import {
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
-import { db, auth } from "./firebaseConfig";
+import { SEOService } from "./services/seoService";
+import { db, auth, executeRecaptcha } from "./firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { StudyGroup } from "./types";
 import { getCurrentUserProfile } from "./utils/userService";
@@ -320,6 +321,10 @@ const App: React.FC = () => {
 
   const [mode, setMode] = useState<AppMode>(() => {
     try {
+      const path = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
+      if (path === '/privacy') return AppMode.PRIVACY;
+      if (path === '/terms') return AppMode.TERMS;
+      if (path === '/about') return AppMode.ABOUT;
       return (localStorage.getItem('sjtutor_autosave_mode') as AppMode) || AppMode.DASHBOARD;
     } catch {
       return AppMode.DASHBOARD;
@@ -333,6 +338,23 @@ const App: React.FC = () => {
       console.warn("Could not save mode", e);
     }
   }, [mode]);
+
+  // Route & Hash Popstate Listener
+  useEffect(() => {
+    const handleNavigationChange = () => {
+      const path = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
+      if (path === '/privacy') setMode(AppMode.PRIVACY);
+      else if (path === '/terms') setMode(AppMode.TERMS);
+      else if (path === '/about') setMode(AppMode.ABOUT);
+    };
+
+    window.addEventListener('popstate', handleNavigationChange);
+    window.addEventListener('hashchange', handleNavigationChange);
+    return () => {
+      window.removeEventListener('popstate', handleNavigationChange);
+      window.removeEventListener('hashchange', handleNavigationChange);
+    };
+  }, []);
 
   // Initialize form data with auto-saved local copies or fallback language from settings
   const [formData, setFormData] = useState<StudyRequestData>(() => {
@@ -477,6 +499,102 @@ const App: React.FC = () => {
       setDetectedCountry("IN");
     }
   }, []);
+
+  // Dynamic SEO & Metadata Synchronization
+  useEffect(() => {
+    if (publicShareId && sharedContent) {
+      SEOService.updateSEO({
+        title: `${sharedContent.title || 'Shared Practice Quiz'} | SJ Tutor AI`,
+        description: sharedContent.description || `Study, test, and practice ${sharedContent.title || 'interactive learning challenges'} on SJ Tutor AI.`,
+        canonicalPath: sharedContent.customUrl || `/share/${publicShareId}`,
+        ogType: 'article',
+      });
+      return;
+    }
+
+    if (!user && mode === AppMode.DASHBOARD) {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#about') {
+        SEOService.updateSEO(SEOService.getPresetForRoute('/about'));
+      } else if (hash === '#how' || hash === '#features') {
+        SEOService.updateSEO(SEOService.getPresetForRoute('/features'));
+      } else if (hash === '#contact') {
+        SEOService.updateSEO(SEOService.getPresetForRoute('/contact'));
+      } else {
+        SEOService.updateSEO(SEOService.getPresetForRoute('/'));
+      }
+      return;
+    }
+
+    switch (mode) {
+      case AppMode.PRIVACY:
+        SEOService.updateSEO(SEOService.getPresetForRoute('/privacy'));
+        break;
+      case AppMode.TERMS:
+        SEOService.updateSEO(SEOService.getPresetForRoute('/terms'));
+        break;
+      case AppMode.ABOUT:
+        SEOService.updateSEO(SEOService.getPresetForRoute('/about'));
+        break;
+      case AppMode.TUTOR:
+        SEOService.updateSEO(SEOService.getPresetForRoute('/tutor'));
+        break;
+      case AppMode.QUIZ:
+        SEOService.updateSEO(SEOService.getPresetForRoute('/quiz'));
+        break;
+      case AppMode.SUMMARY:
+        SEOService.updateSEO(SEOService.getPresetForRoute('/summary'));
+        break;
+      case AppMode.HOMEWORK:
+        SEOService.updateSEO(SEOService.getPresetForRoute('/homework'));
+        break;
+      case AppMode.NOTES:
+        SEOService.updateSEO(SEOService.getPresetForRoute('/notes'));
+        break;
+      case AppMode.TIMER:
+        SEOService.updateSEO(SEOService.getPresetForRoute('/timer'));
+        break;
+      case AppMode.GROUPS:
+        SEOService.updateSEO(SEOService.getPresetForRoute('/groups'));
+        break;
+      case AppMode.PROFILE:
+        SEOService.updateSEO({
+          title: 'Student Profile & Goals | SJ Tutor AI',
+          description: 'View your student profile, academic grades, badges, and learning goals in SJ Tutor AI.',
+          canonicalPath: '/profile',
+          noindex: true,
+        });
+        break;
+      case AppMode.ID_CARD:
+        SEOService.updateSEO({
+          title: 'Digital Student ID Card | SJ Tutor AI',
+          description: 'Access and export your verified digital student ID card with SJ Tutor AI.',
+          canonicalPath: '/id-card',
+          noindex: true,
+        });
+        break;
+      case AppMode.SETTINGS:
+        SEOService.updateSEO({
+          title: 'Settings & Preferences | SJ Tutor AI',
+          description: 'Manage your AI Tutor preferences, language, appearance, notifications, and study configurations.',
+          canonicalPath: '/settings',
+          noindex: true,
+        });
+        break;
+      case AppMode.NOTIFICATIONS:
+        SEOService.updateSEO({
+          title: 'Notifications & Alerts | SJ Tutor AI',
+          description: 'View study group invites, streak updates, and practice alerts.',
+          canonicalPath: '/notifications',
+          noindex: true,
+        });
+        break;
+      case AppMode.DASHBOARD:
+      default:
+        SEOService.updateSEO(SEOService.getPresetForRoute(user ? '/dashboard' : '/'));
+        break;
+    }
+  }, [mode, user, publicShareId, sharedContent]);
 
   // Helper for navigation with form pre-fill
   const navigateToMode = (newMode: AppMode) => {
@@ -1533,6 +1651,7 @@ const App: React.FC = () => {
     setCurrentHistoryId(null);
 
     try {
+      await executeRecaptcha(`GENERATE_${mode}`);
       if (mode === AppMode.SUMMARY) {
         setSummaryContent("");
         const stream = await GeminiService.generateSummaryStream(formData);
@@ -1908,8 +2027,6 @@ const App: React.FC = () => {
               {baseFiltered.length > 0 && (
                 <button
                   onClick={async () => {
-                    if (!window.confirm(`Are you sure you want to delete all ${categoryLabel.toLowerCase()} history? This action cannot be undone.`)) return;
-                    
                     const itemsToDelete = baseFiltered.map(item => item.id);
                     const updatedHistory = history.filter(h => !itemsToDelete.includes(h.id));
                     
@@ -1921,6 +2038,7 @@ const App: React.FC = () => {
                       // Delete each item from Firestore in parallel
                       await Promise.all(itemsToDelete.map(id => deleteHistoryItemFromFirestore(user.uid, id))).catch(console.error);
                     }
+                    triggerToast("History Cleared 🗑️", `All ${categoryLabel.toLowerCase()} history was deleted.`, "Study & Quizzes");
                   }}
                   className="flex items-center px-4 py-2 text-sm font-medium text-rose-600 bg-rose-50 dark:bg-rose-900/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors shrink-0"
                   title={`Delete all ${categoryLabel.toLowerCase()}`}
@@ -2067,7 +2185,6 @@ const App: React.FC = () => {
                     <button
                       onClick={async (e) => {
                         e.stopPropagation();
-                        if (!window.confirm("Are you sure you want to delete this study history item?")) return;
                         const updatedHistory = history.filter(h => h.id !== item.id);
                         setHistory(updatedHistory);
                         const currentUid = user ? user.uid : "guest";
@@ -2075,8 +2192,9 @@ const App: React.FC = () => {
                         if (user) {
                           await deleteHistoryItemFromFirestore(user.uid, item.id);
                         }
+                        triggerToast("Item Deleted 🗑️", `"${item.title}" was removed from history.`, "Study & Quizzes");
                       }}
-                      className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-50 hover:text-rose-600"
+                      className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-80 sm:opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-50 hover:text-rose-600"
                       title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -2259,7 +2377,6 @@ const App: React.FC = () => {
                     <button
                       onClick={async (e) => {
                         e.stopPropagation();
-                        if (!window.confirm("Are you sure you want to delete this study history item?")) return;
                         const updatedHistory = history.filter(h => h.id !== item.id);
                         setHistory(updatedHistory);
                         const currentUid = user ? user.uid : "guest";
@@ -2267,8 +2384,9 @@ const App: React.FC = () => {
                         if (user) {
                           await deleteHistoryItemFromFirestore(user.uid, item.id);
                         }
+                        triggerToast("Item Deleted 🗑️", `"${item.title}" was removed from history.`, "Study & Quizzes");
                       }}
-                      className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 rounded-lg transition opacity-0 group-hover:opacity-100"
+                      className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 rounded-lg transition opacity-80 sm:opacity-0 group-hover:opacity-100"
                       title="Delete study history item"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -2661,14 +2779,20 @@ const App: React.FC = () => {
       case AppMode.PRIVACY:
         return (
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <PrivacyPolicyView />
+            <PrivacyPolicyView onBack={() => {
+              setMode(user ? AppMode.SETTINGS : AppMode.DASHBOARD);
+              window.history.pushState({}, '', '/');
+            }} />
           </div>
         );
 
       case AppMode.TERMS:
         return (
           <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <TermsOfServiceView />
+            <TermsOfServiceView onBack={() => {
+              setMode(user ? AppMode.SETTINGS : AppMode.DASHBOARD);
+              window.history.pushState({}, '', '/');
+            }} />
           </div>
         );
 
@@ -2873,6 +2997,10 @@ const App: React.FC = () => {
         <LandingPage
           onGetStarted={(mode) => openAuthModal(mode)}
           countryCode={detectedCountry}
+          onNavigateToLegal={(legalMode) => {
+            setMode(legalMode as any);
+            window.history.pushState({}, '', legalMode === 'PRIVACY' ? '/privacy' : '/terms');
+          }}
         />
         {showAuthModal && (
           <Auth

@@ -846,8 +846,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Delete Group (Admin / Creator only)
   const handleDeleteGroup = async (group: StudyGroup) => {
-    if (!window.confirm(`Are you sure you want to delete "${group.name}"? This action will permanently remove this group for all members on all devices and cannot be undone.`)) return;
-    
     setShowGroupInfo(false);
 
     // Immediate local cleanup on deleting device
@@ -877,8 +875,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Owner/Admin: Remove a member from the group
   const handleRemoveMember = async (group: StudyGroup, memberUid: string, memberName: string) => {
-    if (!window.confirm(`Are you sure you want to remove ${memberName} from "${group.name}"?`)) return;
-
     // 1. Remove in Firestore
     const success = await leaveGroupInFirestore(group.id, memberUid);
 
@@ -1400,7 +1396,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Delete message for everyone in group (Owner / Admin / Message Author)
   const handleDeleteMessageForEveryone = async (messageId: string) => {
     if (!activeGroupId) return;
-    if (!window.confirm('Are you sure you want to delete this message for everyone in the group?')) return;
 
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
 

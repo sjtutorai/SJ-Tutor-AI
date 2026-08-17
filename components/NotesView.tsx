@@ -14,6 +14,7 @@ import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
 import { saveNotesToFirestore, getNotesFromFirestore } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
+import { executeRecaptcha } from '../firebaseConfig';
 
 interface NotesViewProps {
   userId: string | null;
@@ -162,7 +163,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   };
 
   const handleDeleteNote = (noteId: string) => {
-    if (!window.confirm("Are you sure you want to delete this note?")) return;
+    const noteToDelete = notes.find(n => n.id === noteId);
     const updatedNotes = notes.filter(n => n.id !== noteId);
     setNotes(updatedNotes);
     
@@ -179,6 +180,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
       setViewMode('FOLDERS');
     }
     setEditingNote(null);
+    triggerToast('Note Deleted 🗑️', `"${noteToDelete?.title || 'Note'}" has been deleted.`, 'Important Alerts');
   };
 
   const handleGenerateAiNotesSubmit = async (e: React.FormEvent) => {
@@ -196,6 +198,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
 
     setIsGeneratingNotes(true);
     try {
+      await executeRecaptcha('GENERATE_AI_NOTES');
       const classGrade = userProfile?.grade || "10th";
       const board = userProfile?.board || "CBSE (Central Board of Secondary Education)";
 

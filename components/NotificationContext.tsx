@@ -95,7 +95,23 @@ interface NotificationContextProps {
   setupFCM: (user: User) => Promise<void>;
 }
 
-const NotificationContext = createContext<NotificationContextProps | undefined>(undefined);
+const defaultNotificationContext: NotificationContextProps = {
+  notifications: [],
+  unreadCount: 0,
+  permissionStatus: 'denied',
+  requestPermission: async () => false,
+  markAsRead: async () => {},
+  markAllAsRead: async () => {},
+  clearNotifications: async () => {},
+  deleteNotification: async () => {},
+  sendNotification: async () => false,
+  sendBulkNotification: async () => false,
+  triggerToast: () => {},
+  isAdminUser: false,
+  setupFCM: async () => {},
+};
+
+const NotificationContext = createContext<NotificationContextProps>(defaultNotificationContext);
 
 const SEED_NOTIFICATIONS: NotificationItem[] = [
   {
@@ -937,8 +953,5 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
 export const useNotifications = () => {
   const context = useContext(NotificationContext);
-  if (context === undefined) {
-    throw new Error('useNotifications must be used within a NotificationProvider');
-  }
-  return context;
+  return context || defaultNotificationContext;
 };

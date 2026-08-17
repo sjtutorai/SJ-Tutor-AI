@@ -24,6 +24,7 @@ import {
 } from "../utils/firebaseUtils";
 import { initiateDirectCall } from "../services/webrtcService";
 import { useNotifications } from "./NotificationContext";
+import { executeRecaptcha } from "../firebaseConfig";
 import {
   MessageSquare,
   UserPlus,
@@ -380,6 +381,8 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
     if (msgType === 'text' && !messageInput.trim() && !selectedImage) return;
 
+    await executeRecaptcha('SEND_DIRECT_MESSAGE');
+
     const activeChat = directChats.find((c) => c.id === activeChatId);
     if (!activeChat) return;
 
@@ -433,7 +436,6 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
   // Delete Friend
   const handleRemoveFriend = async (friendshipId: string, friendName: string) => {
     if (!user) return;
-    if (!window.confirm(`Are you sure you want to remove ${friendName} from your friends? This will delete your friend connection and end the direct chat.`)) return;
     
     const friendship = friendships.find(f => f.id === friendshipId);
     const friendUid = friendship?.users.find(u => u !== user.uid);
@@ -456,7 +458,6 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
   // Delete Chat History
   const handleDeleteChat = async (chatId: string, friendName: string) => {
     if (!user) return;
-    if (!window.confirm(`Are you sure you want to delete the chat history with ${friendName}? Messages will be cleared for you.`)) return;
     const success = await clearDirectChatForUserInFirestore(chatId, user.uid);
     if (success) {
       triggerToast("Chat Deleted 🗑️", `Chat history with ${friendName} was cleared.`, "Important Alerts");
@@ -524,7 +525,6 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
   // Delete Individual Message
   const handleDeleteDirectMessage = async (msgId: string) => {
     if (!activeChatId) return;
-    if (!window.confirm("Are you sure you want to delete this message?")) return;
     setMessages(prev => prev.filter(m => m.id !== msgId));
     const success = await deleteDirectMessageInFirestore(activeChatId, msgId);
     if (success) {

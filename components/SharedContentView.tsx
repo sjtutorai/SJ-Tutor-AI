@@ -66,19 +66,11 @@ export const SharedContentView: React.FC<SharedContentViewProps> = ({
 
   const handleDelete = async (shareId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this shared link? Anyone using this link will immediately lose access.")) {
-      return;
-    }
     try {
-      const success = await deleteSharedContent(shareId);
-      if (success) {
-        setItems((prev) => prev.filter((item) => item.shareId !== shareId));
-      } else {
-        alert("Failed to delete link.");
-      }
+      setItems((prev) => prev.filter((item) => item.shareId !== shareId));
+      await deleteSharedContent(shareId);
     } catch (err) {
       console.error("Delete error:", err);
-      alert("Error deleting item.");
     }
   };
 

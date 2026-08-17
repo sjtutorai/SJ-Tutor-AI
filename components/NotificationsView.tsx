@@ -202,9 +202,6 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
   // Dispatch scheduled broadcast immediately
   const handleDispatchNow = async (sched: SchedItem) => {
     try {
-      const confirmed = window.confirm('Are you sure you want to dispatch this scheduled notification now?');
-      if (!confirmed) return;
-
       setIsSending(true);
       const success = await sendBulkNotification(
         sched.title,
@@ -217,13 +214,9 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
       if (success) {
         // Delete pending scheduled document
         await deleteDoc(doc(db, 'notifications', sched.id));
-        alert('Notification dispatched successfully!');
-      } else {
-        alert('Dispatched failed. Please review delivery logs.');
       }
     } catch (err: any) {
       console.error(err);
-      alert('Error: ' + err.message);
     } finally {
       setIsSending(false);
     }
@@ -232,42 +225,27 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
   // Cancel scheduled broadcast
   const handleCancelScheduled = async (id: string) => {
     try {
-      const confirmed = window.confirm('Are you sure you want to delete this scheduled notification?');
-      if (!confirmed) return;
-
       await deleteDoc(doc(db, 'notifications', id));
       // Delete corresponding log
       await deleteDoc(doc(db, 'notification_logs', id)).catch(() => {});
-      alert('Scheduled notification canceled successfully.');
     } catch (err: any) {
-      console.error(err);
-      alert('Error canceling: ' + err.message);
+      console.error('Error canceling:', err);
     }
   };
 
   // Retry failed delivery log
   const handleRetryFailed = async (log: LogItem) => {
     try {
-      const confirmed = window.confirm('Do you want to retry sending this notification to the registered targets?');
-      if (!confirmed) return;
-
       setIsSending(true);
-      const success = await sendBulkNotification(
+      await sendBulkNotification(
         log.title,
         log.body,
         log.category,
         log.targetType,
         log.targetValue
       );
-
-      if (success) {
-        alert('Retry completed successfully!');
-      } else {
-        alert('Retry dispatch failed. View new log for details.');
-      }
     } catch (err: any) {
-      console.error(err);
-      alert('Error during retry: ' + err.message);
+      console.error('Error retrying:', err);
     } finally {
       setIsSending(false);
     }

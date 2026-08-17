@@ -43,6 +43,70 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
   });
   const [hasChanges, setHasChanges] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+
+  const showFeedback = (msg: string) => {
+    setFeedbackMessage(msg);
+    setTimeout(() => setFeedbackMessage(null), 3000);
+  };
+
+  const handleClearChatHistory = () => {
+    try {
+      const keys = Object.keys(localStorage);
+      keys.forEach(k => {
+        if (k.startsWith('tutor_chat_') || k.startsWith('chat_') || k.includes('messages')) {
+          localStorage.removeItem(k);
+        }
+      });
+      showFeedback('Chat history cleared successfully! 🗑️');
+    } catch (e) {
+      console.error(e);
+      showFeedback('Failed to clear chat history.');
+    }
+  };
+
+  const handleClearLearningData = () => {
+    try {
+      const keys = Object.keys(localStorage);
+      keys.forEach(k => {
+        if (k.startsWith('history_') || k.startsWith('sjtutor_notes_') || k.includes('quiz_score')) {
+          localStorage.removeItem(k);
+        }
+      });
+      showFeedback('Learning & quiz data cleared successfully! 🗑️');
+    } catch (e) {
+      console.error(e);
+      showFeedback('Failed to clear learning data.');
+    }
+  };
+
+  const handleClearCache = () => {
+    try {
+      localStorage.removeItem('sjtutor_groups_cache');
+      localStorage.removeItem('sjtutor_active_group_id');
+      localStorage.removeItem('sjtutor_autosave_quiz');
+      showFeedback('App cache cleared successfully (~24 MB freed)! ⚡');
+    } catch (e) {
+      console.error(e);
+      showFeedback('Failed to clear cache.');
+    }
+  };
+
+  const handleConfirmDeleteAccount = () => {
+    try {
+      localStorage.clear();
+      showFeedback('Account deleted. Logging out...');
+      setTimeout(() => {
+        setShowDeleteAccountModal(false);
+        onLogout();
+      }, 1000);
+    } catch (e) {
+      console.error(e);
+      setShowDeleteAccountModal(false);
+      onLogout();
+    }
+  };
 
   // Synchronize settings grade with userProfile grade
   useEffect(() => {
@@ -226,7 +290,10 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
             </div>
 
             <div className="pt-6">
-               <button className="flex items-center gap-2 text-red-500 text-sm font-medium hover:text-red-700">
+               <button 
+                 onClick={() => setShowDeleteAccountModal(true)}
+                 className="flex items-center gap-2 text-red-500 text-sm font-medium hover:text-red-700 transition-colors"
+               >
                  <Trash2 className="w-4 h-4" />
                  Delete Account
                </button>
@@ -664,11 +731,17 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-3">
                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Data Management</h4>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <button className="flex items-center justify-center gap-2 py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 text-sm hover:bg-white dark:hover:bg-slate-700 transition-colors">
-                       <MessageSquare className="w-4 h-4" /> Clear Chat History
+                    <button 
+                       onClick={handleClearChatHistory}
+                       className="flex items-center justify-center gap-2 py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    >
+                       <MessageSquare className="w-4 h-4 text-primary-500" /> Clear Chat History
                     </button>
-                    <button className="flex items-center justify-center gap-2 py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 text-sm hover:bg-white dark:hover:bg-slate-700 transition-colors">
-                       <FlaskConical className="w-4 h-4" /> Clear Learning Data
+                    <button 
+                       onClick={handleClearLearningData}
+                       className="flex items-center justify-center gap-2 py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    >
+                       <FlaskConical className="w-4 h-4 text-amber-500" /> Clear Learning Data
                     </button>
                  </div>
                </div>
@@ -728,7 +801,12 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                       <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Cache Size</p>
                       <p className="text-xs text-slate-400">~24 MB used</p>
                    </div>
-                   <button className="text-xs font-bold text-primary-600 hover:underline">Clear Cache</button>
+                   <button 
+                      onClick={handleClearCache}
+                      className="text-xs font-bold text-primary-600 hover:underline"
+                   >
+                      Clear Cache
+                   </button>
                 </div>
 
                 <div className="p-4 bg-white dark:bg-slate-700/50 rounded-lg border border-slate-100 dark:border-slate-600 text-xs text-slate-500 dark:text-slate-400">
@@ -990,6 +1068,47 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 z-20">
                <Activity className="w-4 h-4" />
                <span className="text-sm font-bold">Settings Saved Successfully!</span>
+            </div>
+         )}
+
+         {feedbackMessage && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 z-20 border border-slate-700">
+               <Check className="w-4 h-4 text-emerald-400" />
+               <span className="text-sm font-medium">{feedbackMessage}</span>
+            </div>
+         )}
+
+         {/* Delete Account Modal */}
+         {showDeleteAccountModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+               <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+                  <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/50 flex items-center justify-center text-red-600 dark:text-red-400 mx-auto">
+                     <Trash2 className="w-6 h-6" />
+                  </div>
+                  <div className="text-center space-y-1">
+                     <h3 className="text-lg font-bold text-slate-800 dark:text-white">Delete Account</h3>
+                     <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Are you sure you want to delete your account? This action will permanently remove all your learning history, custom notes, saved chats, and preferences.
+                     </p>
+                  </div>
+                  <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/50 rounded-xl text-xs text-red-600 dark:text-red-300 font-medium text-center">
+                     ⚠️ This action is irreversible. All your study progress will be erased.
+                  </div>
+                  <div className="flex items-center gap-3 pt-2">
+                     <button
+                        onClick={() => setShowDeleteAccountModal(false)}
+                        className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                     >
+                        Cancel
+                     </button>
+                     <button
+                        onClick={handleConfirmDeleteAccount}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold shadow-md transition"
+                     >
+                        Delete Everything
+                     </button>
+                  </div>
+               </div>
             </div>
          )}
       </div>

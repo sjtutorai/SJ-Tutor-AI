@@ -1,9 +1,22 @@
 import React from 'react';
-import { Shield, Lock, Eye, Database, Globe, UserCheck } from 'lucide-react';
+import { Shield, Lock, Eye, Database, Globe, UserCheck, ArrowLeft } from 'lucide-react';
 
-const PrivacyPolicyView: React.FC = () => {
+interface PrivacyPolicyViewProps {
+  onBack?: () => void;
+}
+
+const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) => {
   return (
     <div className="max-w-4xl mx-auto p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </button>
+      )}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         
         {/* Header */}
