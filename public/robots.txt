@@ -1,16 +1,6 @@
 User-agent: *
 Allow: /
-Allow: /public/
-Allow: /assets/
-Allow: /*.css$
-Allow: /*.js$
-Allow: /*.png$
-Allow: /*.jpg$
-Allow: /*.jpeg$
-Allow: /*.svg$
-Allow: /*.ico$
 
-# Disallow private and user-specific paths
 Disallow: /dashboard
 Disallow: /api/
 Disallow: /admin
@@ -23,5 +13,4 @@ Disallow: /notifications
 Disallow: /history
 Disallow: /auth
 
-Sitemap: https://sjtutorai.com/sitemap.xml
 Sitemap: https://sjtutorai.vercel.app/sitemap.xml

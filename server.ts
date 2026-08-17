@@ -36,15 +36,6 @@ app.get("/robots.txt", (req, res) => {
     res.setHeader("Content-Type", "text/plain");
     res.send(`User-agent: *
 Allow: /
-Allow: /public/
-Allow: /assets/
-Allow: /*.css$
-Allow: /*.js$
-Allow: /*.png$
-Allow: /*.jpg$
-Allow: /*.jpeg$
-Allow: /*.svg$
-Allow: /*.ico$
 
 Disallow: /dashboard
 Disallow: /api/
@@ -58,7 +49,7 @@ Disallow: /notifications
 Disallow: /history
 Disallow: /auth
 
-Sitemap: https://sjtutorai.com/sitemap.xml`);
+Sitemap: https://sjtutorai.vercel.app/sitemap.xml`);
   }
 });
 
@@ -72,38 +63,32 @@ app.get("/sitemap.xml", (req, res) => {
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://sjtutorai.com/</loc>
-    <lastmod>2026-08-13</lastmod>
+    <loc>https://sjtutorai.vercel.app/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.com/about</loc>
-    <lastmod>2026-08-13</lastmod>
+    <loc>https://sjtutorai.vercel.app/about</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.com/features</loc>
-    <lastmod>2026-08-13</lastmod>
+    <loc>https://sjtutorai.vercel.app/features</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.com/contact</loc>
-    <lastmod>2026-08-13</lastmod>
+    <loc>https://sjtutorai.vercel.app/contact</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.com/privacy</loc>
-    <lastmod>2026-08-13</lastmod>
+    <loc>https://sjtutorai.vercel.app/privacy</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.com/terms</loc>
-    <lastmod>2026-08-13</lastmod>
+    <loc>https://sjtutorai.vercel.app/terms</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>

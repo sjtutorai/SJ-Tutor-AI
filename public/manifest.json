@@ -1,7 +1,7 @@
 {
   "short_name": "SJ Tutor AI",
   "name": "SJ Tutor AI - Your AI Study Buddy",
-  "description": "An all-in-one AI study companion that generates summaries, quizzes, and homework solutions based on your curriculum.",
+  "description": "An all-in-one AI study companion for students.",
   "icons": [
     {
       "src": "/favicon-48x48.png",
@@ -9,34 +9,20 @@
       "type": "image/png"
     },
     {
-      "src": "/favicon-96x96.png",
-      "sizes": "96x96",
-      "type": "image/png"
-    },
-    {
-      "src": "/favicon-144x144.png",
-      "sizes": "144x144",
-      "type": "image/png"
-    },
-    {
-      "src": "/apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png"
-    },
-    {
       "src": "/favicon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/favicon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ],
   "start_url": "/",
+  "scope": "/",
   "background_color": "#111827",
   "theme_color": "#D4AF37",
   "display": "standalone"
