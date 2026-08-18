@@ -77,6 +77,13 @@ const QuizView: React.FC<QuizViewProps> = ({
   const [countedScore, setCountedScore] = useState(0);
   const [ringProgress, setRingProgress] = useState(0);
 
+  // Interactive feedback overlay state for correct answers
+  const [correctFeedback, setCorrectFeedback] = useState<{
+    show: boolean;
+    message: string;
+    subtext: string;
+  } | null>(null);
+
   const handleSaveClick = () => {
     if (onAddToMyList) {
       onAddToMyList();
@@ -198,9 +205,41 @@ const QuizView: React.FC<QuizViewProps> = ({
     const newAnswers = [...userAnswers];
     newAnswers[currentIndex] = optionIndex;
     setUserAnswers(newAnswers);
+
+    // If student selected the correct answer, show encouraging feedback with celebratory confetti!
+    if (optionIndex === currentQuestion?.correctAnswerIndex) {
+      try {
+        confetti({
+          particleCount: 45,
+          spread: 65,
+          origin: { y: 0.68 },
+          colors: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'],
+          ticks: 200,
+          gravity: 1.1,
+          scalar: 0.9
+        });
+      } catch (e) {
+        console.warn("Confetti animation notice:", e);
+      }
+
+      setCorrectFeedback({
+        show: true,
+        message: 'Keep it up! 🎉',
+        subtext: 'Great job! That is the correct answer. Keep the momentum going!'
+      });
+
+      // Auto-hide feedback after 2 seconds
+      setTimeout(() => {
+        setCorrectFeedback((prev) => (prev?.show ? null : prev));
+      }, 2000);
+    } else {
+      // Clear feedback if an incorrect option is chosen
+      setCorrectFeedback(null);
+    }
   };
 
   const handleNext = () => {
+    setCorrectFeedback(null);
     if (currentIndex < questions.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
@@ -699,7 +738,46 @@ const QuizView: React.FC<QuizViewProps> = ({
       )}
 
       {/* Main Active Quiz Screen */}
-      <div className={`bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden ${quizCompleted ? 'hidden' : 'block'}`}>
+      <div className={`bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative ${quizCompleted ? 'hidden' : 'block'}`}>
+        {/* Interactive Feedback Overlay on Correct Answer */}
+        <AnimatePresence>
+          {correctFeedback?.show && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85, y: -20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -10 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="absolute inset-x-4 top-4 z-30 p-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600 rounded-2xl shadow-xl text-white flex items-center justify-between gap-4 border border-white/20 backdrop-blur-md pointer-events-auto"
+            >
+              <div className="flex items-center gap-3">
+                <motion.div
+                  animate={{ rotate: [0, -10, 10, -5, 0], scale: [1, 1.25, 1] }}
+                  transition={{ duration: 0.6 }}
+                  className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner"
+                >
+                  <Sparkles className="w-6 h-6 text-amber-300 fill-amber-300" />
+                </motion.div>
+                <div>
+                  <h4 className="font-extrabold text-base tracking-wide flex items-center gap-1.5">
+                    {correctFeedback.message}
+                  </h4>
+                  <p className="text-xs text-emerald-50 font-medium leading-relaxed">
+                    {correctFeedback.subtext}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setCorrectFeedback(null)}
+                className="p-1.5 hover:bg-white/20 rounded-full transition text-white/80 hover:text-white shrink-0"
+                title="Dismiss feedback"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Progress Bar */}
         <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5">
           <div 

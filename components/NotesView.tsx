@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
-import { NoteItem, ReminderItem, TimetableEntry, SJTUTOR_AVATAR, NoteStatus, NoteTemplate, UserProfile } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { NoteItem, ReminderItem, TimetableEntry, NoteStatus, NoteTemplate, UserProfile } from '../types';
 import { 
   Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, 
   StickyNote, Bell, Edit3, Loader2, Folder, 
   ChevronRight, Star, Tag, Book, Lightbulb, Languages,
-  CheckCircle2, Circle, Download
+  CheckCircle2, Circle, Download, Mic, Square, Radio
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 import { SettingsService } from '../services/settingsService';
@@ -56,6 +56,16 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   const [studyHours] = useState(4);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+
+  // Voice-to-Text Dictation States & MediaRecorder
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingInterimText, setRecordingInterimText] = useState('');
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const timerIntervalRef = useRef<any>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Load defaults from Settings
   useEffect(() => {
@@ -248,6 +258,136 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     } finally {
       setIsGeneratingNotes(false);
     }
+  };
+
+  // Cleanup voice recording on unmount
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+      if (recognitionRef.current) {
+        try { 
+          recognitionRef.current.stop(); 
+        } catch {
+          // Ignore cleanup error
+        }
+      }
+    };
+  }, []);
+
+  const startVoiceRecording = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      triggerToast('Audio Not Supported', 'Your browser does not support audio recording.', 'Important Alerts');
+      return;
+    }
+
+    try {
+      audioChunksRef.current = [];
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.start(250);
+      setIsRecording(true);
+      setRecordingDuration(0);
+      setRecordingInterimText('');
+
+      // Start timer
+      timerIntervalRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+
+      // Start Web Speech Recognition if available for real-time dictation
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        try {
+          const recognition = new SpeechRecognition();
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.lang = languageInput === 'Hindi' ? 'hi-IN' : 'en-US';
+
+          recognition.onresult = (event: any) => {
+            let fullTranscript = '';
+            for (let i = 0; i < event.results.length; ++i) {
+              fullTranscript += event.results[i][0].transcript;
+            }
+            setRecordingInterimText(fullTranscript);
+          };
+
+          recognition.onerror = (event: any) => {
+            console.warn('Speech recognition warning:', event.error);
+          };
+
+          recognition.start();
+          recognitionRef.current = recognition;
+        } catch (e) {
+          console.warn('SpeechRecognition initialization notice:', e);
+        }
+      }
+
+      triggerToast('Voice Recording Started 🎙️', 'Speak clearly to dictate your study notes.', 'Important Alerts');
+    } catch (err: any) {
+      console.error('Microphone access failed:', err);
+      triggerToast('Microphone Blocked', 'Please allow microphone access to dictate notes.', 'Important Alerts');
+    }
+  };
+
+  const stopVoiceRecording = (saveToNote = true) => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {
+        // Ignore recorder stop error
+      }
+    }
+
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach(t => t.stop());
+      audioStreamRef.current = null;
+    }
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // Ignore recognition stop error
+      }
+      recognitionRef.current = null;
+    }
+
+    setIsRecording(false);
+
+    if (saveToNote && editingNote) {
+      const dictatedText = recordingInterimText.trim();
+      if (dictatedText) {
+        const timestampHeader = `\n\n> 🎙️ **Voice Dictation (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})**\n> ${dictatedText}\n`;
+        const updatedContent = (editingNote.content || '') + timestampHeader;
+        setEditingNote({
+          ...editingNote,
+          content: updatedContent
+        });
+        triggerToast('Dictation Inserted 🎙️', 'Your voice notes have been added to the editor.', 'Important Alerts');
+      } else {
+        triggerToast('Recording Finished', 'No audible speech was detected.', 'Important Alerts');
+      }
+    }
+    setRecordingInterimText('');
+    setRecordingDuration(0);
   };
 
   const handleAiAction = async (task: 'summarize' | 'simplify' | 'mcq' | 'translate') => {
@@ -451,6 +591,28 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* Voice Dictation (MediaRecorder) Button */}
+                    {isRecording ? (
+                      <button
+                        onClick={() => stopVoiceRecording(true)}
+                        className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-lg shadow-rose-500/20 animate-pulse transition active:scale-[0.98]"
+                        title="Stop recording and insert dictation"
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                        <Square className="w-3.5 h-3.5 fill-white" />
+                        <span>Done ({Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')})</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={startVoiceRecording}
+                        className="px-3.5 py-2 bg-primary-50 dark:bg-primary-950/30 hover:bg-primary-100 dark:hover:bg-primary-900/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition active:scale-[0.98]"
+                        title="Dictate study notes directly using voice recording"
+                      >
+                        <Mic className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+                        <span>Dictate</span>
+                      </button>
+                    )}
+
                     {/* Unified Premium Export Button */}
                     <button 
                       onClick={() => setIsExportOpen(true)} 
@@ -475,8 +637,55 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                   </div>
                 </div>
 
+                {/* Live Voice Dictation Active Banner */}
+                {isRecording && (
+                  <div className="px-6 py-3 bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500 text-white flex items-center justify-between gap-4 animate-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center animate-pulse">
+                        <Radio className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                          <span className="font-bold text-xs uppercase tracking-wider">Recording Voice Dictation</span>
+                          <span className="font-mono text-xs bg-white/20 px-2 py-0.5 rounded font-bold">
+                            {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                          </span>
+                        </div>
+                        <p className="text-xs text-white/90 italic truncate max-w-md">
+                          {recordingInterimText ? `"${recordingInterimText}"` : "Listening... Speak your notes clearly into the microphone."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => stopVoiceRecording(false)}
+                        className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-lg transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => stopVoiceRecording(true)}
+                        className="px-4 py-1.5 bg-white text-rose-600 hover:bg-white/90 text-xs font-extrabold rounded-lg shadow transition flex items-center gap-1.5"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Done & Insert
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* AI ACTION BAR */}
                 <div className="px-6 py-3 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 flex gap-2 overflow-x-auto custom-scrollbar">
+                   {/* Voice Recording Quick Toggle in Action Bar */}
+                   <button 
+                     onClick={isRecording ? () => stopVoiceRecording(true) : startVoiceRecording} 
+                     className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100'}`}
+                   >
+                      {isRecording ? <Square className="w-3.5 h-3.5 fill-white" /> : <Mic className="w-3.5 h-3.5" />}
+                      {isRecording ? 'Finish Dictation' : 'Voice Dictate'}
+                   </button>
                    <button onClick={() => handleAiAction('summarize')} className="flex-shrink-0 px-3 py-1.5 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded-full text-xs font-bold flex items-center gap-1.5 hover:bg-primary-100">
                       <Sparkles className="w-3.5 h-3.5" /> Summarize
                    </button>

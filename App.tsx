@@ -2234,9 +2234,18 @@ const App: React.FC = () => {
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {dashboardCards.map((card) => (
-            <button
+          {dashboardCards.map((card, idx) => (
+            <motion.button
               key={card.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ 
+                duration: 0.45, 
+                delay: idx * 0.07, 
+                ease: [0.16, 1, 0.3, 1] 
+              }}
+              whileHover={{ y: -4, transition: { duration: 0.2 } }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => {
                 if (card.id === AppMode.ID_CARD && !user) {
                   setShowAuthModal(true);
@@ -2284,7 +2293,7 @@ const App: React.FC = () => {
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1 relative z-10">
                 View Details <ChevronRight className="w-3 h-3" />
               </p>
-            </button>
+            </motion.button>
           ))}
         </div>
 

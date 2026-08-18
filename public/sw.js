@@ -1,13 +1,79 @@
-// Service Worker to handle Push Notifications and FCM background messages
+// Service Worker to handle Offline Sync, Push Notifications and FCM background messages
+
+const CACHE_NAME = 'sjtutor-offline-v1';
+const STATIC_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/favicon.png',
+  '/logo.png',
+  '/logo.jpg'
+];
 
 self.addEventListener('install', (event) => {
-  console.log('[Service Worker] Installing...');
+  console.log('[Service Worker] Installing & Caching core shell...');
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(STATIC_ASSETS).catch((err) => {
+        console.warn('[Service Worker] Static asset caching notice:', err);
+      });
+    })
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('[Service Worker] Activating...');
-  event.waitUntil(self.clients.claim());
+  console.log('[Service Worker] Activating & cleaning old caches...');
+  event.waitUntil(
+    caches.keys().then((keyList) => {
+      return Promise.all(
+        keyList.map((key) => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+
+// Cache-first / Network-fallback fetch handler for seamless offline navigation & assets
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+
+  // Skip Firebase/Firestore/Google API calls from service worker cache
+  if (
+    url.hostname.includes('firestore.googleapis.com') ||
+    url.hostname.includes('firebaseio.com') ||
+    url.hostname.includes('googleapis.com') ||
+    url.pathname.startsWith('/api/')
+  ) {
+    return;
+  }
+
+  event.respondWith(
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache).catch(() => {});
+          });
+        }
+        return networkResponse;
+      })
+      .catch(async () => {
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        if (event.request.mode === 'navigate') {
+          return caches.match('/') || caches.match('/index.html');
+        }
+        return new Response('Offline', { status: 503, statusText: 'Offline' });
+      })
+  );
 });
 
 self.addEventListener('push', (event) => {

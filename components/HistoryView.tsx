@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppMode, HistoryItem } from '../types';
 import { 
   FileText, 
@@ -9,8 +9,11 @@ import {
   Search, 
   Trash2, 
   Filter,
-  Clock
+  Clock,
+  WifiOff,
+  HardDrive
 } from 'lucide-react';
+import { getOfflineRecentHistory } from '../utils/firebaseUtils';
 
 interface HistoryViewProps {
   history: HistoryItem[];
@@ -21,8 +24,26 @@ interface HistoryViewProps {
 const HistoryView: React.FC<HistoryViewProps> = ({ history, onLoadItem, onDeleteItem }) => {
   const [filter, setFilter] = useState<AppMode | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
 
-  const filteredHistory = history.filter(item => {
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // If history is empty and device is offline, retrieve from local offline cache (guaranteeing top 10 items)
+  const displayHistory = history && history.length > 0 
+    ? history 
+    : getOfflineRecentHistory();
+
+  const filteredHistory = displayHistory.filter(item => {
     const matchesFilter = filter === 'ALL' || 
                           item.type === filter || 
                           (filter === AppMode.HOMEWORK && item.type === AppMode.ESSAY);
@@ -55,6 +76,33 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onLoadItem, onDelete
 
   return (
     <div className="max-w-5xl mx-auto p-6 animate-in fade-in duration-500">
+      {/* Offline Status & Local Storage Sync Banner */}
+      {isOffline ? (
+        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl flex items-center justify-between gap-4 text-amber-800 dark:text-amber-300 animate-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-xl">
+              <WifiOff className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold">Offline Study Mode Active</p>
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Viewing your 10 most recent cached study items. All cached summaries, homework answers, and quizzes are ready for instant offline review.
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-mono px-2.5 py-1 bg-amber-200/60 dark:bg-amber-900/60 rounded-full shrink-0 font-bold">
+            Offline Synced
+          </span>
+        </div>
+      ) : (
+        <div className="mb-4 flex items-center justify-end">
+          <span className="text-[11px] text-slate-400 flex items-center gap-1.5 font-medium">
+            <HardDrive className="w-3.5 h-3.5 text-emerald-500" />
+            Offline Sync Active (Top 10 auto-cached)
+          </span>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h2 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center gap-3">

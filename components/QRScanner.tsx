@@ -1,6 +1,6 @@
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
+import React, { useEffect, useRef, useState } from 'react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -20,49 +20,7 @@ interface ScannedUser {
 const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   const [scannedData, setScannedData] = useState<ScannedUser | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-
-  const handleScanSuccess = useCallback((decodedText: string) => {
-    try {
-      console.log("Scanned QR Text:", decodedText);
-      const trimmed = decodedText.trim();
-      // Handle JSON format
-      let data: ScannedUser;
-      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-        const parsed = JSON.parse(trimmed);
-        data = {
-          name: parsed.name || "Student",
-          id: parsed.id || trimmed,
-          institution: parsed.institution || "SJ Tutor AI",
-          grade: parsed.grade || "N/A",
-          plan: parsed.plan || "Scholar",
-          phone: parsed.phone || "N/A"
-        };
-      } else {
-        // Plain text ID fallback
-        data = {
-          name: "Member",
-          id: trimmed,
-          institution: "SJ Tutor AI",
-          grade: "N/A",
-          plan: "Student"
-        };
-      }
-
-      if (data.id) {
-        setScannedData(data);
-        if (scannerRef.current) {
-          scannerRef.current.clear().catch(() => {});
-        }
-      } else {
-        setError("Unrecognized ID format.");
-      }
-    } catch (err) {
-      console.error("Scan Error:", err);
-      setError("Could not parse QR code. Please scan a valid SJ Tutor ID.");
-    }
-  }, []);
 
   useEffect(() => {
     scannerRef.current = new Html5QrcodeScanner(
@@ -71,11 +29,52 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
       /* verbose= */ false
     );
 
+        const onScanSuccess = (decodedText: string) => {
+          try {
+            console.log("Scanned QR Text:", decodedText);
+            const trimmed = decodedText.trim();
+            // Handle JSON format
+            let data: ScannedUser;
+            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+              const parsed = JSON.parse(trimmed);
+              data = {
+                name: parsed.name || "Student",
+                id: parsed.id || trimmed,
+                institution: parsed.institution || "SJ Tutor AI",
+                grade: parsed.grade || "N/A",
+                plan: parsed.plan || "Scholar",
+                phone: parsed.phone || "N/A"
+              };
+            } else {
+              // Plain text ID fallback
+              data = {
+                name: "Member",
+                id: trimmed,
+                institution: "SJ Tutor AI",
+                grade: "N/A",
+                plan: "Student"
+              };
+            }
+
+            if (data.id) {
+              setScannedData(data);
+              if (scannerRef.current) {
+                scannerRef.current.clear().catch(() => {});
+              }
+            } else {
+              setError("Unrecognized ID format.");
+            }
+          } catch (err) {
+            console.error("Scan Error:", err);
+            setError("Could not parse QR code. Please scan a valid SJ Tutor ID.");
+          }
+        };
+
     const onScanFailure = () => {
       // Optional: handle scan failures
     };
 
-    scannerRef.current.render(handleScanSuccess, onScanFailure);
+    scannerRef.current.render(onScanSuccess, onScanFailure);
 
     return () => {
       if (scannerRef.current) {
@@ -84,41 +83,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
         });
       }
     };
-  }, [handleScanSuccess]);
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    setError(null);
-    
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setError("Please drop a valid image file.");
-      return;
-    }
-
-    try {
-      const tempScanner = new Html5Qrcode("hidden-qr-reader");
-      const text = await tempScanner.scanFile(file, false);
-      handleScanSuccess(text);
-      tempScanner.clear();
-    } catch (err) {
-      console.error("File scan error", err);
-      setError("No QR code found in the image. Please try another.");
-    }
-  };
+  }, []);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -150,20 +115,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
                 exit={{ opacity: 0 }}
                 className="space-y-4"
               >
-                <div 
-                  className={`overflow-hidden rounded-2xl border-2 border-dashed transition-colors relative ${isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50'}`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  {isDragging && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-primary-500/10 backdrop-blur-sm pointer-events-none">
-                      <p className="text-primary-600 dark:text-primary-400 font-bold">Drop QR Code Image Here</p>
-                    </div>
-                  )}
-                  <div id="qr-reader"></div>
-                </div>
-                <div id="hidden-qr-reader" style={{ display: 'none' }}></div>
+                <div id="qr-reader" className="overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"></div>
                 {error && (
                   <p className="text-red-500 text-xs text-center font-medium bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">
                     {error}

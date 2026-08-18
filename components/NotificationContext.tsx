@@ -139,9 +139,15 @@ const SEED_NOTIFICATIONS: NotificationItem[] = [
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
-    'Notification' in window ? Notification.permission : 'denied'
-  );
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(() => {
+    try {
+      return typeof window !== 'undefined' && 'Notification' in window && window.Notification
+        ? window.Notification.permission
+        : 'denied';
+    } catch {
+      return 'denied';
+    }
+  });
 
   const [activeToasts, setActiveToasts] = useState<ActiveToast[]>([]);
 

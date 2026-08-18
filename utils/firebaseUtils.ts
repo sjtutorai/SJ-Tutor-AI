@@ -53,32 +53,94 @@ export const sanitizeForFirestore = <T>(data: T): T => {
   }
 };
 
+export const OFFLINE_RECENT_HISTORY_KEY = "sjtutor_offline_recent_history";
+
+export const getOfflineRecentHistory = (uid?: string | null): HistoryItem[] => {
+  try {
+    const specificKey = uid && uid !== "guest" ? `history_${uid}` : "history_guest";
+    const userSpecific = localStorage.getItem(specificKey);
+    if (userSpecific) {
+      const parsed = JSON.parse(userSpecific);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
+      }
+    }
+    const globalOffline = localStorage.getItem(OFFLINE_RECENT_HISTORY_KEY);
+    if (globalOffline) {
+      const parsed = JSON.parse(globalOffline);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
+      }
+    }
+  } catch (e) {
+    console.warn("Could not read offline recent history:", e);
+  }
+  return [];
+};
+
+export const saveOfflineRecentHistory = (items: HistoryItem[], uid?: string | null) => {
+  try {
+    const top10 = items.slice().sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
+    localStorage.setItem(OFFLINE_RECENT_HISTORY_KEY, JSON.stringify(top10));
+    if (uid && uid !== "guest") {
+      localStorage.setItem(`history_${uid}`, JSON.stringify(items));
+    }
+  } catch (e) {
+    console.warn("Could not cache offline recent history:", e);
+  }
+};
+
 export const saveHistoryItemToFirestore = async (uid: string, item: HistoryItem) => {
-  if (!uid || uid === "guest") return false;
+  // Always ensure recent 10 history items are cached offline
+  try {
+    const currentCached = getOfflineRecentHistory(uid);
+    const existingIndex = currentCached.findIndex((i) => i.id === item.id);
+    let updatedOffline: HistoryItem[];
+    if (existingIndex >= 0) {
+      updatedOffline = currentCached.map((i) => (i.id === item.id ? item : i));
+    } else {
+      updatedOffline = [item, ...currentCached];
+    }
+    saveOfflineRecentHistory(updatedOffline, uid);
+  } catch (e) {
+    console.warn("Error updating offline cache during saveHistoryItemToFirestore:", e);
+  }
+
+  if (!uid || uid === "guest") return true;
   try {
     const docRef = doc(db, "users", uid, "history", item.id);
     const cleanItem = sanitizeForFirestore(item);
     await setDoc(docRef, cleanItem, { merge: true });
     return true;
   } catch (error: any) {
-    console.warn("Error saving history item to Firestore:", error);
+    console.warn("Error saving history item to Firestore (cached offline):", error);
     return false;
   }
 };
 
 export const getHistoryFromFirestore = async (uid: string): Promise<HistoryItem[]> => {
-  if (!uid || uid === "guest") return [];
-  const colRef = collection(db, "users", uid, "history");
-  const snapshot = await getDocs(colRef);
-  const historyList: HistoryItem[] = [];
-  snapshot.forEach((d) => {
-    historyList.push(d.data() as HistoryItem);
-  });
-  return historyList.sort((a, b) => b.timestamp - a.timestamp);
+  if (!uid || uid === "guest") return getOfflineRecentHistory(uid);
+  try {
+    const colRef = collection(db, "users", uid, "history");
+    const snapshot = await getDocs(colRef);
+    const historyList: HistoryItem[] = [];
+    snapshot.forEach((d) => {
+      historyList.push(d.data() as HistoryItem);
+    });
+    const sorted = historyList.sort((a, b) => b.timestamp - a.timestamp);
+    saveOfflineRecentHistory(sorted, uid);
+    return sorted;
+  } catch (err) {
+    console.warn("Firestore history fetch failed (offline mode):", err);
+    return getOfflineRecentHistory(uid);
+  }
 };
 
 export const syncHistoryWithFirestore = async (uid: string, localItems: HistoryItem[]): Promise<HistoryItem[]> => {
-  if (!uid || uid === "guest") return localItems;
+  if (!uid || uid === "guest") {
+    saveOfflineRecentHistory(localItems, uid);
+    return localItems;
+  }
   try {
     const firestoreItems = await getHistoryFromFirestore(uid);
     const firestoreIds = new Set(firestoreItems.map((item) => item.id));
@@ -97,9 +159,12 @@ export const syncHistoryWithFirestore = async (uid: string, localItems: HistoryI
       await Promise.all(itemsToSave);
     }
 
-    return mergedItems.sort((a, b) => b.timestamp - a.timestamp);
+    const sorted = mergedItems.sort((a, b) => b.timestamp - a.timestamp);
+    saveOfflineRecentHistory(sorted, uid);
+    return sorted;
   } catch (error) {
     console.warn("History synchronization failed, falling back to local history:", error);
+    saveOfflineRecentHistory(localItems, uid);
     return localItems;
   }
 };
