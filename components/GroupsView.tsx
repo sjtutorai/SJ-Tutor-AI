@@ -2015,7 +2015,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                               <img src={msg.senderAvatar} alt={msg.senderName} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full bg-primary-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-primary-700 dark:text-primary-300">
-                                {msg.senderName.charAt(0).toUpperCase()}
+                                {(msg.senderName || 'U').charAt(0).toUpperCase()}
                               </div>
                             )}
                           </div>
@@ -3361,7 +3361,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                       <div key={req.uid} className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 rounded-full overflow-hidden bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700 shrink-0">
-                            {req.photoURL ? <img src={req.photoURL} alt={req.displayName} className="w-full h-full object-cover" /> : req.displayName.charAt(0).toUpperCase()}
+                            {req.photoURL ? <img src={req.photoURL} alt={req.displayName} className="w-full h-full object-cover" /> : (req.displayName || 'U').charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{req.displayName}</p>
@@ -3481,7 +3481,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                         <div key={req.uid} className="flex items-center justify-between gap-2 p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-amber-100 dark:border-amber-900/30">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className="w-8 h-8 rounded-full overflow-hidden bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700 shrink-0">
-                              {req.photoURL ? <img src={req.photoURL} alt={req.displayName} className="w-full h-full object-cover" /> : req.displayName.charAt(0).toUpperCase()}
+                              {req.photoURL ? <img src={req.photoURL} alt={req.displayName} className="w-full h-full object-cover" /> : (req.displayName || 'U').charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0">
                               <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{req.displayName}</p>
@@ -3697,7 +3697,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                                 {m.photoURL ? (
                                   <img src={m.photoURL} alt={m.displayName} className="w-full h-full object-cover" />
                                 ) : (
-                                  m.displayName.charAt(0).toUpperCase()
+                                  (m.displayName || 'U').charAt(0).toUpperCase()
                                 )}
                               </div>
                               {isOnline && (
