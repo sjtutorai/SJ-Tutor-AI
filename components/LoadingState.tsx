@@ -288,7 +288,7 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
                 transition={{ ease: "easeInOut" }}
               />
             </svg>
-            <div className="absolute flex flex-col items-center">
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <span className="text-xl font-black text-slate-800 dark:text-white">{Math.round(progress)}%</span>
             </div>
           </div>
@@ -401,16 +401,17 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
             />
           </svg>
 
-          {/* Animated floating document icon */}
+          {/* Animated floating document icon with percentage */}
           <motion.div
             animate={{ 
               y: [0, -8, 0],
               rotate: [0, 2, -2, 0]
             }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="w-18 h-18 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 flex items-center justify-center shadow-md relative z-10"
+            className="w-18 h-18 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 flex flex-col items-center justify-center shadow-md relative z-10"
           >
-            <Upload className="w-8 h-8 animate-pulse" />
+            <Upload className="w-5 h-5 animate-pulse mb-1" />
+            <span className="text-xs font-black">{Math.round(progress)}%</span>
           </motion.div>
         </div>
 

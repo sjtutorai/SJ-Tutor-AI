@@ -295,9 +295,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({
   const currentCard = flashcards[currentCardIdx];
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-[24px] shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="bg-white dark:bg-slate-900 rounded-[24px] shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header Toolbar */}
-      <div className="bg-slate-50 dark:bg-slate-800/60 px-4 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div className="flex-shrink-0 bg-slate-50 dark:bg-slate-800/60 px-4 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <button 
             onClick={onBack}
@@ -430,7 +430,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({
       )}
 
       {/* Main Content Pane */}
-      <div className="p-6 sm:p-8">
+      <div className="p-6 sm:p-8 flex-1 overflow-y-auto custom-scrollbar">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="w-10 h-10 text-primary-500 animate-spin mb-4" />

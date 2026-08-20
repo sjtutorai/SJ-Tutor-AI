@@ -381,7 +381,9 @@ const QuizView: React.FC<QuizViewProps> = ({
               transition={{ ease: "linear" }}
             />
           </svg>
-          <span className="absolute text-sm font-bold text-slate-300 font-mono">{Math.round(loadingProgress)}%</span>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+            <span className="text-sm font-bold text-slate-300 font-mono">{Math.round(loadingProgress)}%</span>
+          </div>
         </div>
       </div>
     );
