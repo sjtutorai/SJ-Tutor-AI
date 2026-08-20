@@ -267,6 +267,8 @@ Generate notes based on:
       
       IMPORTANT: Randomize the position of the correct answer for every question.
       
+      The user has requested to include picture-related questions. For at least half of the questions, include an 'imageUrl' field providing a visual context. You can use standard placeholder image services (e.g., https://placehold.co/600x400/png?text=Math+Diagram or generate descriptive keywords for realistic images).
+      
       Subject: ${data.subject}
       Chapter: ${data.chapterName}
       Class: ${data.gradeClass || settings.learning.grade}
@@ -285,6 +287,7 @@ Generate notes based on:
             type: Type.OBJECT,
             properties: {
               question: { type: Type.STRING },
+              imageUrl: { type: Type.STRING },
               options: { type: Type.ARRAY, items: { type: Type.STRING } },
               correctAnswerIndex: { type: Type.INTEGER },
               explanation: { type: Type.STRING }

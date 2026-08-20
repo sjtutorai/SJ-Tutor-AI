@@ -77,13 +77,6 @@ const QuizView: React.FC<QuizViewProps> = ({
   const [countedScore, setCountedScore] = useState(0);
   const [ringProgress, setRingProgress] = useState(0);
 
-  // Interactive feedback overlay state for correct answers
-  const [correctFeedback, setCorrectFeedback] = useState<{
-    show: boolean;
-    message: string;
-    subtext: string;
-  } | null>(null);
-
   const handleSaveClick = () => {
     if (onAddToMyList) {
       onAddToMyList();
@@ -205,41 +198,9 @@ const QuizView: React.FC<QuizViewProps> = ({
     const newAnswers = [...userAnswers];
     newAnswers[currentIndex] = optionIndex;
     setUserAnswers(newAnswers);
-
-    // If student selected the correct answer, show encouraging feedback with celebratory confetti!
-    if (optionIndex === currentQuestion?.correctAnswerIndex) {
-      try {
-        confetti({
-          particleCount: 45,
-          spread: 65,
-          origin: { y: 0.68 },
-          colors: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'],
-          ticks: 200,
-          gravity: 1.1,
-          scalar: 0.9
-        });
-      } catch (e) {
-        console.warn("Confetti animation notice:", e);
-      }
-
-      setCorrectFeedback({
-        show: true,
-        message: 'Keep it up! 🎉',
-        subtext: 'Great job! That is the correct answer. Keep the momentum going!'
-      });
-
-      // Auto-hide feedback after 2 seconds
-      setTimeout(() => {
-        setCorrectFeedback((prev) => (prev?.show ? null : prev));
-      }, 2000);
-    } else {
-      // Clear feedback if an incorrect option is chosen
-      setCorrectFeedback(null);
-    }
   };
 
   const handleNext = () => {
-    setCorrectFeedback(null);
     if (currentIndex < questions.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
@@ -623,7 +584,7 @@ const QuizView: React.FC<QuizViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="flex flex-col h-full space-y-6 animate-in fade-in duration-300">
       {renderResultModal()}
 
       {isViewingShared && onAddToMyList && (
@@ -650,8 +611,8 @@ const QuizView: React.FC<QuizViewProps> = ({
       )}
       
       {quizCompleted && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md border border-slate-200 dark:border-slate-800 overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-          <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md border border-slate-200 dark:border-slate-800 overflow-hidden animate-in slide-in-from-bottom-4 duration-500 flex-1 flex flex-col min-h-0">
+          <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
             <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
               <CheckCircle className="w-5 h-5 text-emerald-500" />
               Review Answers
@@ -663,7 +624,7 @@ const QuizView: React.FC<QuizViewProps> = ({
               View Final Score
             </button>
           </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 flex-1 overflow-y-auto custom-scrollbar min-h-0">
             {questions.map((q, idx) => {
               const userAnswer = userAnswers[idx];
               const isCorrect = userAnswer === q.correctAnswerIndex;
@@ -672,10 +633,16 @@ const QuizView: React.FC<QuizViewProps> = ({
               return (
                 <div key={idx} className="p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                    <p className="font-semibold text-slate-800 dark:text-slate-200 flex gap-3 text-left">
-                      <span className="text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-sm">{idx + 1}</span>
-                      {q.question}
-                    </p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200 flex gap-3 text-left">
+                        <span className="text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-sm shrink-0 h-fit">{idx + 1}</span>
+                        <span>{q.question}</span>
+                      </p>
+                      
+                      {q.imageUrl && (
+                        <div className="mt-4 mb-2 ml-10 w-full max-w-sm rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm flex justify-center bg-slate-50 dark:bg-slate-900">
+                           <img src={q.imageUrl} alt="Question Context" className="w-full object-contain" referrerPolicy="no-referrer" />
+                        </div>
+                      )}
                     
                     <div>
                       {isSkipped ? (
@@ -728,7 +695,7 @@ const QuizView: React.FC<QuizViewProps> = ({
               );
             })}
           </div>
-          <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 text-center">
+          <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 text-center shrink-0">
             <button
               onClick={onReset}
               className="px-8 py-3 bg-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-600/20 hover:scale-105 active:scale-95 transition-all cursor-pointer"
@@ -740,55 +707,16 @@ const QuizView: React.FC<QuizViewProps> = ({
       )}
 
       {/* Main Active Quiz Screen */}
-      <div className={`bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative ${quizCompleted ? 'hidden' : 'block'}`}>
-        {/* Interactive Feedback Overlay on Correct Answer */}
-        <AnimatePresence>
-          {correctFeedback?.show && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.85, y: -20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -10 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="absolute inset-x-4 top-4 z-30 p-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600 rounded-2xl shadow-xl text-white flex items-center justify-between gap-4 border border-white/20 backdrop-blur-md pointer-events-auto"
-            >
-              <div className="flex items-center gap-3">
-                <motion.div
-                  animate={{ rotate: [0, -10, 10, -5, 0], scale: [1, 1.25, 1] }}
-                  transition={{ duration: 0.6 }}
-                  className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner"
-                >
-                  <Sparkles className="w-6 h-6 text-amber-300 fill-amber-300" />
-                </motion.div>
-                <div>
-                  <h4 className="font-extrabold text-base tracking-wide flex items-center gap-1.5">
-                    {correctFeedback.message}
-                  </h4>
-                  <p className="text-xs text-emerald-50 font-medium leading-relaxed">
-                    {correctFeedback.subtext}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setCorrectFeedback(null)}
-                className="p-1.5 hover:bg-white/20 rounded-full transition text-white/80 hover:text-white shrink-0"
-                title="Dismiss feedback"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+      <div className={`bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative flex-1 flex-col min-h-0 ${quizCompleted ? 'hidden' : 'flex'}`}>
         {/* Progress Bar */}
-        <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5">
+        <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 shrink-0">
           <div 
             className="bg-primary-600 h-1.5 transition-all duration-300"
             style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
           ></div>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 flex-1 overflow-y-auto custom-scrollbar min-h-0">
           <div className="flex justify-between items-center mb-6">
             <span className="text-xs font-bold text-primary-600 uppercase tracking-wider bg-primary-50 px-2 py-1 rounded">
               Question {currentIndex + 1} of {questions.length}
@@ -803,6 +731,12 @@ const QuizView: React.FC<QuizViewProps> = ({
           <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-6 text-left">
             {currentQuestion?.question}
           </h3>
+          
+          {currentQuestion?.imageUrl && (
+            <div className="mb-6 w-full rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800 flex justify-center bg-slate-50 dark:bg-slate-900">
+               <img src={currentQuestion.imageUrl} alt="Question Context" className="max-h-64 object-contain" referrerPolicy="no-referrer" />
+            </div>
+          )}
 
           <div className="space-y-3">
             {currentQuestion?.options.map((option, idx) => {

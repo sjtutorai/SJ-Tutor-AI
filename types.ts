@@ -42,6 +42,7 @@ export interface StudyRequestData {
 
 export interface QuizQuestion {
   question: string;
+  imageUrl?: string;
   options: string[];
   correctAnswerIndex: number;
   explanation: string;

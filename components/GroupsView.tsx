@@ -1147,34 +1147,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [editOnlyAdminsCanPost, setEditOnlyAdminsCanPost] = useState(false);
   const [editOnlyAdminsCanEditInfo, setEditOnlyAdminsCanEditInfo] = useState(false);
 
-  // Custom Image File Upload Handler
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload a valid image file (PNG, JPG, WEBP).');
-      return;
-    }
-
-    if (file.size > 3 * 1024 * 1024) {
-      alert('File size exceeds 3MB limit. Please select a smaller image.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (isEdit) {
-        setEditGroupIconUrl(dataUrl);
-        setEditGroupIconType('file');
-      } else {
-        setNewGroupIconUrl(dataUrl);
-        setNewGroupIconType('file');
-      }
-    };
-    reader.readAsDataURL(file);
-  };
 
   // Request to Join Public Group
   const handleRequestToJoinGroup = async (group: StudyGroup) => {
@@ -2759,17 +2731,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setNewGroupIconType('file')}
-                      className={`flex-1 py-1.5 rounded-lg transition ${
-                        newGroupIconType === 'file'
-                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                          : 'text-slate-500'
-                      }`}
-                    >
-                      Upload PNG/JPG
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => setNewGroupIconType('url')}
                       className={`flex-1 py-1.5 rounded-lg transition ${
                         newGroupIconType === 'url'
@@ -2797,23 +2758,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                           {emoji}
                         </button>
                       ))}
-                    </div>
-                  )}
-
-                  {newGroupIconType === 'file' && (
-                    <div className="space-y-2">
-                      <input
-                        type="file"
-                        accept="image/png, image/jpeg, image/jpg, image/webp"
-                        onChange={(e) => handleFileUpload(e, false)}
-                        className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary-50 file:text-primary-700 dark:file:bg-slate-800 dark:file:text-primary-400 hover:file:bg-primary-100"
-                      />
-                      {newGroupIconUrl && (
-                        <div className="flex items-center gap-3 p-2 bg-slate-100 dark:bg-slate-800 rounded-xl">
-                          <img src={newGroupIconUrl} alt="Preview" className="w-10 h-10 rounded-xl object-cover" />
-                          <span className="text-xs text-emerald-600 font-bold">Custom Icon Loaded!</span>
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -2966,17 +2910,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setEditGroupIconType('file')}
-                      className={`flex-1 py-1.5 rounded-lg transition ${
-                        editGroupIconType === 'file'
-                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                          : 'text-slate-500'
-                      }`}
-                    >
-                      Upload PNG/JPG
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => setEditGroupIconType('url')}
                       className={`flex-1 py-1.5 rounded-lg transition ${
                         editGroupIconType === 'url'
@@ -3004,23 +2937,6 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                           {emoji}
                         </button>
                       ))}
-                    </div>
-                  )}
-
-                  {editGroupIconType === 'file' && (
-                    <div className="space-y-2">
-                      <input
-                        type="file"
-                        accept="image/png, image/jpeg, image/jpg, image/webp"
-                        onChange={(e) => handleFileUpload(e, true)}
-                        className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary-50 file:text-primary-700 dark:file:bg-slate-800 dark:file:text-primary-400 hover:file:bg-primary-100"
-                      />
-                      {editGroupIconUrl && (
-                        <div className="flex items-center gap-3 p-2 bg-slate-100 dark:bg-slate-800 rounded-xl">
-                          <img src={editGroupIconUrl} alt="Preview" className="w-10 h-10 rounded-xl object-cover" />
-                          <span className="text-xs text-emerald-600 font-bold">Image loaded!</span>
-                        </div>
-                      )}
                     </div>
                   )}
 
