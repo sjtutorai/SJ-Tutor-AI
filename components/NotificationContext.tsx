@@ -137,6 +137,73 @@ const SEED_NOTIFICATIONS: NotificationItem[] = [
   }
 ];
 
+export const sanitizeNotification = (raw: any, defaultId?: string): NotificationItem => {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      id: defaultId || `notif-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      userId: 'all',
+      title: 'Alert',
+      body: '',
+      category: 'Important Alerts',
+      timestamp: Date.now(),
+      read: false,
+    };
+  }
+
+  let title = '';
+  let body = '';
+  let category: NotificationCategory = 'Important Alerts';
+
+  if (typeof raw.title === 'string') {
+    title = raw.title;
+  } else if (raw.title && typeof raw.title === 'object') {
+    title = typeof raw.title.title === 'string' ? raw.title.title : (typeof raw.title.body === 'string' ? raw.title.body : '');
+    if (!body && typeof raw.title.body === 'string') body = raw.title.body;
+    if (typeof raw.title.category === 'string') category = raw.title.category as NotificationCategory;
+  }
+
+  if (typeof raw.body === 'string') {
+    body = raw.body;
+  } else if (raw.body && typeof raw.body === 'object') {
+    body = typeof raw.body.body === 'string' ? raw.body.body : (typeof raw.body.title === 'string' ? raw.body.title : '');
+  }
+
+  if (!title) {
+    title = body ? (body.length > 35 ? body.slice(0, 35) + '...' : body) : 'Notification';
+  }
+
+  const validCategories: NotificationCategory[] = [
+    'New Features',
+    'Daily Streak Reminders',
+    'Quiz Updates',
+    'Competition Announcements',
+    'Important Alerts'
+  ];
+  const rawCat = raw.category || category;
+  const finalCategory = validCategories.includes(rawCat) ? rawCat : 'Important Alerts';
+
+  let timestamp = Date.now();
+  if (typeof raw.timestamp === 'number') {
+    timestamp = raw.timestamp;
+  } else if (raw.createdAt?.seconds) {
+    timestamp = raw.createdAt.seconds * 1000;
+  } else if (raw.timestamp?.seconds) {
+    timestamp = raw.timestamp.seconds * 1000;
+  }
+
+  return {
+    id: String(raw.id || defaultId || `notif-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`),
+    userId: String(raw.userId || raw.targetUserId || 'all'),
+    title: String(title),
+    body: String(body),
+    category: finalCategory,
+    timestamp,
+    read: Boolean(raw.read),
+    link: typeof raw.link === 'string' ? raw.link : undefined,
+    metadata: raw.metadata && typeof raw.metadata === 'object' ? raw.metadata : undefined,
+  };
+};
+
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -236,13 +303,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
-        initialLocal = JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          initialLocal = parsed.map((item, idx) => sanitizeNotification(item, `local-${idx}`));
+        } else {
+          initialLocal = SEED_NOTIFICATIONS.map((item, idx) => sanitizeNotification(item, `seed-${idx}`));
+        }
       } else {
-        initialLocal = SEED_NOTIFICATIONS;
-        localStorage.setItem(storageKey, JSON.stringify(SEED_NOTIFICATIONS));
+        initialLocal = SEED_NOTIFICATIONS.map((item, idx) => sanitizeNotification(item, `seed-${idx}`));
+        localStorage.setItem(storageKey, JSON.stringify(initialLocal));
       }
     } catch {
-      initialLocal = SEED_NOTIFICATIONS;
+      initialLocal = SEED_NOTIFICATIONS.map((item, idx) => sanitizeNotification(item, `seed-${idx}`));
     }
 
     setNotifications(initialLocal);
@@ -264,12 +336,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       try {
         const stored = localStorage.getItem(storageKey);
         if (stored) {
-          storedLocalItems = JSON.parse(stored).filter((n: NotificationItem) => 
-            n.id.startsWith('local-') || n.id.startsWith('seed-')
-          );
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            storedLocalItems = parsed
+              .filter((n: any) => n && (String(n.id).startsWith('local-') || String(n.id).startsWith('seed-')))
+              .map((n: any, idx: number) => sanitizeNotification(n, `local-${idx}`));
+          }
         }
       } catch {
-        storedLocalItems = SEED_NOTIFICATIONS;
+        storedLocalItems = SEED_NOTIFICATIONS.map((item, idx) => sanitizeNotification(item, `seed-${idx}`));
       }
 
       let readGlobalIds: string[] = [];
@@ -326,15 +401,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           const items: NotificationItem[] = [];
           snapshot.forEach((doc) => {
             const data = doc.data();
-            items.push({
+            items.push(sanitizeNotification({
               id: doc.id,
               userId: currentUser.uid,
-              title: data.title || '',
-              body: data.body || '',
-              category: (data.category || 'Important Alerts') as NotificationCategory,
-              timestamp: data.timestamp || Date.now(),
-              read: data.read || false,
-            });
+              ...data,
+            }, doc.id));
           });
           currentDirect = items;
           mergeAndStore();
@@ -353,15 +424,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           const items: NotificationItem[] = [];
           snapshot.forEach((doc) => {
             const data = doc.data();
-            items.push({
+            items.push(sanitizeNotification({
               id: doc.id,
               userId: 'all',
-              title: data.title || '',
-              body: data.body || '',
-              category: (data.category || 'New Features') as NotificationCategory,
-              timestamp: data.timestamp || Date.now(),
-              read: data.read || false,
-            });
+              ...data,
+            }, doc.id));
           });
           currentGlobal = items;
           mergeAndStore();
@@ -409,23 +476,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               console.log('Foreground FCM received:', payload);
             }
 
-            const title = payload.notification?.title || payload.data?.title || 'SJ Tutor AI';
-            const body = payload.notification?.body || payload.data?.body || '';
-            const category = (payload.data?.category || 'Important Alerts') as NotificationCategory;
+            const rawTitle = payload.notification?.title || payload.data?.title || 'SJ Tutor AI';
+            const rawBody = payload.notification?.body || payload.data?.body || '';
+            const rawCat = (payload.data?.category || 'Important Alerts') as NotificationCategory;
 
-            triggerSystemNotification(title, body);
-            triggerToast(title, body, category);
-
-            const timestamp = Date.now();
-            const newNotif: NotificationItem = {
-              id: payload.data?.notificationId || `fcm-${timestamp}-${Math.random()}`,
+            const newNotif = sanitizeNotification({
+              id: payload.data?.notificationId || `fcm-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               userId: currentUser.uid,
-              title,
-              body,
-              category,
-              timestamp,
+              title: rawTitle,
+              body: rawBody,
+              category: rawCat,
+              timestamp: Date.now(),
               read: false,
-            };
+            });
+
+            triggerSystemNotification(newNotif.title, newNotif.body);
+            triggerToast(newNotif.title, newNotif.body, newNotif.category);
 
             setNotifications((prev) => {
               if (prev.some(n => n.id === newNotif.id)) return prev;
@@ -615,46 +681,67 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const sendNotification = async (
-    title: string,
-    body: string,
-    category: NotificationCategory,
-    targetUser: string,
+    titleOrObj: string | any,
+    body?: string,
+    category?: NotificationCategory,
+    targetUser?: string,
     link?: string,
     metadata?: any
   ): Promise<boolean> => {
+    let finalTitle = '';
+    let finalBody = '';
+    let finalCategory: NotificationCategory = 'Important Alerts';
+    let finalTargetUser = 'all';
+    let finalLink = link;
+    let finalMetadata = metadata;
+
+    if (titleOrObj && typeof titleOrObj === 'object') {
+      finalTitle = typeof titleOrObj.title === 'string' ? titleOrObj.title : (titleOrObj.title?.title || titleOrObj.body || 'Alert');
+      finalBody = typeof titleOrObj.body === 'string' ? titleOrObj.body : '';
+      finalCategory = (titleOrObj.category || category || 'Important Alerts') as NotificationCategory;
+      finalTargetUser = titleOrObj.targetUser || titleOrObj.targetUserId || titleOrObj.userId || targetUser || 'all';
+      finalLink = titleOrObj.link || link;
+      finalMetadata = titleOrObj.metadata || metadata;
+    } else {
+      finalTitle = typeof titleOrObj === 'string' ? titleOrObj : String(titleOrObj || 'Alert');
+      finalBody = typeof body === 'string' ? body : String(body || '');
+      finalCategory = (category || 'Important Alerts') as NotificationCategory;
+      finalTargetUser = targetUser || 'all';
+    }
+
     const timestamp = Date.now();
     const payload: Omit<NotificationItem, 'id'> = {
-      userId: targetUser,
-      title,
-      body,
-      category,
+      userId: finalTargetUser,
+      title: finalTitle,
+      body: finalBody,
+      category: finalCategory,
       timestamp,
       read: false,
-      ...(link && { link }),
-      ...(metadata && { metadata })
+      ...(finalLink && { link: finalLink }),
+      ...(finalMetadata && { metadata: finalMetadata })
     };
 
-    const shouldSystemShow = targetUser === 'all' || (currentUser && targetUser === currentUser.uid);
+    const shouldSystemShow = finalTargetUser === 'all' || (currentUser && finalTargetUser === currentUser.uid);
     if (shouldSystemShow) {
-      triggerSystemNotification(`[${category}] ${title}`, body);
+      triggerSystemNotification(`[${finalCategory}] ${finalTitle}`, finalBody);
     }
 
     try {
-      if (targetUser === 'all') {
+      if (finalTargetUser === 'all') {
         const globalRef = collection(db, 'global_notifications');
         await addDoc(globalRef, payload);
       } else {
-        const notifRef = collection(db, 'users', targetUser, 'notifications');
+        const notifRef = collection(db, 'users', finalTargetUser, 'notifications');
         await addDoc(notifRef, payload);
       }
       return true;
     } catch (err) {
       console.warn('Could not add to Firestore directly. Adding locally instead.', err);
       
-      const localNotification: NotificationItem = {
+      const localNotification: NotificationItem = sanitizeNotification({
         id: `local-custom-${timestamp}`,
         ...payload
-      };
+      });
 
       const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
       const updated = [localNotification, ...notifications];

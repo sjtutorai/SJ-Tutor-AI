@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate, HomeworkFile } from "../types";
 import { SettingsService } from "./settingsService";
+import { generateEducationalDiagramSvg } from "../utils/quizImageHelper";
 
 // Helper to initialize AI client.
 const getAI = () => {
@@ -266,8 +267,7 @@ Generate notes based on:
       Return the result as a JSON array.
       
       IMPORTANT: Randomize the position of the correct answer for every question.
-      
-      The user has requested to include picture-related questions. For at least half of the questions, include an 'imageUrl' field providing a visual context. You can use standard placeholder image services (e.g., https://placehold.co/600x400/png?text=Math+Diagram or generate descriptive keywords for realistic images).
+      Include questions with clear visual context, diagrams, scientific illustrations, and conceptual problem solving.
       
       Subject: ${data.subject}
       Chapter: ${data.chapterName}
@@ -298,7 +298,26 @@ Generate notes based on:
       }
     });
 
-    if (response.text) return JSON.parse(response.text.trim());
+    if (response.text) {
+      const parsed: QuizQuestion[] = JSON.parse(response.text.trim());
+      // Ensure all questions have a rich, topic-specific educational diagram / illustration
+      return parsed.map((q, idx) => {
+        let finalImageUrl = q.imageUrl;
+        // If image URL is missing, empty, or a generic placeholder that might fail to render
+        if (!finalImageUrl || finalImageUrl.includes('placehold.co') || finalImageUrl.includes('example.com') || !finalImageUrl.startsWith('http')) {
+          finalImageUrl = generateEducationalDiagramSvg({
+            subject: data.subject || 'Academic Studies',
+            chapter: data.chapterName || 'Conceptual Review',
+            question: q.question,
+            index: idx
+          });
+        }
+        return {
+          ...q,
+          imageUrl: finalImageUrl
+        };
+      });
+    }
     throw new Error("Failed to generate quiz data");
   },
 

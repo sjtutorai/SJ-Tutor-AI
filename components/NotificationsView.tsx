@@ -81,6 +81,14 @@ interface SchedItem {
   targetValue: string[];
 }
 
+export const safeNotificationText = (val: any, fallback = ''): string => {
+  if (typeof val === 'string') return val;
+  if (val && typeof val === 'object') {
+    return val.title || val.body || val.text || val.name || fallback;
+  }
+  return val !== undefined && val !== null ? String(val) : fallback;
+};
+
 export interface NotificationsViewProps {
   onNavigateToGroupInvite?: (groupId: string, inviterName: string, groupName: string) => void;
 }
@@ -134,9 +142,9 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
         const data = doc.data();
         items.push({
           id: doc.id,
-          title: data.title || '',
-          body: data.body || '',
-          category: data.category || 'Important Alerts',
+          title: safeNotificationText(data.title, 'Broadcast Notification'),
+          body: safeNotificationText(data.body, ''),
+          category: (data.category || 'Important Alerts') as NotificationCategory,
           timestamp: data.timestamp || Date.now(),
           senderId: data.senderId || '',
           targetType: data.targetType || 'all',
@@ -163,9 +171,9 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
         if (data.status === 'pending' && data.scheduledTime) {
           items.push({
             id: doc.id,
-            title: data.title || '',
-            body: data.body || '',
-            category: data.category || 'Important Alerts',
+            title: safeNotificationText(data.title, 'Scheduled Notification'),
+            body: safeNotificationText(data.body, ''),
+            category: (data.category || 'Important Alerts') as NotificationCategory,
             timestamp: data.timestamp || Date.now(),
             scheduledTime: data.scheduledTime,
             status: 'pending',
@@ -504,10 +512,10 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
                             </div>
 
                             <h3 className={`text-base font-bold text-slate-800 dark:text-white mb-1 ${!notif.read ? 'font-black text-slate-900' : 'font-medium'}`}>
-                              {notif.title}
+                              {safeNotificationText(notif.title, 'Notification')}
                             </h3>
                             <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed pr-2">
-                              {notif.body}
+                              {safeNotificationText(notif.body)}
                             </p>
                             {notif.metadata?.type === 'group_invite' && (
                               <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 text-xs font-bold hover:bg-primary-200 dark:hover:bg-primary-900/60 transition-colors">
@@ -768,12 +776,12 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
                       <div key={sched.id} className="p-3.5 border border-slate-200/60 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 rounded-2xl text-xs flex justify-between items-start gap-4">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                            <span className="font-extrabold text-slate-800 dark:text-white">{sched.title}</span>
+                            <span className="font-extrabold text-slate-800 dark:text-white">{safeNotificationText(sched.title, 'Broadcast')}</span>
                             <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 text-[9px] uppercase font-bold">
                               {sched.category}
                             </span>
                           </div>
-                          <p className="text-slate-500 dark:text-slate-400 truncate mb-1.5">{sched.body}</p>
+                          <p className="text-slate-500 dark:text-slate-400 truncate mb-1.5">{safeNotificationText(sched.body)}</p>
                           <div className="flex items-center gap-3 text-[10px] text-slate-400">
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-primary-500" />
@@ -834,7 +842,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
                           {/* Top row */}
                           <div className="flex justify-between items-start gap-4 mb-1.5">
                             <div className="min-w-0">
-                              <h4 className="font-extrabold text-slate-900 dark:text-white text-sm truncate">{log.title}</h4>
+                              <h4 className="font-extrabold text-slate-900 dark:text-white text-sm truncate">{safeNotificationText(log.title, 'Audit Log')}</h4>
                               <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5">
                                 Log ID: {log.id} • Sent: {new Date(log.timestamp).toLocaleString()}
                               </p>
@@ -844,7 +852,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
                             </span>
                           </div>
 
-                          <p className="text-slate-600 dark:text-slate-300 text-xs mb-3 leading-relaxed">{log.body}</p>
+                          <p className="text-slate-600 dark:text-slate-300 text-xs mb-3 leading-relaxed">{safeNotificationText(log.body)}</p>
 
                           {/* Stats section */}
                           <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-900 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">

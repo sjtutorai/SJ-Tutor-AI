@@ -262,13 +262,13 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
   // 2. QUIZ GENERATION WORKFLOW ANIMATION
   const renderQuizGeneration = () => {
     return (
-      <div className="p-8 sm:p-10 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-xl w-full mx-auto relative overflow-hidden">
+      <div className="p-6 sm:p-8 md:p-10 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-xl w-full mx-auto relative overflow-y-auto max-h-[85vh] custom-scrollbar">
         {/* Subtle Ambient Light */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-primary-500/5 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex flex-col sm:flex-row items-center gap-6 mb-8 border-b border-slate-100 dark:border-slate-800 pb-6">
+        <div className="flex flex-col sm:flex-row items-center gap-6 mb-6 sm:mb-8 border-b border-slate-100 dark:border-slate-800 pb-6 shrink-0">
           {/* Progress Ring (Circular Progress) */}
-          <div className="relative w-24 h-24 flex items-center justify-center flex-shrink-0">
+          <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center flex-shrink-0">
             <svg className="w-full h-full -rotate-90">
               <circle
                 cx="48"
@@ -289,23 +289,23 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-xl font-black text-slate-800 dark:text-white">{Math.round(progress)}%</span>
+              <span className="text-lg sm:text-xl font-black text-slate-800 dark:text-white">{Math.round(progress)}%</span>
             </div>
           </div>
 
           <div className="text-center sm:text-left">
-            <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center justify-center sm:justify-start gap-2">
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center justify-center sm:justify-start gap-2">
               <BrainCircuit className="w-5 h-5 text-primary-500" />
               Crafting Your Custom Quiz
             </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Building exam-aligned challenge questions with answers and feedback sheets...
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Building exam-aligned challenge questions with answers, diagrams, and feedback sheets...
             </p>
           </div>
         </div>
 
         {/* Checklist Steps with Green Checkmark Animations */}
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {quizSteps.map((step, idx) => {
             const isCompleted = idx < activeStep;
             const isActive = idx === activeStep;
@@ -320,7 +320,7 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
                   x: 0,
                   scale: isActive ? 1.02 : 1
                 }}
-                className={`flex items-start gap-4 p-3.5 rounded-xl border transition-all duration-300 ${
+                className={`flex items-start gap-4 p-3 sm:p-3.5 rounded-xl border transition-all duration-300 ${
                   isActive 
                     ? "bg-primary-50/50 dark:bg-primary-950/20 border-primary-200 dark:border-primary-900/50 shadow-xs" 
                     : "border-transparent"
@@ -352,11 +352,11 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
 
                 {/* Text Content */}
                 <div className="flex-1 text-left">
-                  <h4 className={`text-sm font-bold ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-800 dark:text-slate-200"}`}>
+                  <h4 className={`text-xs sm:text-sm font-bold ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-800 dark:text-slate-200"}`}>
                     {step.label}
                   </h4>
                   {isActive && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium font-mono mt-0.5 animate-pulse">
+                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium font-mono mt-0.5 animate-pulse">
                       {step.desc}
                     </p>
                   )}

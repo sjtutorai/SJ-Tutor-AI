@@ -75,6 +75,73 @@ const DEFAULT_NOTIFICATIONS: AppNotification[] = [
   }
 ];
 
+export function sanitizeAppNotification(raw: any, defaultId?: string): AppNotification {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      id: defaultId || `notif-${Date.now()}`,
+      title: 'Alert',
+      body: '',
+      category: 'Important Alerts',
+      read: false,
+      createdAt: Date.now(),
+      userId: 'all'
+    };
+  }
+
+  let title = '';
+  let body = '';
+  let category: AppNotification['category'] = 'Important Alerts';
+
+  if (typeof raw.title === 'string') {
+    title = raw.title;
+  } else if (raw.title && typeof raw.title === 'object') {
+    title = typeof raw.title.title === 'string' ? raw.title.title : (typeof raw.title.body === 'string' ? raw.title.body : '');
+    if (!body && typeof raw.title.body === 'string') body = raw.title.body;
+    if (typeof raw.title.category === 'string') category = raw.title.category;
+  }
+
+  if (typeof raw.body === 'string') {
+    body = raw.body;
+  } else if (raw.body && typeof raw.body === 'object') {
+    body = typeof raw.body.body === 'string' ? raw.body.body : (typeof raw.body.title === 'string' ? raw.body.title : '');
+  }
+
+  if (!title) {
+    title = body ? (body.length > 35 ? body.slice(0, 35) + '...' : body) : 'Notification';
+  }
+
+  const validCategories: AppNotification['category'][] = [
+    'New Features',
+    'Daily Streak Reminders',
+    'Quiz Updates',
+    'Competition Announcements',
+    'Important Alerts'
+  ];
+  const rawCat = raw.category || category;
+  const finalCategory = validCategories.includes(rawCat) ? rawCat : 'Important Alerts';
+
+  let createdAt = Date.now();
+  if (typeof raw.createdAt === 'number') {
+    createdAt = raw.createdAt;
+  } else if (raw.createdAt?.seconds) {
+    createdAt = raw.createdAt.seconds * 1000;
+  } else if (typeof raw.timestamp === 'number') {
+    createdAt = raw.timestamp;
+  } else if (raw.timestamp?.seconds) {
+    createdAt = raw.timestamp.seconds * 1000;
+  }
+
+  return {
+    id: String(raw.id || defaultId || `notif-${Date.now()}`),
+    title: String(title),
+    body: String(body),
+    category: finalCategory,
+    read: Boolean(raw.read),
+    createdAt,
+    userId: String(raw.userId || raw.targetUserId || 'all')
+  };
+}
+
 export class NotificationService {
   /**
    * Request browser push notification permissions and register service worker.
@@ -265,13 +332,18 @@ export class NotificationService {
   static getLocalNotifications(): AppNotification[] {
     const stored = localStorage.getItem(NOTIFICATION_STORAGE_KEY);
     if (!stored) {
-      localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(DEFAULT_NOTIFICATIONS));
-      return DEFAULT_NOTIFICATIONS;
+      const sanitizedDefaults = DEFAULT_NOTIFICATIONS.map((n, idx) => sanitizeAppNotification(n, `seed-${idx}`));
+      localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(sanitizedDefaults));
+      return sanitizedDefaults;
     }
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item, idx) => sanitizeAppNotification(item, `local-${idx}`));
+      }
+      return DEFAULT_NOTIFICATIONS.map((n, idx) => sanitizeAppNotification(n, `seed-${idx}`));
     } catch {
-      return DEFAULT_NOTIFICATIONS;
+      return DEFAULT_NOTIFICATIONS.map((n, idx) => sanitizeAppNotification(n, `seed-${idx}`));
     }
   }
 
@@ -279,7 +351,8 @@ export class NotificationService {
    * Save notifications list to localStorage for local caching.
    */
   static saveLocalNotifications(notifications: AppNotification[]) {
-    localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(notifications));
+    const sanitized = (notifications || []).map((n, idx) => sanitizeAppNotification(n, `saved-${idx}`));
+    localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(sanitized));
   }
 
   /**
@@ -297,7 +370,7 @@ export class NotificationService {
     // Handle background service worker communication
     const messageHandler = (event: MessageEvent) => {
       if (event.data && event.data.type === 'PUSH_RECEIVED') {
-        const newNotif: AppNotification = event.data.notification;
+        const newNotif: AppNotification = sanitizeAppNotification(event.data.notification, `push-${Date.now()}`);
         const currentList = this.getLocalNotifications();
         
         // Prevent duplicate IDs
@@ -329,15 +402,11 @@ export class NotificationService {
         const directNotifs: AppNotification[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
-          directNotifs.push({
+          directNotifs.push(sanitizeAppNotification({
             id: doc.id,
-            title: data.title || '',
-            body: data.body || '',
-            category: data.category || 'Important Alerts',
-            read: data.read ?? false,
-            createdAt: data.createdAt?.seconds ? data.createdAt.seconds * 1000 : (data.createdAt || Date.now()),
-            userId: userId
-          });
+            userId: userId,
+            ...data,
+          }, doc.id));
         });
 
         // Query Global notifications in real-time as well
@@ -351,19 +420,16 @@ export class NotificationService {
 
           globalSnapshot.forEach((doc) => {
             const data = doc.data();
-            globalNotifs.push({
+            globalNotifs.push(sanitizeAppNotification({
               id: doc.id,
-              title: data.title || '',
-              body: data.body || '',
-              category: data.category || 'New Features',
+              userId: 'all',
               read: readGlobalIds.includes(doc.id),
-              createdAt: data.createdAt?.seconds ? data.createdAt.seconds * 1000 : (data.createdAt || Date.now()),
-              userId: 'all'
-            });
+              ...data,
+            }, doc.id));
           });
 
           // Reconcile and merge all elements (Local default seeded + direct + global)
-          const allSeeds = DEFAULT_NOTIFICATIONS;
+          const allSeeds = DEFAULT_NOTIFICATIONS.map((n, idx) => sanitizeAppNotification(n, `seed-${idx}`));
           const map = new Map<string, AppNotification>();
           
           // Seed fallback definitions
@@ -381,7 +447,7 @@ export class NotificationService {
         }).catch(err => {
           console.error("Global notifications fetch fail:", err);
           // Fallback to direct and seeded only
-          const allSeeds = DEFAULT_NOTIFICATIONS;
+          const allSeeds = DEFAULT_NOTIFICATIONS.map((n, idx) => sanitizeAppNotification(n, `seed-${idx}`));
           const map = new Map<string, AppNotification>();
           
           allSeeds.forEach(item => map.set(item.id, item));
@@ -452,49 +518,66 @@ export class NotificationService {
    * Broadcasts to all users (writes to /global_notifications) or sends to a target user.
    */
   static async sendNotification(
-    senderId: string,
-    title: string,
-    body: string,
-    category: AppNotification['category'],
-    targetUserId: string = 'all' // 'all' or specific uid
+    senderIdOrObj: string | any,
+    title?: string,
+    body?: string,
+    category?: AppNotification['category'],
+    targetUserId?: string
   ): Promise<boolean> {
+    let finalTitle = '';
+    let finalBody = '';
+    let finalCategory: AppNotification['category'] = 'Important Alerts';
+    let finalTargetUser = 'all';
+
+    if (senderIdOrObj && typeof senderIdOrObj === 'object') {
+      finalTitle = typeof senderIdOrObj.title === 'string' ? senderIdOrObj.title : (senderIdOrObj.title?.title || senderIdOrObj.body || 'Alert');
+      finalBody = typeof senderIdOrObj.body === 'string' ? senderIdOrObj.body : '';
+      finalCategory = (senderIdOrObj.category || category || 'Important Alerts') as AppNotification['category'];
+      finalTargetUser = senderIdOrObj.targetUserId || senderIdOrObj.targetUser || senderIdOrObj.userId || targetUserId || 'all';
+    } else {
+      finalTitle = typeof title === 'string' ? title : String(title || 'Alert');
+      finalBody = typeof body === 'string' ? body : String(body || '');
+      finalCategory = (category || 'Important Alerts') as AppNotification['category'];
+      finalTargetUser = targetUserId || 'all';
+    }
+
     try {
       const payload = {
-        title,
-        body,
-        category,
+        title: finalTitle,
+        body: finalBody,
+        category: finalCategory,
         createdAt: serverTimestamp(),
-        userId: targetUserId
+        userId: finalTargetUser
       };
 
-      if (targetUserId === 'all') {
+      if (finalTargetUser === 'all') {
         const globalRef = collection(db, 'global_notifications');
         const docRef = await addDoc(globalRef, payload);
         
         // Push notification trigger to the local clients
-        this.showLocalNotification(title, body, category);
+        this.showLocalNotification(finalTitle, finalBody, finalCategory);
         
         // Seed into local list as well
         const list = this.getLocalNotifications();
-        list.unshift({
+        list.unshift(sanitizeAppNotification({
           id: docRef.id,
-          title,
-          body,
-          category,
+          title: finalTitle,
+          body: finalBody,
+          category: finalCategory,
           createdAt: Date.now(),
           read: false,
           userId: 'all'
-        });
+        }, docRef.id));
         this.saveLocalNotifications(list);
         
         return true;
       } else {
-        const userRef = collection(db, `users/${targetUserId}/notifications`);
+        const userRef = collection(db, `users/${finalTargetUser}/notifications`);
         await addDoc(userRef, payload);
         
         // Push notification local simulation
-        if (targetUserId === auth.currentUser?.uid) {
-          this.showLocalNotification(title, body, category);
+        if (finalTargetUser === auth.currentUser?.uid) {
+          this.showLocalNotification(finalTitle, finalBody, finalCategory);
         }
         return true;
       }
@@ -504,17 +587,17 @@ export class NotificationService {
       // Local simulation fallback
       const list = this.getLocalNotifications();
       const mockId = 'local-mock-' + Math.random().toString(36).substr(2, 9);
-      list.unshift({
+      list.unshift(sanitizeAppNotification({
         id: mockId,
-        title,
-        body,
-        category,
+        title: finalTitle,
+        body: finalBody,
+        category: finalCategory,
         createdAt: Date.now(),
         read: false,
-        userId: targetUserId
-      });
+        userId: finalTargetUser
+      }, mockId));
       this.saveLocalNotifications(list);
-      this.showLocalNotification(title, body, category);
+      this.showLocalNotification(finalTitle, finalBody, finalCategory);
       return true;
     }
   }
