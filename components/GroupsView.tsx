@@ -1828,7 +1828,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 {/* Start Group Voice Call */}
                 <button
                   onClick={() => handleStartOrJoinGroupCall(activeGroup, "audio")}
-                  className="p-2 text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 rounded-xl transition shadow-sm flex items-center gap-1"
+                  className="p-2 text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 rounded-xl transition shadow-sm flex items-center gap-1 cursor-pointer"
                   title="Start/Join Group Voice Lounge"
                 >
                   <Phone className="w-5 h-5" />
@@ -1837,66 +1837,26 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 {/* Start Group Video Call */}
                 <button
                   onClick={() => handleStartOrJoinGroupCall(activeGroup, "video")}
-                  className="p-2 text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 rounded-xl transition shadow-sm flex items-center gap-1"
+                  className="p-2 text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 rounded-xl transition shadow-sm flex items-center gap-1 cursor-pointer"
                   title="Start/Join Group HD Video Room"
                 >
                   <Video className="w-5 h-5" />
                 </button>
 
-                {isAdmin && (
-                  <button
-                    onClick={() => setShowRequestsModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition relative mr-1"
-                    title="View Join Requests"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span className="hidden sm:inline">Requests</span>
-                    {activeGroup.joinRequests && Object.keys(activeGroup.joinRequests).length > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                        {Object.keys(activeGroup.joinRequests).length}
-                      </span>
-                    )}
-                  </button>
-                )}
-
-                {/* QR Code Pass Button */}
-                <button
-                  onClick={() => setShowQRPassModal(true)}
-                  className="p-2 text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 rounded-xl transition shadow-sm"
-                  title="View Group QR Pass & Share Poster"
-                >
-                  <QrCode className="w-5 h-5" />
-                </button>
-
-                {/* Chat Wallpaper Customizer Button */}
-                <button
-                  onClick={() => setShowBgModal(true)}
-                  className="p-2 text-amber-600 dark:text-amber-400 bg-amber-50/80 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 rounded-xl transition shadow-sm"
-                  title="Customize Chat Wallpaper & Atmosphere"
-                >
-                  <Palette className="w-5 h-5" />
-                </button>
-
-                <button
-                  onClick={() => setShowPollCreator(true)}
-                  className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
-                  title="Create Group Poll"
-                >
-                  <BarChart2 className="w-5 h-5" />
-                </button>
-
+                {/* Share Group Link */}
                 <button
                   onClick={() => {
                     const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
                     navigator.clipboard.writeText(shareUrl);
                     triggerToast('Copied Group Link! 🔗', 'Share this link with any student. When opened, they can Accept or Decline your invitation.', 'Important Alerts');
                   }}
-                  className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition"
+                  className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition cursor-pointer"
                   title="Share Group Link"
                 >
                   <Share2 className="w-5 h-5" />
                 </button>
 
+                {/* Enlarge Messages Toggle */}
                 <button
                   onClick={() => setIsEnlarged(!isEnlarged)}
                   className={`p-2 rounded-xl transition-all cursor-pointer ${
@@ -1909,12 +1869,18 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   {isEnlarged ? <Minimize2 className="w-5 h-5 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-5 h-5" />}
                 </button>
 
+                {/* Group Info & Settings Button */}
                 <button
                   onClick={() => setShowGroupInfo(true)}
-                  className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                  className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer relative"
                   title="Group Info & Settings"
                 >
-                  <Info className="w-5 h-5" />
+                  <Settings className="w-5 h-5" />
+                  {isAdmin && activeGroup.joinRequests && Object.keys(activeGroup.joinRequests).length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                      {Object.keys(activeGroup.joinRequests).length}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -3385,7 +3351,135 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   </button>
                 )}
 
-                {/* Pending Join Requests (For Owner/Admin) */}
+                {/* Group Options & Quick Actions */}
+                <div className="space-y-2.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Group Options & Tools
+                  </h4>
+
+                  <div className="grid grid-cols-1 gap-2">
+                    {/* Join Requests Option */}
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          setShowGroupInfo(false);
+                          setShowRequestsModal(true);
+                        }}
+                        className="w-full p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between text-left transition group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                            <UserPlus className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="block text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition truncate">
+                              Join Requests
+                            </span>
+                            <span className="block text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                              Review pending member approvals
+                            </span>
+                          </div>
+                        </div>
+
+                        {activeGroup.joinRequests && Object.keys(activeGroup.joinRequests).length > 0 ? (
+                          <span className="px-2 py-0.5 bg-rose-500 text-white text-[10px] font-extrabold rounded-full shrink-0 shadow-sm animate-pulse">
+                            {Object.keys(activeGroup.joinRequests).length} pending
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-semibold px-2 py-0.5 bg-slate-200/60 dark:bg-slate-700/60 rounded-full shrink-0">
+                            0 pending
+                          </span>
+                        )}
+                      </button>
+                    )}
+
+                    {/* QR Code Pass Option */}
+                    <button
+                      onClick={() => {
+                        setShowGroupInfo(false);
+                        setShowQRPassModal(true);
+                      }}
+                      className="w-full p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between text-left transition group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                          <QrCode className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="block text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">
+                            Group QR Pass & Poster
+                          </span>
+                          <span className="block text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            Scan-to-join pass & high-res share poster
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
+                        Open
+                      </span>
+                    </button>
+
+                    {/* Chat Wallpaper Customizer Option */}
+                    <button
+                      onClick={() => {
+                        setShowGroupInfo(false);
+                        setShowBgModal(true);
+                      }}
+                      className="w-full p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between text-left transition group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                          <Palette className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="block text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition truncate">
+                            Chat Wallpaper & Atmosphere
+                          </span>
+                          <span className="block text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            AI art, study aesthetics & gradients
+                          </span>
+                        </div>
+                      </div>
+                      {(currentGroupBg?.imageUrl || currentGroupBg?.bgColor) ? (
+                        <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold rounded-full shrink-0">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="text-xs text-amber-600 dark:text-amber-400 font-bold shrink-0">
+                          Theme
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Create Poll Option */}
+                    <button
+                      onClick={() => {
+                        setShowGroupInfo(false);
+                        setShowPollCreator(true);
+                      }}
+                      className="w-full p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between text-left transition group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                          <BarChart2 className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="block text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition truncate">
+                            Create Group Poll
+                          </span>
+                          <span className="block text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            Ask questions and collect member votes
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs text-blue-600 dark:text-blue-400 font-bold shrink-0">
+                        Create
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pending Join Requests Quick List (For Owner/Admin) */}
                 {(activeGroup.createdBy === currentUid || (userUid && activeGroup.createdBy === userUid) || activeGroup.members?.[currentUid]?.role === 'admin' || (userUid && activeGroup.members?.[userUid]?.role === 'admin')) && activeGroup.joinRequests && Object.keys(activeGroup.joinRequests).length > 0 && (
                   <div className="p-4 bg-amber-50/90 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-900/50 space-y-3">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
@@ -3407,14 +3501,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               onClick={() => handleApproveJoinRequest(activeGroup.id, req)}
-                              className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition shadow-sm"
+                              className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition shadow-sm cursor-pointer"
                               title="Approve Request"
                             >
                               <Check className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => handleDeclineJoinRequest(activeGroup.id, req.uid)}
-                              className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-sm"
+                              className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-sm cursor-pointer"
                               title="Decline Request"
                             >
                               <X className="w-3.5 h-3.5" />
