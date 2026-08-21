@@ -289,6 +289,26 @@ export async function getLocalUserMedia(type: CallType, facingMode: "user" | "en
   }
 }
 
+export async function getVideoMediaTrack(facingMode: "user" | "environment" = "user"): Promise<MediaStreamTrack | null> {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return null;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode,
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+      audio: false,
+    });
+    return stream.getVideoTracks()[0] || null;
+  } catch (e) {
+    console.warn("Could not acquire standalone video track:", e);
+    return null;
+  }
+}
+
 export async function getScreenShareStream(): Promise<MediaStream> {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
     throw new Error("Screen sharing is not supported on this browser/device.");
@@ -332,6 +352,15 @@ export function createAudioLevelMeter(
 
     const checkVolume = () => {
       if (ctx.state === "closed") return;
+
+      // If audio track is disabled / muted / ended, immediately report 0 volume
+      const activeAudio = stream.getAudioTracks().some(t => t.enabled && t.readyState === "live");
+      if (!activeAudio) {
+        onLevelChange(0);
+        animationFrameId = requestAnimationFrame(checkVolume);
+        return;
+      }
+
       analyser.getByteFrequencyData(dataArray);
       let sum = 0;
       for (let i = 0; i < bufferLength; i++) {

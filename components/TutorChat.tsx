@@ -140,6 +140,66 @@ function getDynamicSampleQuestions(subject: string, grade: string): string[] {
   ];
 }
 
+/**
+ * Derives a clean, descriptive AI Session title based on user questions in the chat
+ */
+export function generateSessionTitleFromChat(
+  messages: ChatMessage[],
+  fallbackSubject: string = "Science",
+  fallbackGrade: string = "10th"
+): string {
+  const userMessages = messages.filter(m => m.role === 'user' && m.text && m.text.trim().length > 0);
+  if (userMessages.length === 0) {
+    return `${fallbackSubject} (${fallbackGrade})`;
+  }
+
+  const firstUserText = userMessages[0].text.trim();
+
+  // If user attached files without text or with default text
+  if (firstUserText.startsWith("Examine and explain this attached image/file") || firstUserText.startsWith("[Binary File")) {
+    return `File Analysis • ${fallbackSubject}`;
+  }
+
+  // Remove common question prefixes, filler words, and clean up
+  let cleaned = firstUserText
+    .replace(/^([#*`\s]+)/, '')
+    .replace(/^(can you |could you |please |help me |i want to learn |i need help with |explain |what is |what are |tell me about |how do (i|we)|how does |solve |teach me |guide me on |discuss |give me |define |summarize |write a |show me )\s*/i, '')
+    .replace(/^(the concept of |an overview of |details on |step[- ]by[- ]step )\s*/i, '')
+    .replace(/[?.!;,]+$/, '')
+    .trim();
+
+  if (cleaned.length < 3) {
+    cleaned = firstUserText.replace(/[?.!;,]+$/, '').trim();
+  }
+
+  const lower = cleaned.toLowerCase();
+  if (lower === 'hi' || lower === 'hello' || lower === 'hey' || cleaned.length < 3) {
+    if (userMessages.length > 1) {
+      const nextUserText = userMessages[1].text.trim();
+      if (nextUserText.length > 3) {
+        return generateSessionTitleFromChat(userMessages.slice(1), fallbackSubject, fallbackGrade);
+      }
+    }
+    return `${fallbackSubject} Study Session`;
+  }
+
+  // Capitalize properly
+  cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+
+  // Truncate at word boundary if too long (max 44 chars)
+  if (cleaned.length > 44) {
+    const truncated = cleaned.substring(0, 44);
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace > 22) {
+      cleaned = truncated.substring(0, lastSpace) + '...';
+    } else {
+      cleaned = truncated + '...';
+    }
+  }
+
+  return cleaned;
+}
+
 interface AttachedFile {
   name: string;
   type: string;
@@ -151,7 +211,7 @@ interface AttachedFile {
 interface TutorChatProps {
   onDeductCredit: (amount: number) => boolean;
   currentCredits: number;
-  onSaveSession: (messages: ChatMessage[]) => void;
+  onSaveSession: (messages: ChatMessage[], sessionTitle?: string, sessionId?: string) => void;
   initialMessages?: ChatMessage[];
   onSharePublicLink?: (type: string, title: string, content: any) => Promise<void> | void;
   recentSessions?: any[];
@@ -194,8 +254,42 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     };
   }, []);
 
+  // Stable session identifier across continuous messages
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
+    if (activeSessionId) return activeSessionId;
+    try {
+      const saved = localStorage.getItem('sjtutor_active_chat_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.sessionId && Array.isArray(parsed?.messages) && parsed.messages.length > 1) {
+          return parsed.sessionId;
+        }
+      }
+    } catch (e) {
+      console.debug("No previous chat session state", e);
+    }
+    return `session_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  });
+
+  const [sessionTitle, setSessionTitle] = useState<string>(() => {
+    if (activeSessionId && recentSessions) {
+      const found = recentSessions.find(s => s.id === activeSessionId);
+      if (found?.title) return found.title;
+    }
+    try {
+      const saved = localStorage.getItem('sjtutor_active_chat_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.sessionTitle) return parsed.sessionTitle;
+      }
+    } catch (e) {
+      console.debug("No previous chat session title", e);
+    }
+    return `${subject} (${grade})`;
+  });
+
   const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
-    if (initialMessages) {
+    if (initialMessages && initialMessages.length > 0) {
       return initialMessages.map((m, i) => ({
         id: m.id || `msg-${i}-${Date.now()}`,
         role: m.role,
@@ -205,6 +299,28 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         suggestions: m.suggestions
       }));
     }
+    // Check if we have an autosaved ongoing active session in localStorage to recover from accidental refresh
+    try {
+      const saved = localStorage.getItem('sjtutor_active_chat_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed?.messages) && parsed.messages.length > 1) {
+          return parsed.messages.map((m: any, i: number) => ({
+            id: m.id || `msg-${i}-${Date.now()}`,
+            role: m.role,
+            text: m.text,
+            images: m.images,
+            timestamp: m.timestamp || Date.now(),
+            suggestions: m.suggestions,
+            liked: m.liked,
+            disliked: m.disliked,
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load autosaved chat state", e);
+    }
+
     return [
       {
         id: `msg-welcome-${Date.now()}`,
@@ -249,10 +365,17 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     }
   };
 
-  // Sync messages state when switching sessions
+  // Sync messages state when switching sessions from sidebar or history
   useEffect(() => {
     if (activeSessionId !== loadedSessionId) {
       setLoadedSessionId(activeSessionId);
+      if (activeSessionId) {
+        setCurrentSessionId(activeSessionId);
+        const matched = recentSessions?.find(s => s.id === activeSessionId);
+        if (matched?.title) {
+          setSessionTitle(matched.title);
+        }
+      }
       if (initialMessages && initialMessages.length > 0) {
         setMessages(initialMessages.map((m, i) => ({
           id: m.id || `msg-${i}-${Date.now()}`,
@@ -262,7 +385,11 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           timestamp: m.timestamp || Date.now(),
           suggestions: m.suggestions
         })));
-      } else {
+      } else if (!activeSessionId) {
+        // Active session reset to null (fresh chat)
+        const newId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        setCurrentSessionId(newId);
+        setSessionTitle(`${subject} (${grade})`);
         setMessages([
           {
             id: `msg-welcome-${Date.now()}`,
@@ -271,12 +398,28 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             timestamp: Date.now()
           }
         ]);
+        try {
+          localStorage.removeItem('sjtutor_active_chat_state');
+        } catch (e) {
+          console.debug("Failed to remove active chat state", e);
+        }
       }
       setShowResumePrompt(false);
     }
-  }, [activeSessionId, initialMessages, loadedSessionId, grade, subject]);
+  }, [activeSessionId, initialMessages, loadedSessionId, grade, subject, recentSessions]);
 
   const messagesRef = useRef<ExtendedChatMessage[]>(messages);
+  const currentSessionIdRef = useRef<string>(currentSessionId);
+  const sessionTitleRef = useRef<string>(sessionTitle);
+
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+
+  useEffect(() => {
+    sessionTitleRef.current = sessionTitle;
+  }, [sessionTitle]);
+
   const [isSaved, setIsSaved] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
@@ -301,24 +444,108 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     localStorage.setItem('sjtutor_starred_messages', JSON.stringify(starredTimestamps));
   }, [starredTimestamps]);
 
-  // Auto-save on unmount
-  useEffect(() => {
-    return () => {
-      if (messagesRef.current.length > 1) { 
-        onSaveSession(messagesRef.current);
-      }
-    };
-  }, []);
+  // Comprehensive Auto-Save Function: persists to localStorage and notifies App.tsx
+  const performAutoSave = React.useCallback((msgs: ExtendedChatMessage[]) => {
+    if (msgs.length <= 1) return;
 
-  // Auto-save periodically (every 30 seconds) if changed
+    const derivedTitle = generateSessionTitleFromChat(msgs, subject, grade);
+    setSessionTitle(derivedTitle);
+    sessionTitleRef.current = derivedTitle;
+
+    const payload = {
+      sessionId: currentSessionIdRef.current,
+      sessionTitle: derivedTitle,
+      messages: msgs,
+      lastUpdated: Date.now(),
+      subject,
+      grade,
+    };
+
+    try {
+      localStorage.setItem('sjtutor_active_chat_state', JSON.stringify(payload));
+    } catch (err) {
+      console.warn("Could not auto-save active chat state to localStorage", err);
+    }
+
+    onSaveSession(msgs, derivedTitle, currentSessionIdRef.current);
+  }, [subject, grade, onSaveSession]);
+
+  // 1. Debounced auto-save on message changes
+  useEffect(() => {
+    if (messages.length > 1) {
+      const timer = setTimeout(() => {
+        performAutoSave(messages);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [messages, performAutoSave]);
+
+  // 2. Periodic background auto-save (every 10 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
       if (messagesRef.current.length > 1) {
-        onSaveSession(messagesRef.current);
+        performAutoSave(messagesRef.current);
       }
-    }, 30000);
+    }, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [performAutoSave]);
+
+  // 3. Auto-save immediately before page refresh or navigation to prevent data loss
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (messagesRef.current.length > 1) {
+        const derivedTitle = generateSessionTitleFromChat(messagesRef.current, subject, grade);
+        const payload = {
+          sessionId: currentSessionIdRef.current,
+          sessionTitle: derivedTitle,
+          messages: messagesRef.current,
+          lastUpdated: Date.now(),
+          subject,
+          grade,
+        };
+        try {
+          localStorage.setItem('sjtutor_active_chat_state', JSON.stringify(payload));
+        } catch (e) {
+          console.debug("Failed to set active chat state before unload", e);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      handleBeforeUnload();
+    };
+  }, [subject, grade]);
+
+  // Start a fresh, clean chat session
+  const handleStartNewSession = () => {
+    const newId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    setCurrentSessionId(newId);
+    currentSessionIdRef.current = newId;
+    const defaultTitle = `${subject} (${grade})`;
+    setSessionTitle(defaultTitle);
+    sessionTitleRef.current = defaultTitle;
+
+    setMessages([
+      {
+        id: `msg-welcome-${Date.now()}`,
+        role: 'model',
+        text: `Hi there! I'm **SJ Tutor AI**, your premium, intelligent learning companion. 🎓\n\nI have fully customized our lesson for your **${grade} Grade ${subject}** studies. What are we exploring today? Let's break it down step-by-step together!`,
+        timestamp: Date.now()
+      }
+    ]);
+
+    try {
+      localStorage.removeItem('sjtutor_active_chat_state');
+    } catch (e) {
+      console.debug("Failed to clear active chat state on new session", e);
+    }
+
+    if (onSelectSession) onSelectSession(null);
+    setIsSessionsOpen(false);
+    setShowResumePrompt(false);
+  };
 
   const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
@@ -616,11 +843,10 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     console.log("TutorChat Share button click event detected.");
     try {
       if (props.onSharePublicLink) {
-        const firstUserMsg = messages.find(m => m.role === 'user')?.text || '';
-        const topicSnippet = firstUserMsg ? `"${firstUserMsg.substring(0, 30)}..."` : 'AI Lesson';
+        const derivedTitle = sessionTitle || generateSessionTitleFromChat(messages, subject, grade);
         await props.onSharePublicLink(
           "tutor",
-          `Tutor Session: ${topicSnippet}`,
+          derivedTitle,
           { messages }
         );
       } else {
@@ -637,7 +863,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   };
 
   const handleSave = () => {
-    onSaveSession(messages);
+    performAutoSave(messages);
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
   };
@@ -1039,8 +1265,20 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               <div className="flex items-center gap-2">
                 <span className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">SJ Tutor AI</span>
                 <span className="px-2 py-0.5 bg-primary-100 dark:bg-primary-950 text-primary-700 dark:text-primary-300 rounded-full text-[10px] font-bold">PRO</span>
+                {sessionTitle && sessionTitle !== `${subject} (${grade})` && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold max-w-[200px] md:max-w-[280px] truncate border border-slate-200 dark:border-slate-700 shadow-2xs" title={`Active Topic: ${sessionTitle}`}>
+                    <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                    <span className="truncate">{sessionTitle}</span>
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Interactive Tutor in {subject} ({grade})</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">Interactive Tutor in {subject} ({grade})</p>
+                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Auto-saved
+                </span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1182,7 +1420,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                           Resume Session
                         </button>
                         <button
-                          onClick={() => setShowResumePrompt(false)}
+                          onClick={handleStartNewSession}
                           className="px-4 py-2 bg-slate-200 hover:bg-slate-350 dark:bg-slate-850 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition cursor-pointer"
                         >
                           Start Fresh Chat
@@ -1777,11 +2015,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
             {/* New Session Button */}
             <button
-              onClick={() => {
-                if (onSelectSession) onSelectSession(null);
-                setIsSessionsOpen(false);
-                setShowResumePrompt(false);
-              }}
+              onClick={handleStartNewSession}
               className="w-full mb-4 p-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-sm active:scale-98 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -1837,7 +2071,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         onClose={() => setIsExportOpen(false)}
         contentType="tutor"
         contentData={messages}
-        title="AI Tutor Chat Session"
+        title={sessionTitle || `AI Tutor Chat Session - ${subject}`}
         metadata={{
           subject: subject,
           grade: grade

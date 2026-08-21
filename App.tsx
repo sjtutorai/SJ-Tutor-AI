@@ -2697,18 +2697,28 @@ const App: React.FC = () => {
                 const customMessage = `🎓 SJ Tutor AI - ${title} 🎓\nClass: ${formData.gradeClass || "General"}\nSubject: ${formData.subject || "General"}\n\nReview this study content here:`;
                 await handleSharePublicLink(type, title, content, customId, customUrl, customMessage);
               }}
-              onSaveSession={(msgs) => {
+              onSaveSession={(msgs, sessionTitle, sessionId) => {
                 if (msgs.length > 1) {
                   const tutorItemContent = {
                     messages: msgs,
                   };
+                  const targetSessionId = sessionId || currentHistoryId;
                   // Check if already in history to update or add
                   const existing = history.find(
                     (h) =>
-                      h.id === currentHistoryId && h.type === AppMode.TUTOR,
+                      (h.id === targetSessionId || (currentHistoryId && h.id === currentHistoryId)) &&
+                      h.type === AppMode.TUTOR,
                   );
+
+                  const derivedTitle = sessionTitle || existing?.title || (formData.chapterName && formData.chapterName !== "Untitled Chapter" ? formData.chapterName : `${formData.subject || "General"} Tutor Session`);
+
                   if (existing) {
-                    const updatedItem = { ...existing, content: tutorItemContent };
+                    const updatedItem: HistoryItem = {
+                      ...existing,
+                      title: derivedTitle,
+                      content: tutorItemContent,
+                      timestamp: Date.now(),
+                    };
                     setHistory((prev) =>
                       prev.map((h) =>
                         h.id === existing.id
@@ -2716,11 +2726,28 @@ const App: React.FC = () => {
                           : h,
                       ),
                     );
+                    if (currentHistoryId !== existing.id) {
+                      setCurrentHistoryId(existing.id);
+                    }
                     if (user) {
                       saveHistoryItemToFirestore(user.uid, updatedItem);
                     }
                   } else {
-                    addToHistory(AppMode.TUTOR, tutorItemContent);
+                    const newSessionId = targetSessionId || Date.now().toString();
+                    const newItem: HistoryItem = {
+                      id: newSessionId,
+                      type: AppMode.TUTOR,
+                      title: derivedTitle,
+                      subtitle: `${formData.gradeClass || userProfile.grade || "General"} • ${formData.subject || "AI Tutor"}`,
+                      timestamp: Date.now(),
+                      content: tutorItemContent,
+                      formData: { ...formData },
+                    };
+                    setHistory((prev) => [newItem, ...prev.filter((h) => h.id !== newSessionId)]);
+                    setCurrentHistoryId(newSessionId);
+                    if (user) {
+                      saveHistoryItemToFirestore(user.uid, newItem);
+                    }
                   }
                 }
               }}

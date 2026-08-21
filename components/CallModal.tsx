@@ -7,6 +7,7 @@ import {
 import {
   callAudio,
   getLocalUserMedia,
+  getVideoMediaTrack,
   getScreenShareStream,
   stopAllStreamTracks,
   createAudioLevelMeter,
@@ -314,14 +315,19 @@ export const CallModal: React.FC<CallModalProps> = ({
   // Attach local video stream whenever video element or stream updates
   useEffect(() => {
     if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
+      if (localVideoRef.current.srcObject !== localStream) {
+        localVideoRef.current.srcObject = localStream;
+      }
+      localVideoRef.current.play().catch(() => {});
     }
-  }, [localStream, isVideoOff]);
+  }, [localStream, isVideoOff, cameraFacing]);
 
   // Attach remote video stream whenever remote element or stream updates
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
+      if (remoteVideoRef.current.srcObject !== remoteStream) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
       remoteVideoRef.current.play().catch((err) => console.warn("Remote video play notice:", err));
     }
   }, [remoteStream, isVideoOff]);
@@ -329,7 +335,9 @@ export const CallModal: React.FC<CallModalProps> = ({
   // Ensure remote audio playback across all devices and call types
   useEffect(() => {
     if (remoteAudioRef.current && remoteStream) {
-      remoteAudioRef.current.srcObject = remoteStream;
+      if (remoteAudioRef.current.srcObject !== remoteStream) {
+        remoteAudioRef.current.srcObject = remoteStream;
+      }
       remoteAudioRef.current.muted = isSpeakerMuted;
       remoteAudioRef.current
         .play()
@@ -351,24 +359,34 @@ export const CallModal: React.FC<CallModalProps> = ({
         pc.addTrack(track, stream);
       });
 
+      // If video track is not present (audio call), create video transceiver upfront
+      // so turning video ON dynamically works seamlessly with replaceTrack
+      const hasVideoTrack = stream.getVideoTracks().length > 0;
+      if (!hasVideoTrack && pc.addTransceiver) {
+        try {
+          pc.addTransceiver("video", { direction: "sendrecv" });
+        } catch (e) {
+          console.debug("Video transceiver fallback:", e);
+        }
+      }
+
       // Handle remote incoming stream tracks
       pc.ontrack = (event) => {
         const [incomingStream] = event.streams;
-        if (incomingStream) {
-          setRemoteStream(incomingStream);
-          if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = incomingStream;
-            remoteAudioRef.current.play().catch(() => {});
-          }
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = incomingStream;
-            remoteVideoRef.current.play().catch(() => {});
-          }
-          // Meter remote audio for visual speaking ripples
-          createAudioLevelMeter(incomingStream, (level) => {
-            setRemoteAudioLevel(level);
-          });
+        const streamToUse = incomingStream || new MediaStream([event.track]);
+        setRemoteStream(streamToUse);
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = streamToUse;
+          remoteAudioRef.current.play().catch(() => {});
         }
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = streamToUse;
+          remoteVideoRef.current.play().catch(() => {});
+        }
+        // Meter remote audio for visual speaking ripples
+        createAudioLevelMeter(streamToUse, (level) => {
+          setRemoteAudioLevel(level);
+        });
       };
 
       // Handle local ICE candidates
@@ -480,20 +498,29 @@ export const CallModal: React.FC<CallModalProps> = ({
         pc.addTrack(track, stream);
       });
 
+      // Ensure video transceiver is available if starting with audio
+      const hasVideoTrack = stream.getVideoTracks().length > 0;
+      if (!hasVideoTrack && pc.addTransceiver) {
+        try {
+          pc.addTransceiver("video", { direction: "sendrecv" });
+        } catch (e) {
+          console.debug("Video transceiver fallback:", e);
+        }
+      }
+
       pc.ontrack = (event) => {
         const [incoming] = event.streams;
-        if (incoming) {
-          setRemoteStream(incoming);
-          if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = incoming;
-            remoteAudioRef.current.play().catch(() => {});
-          }
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = incoming;
-            remoteVideoRef.current.play().catch(() => {});
-          }
-          createAudioLevelMeter(incoming, (lvl) => setRemoteAudioLevel(lvl));
+        const streamToUse = incoming || new MediaStream([event.track]);
+        setRemoteStream(streamToUse);
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = streamToUse;
+          remoteAudioRef.current.play().catch(() => {});
         }
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = streamToUse;
+          remoteVideoRef.current.play().catch(() => {});
+        }
+        createAudioLevelMeter(streamToUse, (lvl) => setRemoteAudioLevel(lvl));
       };
 
       pc.onicecandidate = (event) => {
@@ -572,45 +599,112 @@ export const CallModal: React.FC<CallModalProps> = ({
   // Toggle Mic
   const handleToggleMic = () => {
     if (!localStream) return;
-    const audioTrack = localStream.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      setIsMuted(!audioTrack.enabled);
-      if (liveGroupCall) {
-        updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
-          isMuted: !audioTrack.enabled,
-        });
-      }
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+
+    // 1. Immediately toggle all audio tracks in localStream
+    localStream.getAudioTracks().forEach((track) => {
+      track.enabled = !nextMuted;
+    });
+
+    // 2. Immediately toggle all audio senders in WebRTC RTCPeerConnection
+    if (peerConnRef.current) {
+      peerConnRef.current.getSenders().forEach((sender) => {
+        if (sender.track && sender.track.kind === "audio") {
+          sender.track.enabled = !nextMuted;
+        }
+      });
+    }
+
+    // 3. Immediately update Group Call participant state
+    if (liveGroupCall) {
+      updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
+        isMuted: nextMuted,
+      });
+    }
+
+    if (nextMuted) {
+      setLocalAudioLevel(0);
     }
   };
 
   // Toggle Video
-  const handleToggleVideo = () => {
-    if (!localStream) return;
-    const videoTrack = localStream.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-      setIsVideoOff(!videoTrack.enabled);
-      if (liveGroupCall) {
-        updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
-          isVideoOff: !videoTrack.enabled,
-        });
-      }
-    } else {
-      // If no video track yet, get one
-      getLocalUserMedia("video", cameraFacing).then((newStream) => {
+  const handleToggleVideo = async () => {
+    if (!localStream) {
+      try {
+        const newStream = await getLocalUserMedia("video", cameraFacing);
         setLocalStream(newStream);
         setIsVideoOff(false);
         if (peerConnRef.current) {
-          const newTrack = newStream.getVideoTracks()[0];
-          peerConnRef.current.addTrack(newTrack, newStream);
+          newStream.getTracks().forEach((t) => peerConnRef.current?.addTrack(t, newStream));
         }
         if (liveGroupCall) {
           updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
             isVideoOff: false,
           });
         }
+      } catch (e) {
+        console.warn("Could not acquire initial video stream", e);
+        triggerToast?.("Camera Notice", "Could not access camera device.", "Important Alerts");
+      }
+      return;
+    }
+
+    const currentVideoTracks = localStream.getVideoTracks();
+    if (currentVideoTracks.length > 0) {
+      const nextVideoOff = !isVideoOff;
+      setIsVideoOff(nextVideoOff);
+      currentVideoTracks.forEach((track) => {
+        track.enabled = !nextVideoOff;
       });
+
+      if (peerConnRef.current) {
+        peerConnRef.current.getSenders().forEach((sender) => {
+          if (sender.track && sender.track.kind === "video") {
+            sender.track.enabled = !nextVideoOff;
+          }
+        });
+      }
+
+      if (liveGroupCall) {
+        updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
+          isVideoOff: nextVideoOff,
+        });
+      }
+    } else {
+      // No video track in localStream yet (e.g. started as audio-only call) -> Request new video track from camera!
+      try {
+        const newVideoTrack = await getVideoMediaTrack(cameraFacing);
+        if (newVideoTrack) {
+          localStream.addTrack(newVideoTrack);
+          setIsVideoOff(false);
+
+          if (peerConnRef.current) {
+            const pc = peerConnRef.current;
+            const videoSender = pc.getSenders().find(
+              (s) => s.track?.kind === "video" || (!s.track && (s as any).dtlsTransport)
+            );
+            if (videoSender) {
+              await videoSender.replaceTrack(newVideoTrack);
+            } else {
+              pc.addTrack(newVideoTrack, localStream);
+            }
+          }
+
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = localStream;
+          }
+
+          if (liveGroupCall) {
+            updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
+              isVideoOff: false,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to acquire video track on camera toggle:", err);
+        triggerToast?.("Camera Error", "Could not turn on camera. Check browser permissions.", "Important Alerts");
+      }
     }
   };
 
@@ -671,15 +765,35 @@ export const CallModal: React.FC<CallModalProps> = ({
   const handleFlipCamera = async () => {
     const nextFacing = cameraFacing === "user" ? "environment" : "user";
     setCameraFacing(nextFacing);
-    stopAllStreamTracks(localStream);
+
     try {
-      const stream = await getLocalUserMedia("video", nextFacing);
-      setLocalStream(stream);
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
+      const newVideoTrack = await getVideoMediaTrack(nextFacing);
+      if (newVideoTrack && localStream) {
+        // Stop and remove old video tracks
+        localStream.getVideoTracks().forEach((oldTrack) => {
+          oldTrack.stop();
+          localStream.removeTrack(oldTrack);
+        });
+
+        localStream.addTrack(newVideoTrack);
+        setIsVideoOff(false);
+
+        if (peerConnRef.current) {
+          const videoSender = peerConnRef.current.getSenders().find(
+            (s) => s.track?.kind === "video" || (!s.track && (s as any).dtlsTransport)
+          );
+          if (videoSender) {
+            await videoSender.replaceTrack(newVideoTrack);
+          }
+        }
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = localStream;
+        }
       }
     } catch (e) {
-      console.warn("Failed to switch camera", e);
+      console.warn("Failed to switch camera:", e);
+      triggerToast?.("Camera Switch Failed", "Could not switch camera facing mode.", "Important Alerts");
     }
   };
 
@@ -872,17 +986,20 @@ export const CallModal: React.FC<CallModalProps> = ({
         {/* Center Stage Video / Audio View */}
         <div className="flex-1 relative flex items-center justify-center p-4">
           {/* Main Remote View */}
-          {liveDirectCall.type === "video" && remoteStream && !isVideoOff ? (
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="w-full h-full object-contain rounded-3xl"
-            />
+          {remoteStream && remoteStream.getVideoTracks().length > 0 && remoteStream.getVideoTracks().some(t => t.enabled) ? (
+            <div className="relative w-full h-full max-w-4xl flex items-center justify-center">
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-contain rounded-3xl shadow-2xl"
+              />
+            </div>
           ) : (
             <div className="text-center relative">
               {/* Outer Ambient Audio Ripples */}
-              {remoteAudioLevel > 10 && (
+              {!isSpeakerMuted && remoteAudioLevel > 10 && (
                 <div
                   className="absolute inset-0 -m-8 rounded-full border-2 border-emerald-500/40 animate-ping pointer-events-none"
                   style={{ animationDuration: "1.5s" }}
@@ -903,7 +1020,7 @@ export const CallModal: React.FC<CallModalProps> = ({
           )}
 
           {/* Local User PiP Thumbnail (in corner) */}
-          {liveDirectCall.type === "video" && (
+          {localStream && localStream.getVideoTracks().length > 0 && (
             <div className="absolute bottom-6 right-6 w-32 h-44 sm:w-44 sm:h-60 rounded-2xl overflow-hidden shadow-2xl border-2 border-slate-700 bg-slate-900 z-10">
               <video
                 ref={localVideoRef}
@@ -917,13 +1034,15 @@ export const CallModal: React.FC<CallModalProps> = ({
                   Camera Off
                 </div>
               )}
-              <button
-                onClick={handleFlipCamera}
-                className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg text-xs"
-                title="Switch Camera"
-              >
-                <Camera className="w-3.5 h-3.5" />
-              </button>
+              {!isVideoOff && (
+                <button
+                  onClick={handleFlipCamera}
+                  className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg text-xs cursor-pointer shadow"
+                  title="Switch Camera"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1140,7 +1259,7 @@ export const CallModal: React.FC<CallModalProps> = ({
               const isMe = p.uid === currentUser.uid;
               const hasVideo = isMe ? !isVideoOff : !p.isVideoOff;
               const isUserMuted = isMe ? isMuted : p.isMuted;
-              const isSpeaking = isMe ? localAudioLevel > 15 : false;
+              const isSpeaking = isMe ? (!isMuted && localAudioLevel > 15) : false;
 
               return (
                 <div
