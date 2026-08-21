@@ -121,27 +121,140 @@ export class NotificationService {
     
     if (Notification.permission === 'granted') {
       try {
-        const registration = await navigator.serviceWorker.getRegistration();
+        const registration = await navigator.serviceWorker?.getRegistration();
         if (registration) {
           registration.showNotification(title, {
             body,
-            icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
-            badge: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg',
+            icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+            badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
             vibrate: [200, 100, 200],
-            data: { category }
+            data: { category, url: window.location.origin }
           } as NotificationOptions & { vibrate?: number[] });
         } else {
           new Notification(title, {
             body,
-            icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
+            icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg'
           });
         }
       } catch {
         new Notification(title, {
           body,
-          icon: 'https://res.cloudinary.com/dbliqm48v/image/upload/v1765344874/gemini-2.5-flash-image_remove_all_the_elemts_around_the_tutor-0_lvlyl0.jpg'
+          icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg'
         });
       }
+    }
+  }
+
+  /**
+   * Show full-screen style phone/WhatsApp call notification with Accept and Decline buttons
+   */
+  static async showIncomingCallNotification(call: {
+    id: string;
+    callerName: string;
+    callerAvatar?: string;
+    type: 'audio' | 'video';
+  }) {
+    if (!('Notification' in window)) return;
+
+    if (Notification.permission === 'default') {
+      try {
+        await Notification.requestPermission();
+      } catch {
+        // ignore
+      }
+    }
+
+    if (Notification.permission === 'granted') {
+      const callTypeLabel = call.type === 'video' ? 'Video' : 'Voice';
+      const title = `📞 Incoming ${callTypeLabel} Call`;
+      const body = `${call.callerName || 'Scholar'} is calling you on SJ Tutor AI. Tap Accept to connect.`;
+      const avatar = call.callerAvatar || 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg';
+
+      try {
+        let registration = await navigator.serviceWorker?.getRegistration();
+        if (!registration) {
+          registration = await this.registerServiceWorker();
+        }
+
+        if (registration && 'showNotification' in registration) {
+          // Tell active service worker or display directly
+          await registration.showNotification(title, {
+            body,
+            icon: avatar,
+            badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+            tag: `call_${call.id}`,
+            renotify: true,
+            requireInteraction: true, // Keep notification pinned like a real incoming phone call
+            vibrate: [500, 250, 500, 250, 500, 250, 1000],
+            data: {
+              type: 'call',
+              callId: call.id,
+              callerName: call.callerName,
+              callerAvatar: call.callerAvatar,
+              callType: call.type,
+              url: `${window.location.origin}/?action=accept_call&callId=${encodeURIComponent(call.id)}`
+            },
+            actions: [
+              { action: 'accept_call', title: '📞 Accept' },
+              { action: 'decline_call', title: '❌ Decline' }
+            ]
+          } as NotificationOptions & { vibrate?: number[]; actions?: Array<{ action: string; title: string }> });
+
+          if (navigator.serviceWorker?.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'SHOW_CALL_NOTIFICATION',
+              call: {
+                id: call.id,
+                callerName: call.callerName,
+                callerAvatar: call.callerAvatar,
+                type: call.type
+              }
+            });
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('ServiceWorker call notification notice:', err);
+      }
+
+      // Fallback to standard desktop Notification API
+      try {
+        const notif = new Notification(title, {
+          body,
+          icon: avatar,
+          tag: `call_${call.id}`,
+          requireInteraction: true,
+        });
+        notif.onclick = () => {
+          window.focus();
+          window.location.href = `/?action=accept_call&callId=${encodeURIComponent(call.id)}`;
+          notif.close();
+        };
+      } catch (e) {
+        console.warn('Fallback notification notice:', e);
+      }
+    }
+  }
+
+  /**
+   * Dismiss an active call notification when answered, declined, or ended
+   */
+  static async dismissCallNotification(callId: string) {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg && 'getNotifications' in reg) {
+        const activeNotifs = await reg.getNotifications({ tag: `call_${callId}` });
+        activeNotifs.forEach((n) => n.close());
+      }
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'DISMISS_CALL_NOTIFICATION',
+          callId
+        });
+      }
+    } catch (err) {
+      console.warn('Error dismissing call notification:', err);
     }
   }
 

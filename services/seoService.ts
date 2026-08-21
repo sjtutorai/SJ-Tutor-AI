@@ -16,7 +16,8 @@ export interface SEOConfig {
 }
 
 export const CANONICAL_BASE_URL = 'https://sjtutorai.vercel.app';
-export const DEFAULT_LOGO_URL = 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg';
+export const DEFAULT_LOGO_URL = 'https://sjtutorai.vercel.app/logo.png';
+export const DEFAULT_OG_IMAGE = 'https://sjtutorai.vercel.app/og-image.png';
 export const DEFAULT_FAVICON_URL = 'https://sjtutorai.vercel.app/favicon-48x48.png';
 export const DEFAULT_TITLE = 'SJ Tutor AI - Your AI Study Buddy';
 export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion for students.';
@@ -64,20 +65,34 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
         "@type": "Organization",
         "@id": `${CANONICAL_BASE_URL}/#organization`,
         "name": "SJ Tutor AI",
+        "alternateName": ["SJ Tutor", "SJTutorAI"],
         "url": `${CANONICAL_BASE_URL}/`,
         "logo": {
           "@type": "ImageObject",
           "url": DEFAULT_LOGO_URL,
           "contentUrl": DEFAULT_LOGO_URL,
+          "width": 512,
+          "height": 512,
           "caption": "SJ Tutor AI Logo"
         },
-        "image": DEFAULT_LOGO_URL
+        "image": DEFAULT_LOGO_URL,
+        "description": "SJ Tutor AI is an all-in-one AI study companion for students."
+      },
+      {
+        "@type": "EducationalOrganization",
+        "@id": `${CANONICAL_BASE_URL}/#educational-organization`,
+        "name": "SJ Tutor AI",
+        "url": `${CANONICAL_BASE_URL}/`,
+        "logo": DEFAULT_LOGO_URL,
+        "image": DEFAULT_LOGO_URL,
+        "description": "An all-in-one AI study companion that empowers students with interactive AI tutoring, instant quizzes, and homework solving."
       },
       {
         "@type": "WebSite",
         "@id": `${CANONICAL_BASE_URL}/#website`,
         "url": `${CANONICAL_BASE_URL}/`,
         "name": "SJ Tutor AI",
+        "alternateName": "SJ Tutor",
         "description": DEFAULT_DESCRIPTION,
         "publisher": {
           "@id": `${CANONICAL_BASE_URL}/#organization`

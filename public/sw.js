@@ -87,26 +87,66 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  const title = payload.title || payload.notification?.title || 'SJ Tutor AI';
-  const body = payload.body || payload.notification?.body || 'You have a new update!';
-  const category = payload.data?.category || payload.category || 'Important Alerts';
-  const notificationId = payload.data?.notificationId || payload.notificationId || Date.now().toString();
+  const rawData = payload.data || payload;
+  const isCall = rawData.type === 'call' || 
+                 rawData.callId || 
+                 (payload.title && payload.title.toLowerCase().includes('call')) ||
+                 (payload.notification?.title && payload.notification.title.toLowerCase().includes('call'));
 
-  const options = {
-    body: body,
-    icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
-    badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
-    vibrate: [100, 50, 100],
-    data: {
-      url: self.location.origin,
-      notificationId: notificationId,
-      category: category,
-      ...payload
-    },
-    actions: [
-      { action: 'open', title: 'Open SJ Tutor AI' }
-    ]
-  };
+  const callId = rawData.callId || '';
+  const callerName = rawData.callerName || 'A Student / Teacher';
+  const callType = rawData.callType || (payload.title && payload.title.toLowerCase().includes('video') ? 'video' : 'audio');
+
+  let title = payload.title || payload.notification?.title || 'SJ Tutor AI';
+  let body = payload.body || payload.notification?.body || 'You have a new update!';
+  const category = rawData.category || payload.category || (isCall ? 'Important Alerts' : 'New Features');
+  const notificationId = rawData.notificationId || payload.notificationId || (isCall ? `call_${callId}` : Date.now().toString());
+
+  let options = {};
+
+  if (isCall) {
+    title = `📞 Incoming ${callType === 'video' ? 'Video' : 'Audio'} Call`;
+    body = `${callerName} is calling you on SJ Tutor AI. Tap Accept to connect.`;
+    options = {
+      body: body,
+      icon: rawData.callerAvatar || 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      tag: `call_${callId}`,
+      renotify: true,
+      requireInteraction: true, // Keeps call notification persistent on screen until answered or declined like a phone call
+      vibrate: [500, 250, 500, 250, 500, 250, 1000],
+      data: {
+        url: `${self.location.origin}/?action=accept_call&callId=${encodeURIComponent(callId)}`,
+        callId: callId,
+        callerName: callerName,
+        callType: callType,
+        type: 'call',
+        notificationId: notificationId,
+        category: category,
+        ...rawData
+      },
+      actions: [
+        { action: 'accept_call', title: '📞 Accept' },
+        { action: 'decline_call', title: '❌ Decline' }
+      ]
+    };
+  } else {
+    options = {
+      body: body,
+      icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      vibrate: [100, 50, 100],
+      data: {
+        url: self.location.origin,
+        notificationId: notificationId,
+        category: category,
+        ...payload
+      },
+      actions: [
+        { action: 'open', title: 'Open SJ Tutor AI' }
+      ]
+    };
+  }
 
   event.waitUntil(
     self.registration.showNotification(title, options)
@@ -117,7 +157,8 @@ self.addEventListener('push', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       clients.forEach((client) => {
         client.postMessage({
-          type: 'PUSH_RECEIVED',
+          type: isCall ? 'CALL_PUSH_RECEIVED' : 'PUSH_RECEIVED',
+          callId: callId,
           notification: {
             id: notificationId,
             title: title,
@@ -125,7 +166,8 @@ self.addEventListener('push', (event) => {
             category: category,
             createdAt: Date.now(),
             read: false,
-            userId: 'all'
+            userId: 'all',
+            metadata: rawData
           }
         });
       });
@@ -134,17 +176,51 @@ self.addEventListener('push', (event) => {
 });
 
 self.addEventListener('notificationclick', (event) => {
-  console.log('[Service Worker] Notification click Received.');
+  console.log('[Service Worker] Notification click Received, action:', event.action);
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || self.location.origin;
+  const data = event.notification.data || {};
+  const callId = data.callId;
+
+  // Handle Decline Action directly from notification banner
+  if (event.action === 'decline_call' && callId) {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({
+            type: 'DECLINE_CALL_ACTION',
+            callId: callId
+          });
+        });
+        return fetch('/api/calls/decline', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ callId: callId })
+        }).catch((err) => console.warn('[Service Worker] Background decline network notice:', err));
+      })
+    );
+    return;
+  }
+
+  // Handle Accept Action or Direct Click to open/focus the App
+  let urlToOpen = data.url || self.location.origin;
+  if (event.action === 'accept_call' && callId) {
+    urlToOpen = `${self.location.origin}/?action=accept_call&callId=${encodeURIComponent(callId)}`;
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      for (var i = 0; i < windowClients.length; i++) {
-        var client = windowClients[i];
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if (client.url && client.url.startsWith(self.location.origin) && 'focus' in client) {
+          client.focus();
+          if (callId) {
+            client.postMessage({
+              type: event.action === 'accept_call' ? 'ACCEPT_CALL_ACTION' : 'VIEW_CALL_ACTION',
+              callId: callId
+            });
+          }
+          return;
         }
       }
       if (self.clients.openWindow) {
@@ -152,4 +228,44 @@ self.addEventListener('notificationclick', (event) => {
       }
     })
   );
+});
+
+// Client-to-ServiceWorker Messaging Interface
+self.addEventListener('message', (event) => {
+  if (!event.data) return;
+
+  if (event.data.type === 'SHOW_CALL_NOTIFICATION') {
+    const call = event.data.call;
+    if (!call) return;
+
+    const callType = call.type === 'video' ? 'Video' : 'Audio';
+    const title = `📞 Incoming ${callType} Call`;
+    const options = {
+      body: `${call.callerName || 'Scholar'} is calling you on SJ Tutor AI. Tap to answer.`,
+      icon: call.callerAvatar || 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      tag: `call_${call.id}`,
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [500, 250, 500, 250, 500, 250, 1000],
+      data: {
+        type: 'call',
+        callId: call.id,
+        callerName: call.callerName,
+        callerAvatar: call.callerAvatar,
+        callType: call.type,
+        url: `${self.location.origin}/?action=accept_call&callId=${encodeURIComponent(call.id)}`
+      },
+      actions: [
+        { action: 'accept_call', title: '📞 Accept' },
+        { action: 'decline_call', title: '❌ Decline' }
+      ]
+    };
+    self.registration.showNotification(title, options);
+  } else if (event.data.type === 'DISMISS_CALL_NOTIFICATION') {
+    const callId = event.data.callId;
+    self.registration.getNotifications({ tag: `call_${callId}` }).then((notifications) => {
+      notifications.forEach((notif) => notif.close());
+    });
+  }
 });

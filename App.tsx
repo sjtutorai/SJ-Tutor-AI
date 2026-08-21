@@ -28,7 +28,8 @@ import NotesView from "./components/NotesView";
 import GroupsView from "./components/GroupsView";
 import GroupInviteView from "./components/GroupInviteView";
 import { CallModal } from "./components/CallModal";
-import { subscribeToIncomingCalls } from "./services/webrtcService";
+import { subscribeToIncomingCalls, declineDirectCall } from "./services/webrtcService";
+import { NotificationService } from "./services/notificationService";
 import SettingsView from "./components/SettingsView";
 import AboutView from "./components/AboutView";
 import AboutModal from "./components/AboutModal";
@@ -753,6 +754,9 @@ const App: React.FC = () => {
   // Subscribe to real-time incoming 1-on-1 calls for current user
   useEffect(() => {
     if (!user || !user.uid) {
+      if (alertedIncomingCallIdRef.current) {
+        NotificationService.dismissCallNotification(alertedIncomingCallIdRef.current);
+      }
       setIncomingDirectCall(null);
       alertedIncomingCallIdRef.current = null;
       return;
@@ -767,36 +771,21 @@ const App: React.FC = () => {
         if (call.id !== alertedIncomingCallIdRef.current) {
           alertedIncomingCallIdRef.current = call.id;
 
-          if ("Notification" in window) {
-            if (Notification.permission === "granted") {
-              try {
-                const notif = new Notification(`📞 Incoming ${call.type === "video" ? "Video" : "Audio"} Call`, {
-                  body: `${call.callerName} is calling you on SJ Tutor AI. Tap to answer.`,
-                  icon: call.callerAvatar || "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg",
-                  tag: `call_${call.id}`,
-                  requireInteraction: true,
-                });
-                notif.onclick = () => {
-                  window.focus();
-                  notif.close();
-                };
-              } catch (e) {
-                console.warn("Desktop notification trigger notice:", e);
-              }
-            } else if (Notification.permission === "default") {
-              Notification.requestPermission();
-            }
-          }
+          // Dispatch native phone/WhatsApp style notification with Accept & Decline buttons
+          NotificationService.showIncomingCallNotification(call);
 
           if ("vibrate" in navigator) {
             try {
-              navigator.vibrate([400, 200, 400, 200, 400, 1000]);
+              navigator.vibrate([500, 250, 500, 250, 500, 250, 1000]);
             } catch (err) {
               console.warn("Vibration notice:", err);
             }
           }
         }
       } else if (!call) {
+        if (alertedIncomingCallIdRef.current) {
+          NotificationService.dismissCallNotification(alertedIncomingCallIdRef.current);
+        }
         setIncomingDirectCall(null);
         alertedIncomingCallIdRef.current = null;
       }
@@ -804,6 +793,62 @@ const App: React.FC = () => {
 
     return () => unsub();
   }, [user?.uid, activeDirectCall]);
+
+  // Handle incoming call actions from Service Worker buttons or deep link URLs
+  useEffect(() => {
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (!event.data) return;
+
+      if (event.data.type === "ACCEPT_CALL_ACTION" && event.data.callId) {
+        const targetCallId = event.data.callId;
+        if (incomingDirectCall && incomingDirectCall.id === targetCallId) {
+          setActiveDirectCall(incomingDirectCall);
+          setIncomingDirectCall(null);
+          NotificationService.dismissCallNotification(targetCallId);
+        }
+      } else if (event.data.type === "DECLINE_CALL_ACTION" && event.data.callId) {
+        const targetCallId = event.data.callId;
+        declineDirectCall(targetCallId);
+        if (incomingDirectCall?.id === targetCallId) {
+          setIncomingDirectCall(null);
+        }
+        NotificationService.dismissCallNotification(targetCallId);
+      }
+    };
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", handleServiceWorkerMessage);
+    }
+
+    // Check URL parameters for call actions (e.g., when launched by clicking an accept/decline action)
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const action = urlParams.get("action");
+      const callId = urlParams.get("callId");
+
+      if (action === "accept_call" && callId) {
+        if (incomingDirectCall && incomingDirectCall.id === callId) {
+          setActiveDirectCall(incomingDirectCall);
+          setIncomingDirectCall(null);
+          NotificationService.dismissCallNotification(callId);
+        }
+        // Clean URL search query
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (action === "decline_call" && callId) {
+        declineDirectCall(callId);
+        NotificationService.dismissCallNotification(callId);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch (e) {
+      console.warn("Error processing call query parameter:", e);
+    }
+
+    return () => {
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("message", handleServiceWorkerMessage);
+      }
+    };
+  }, [incomingDirectCall]);
 
   // Check for shared content on load
   useEffect(() => {

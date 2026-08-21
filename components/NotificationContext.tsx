@@ -8,6 +8,7 @@ import { User, onAuthStateChanged } from 'firebase/auth';
 import { getToken, onMessage } from 'firebase/messaging';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Flame, Trophy, Award, Bell, X } from 'lucide-react';
+import { NotificationService } from '../services/notificationService';
 
 export type NotificationCategory = 'New Features' | 'Daily Streak Reminders' | 'Quiz Updates' | 'Competition Announcements' | 'Important Alerts';
 
@@ -215,8 +216,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Track auth state
+  // Track auth state & register service worker
   useEffect(() => {
+    NotificationService.registerServiceWorker().catch(() => {});
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
     });
@@ -461,9 +464,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setPermissionStatus(permission);
       
       if (permission === 'granted') {
+        NotificationService.registerServiceWorker().catch(() => {});
         triggerSystemNotification(
-          'Notifications Enabled! 🔔',
-          'You will now receive exam updates, daily streak reminders, and student alerts.'
+          'Notifications & Calls Enabled! 🔔',
+          'You will now receive incoming call alerts with Accept/Decline actions even when away from the app.'
         );
         if (currentUser) {
           setupFCM(currentUser);

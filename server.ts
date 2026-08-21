@@ -34,8 +34,34 @@ app.get("/robots.txt", (req, res) => {
     res.sendFile(robotsPath);
   } else {
     res.setHeader("Content-Type", "text/plain");
-    res.send(`User-agent: *
+    res.send(`User-agent: Googlebot
 Allow: /
+Allow: /logo.png
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon-*.png
+Allow: /apple-touch-icon.png
+Allow: /og-image.png
+Allow: /manifest.json
+
+User-agent: Googlebot-Image
+Allow: /
+Allow: /logo.png
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon-*.png
+Allow: /apple-touch-icon.png
+Allow: /og-image.png
+
+User-agent: *
+Allow: /
+Allow: /logo.png
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon-*.png
+Allow: /apple-touch-icon.png
+Allow: /og-image.png
+Allow: /manifest.json
 
 Disallow: /dashboard
 Disallow: /api/
@@ -155,6 +181,34 @@ app.post("/api/generate-image", async (req, res, next) => {
     res.json({ success: true, imageUrl, prompt: cleanPrompt });
   } catch (error: any) {
     next(error);
+  }
+});
+
+// Call notification dispatch endpoint
+app.post("/api/calls/notify", async (req, res) => {
+  try {
+    const { callId, callerId, callerName, receiverId, receiverName, type } = req.body;
+    console.log(`[CALL NOTIFY API] Incoming ${type} call from ${callerName} (${callerId}) to ${receiverName} (${receiverId}), callId: ${callId}`);
+    res.json({ 
+      success: true, 
+      callId, 
+      message: "Call notification broadcasted successfully" 
+    });
+  } catch (err: any) {
+    console.error("[CALL NOTIFY API Error]:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Background call decline endpoint from Service Worker
+app.post("/api/calls/decline", async (req, res) => {
+  try {
+    const { callId } = req.body;
+    console.log(`[CALL DECLINE API] Call declined remotely from Service Worker, callId: ${callId}`);
+    res.json({ success: true, callId, status: "declined" });
+  } catch (err: any) {
+    console.error("[CALL DECLINE API Error]:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

@@ -1,5 +1,31 @@
+User-agent: Googlebot
+Allow: /
+Allow: /logo.png
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon-*.png
+Allow: /apple-touch-icon.png
+Allow: /og-image.png
+Allow: /manifest.json
+
+User-agent: Googlebot-Image
+Allow: /
+Allow: /logo.png
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon-*.png
+Allow: /apple-touch-icon.png
+Allow: /og-image.png
+
 User-agent: *
 Allow: /
+Allow: /logo.png
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon-*.png
+Allow: /apple-touch-icon.png
+Allow: /og-image.png
+Allow: /manifest.json
 
 Disallow: /dashboard
 Disallow: /api/
@@ -14,3 +40,4 @@ Disallow: /history
 Disallow: /auth
 
 Sitemap: https://sjtutorai.vercel.app/sitemap.xml
+
