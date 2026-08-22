@@ -46,8 +46,8 @@ export const generateRegistrationNumber = (profile: UserProfile): string => {
   const firstName = names[0] || '';
   const lastName = names.length > 1 ? names[names.length - 1] : '';
   
-  const firstLetter = firstName.charAt(0).toUpperCase() || 'X';
-  const surnameLetter = lastName.charAt(0).toUpperCase() || firstLetter; 
+  const firstLetter = firstName ? (firstName.charAt(0).toUpperCase() || 'X') : 'X';
+  const surnameLetter = lastName ? (lastName.charAt(0).toUpperCase() || firstLetter) : firstLetter; 
   
   // Format DOB: YYYY-MM-DD -> DDMMYYYY
   let dobString = '00000000';

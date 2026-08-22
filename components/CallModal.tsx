@@ -1046,11 +1046,11 @@ export const CallModal: React.FC<CallModalProps> = ({
               {incomingDirectCall.callerAvatar ? (
                 <img
                   src={incomingDirectCall.callerAvatar}
-                  alt={incomingDirectCall.callerName}
+                  alt={incomingDirectCall.callerName || 'User'}
                   className="w-full h-full object-cover"
                 />
               ) : (
-                incomingDirectCall.callerName.charAt(0).toUpperCase()
+                (incomingDirectCall.callerName?.charAt(0) || 'U').toUpperCase()
               )}
             </div>
             <div className="absolute bottom-0 right-0 p-1.5 bg-emerald-500 text-white rounded-full border-2 border-white dark:border-slate-900 shadow-md">
@@ -1115,9 +1115,9 @@ export const CallModal: React.FC<CallModalProps> = ({
           <div className="relative">
             <div className="w-10 h-10 rounded-xl bg-amber-500 text-white font-bold flex items-center justify-center overflow-hidden">
               {otherPersonAvatar ? (
-                <img src={otherPersonAvatar} alt={otherPersonName} className="w-full h-full object-cover" />
+                <img src={otherPersonAvatar} alt={otherPersonName || 'User'} className="w-full h-full object-cover" />
               ) : (
-                otherPersonName.charAt(0).toUpperCase()
+                (otherPersonName?.charAt(0) || 'U').toUpperCase()
               )}
             </div>
             {remoteAudioLevel > 15 && (
@@ -1174,9 +1174,9 @@ export const CallModal: React.FC<CallModalProps> = ({
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 text-amber-400 font-bold flex items-center justify-center overflow-hidden">
               {otherPersonAvatar ? (
-                <img src={otherPersonAvatar} alt={otherPersonName} className="w-full h-full object-cover" />
+                <img src={otherPersonAvatar} alt={otherPersonName || 'User'} className="w-full h-full object-cover" />
               ) : (
-                otherPersonName.charAt(0).toUpperCase()
+                (otherPersonName?.charAt(0) || 'U').toUpperCase()
               )}
             </div>
             <div>
@@ -1226,9 +1226,9 @@ export const CallModal: React.FC<CallModalProps> = ({
               )}
               <div className="relative w-36 h-36 sm:w-44 sm:h-44 mx-auto rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-white font-extrabold text-5xl sm:text-6xl flex items-center justify-center shadow-2xl border-4 border-slate-800 overflow-hidden">
                 {otherPersonAvatar ? (
-                  <img src={otherPersonAvatar} alt={otherPersonName} className="w-full h-full object-cover" />
+                  <img src={otherPersonAvatar} alt={otherPersonName || 'User'} className="w-full h-full object-cover" />
                 ) : (
-                  otherPersonName.charAt(0).toUpperCase()
+                  (otherPersonName?.charAt(0) || 'U').toUpperCase()
                 )}
               </div>
               <h2 className="text-xl sm:text-2xl font-bold text-white mt-4">{otherPersonName}</h2>

@@ -132,7 +132,7 @@ function getDynamicSampleQuestions(subject: string, grade: string): string[] {
     ];
   }
 
-  const capSubject = subject.charAt(0).toUpperCase() + subject.slice(1);
+  const capSubject = subject ? (subject.charAt(0).toUpperCase() + subject.slice(1)) : 'General Studies';
   return [
     `What are the most important fundamental concepts in ${capSubject} for ${grade}?`,
     `Explain a tricky chapter from my ${grade} ${capSubject} syllabus.`,

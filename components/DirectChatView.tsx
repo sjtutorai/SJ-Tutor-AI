@@ -720,9 +720,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                         <div className="relative">
                           <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center overflow-hidden border border-amber-500/30">
                             {friendDetails.photoURL ? (
-                              <img src={friendDetails.photoURL} alt={friendDetails.displayName} className="w-full h-full object-cover" />
+                              <img src={friendDetails.photoURL} alt={friendDetails.displayName || 'Student'} className="w-full h-full object-cover" />
                             ) : (
-                              friendDetails.displayName.charAt(0).toUpperCase()
+                              (friendDetails.displayName?.charAt(0) || 'S').toUpperCase()
                             )}
                           </div>
                           <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full" />
@@ -808,9 +808,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center overflow-hidden border border-amber-500/30 shrink-0">
                             {friendInfo.photoURL ? (
-                              <img src={friendInfo.photoURL} alt={friendInfo.displayName} className="w-full h-full object-cover" />
+                              <img src={friendInfo.photoURL} alt={friendInfo.displayName || 'Student'} className="w-full h-full object-cover" />
                             ) : (
-                              friendInfo.displayName.charAt(0).toUpperCase()
+                              (friendInfo.displayName?.charAt(0) || 'S').toUpperCase()
                             )}
                           </div>
                           <div className="min-w-0">
@@ -891,9 +891,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center overflow-hidden border border-amber-500/30 shrink-0">
                             {st.photoURL ? (
-                              <img src={st.photoURL} alt={st.displayName} className="w-full h-full object-cover" />
+                              <img src={st.photoURL} alt={st.displayName || 'Student'} className="w-full h-full object-cover" />
                             ) : (
-                              st.displayName.charAt(0).toUpperCase()
+                              (st.displayName?.charAt(0) || 'S').toUpperCase()
                             )}
                           </div>
                           <div className="min-w-0">
@@ -954,9 +954,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center overflow-hidden shrink-0">
                             {reqUser.photoURL ? (
-                              <img src={reqUser.photoURL} alt={reqUser.displayName} className="w-full h-full object-cover" />
+                              <img src={reqUser.photoURL} alt={reqUser.displayName || 'Student'} className="w-full h-full object-cover" />
                             ) : (
-                              reqUser.displayName.charAt(0).toUpperCase()
+                              (reqUser.displayName?.charAt(0) || 'S').toUpperCase()
                             )}
                           </div>
                           <div className="min-w-0">
@@ -1038,9 +1038,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                       <div className="relative">
                         <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold flex items-center justify-center overflow-hidden border border-amber-500/30">
                           {activeFriendDetails.photoURL ? (
-                            <img src={activeFriendDetails.photoURL} alt={activeFriendDetails.displayName} className="w-full h-full object-cover" />
+                            <img src={activeFriendDetails.photoURL} alt={activeFriendDetails.displayName || 'Student'} className="w-full h-full object-cover" />
                           ) : (
-                            activeFriendDetails.displayName.charAt(0).toUpperCase()
+                            (activeFriendDetails.displayName?.charAt(0) || 'S').toUpperCase()
                           )}
                         </div>
                         <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full" />
@@ -1346,9 +1346,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
               <div className="text-center mb-6">
                 <div className="w-20 h-20 rounded-3xl bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-2xl flex items-center justify-center mx-auto mb-3 overflow-hidden border border-amber-500/30">
                   {activeFriendDetails.photoURL ? (
-                    <img src={activeFriendDetails.photoURL} alt={activeFriendDetails.displayName} className="w-full h-full object-cover" />
+                    <img src={activeFriendDetails.photoURL} alt={activeFriendDetails.displayName || 'Student'} className="w-full h-full object-cover" />
                   ) : (
-                    activeFriendDetails.displayName.charAt(0).toUpperCase()
+                    (activeFriendDetails.displayName?.charAt(0) || 'S').toUpperCase()
                   )}
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">{activeFriendDetails.displayName}</h3>

@@ -1145,14 +1145,14 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
                 </p>
 
                 <div className="flex items-center gap-4 pt-4 border-t border-slate-850">
-                  <div className={`w-12 h-12 ${testimonials[testimonialIdx].avatarColor} rounded-full flex items-center justify-center font-bold text-white shadow-lg`}>
-                    {testimonials[testimonialIdx].name.charAt(0)}
+                  <div className={`w-12 h-12 ${testimonials[testimonialIdx]?.avatarColor || 'bg-amber-500'} rounded-full flex items-center justify-center font-bold text-white shadow-lg`}>
+                    {(testimonials[testimonialIdx]?.name?.charAt(0) || 'S').toUpperCase()}
                   </div>
                   <div className="leading-tight text-left">
-                    <h4 className="font-bold text-white text-base">{testimonials[testimonialIdx].name}</h4>
-                    <p className="text-xs text-slate-400">{testimonials[testimonialIdx].role}</p>
+                    <h4 className="font-bold text-white text-base">{testimonials[testimonialIdx]?.name || 'Scholar'}</h4>
+                    <p className="text-xs text-slate-400">{testimonials[testimonialIdx]?.role || 'Student'}</p>
                     <span className="text-[11px] font-black text-emerald-400 mt-1 block">
-                      🏅 {testimonials[testimonialIdx].achievement}
+                      🏅 {testimonials[testimonialIdx]?.achievement || 'Top Performer'}
                     </span>
                   </div>
                 </div>

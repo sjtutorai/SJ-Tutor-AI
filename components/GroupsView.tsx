@@ -311,7 +311,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     }
 
     const filteredMembers = memberList.filter((m) =>
-      m.displayName.toLowerCase().includes(q) || m.role.toLowerCase().includes(q)
+      (m.displayName || '').toLowerCase().includes(q) || (m.role || '').toLowerCase().includes(q)
     );
 
     results.push(...filteredMembers);
@@ -1472,9 +1472,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     const isMember = isMemberOf(g);
     const matchesTab = activeTab === 'my' ? isMember : !isMember && g.isPublic;
     const matchesSearch =
-      g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      g.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      g.description.toLowerCase().includes(searchQuery.toLowerCase());
+      (g.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (g.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (g.description || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTab && matchesSearch;
   });
 
@@ -1965,10 +1965,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                             {isAi ? (
                               <img src={SJTUTOR_AVATAR} alt="AI Tutor" className="w-full h-full object-cover" />
                             ) : msg.senderAvatar ? (
-                              <img src={msg.senderAvatar} alt={msg.senderName} className="w-full h-full object-cover" />
+                              <img src={msg.senderAvatar} alt={msg.senderName || 'Member'} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full bg-primary-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-primary-700 dark:text-primary-300">
-                                {msg.senderName.charAt(0).toUpperCase()}
+                                {(msg.senderName?.charAt(0) || 'U').toUpperCase()}
                               </div>
                             )}
                           </div>
@@ -1986,7 +1986,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                         {/* Sender Name */}
                         {!isMe && (
                           <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1 ml-1 flex items-center gap-1.5">
-                            {msg.senderName}
+                            {msg.senderName || 'Member'}
                             {isAi && (
                               <span className="px-1.5 py-0.2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white text-[9px] font-extrabold rounded-md shadow-xs">
                                 AI TUTOR
@@ -2306,12 +2306,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                                 {candidate.photoURL ? (
                                   <img
                                     src={candidate.photoURL}
-                                    alt={candidate.displayName}
+                                    alt={candidate.displayName || 'User'}
                                     className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700"
                                   />
                                 ) : (
                                   <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                                    {candidate.displayName.slice(0, 2).toUpperCase()}
+                                    {(candidate.displayName || 'User').slice(0, 2).toUpperCase()}
                                   </div>
                                 )}
                                 {candidate.isOnline && (
@@ -3378,7 +3378,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                       <div key={req.uid} className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 rounded-full overflow-hidden bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700 shrink-0">
-                            {req.photoURL ? <img src={req.photoURL} alt={req.displayName} className="w-full h-full object-cover" /> : req.displayName.charAt(0).toUpperCase()}
+                            {req.photoURL ? <img src={req.photoURL} alt={req.displayName || 'User'} className="w-full h-full object-cover" /> : (req.displayName?.charAt(0) || 'U').toUpperCase()}
                           </div>
                           <div className="min-w-0">
                             <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{req.displayName}</p>
@@ -3626,7 +3626,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                         <div key={req.uid} className="flex items-center justify-between gap-2 p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-amber-100 dark:border-amber-900/30">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className="w-8 h-8 rounded-full overflow-hidden bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700 shrink-0">
-                              {req.photoURL ? <img src={req.photoURL} alt={req.displayName} className="w-full h-full object-cover" /> : req.displayName.charAt(0).toUpperCase()}
+                              {req.photoURL ? <img src={req.photoURL} alt={req.displayName || 'User'} className="w-full h-full object-cover" /> : (req.displayName?.charAt(0) || 'U').toUpperCase()}
                             </div>
                             <div className="min-w-0">
                               <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{req.displayName}</p>
@@ -3840,9 +3840,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                             <div className="relative flex-shrink-0">
                               <div className="w-9 h-9 rounded-full overflow-hidden bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-700">
                                 {m.photoURL ? (
-                                  <img src={m.photoURL} alt={m.displayName} className="w-full h-full object-cover" />
+                                  <img src={m.photoURL} alt={m.displayName || 'Member'} className="w-full h-full object-cover" />
                                 ) : (
-                                  m.displayName.charAt(0).toUpperCase()
+                                  (m.displayName?.charAt(0) || 'U').toUpperCase()
                                 )}
                               </div>
                               {isOnline && (
