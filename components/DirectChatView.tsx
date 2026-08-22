@@ -1179,9 +1179,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                           {/* Emoji Reactions display */}
                           {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1.5 pt-1 border-t border-slate-950/10 dark:border-white/10">
-                              {Object.entries(msg.reactions).map(([emoji, uids]) => (
+                              {Object.entries(msg.reactions).map(([emoji, uids], rIdx) => (
                                 <button
-                                  key={emoji}
+                                  key={`direct-react-${msg.id}-${emoji}-${rIdx}`}
                                   onClick={() => handleToggleReaction(msg.id, emoji)}
                                   className={`px-1.5 py-0.5 text-[10px] rounded-full border transition-all ${
                                     uids.includes(user.uid)
@@ -1198,9 +1198,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
 
                         {/* Quick Reaction & Delete Action Bar */}
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-2 py-0.5 shadow-md">
-                          {["👍", "❤️", "😂", "🔥", "💡"].map((emoji) => (
+                          {["👍", "❤️", "😂", "🔥", "💡"].map((emoji, eIdx) => (
                             <button
-                              key={emoji}
+                              key={`direct-quick-emoji-${msg.id}-${emoji}-${eIdx}`}
                               onClick={() => handleToggleReaction(msg.id, emoji)}
                               className="hover:scale-125 transition-transform text-xs"
                             >

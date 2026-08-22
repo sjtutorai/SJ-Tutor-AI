@@ -759,7 +759,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       if (urlPart.match(urlRegex)) {
         return (
           <a
-            key={`url-${urlIndex}`}
+            key={`url-${urlIndex}-${urlPart.slice(0, 15)}`}
             href={urlPart}
             target="_blank"
             rel="noopener noreferrer"
@@ -791,7 +791,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               if (isAllMention) {
                 return (
                   <span
-                    key={`mention-${urlIndex}-${mIndex}`}
+                    key={`mention-all-${urlIndex}-${mIndex}`}
                     className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs font-black mx-0.5 align-baseline shadow-xs border ${
                       isMe
                         ? 'bg-amber-300 text-amber-950 border-amber-400'
@@ -808,7 +808,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               if (isMeMention) {
                 return (
                   <span
-                    key={`mention-${urlIndex}-${mIndex}`}
+                    key={`mention-me-${urlIndex}-${mIndex}`}
                     className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs font-black mx-0.5 align-baseline shadow-xs border ring-1 ${
                       isMe
                         ? 'bg-amber-300 text-amber-950 border-amber-400 ring-amber-400'
@@ -824,7 +824,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
               return (
                 <span
-                  key={`mention-${urlIndex}-${mIndex}`}
+                  key={`mention-other-${urlIndex}-${mIndex}`}
                   className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-semibold mx-0.5 align-baseline border ${
                     isMe
                       ? 'bg-primary-700/70 text-white border-primary-500/50'
@@ -1651,13 +1651,13 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               </button>
             </div>
           ) : (
-            filteredGroups.map((group) => {
+            filteredGroups.map((group, groupIdx) => {
               const isActive = group.id === activeGroupId;
               const isMember = isMemberOf(group);
 
               return (
                 <div
-                  key={group.id}
+                  key={group.id || `group-item-${groupIdx}-${group.name}`}
                   onClick={() => {
                     setActiveGroupId(group.id);
                     setShowMobileChat(true);
@@ -1944,13 +1944,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               onScroll={handleScroll}
               className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar relative"
             >
-              {messages.map((msg) => {
+              {messages.map((msg, msgIdx) => {
                 const isMe = msg.senderId === currentUid;
                 const isAi = msg.isAi || msg.senderId === 'ai_tutor';
+                const messageKey = msg.id || `msg-${msgIdx}-${msg.timestamp}`;
 
                 return (
                   <div
-                    key={msg.id}
+                    key={messageKey}
                     className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group`}
                   >
                     <div
@@ -2058,13 +2059,13 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                                 return (
                                   <div className="space-y-2">
-                                    {msg.pollData.options.map((option) => {
+                                    {msg.pollData.options.map((option, optIdx) => {
                                       const hasVoted = option.votes.includes(currentUid);
                                       const pct = totalVotes > 0 ? Math.round((option.votes.length / totalVotes) * 100) : 0;
 
                                       return (
                                         <button
-                                          key={option.id}
+                                          key={option.id || `opt-${optIdx}`}
                                           onClick={() => handleVotePoll(msg.id, option.id)}
                                           className={`w-full p-2.5 rounded-xl border text-left transition-all relative overflow-hidden flex items-center justify-between ${
                                             hasVoted
@@ -2132,12 +2133,12 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                         {/* Reaction Bar */}
                         <div className="flex items-center gap-1 mt-1 ml-1 flex-wrap">
                           {msg.reactions &&
-                            Object.entries(msg.reactions).map(([emoji, uids]) => {
+                            Object.entries(msg.reactions).map(([emoji, uids], rIdx) => {
                               if (uids.length === 0) return null;
                               const userReacted = uids.includes(currentUid);
                               return (
                                 <button
-                                  key={emoji}
+                                  key={`reaction-${messageKey}-${emoji}-${rIdx}`}
                                   onClick={() => handleToggleReaction(msg.id, emoji)}
                                   className={`px-1.5 py-0.5 rounded-full text-[11px] border flex items-center gap-1 transition ${
                                     userReacted
@@ -2153,9 +2154,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                           {/* Quick React & Reply Menu On Hover */}
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                            {['👍', '❤️', '💡', '🔥'].map((emoji) => (
+                            {['👍', '❤️', '💡', '🔥'].map((emoji, eIdx) => (
                               <button
-                                key={emoji}
+                                key={`quick-emoji-${messageKey}-${emoji}-${eIdx}`}
                                 onClick={() => handleToggleReaction(msg.id, emoji)}
                                 className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full text-xs transition"
                               >
@@ -2725,9 +2726,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                   {newGroupIconType === 'emoji' && (
                     <div className="flex gap-2 flex-wrap">
-                      {['🏆', '⚡', '🚀', '💻', '🧬', '📐', '📚', '🎯', '💡', '🎓', '🔬', '🎨'].map((emoji) => (
+                      {['🏆', '⚡', '🚀', '💻', '🧬', '📐', '📚', '🎯', '💡', '🎓', '🔬', '🎨'].map((emoji, eIdx) => (
                         <button
-                          key={emoji}
+                          key={`new-group-emoji-${emoji}-${eIdx}`}
                           type="button"
                           onClick={() => setNewGroupEmoji(emoji)}
                           className={`w-10 h-10 rounded-xl text-lg flex items-center justify-center border transition ${
@@ -2904,9 +2905,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                   {editGroupIconType === 'emoji' && (
                     <div className="flex gap-2 flex-wrap">
-                      {['🏆', '⚡', '🚀', '💻', '🧬', '📐', '📚', '🎯', '💡', '🎓', '🔬', '🎨'].map((emoji) => (
+                      {['🏆', '⚡', '🚀', '💻', '🧬', '📐', '📚', '🎯', '💡', '🎓', '🔬', '🎨'].map((emoji, eIdx) => (
                         <button
-                          key={emoji}
+                          key={`edit-group-emoji-${emoji}-${eIdx}`}
                           type="button"
                           onClick={() => setEditGroupIconEmoji(emoji)}
                           className={`w-10 h-10 rounded-xl text-lg flex items-center justify-center border transition ${
@@ -3213,7 +3214,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   </label>
                   <div className="space-y-2">
                     {pollOptions.map((opt, idx) => (
-                      <div key={idx} className="flex gap-2">
+                      <div key={`poll-opt-input-${idx}`} className="flex gap-2">
                         <input
                           type="text"
                           placeholder={`Option ${idx + 1}`}
@@ -3374,8 +3375,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {Object.values(activeGroup.joinRequests).map((req) => (
-                      <div key={req.uid} className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                    {Object.values(activeGroup.joinRequests).map((req, reqIdx) => (
+                      <div key={req.uid || `join-req-modal-${reqIdx}`} className="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 rounded-full overflow-hidden bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700 shrink-0">
                             {req.photoURL ? <img src={req.photoURL} alt={req.displayName || 'User'} className="w-full h-full object-cover" /> : (req.displayName?.charAt(0) || 'U').toUpperCase()}
@@ -3622,8 +3623,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                       Pending Join Requests ({Object.keys(activeGroup.joinRequests).length})
                     </h4>
                     <div className="space-y-2">
-                      {Object.values(activeGroup.joinRequests).map((req) => (
-                        <div key={req.uid} className="flex items-center justify-between gap-2 p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-amber-100 dark:border-amber-900/30">
+                      {Object.values(activeGroup.joinRequests).map((req, reqIdx) => (
+                        <div key={req.uid || `join-req-quick-${reqIdx}`} className="flex items-center justify-between gap-2 p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-amber-100 dark:border-amber-900/30">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className="w-8 h-8 rounded-full overflow-hidden bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-700 shrink-0">
                               {req.photoURL ? <img src={req.photoURL} alt={req.displayName || 'User'} className="w-full h-full object-cover" /> : (req.displayName?.charAt(0) || 'U').toUpperCase()}
@@ -3820,7 +3821,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                   <div className="space-y-2">
                     {activeGroup.members &&
-                      Object.values(activeGroup.members).map((m) => {
+                      Object.values(activeGroup.members).map((m, mIdx) => {
                         const isSelf = m.uid === currentUid || (userUid && m.uid === userUid);
                         const isOwner = m.uid === activeGroup.createdBy;
                         const isOwnerOrAdmin =
@@ -3834,7 +3835,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                         return (
                           <div
-                            key={m.uid}
+                            key={m.uid || `member-item-${mIdx}`}
                             className="flex items-center gap-3 p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800"
                           >
                             <div className="relative flex-shrink-0">
