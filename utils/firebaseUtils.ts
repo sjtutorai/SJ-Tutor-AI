@@ -593,6 +593,13 @@ export const leaveGroupInFirestore = async (groupId: string, userUid: string): P
     if (!groupSnap.exists()) return false;
 
     const groupData = groupSnap.data() as StudyGroup;
+
+    // Owner cannot leave the group; owner must delete the group instead
+    if (groupData.createdBy === userUid) {
+      console.warn("Group owner cannot leave the group. Owner must delete the group instead.");
+      return false;
+    }
+
     const members = { ...(groupData.members || {}) };
 
     // Find and delete all keys matching userUid or member.uid

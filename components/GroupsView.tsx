@@ -844,8 +844,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     });
   };
 
-  // Delete Group (Admin / Creator only)
+  // Delete Group (Owner only)
   const handleDeleteGroup = async (group: StudyGroup) => {
+    const isGroupOwner = group.createdBy === currentUid || (userUid && group.createdBy === userUid);
+    if (!isGroupOwner) {
+      triggerToast('Access Denied', 'Only the group owner can delete this group.', 'Important Alerts');
+      return;
+    }
+
     setShowGroupInfo(false);
 
     // Immediate local cleanup on deleting device
@@ -867,7 +873,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     // Delete doc and subcollection in Firestore (triggers real-time snapshot on all connected devices)
     const success = await deleteGroupInFirestore(group.id);
     if (success) {
-      triggerToast('Group Deleted 🗑️', `"${group.name}" was permanently deleted from all devices.`, 'Important Alerts');
+      triggerToast('Group Deleted 🗑️', `"${group.name}" was permanently deleted.`, 'Important Alerts');
     } else {
       triggerToast('Delete Failed', 'Failed to delete group from server. Please try again.', 'Important Alerts');
     }
@@ -909,7 +915,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     const isMember = group.members && Object.values(group.members).some((m) => m.uid === currentUid || (userUid && m.uid === userUid) || group.members?.[currentUid] !== undefined);
     
     if (isMember) {
-      // Leave group
+      // Owner cannot leave group
+      const isGroupOwner = group.createdBy === currentUid || (userUid && group.createdBy === userUid);
+      if (isGroupOwner) {
+        triggerToast('Action Not Allowed', 'The owner cannot leave the group. You can delete the group instead.', 'Important Alerts');
+        return;
+      }
+
+      // Leave group (User only)
       await leaveGroupInFirestore(group.id, currentUid);
       if (userUid && userUid !== currentUid) {
         await leaveGroupInFirestore(group.id, userUid);
@@ -3945,20 +3958,20 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   </div>
                 </div>
 
-                {/* Delete / Leave Group Buttons */}
+                {/* Delete (Owner only) / Leave (User only) Buttons */}
                 <div className="space-y-3">
-                  <button
-                    onClick={() => {
-                      handleToggleJoinGroup(activeGroup);
-                      setShowGroupInfo(false);
-                    }}
-                    className="w-full py-3 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Leave Group
-                  </button>
-
-                  {(activeGroup.createdBy === currentUid || (userUid && activeGroup.createdBy === userUid) || activeGroup.members?.[currentUid]?.role === 'admin' || (userUid && activeGroup.members?.[userUid]?.role === 'admin')) && (
+                  {!isOwner ? (
+                    <button
+                      onClick={() => {
+                        handleToggleJoinGroup(activeGroup);
+                        setShowGroupInfo(false);
+                      }}
+                      className="w-full py-3 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Leave Group
+                    </button>
+                  ) : (
                     <button
                       onClick={() => handleDeleteGroup(activeGroup)}
                       className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm"
