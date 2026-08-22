@@ -14,6 +14,7 @@ import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
 import { saveNotesToFirestore, getNotesFromFirestore } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
+import { blobToDataUrl, transcribeAudioViaAI, requestMicrophoneStream } from '../services/audioService';
 
 interface NotesViewProps {
   userId: string | null;
@@ -278,17 +279,19 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   }, []);
 
   const startVoiceRecording = async () => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      triggerToast('Audio Not Supported', 'Your browser does not support audio recording.', 'Important Alerts');
-      return;
-    }
-
     try {
       audioChunksRef.current = [];
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await requestMicrophoneStream();
       audioStreamRef.current = stream;
 
-      const mediaRecorder = new MediaRecorder(stream);
+      let mimeType = 'audio/webm;codecs=opus';
+      if (typeof MediaRecorder !== 'undefined' && !MediaRecorder.isTypeSupported(mimeType)) {
+        if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+        else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+        else mimeType = '';
+      }
+
+      const mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -338,22 +341,32 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
       triggerToast('Voice Recording Started 🎙️', 'Speak clearly to dictate your study notes.', 'Important Alerts');
     } catch (err: any) {
       console.error('Microphone access failed:', err);
-      triggerToast('Microphone Blocked', 'Please allow microphone access to dictate notes.', 'Important Alerts');
+      triggerToast('Microphone Notice', err.message || 'Please allow microphone access to dictate notes.', 'Important Alerts');
     }
   };
 
-  const stopVoiceRecording = (saveToNote = true) => {
+  const stopVoiceRecording = async (saveToNote = true) => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
 
+    let recordedBlob: Blob | null = null;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try {
-        mediaRecorderRef.current.stop();
+        await new Promise<void>((resolve) => {
+          if (!mediaRecorderRef.current) return resolve();
+          mediaRecorderRef.current.onstop = () => resolve();
+          mediaRecorderRef.current.stop();
+        });
       } catch {
         // Ignore recorder stop error
       }
+    }
+
+    if (audioChunksRef.current.length > 0) {
+      const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+      recordedBlob = new Blob(audioChunksRef.current, { type: mimeType });
     }
 
     if (audioStreamRef.current) {
@@ -373,7 +386,19 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     setIsRecording(false);
 
     if (saveToNote && editingNote) {
-      const dictatedText = recordingInterimText.trim();
+      let dictatedText = recordingInterimText.trim();
+      
+      // If Web Speech did not yield transcript, try transcribing recorded audio via server Gemini AI
+      if (!dictatedText && recordedBlob && recordedBlob.size > 1000) {
+        try {
+          triggerToast('Transcribing Audio ⏳', 'Transcribing spoken notes using AI...', 'Important Alerts');
+          const dataUrl = await blobToDataUrl(recordedBlob);
+          dictatedText = await transcribeAudioViaAI(dataUrl, recordedBlob.type, languageInput);
+        } catch (e: any) {
+          console.warn('AI transcription error on voice stop:', e);
+        }
+      }
+
       if (dictatedText) {
         const timestampHeader = `\n\n> 🎙️ **Voice Dictation (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})**\n> ${dictatedText}\n`;
         const updatedContent = (editingNote.content || '') + timestampHeader;
@@ -388,6 +413,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     }
     setRecordingInterimText('');
     setRecordingDuration(0);
+    audioChunksRef.current = [];
   };
 
   const handleAiAction = async (task: 'summarize' | 'simplify' | 'mcq' | 'translate') => {

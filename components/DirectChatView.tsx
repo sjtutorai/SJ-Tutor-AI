@@ -24,6 +24,7 @@ import {
 } from "../utils/firebaseUtils";
 import { initiateDirectCall } from "../services/webrtcService";
 import { useNotifications } from "./NotificationContext";
+import { requestMicrophoneStream, blobToDataUrl } from "../services/audioService";
 import {
   MessageSquare,
   UserPlus,
@@ -98,12 +99,16 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [recordingTimer, setRecordingTimer] = useState(0);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioStreamRef = useRef<MediaStream | null>(null);
 
   // Reactions & Friend Info Modal
   const [showFriendInfoModal, setShowFriendInfoModal] = useState(false);
   const [showBgModal, setShowBgModal] = useState(false);
   const [activeMediaTab, setActiveMediaTab] = useState<'photos'|'links'|'audio'|'documents'>('photos');
   const [isEnlarged, setIsEnlarged] = useState(false);
+  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
 
   // Personal Direct Chat Wallpapers (Personal to this user, not shared with the other friend)
   const [personalDirectBgs, setPersonalDirectBgs] = useState<Record<string, ChatBgSettings>>(() => {
@@ -344,20 +349,77 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
     setActiveTab("chats");
   };
 
-  // Voice Note Recording Simulator
-  const toggleVoiceNoteRecording = () => {
+  // Voice Note Recording
+  const toggleVoiceNoteRecording = async () => {
     if (isRecordingVoice) {
       // Stop recording
       if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
       setIsRecordingVoice(false);
-      handleSendMessage("voice");
+
+      let voiceDataUrl = '';
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          await new Promise<void>((resolve) => {
+            if (!mediaRecorderRef.current) return resolve();
+            mediaRecorderRef.current.onstop = () => resolve();
+            mediaRecorderRef.current.stop();
+          });
+        } catch (e) {
+          console.warn('Voice note recorder stop error:', e);
+        }
+      }
+
+      if (audioChunksRef.current.length > 0) {
+        const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        if (blob.size > 200) {
+          try {
+            voiceDataUrl = await blobToDataUrl(blob);
+          } catch (e) {
+            console.warn('Audio blob conversion error:', e);
+          }
+        }
+      }
+
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(t => t.stop());
+        audioStreamRef.current = null;
+      }
+
+      audioChunksRef.current = [];
+      handleSendMessage("voice", voiceDataUrl);
     } else {
       // Start recording
-      setIsRecordingVoice(true);
-      setRecordingTimer(0);
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingTimer((prev) => prev + 1);
-      }, 1000);
+      try {
+        const stream = await requestMicrophoneStream();
+        audioStreamRef.current = stream;
+        audioChunksRef.current = [];
+
+        let mimeType = 'audio/webm;codecs=opus';
+        if (typeof MediaRecorder !== 'undefined' && !MediaRecorder.isTypeSupported(mimeType)) {
+          if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+          else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+          else mimeType = '';
+        }
+
+        const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        mediaRecorderRef.current = recorder;
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            audioChunksRef.current.push(e.data);
+          }
+        };
+        recorder.start(250);
+
+        setIsRecordingVoice(true);
+        setRecordingTimer(0);
+        recordingIntervalRef.current = setInterval(() => {
+          setRecordingTimer((prev) => prev + 1);
+        }, 1000);
+      } catch (err: any) {
+        console.error('Failed to start voice note recording:', err);
+        triggerToast("Microphone Notice", err.message || "Please allow microphone access to record voice notes.", "Important Alerts");
+      }
     }
   };
 
@@ -375,7 +437,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
   };
 
   // Send Direct Message
-  const handleSendMessage = async (msgType: 'text' | 'image' | 'voice' = 'text') => {
+  const handleSendMessage = async (msgType: 'text' | 'image' | 'voice' = 'text', voicePayloadUrl?: string) => {
     if (!user || !activeChatId) return;
 
     if (msgType === 'text' && !messageInput.trim() && !selectedImage) return;
@@ -404,7 +466,7 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
       timestamp: Date.now(),
       type: selectedImage ? 'image' : msgType,
       mediaUrl: selectedImage || undefined,
-      voiceUrl: msgType === 'voice' ? 'simulated_voice_note' : undefined,
+      voiceUrl: msgType === 'voice' ? (voicePayloadUrl || 'simulated_voice_note') : undefined,
       status: 'sent',
     };
 
@@ -998,7 +1060,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
             <div 
               className={`flex-1 min-h-0 flex flex-col relative ${!activeChatId ? "hidden md:flex items-center justify-center" : "flex"} ${
                 hasBg ? "" : "bg-white dark:bg-slate-900"
-              } overflow-hidden`}
+              } overflow-hidden ${
+                isEnlarged ? "fixed inset-0 z-[100] h-screen w-screen bg-white dark:bg-slate-950 flex" : ""
+              }`}
               style={{
                 background: currentChatBg?.bgColor || undefined,
               }}
@@ -1139,7 +1203,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                         className={`flex flex-col ${isMe ? "items-end" : "items-start"} group relative`}
                       >
                         <div
-                          className={`max-w-[80%] sm:max-w-[70%] rounded-2xl p-3 shadow-sm relative ${
+                          className={`max-w-[85%] sm:max-w-[75%] rounded-2xl transition-all shadow-sm relative ${
+                            isEnlarged ? "p-5" : "p-3"
+                          } ${
                             isMe
                               ? "bg-amber-500 text-slate-950 rounded-br-xs"
                               : "bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700/60 rounded-bl-xs"
@@ -1147,28 +1213,43 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                         >
                           {/* Image Attachment */}
                           {msg.mediaUrl && (
-                            <div className="relative group/image mb-2">
+                            <div 
+                              onClick={() => setPreviewMediaUrl(msg.mediaUrl || null)}
+                              className="relative group/image mb-2 cursor-pointer max-h-60 rounded-xl overflow-hidden"
+                              title="Click to enlarge image"
+                            >
                               <img
                                 src={msg.mediaUrl}
                                 alt="Attachment"
-                                className="rounded-xl max-h-60 w-full object-cover"
+                                className="rounded-xl max-h-60 w-full object-cover group-hover/image:scale-105 transition-transform"
                               />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
+                                <Maximize2 className="w-5 h-5 text-white drop-shadow-md" />
                                 <button 
-                                  onClick={() => handleDownloadImage(msg.mediaUrl!, `attachment-${msg.id}.jpg`)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDownloadImage(msg.mediaUrl!, `attachment-${msg.id}.jpg`);
+                                  }}
                                   className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-full backdrop-blur-sm transition-all cursor-pointer"
                                   title="Download Image"
                                 >
-                                  <Download className="w-5 h-5" />
+                                  <Download className="w-4 h-4" />
                                 </button>
                               </div>
                             </div>
                           )}
 
                           {/* Text Message */}
-                          <p className="text-xs leading-relaxed whitespace-pre-wrap break-words font-medium">
+                          <p className={`${isEnlarged ? "text-base sm:text-lg leading-relaxed" : "text-xs leading-relaxed"} whitespace-pre-wrap break-words font-medium`}>
                             {msg.text}
                           </p>
+
+                          {/* Voice Note Player */}
+                          {msg.type === 'voice' && msg.voiceUrl && msg.voiceUrl.startsWith('data:audio') && (
+                            <div className="mt-2 pt-1 border-t border-slate-950/10 dark:border-white/10">
+                              <audio controls src={msg.voiceUrl} className="w-full h-8 rounded-lg outline-none" />
+                            </div>
+                          )}
 
                           {/* Timestamp & Status */}
                           <div className={`flex items-center gap-1 justify-end mt-1 text-[9px] ${isMe ? "text-slate-900/70" : "text-slate-400"}`}>
@@ -1563,6 +1644,43 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
             }}
             onClose={() => setShowBgModal(false)}
           />
+        )}
+      </AnimatePresence>
+      {/* ENLARGED IMAGE PREVIEW MODAL */}
+      <AnimatePresence>
+        {previewMediaUrl && (
+          <div className="fixed inset-0 z-[250] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in">
+            <div className="relative max-w-5xl w-full max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+              <div className="p-4 flex items-center justify-between border-b border-slate-800 bg-slate-950">
+                <span className="text-sm font-bold text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  Enlarged Attachment Preview
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleDownloadImage(previewMediaUrl, 'direct-attachment.jpg')}
+                    className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                    title="Download Attachment"
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => setPreviewMediaUrl(null)}
+                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6 flex items-center justify-center overflow-auto max-h-[calc(90vh-80px)] bg-slate-950/50">
+                <img
+                  src={previewMediaUrl}
+                  alt="Preview"
+                  className="max-w-full max-h-[75vh] object-contain rounded-2xl shadow-xl"
+                />
+              </div>
+            </div>
+          </div>
         )}
       </AnimatePresence>
     </div>

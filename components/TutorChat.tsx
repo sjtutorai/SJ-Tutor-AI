@@ -47,6 +47,7 @@ import { ExportModal } from './ExportModal';
 import { ChatBackgroundModal, ChatBgSettings } from './ChatBackgroundModal';
 import { SettingsService } from '../services/settingsService';
 import { jsPDF } from 'jspdf';
+import { VoiceDictationSession } from '../services/audioService';
 
 function getDynamicSampleQuestions(subject: string, grade: string): string[] {
   const normSubject = subject.toLowerCase().trim();
@@ -774,96 +775,107 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     };
   }, [isListening]);
 
-  // Premium Speech Recognition with Live Accumulation and Interim Results
+  // Voice Dictation Session reference
+  const voiceSessionRef = useRef<VoiceDictationSession | null>(null);
+
+  // Clean up voice dictation on unmount
   useEffect(() => {
-    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!Recognition) return;
-    if (!isListening) return;
-
-    const rec = new Recognition();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = 'en-US';
-
-    rec.onresult = (e: any) => {
-      let sessionFinal = '';
-      let sessionInterim = '';
-      for (let i = 0; i < e.results.length; ++i) {
-        if (e.results[i].isFinal) {
-          sessionFinal += e.results[i][0].transcript;
-        } else {
-          sessionInterim += e.results[i][0].transcript;
-        }
-      }
-
-      setInput(() => {
-        const base = initialInputRef.current.trim();
-        const finalTrimmed = sessionFinal.trim();
-        return base ? base + ' ' + finalTrimmed : finalTrimmed;
-      });
-      setInterimTranscript(sessionInterim);
-
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      if (autoSendVoiceRef.current && sessionFinal.trim().length > 0 && sessionInterim.trim().length === 0) {
-        silenceTimerRef.current = setTimeout(() => {
-          setIsListening(false);
-          const finalMsg = currentInputRef.current;
-          if (finalMsg.trim()) {
-             // We can't use handleSend directly because it accesses state, but we can do sendMessageToAi
-             sendMessageToAi(finalMsg);
-             setInput('');
-             setInterimTranscript('');
-          }
-        }, 2000);
-      }
-    };
-
-    rec.onerror = (err: any) => {
-      console.warn("Speech recognition error:", err);
-      setIsListening(false);
-      const errorType = err.error;
-      if (errorType === 'not-allowed') {
-        setVoiceError("Microphone access is restricted inside the preview window. Click the 'Open in New Tab' button on top of the screen to grant microphone permissions!");
-      } else if (errorType === 'no-speech') {
-        console.log("No speech detected.");
-      } else {
-        setVoiceError(`Voice detection issue: ${errorType || 'please try again'}.`);
-      }
-    };
-
-    rec.onend = () => {
-      setIsListening(false);
-    };
-
-    try {
-      rec.start();
-    } catch (e) {
-      console.error("Speech recognition start failed:", e);
-      setIsListening(false);
-      setVoiceError("Could not start speech recognition in this browser.");
-    }
-
     return () => {
-      try {
-        rec.stop();
-      } catch (err) {
-        console.warn("Speech recognition stop error", err);
+      if (voiceSessionRef.current) {
+        voiceSessionRef.current.stop().catch(() => {});
+        voiceSessionRef.current = null;
       }
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
-  }, [isListening]);
+  }, []);
 
-  const toggleVoiceInput = () => {
-    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!Recognition) {
-      setVoiceError("Speech recognition is not supported in this browser. Please try Google Chrome or Microsoft Edge.");
-      return;
-    }
-    setVoiceError(null); // Clear previous voice error when toggling
-    if (!isListening) {
+  const toggleVoiceInput = async () => {
+    setVoiceError(null);
+
+    if (isListening) {
+      // User clicked to finish voice input
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      setIsListening(false);
+      
+      if (voiceSessionRef.current) {
+        try {
+          const transcribed = await voiceSessionRef.current.stop();
+          if (transcribed) {
+            setInput(prev => {
+              const base = prev.trim();
+              if (base.toLowerCase().includes(transcribed.toLowerCase().trim())) return base;
+              return base ? `${base} ${transcribed}` : transcribed;
+            });
+            setInterimTranscript('');
+            
+            if (autoSendVoiceRef.current) {
+              const textToSend = currentInputRef.current || transcribed;
+              if (textToSend.trim()) {
+                sendMessageToAi(textToSend);
+                setInput('');
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn('Voice session finish error:', err);
+        }
+        voiceSessionRef.current = null;
+      }
+      setInterimTranscript('');
+    } else {
+      // Start Voice Dictation
       initialInputRef.current = input;
       setInterimTranscript('');
+      
+      try {
+        const session = new VoiceDictationSession({
+          language: 'English',
+          onInterim: (text) => {
+            setInterimTranscript(text);
+          },
+          onFinal: (text) => {
+            const base = initialInputRef.current.trim();
+            const combined = base ? `${base} ${text}` : text;
+            setInput(combined);
+            setInterimTranscript('');
+
+            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+            if (autoSendVoiceRef.current && text.trim().length > 0) {
+              silenceTimerRef.current = setTimeout(async () => {
+                if (voiceSessionRef.current) {
+                  await voiceSessionRef.current.stop().catch(() => {});
+                  voiceSessionRef.current = null;
+                }
+                setIsListening(false);
+                const finalMsg = currentInputRef.current;
+                if (finalMsg && finalMsg.trim()) {
+                  sendMessageToAi(finalMsg);
+                  setInput('');
+                  setInterimTranscript('');
+                }
+              }, 2500);
+            }
+          },
+          onError: (errMsg) => {
+            setVoiceError(errMsg);
+            setIsListening(false);
+          },
+          onRecordingStateChange: (rec) => {
+            setIsListening(rec);
+          },
+        });
+
+        voiceSessionRef.current = session;
+        await session.start();
+        setIsListening(true);
+      } catch (err: any) {
+        console.error('Microphone activation failed:', err);
+        setVoiceError(
+          err.message || "Microphone access is unavailable. Please grant microphone permissions to use voice dictation."
+        );
+        setIsListening(false);
+      }
     }
-    setIsListening(!isListening);
   };
 
   const [isSharingPublic, setIsSharingPublic] = useState(false);
@@ -1267,7 +1279,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   return (
     <div className={`flex bg-slate-50 dark:bg-slate-950 font-sans transition-all duration-300 ${
       isEnlarged 
-        ? 'h-[calc(100vh-5.5rem)] min-h-[650px] rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative' 
+        ? 'fixed inset-0 z-[100] h-screen w-screen rounded-none shadow-2xl border-none overflow-hidden' 
         : 'h-[calc(100vh-140px)] rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative'
     }`}>
       
@@ -1571,7 +1583,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                     </div>
                   ) : (
                     <div
-                      className={`rounded-2xl px-5 py-3.5 shadow-sm text-[15px] leading-relaxed relative border ${
+                      className={`rounded-2xl px-5 py-3.5 shadow-sm transition-all duration-200 relative border ${
+                        isEnlarged ? 'text-[17px] sm:text-[18px] leading-relaxed p-6' : 'text-[15px] leading-relaxed'
+                      } ${
                         msg.role === 'user'
                           ? 'bg-primary-600 border-primary-600 text-white rounded-tr-none'
                           : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800/80 text-slate-800 dark:text-slate-100 rounded-tl-none'
@@ -1579,8 +1593,13 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                     >
                       {/* Attached images */}
                       {msg.images && msg.images.map((img, i) => (
-                        <div key={i} className="mb-3 max-w-sm overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 shadow-md">
-                          <img src={img} alt="Attachment" className="w-full h-auto" />
+                        <div 
+                          key={i} 
+                          onClick={() => setEnlargedMessage(msg)}
+                          className="mb-3 max-w-sm overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 shadow-md cursor-pointer group/img relative"
+                          title="Click to enlarge image"
+                        >
+                          <img src={img} alt="Attachment" className="w-full h-auto group-hover/img:scale-105 transition-transform" />
                         </div>
                       ))}
 

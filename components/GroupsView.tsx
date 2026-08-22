@@ -42,6 +42,8 @@ import {
   Phone,
   PhoneCall,
   Video,
+  Sparkles,
+  Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from "qrcode.react";
@@ -82,6 +84,7 @@ import {
 } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
 import { DirectChatView } from './DirectChatView';
+import { requestMicrophoneStream, blobToDataUrl } from '../services/audioService';
 
 interface GroupsViewProps {
   userProfile: UserProfile;
@@ -151,6 +154,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [showQRPassModal, setShowQRPassModal] = useState(false);
   const [showQRScannerModal, setShowQRScannerModal] = useState(false);
   const [showBgModal, setShowBgModal] = useState(false);
+  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
 
   // Message States
   const [messages, setMessages] = useState<GroupMessage[]>([]);
@@ -189,10 +193,13 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  // Audio simulation state
+  // Audio voice recording state
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const recordingTimerRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioStreamRef = useRef<MediaStream | null>(null);
 
   // Personal Group Wallpapers (Personal to this user, not shared with other group members)
   const [personalGroupBgs, setPersonalGroupBgs] = useState<Record<string, ChatBgSettings>>(() => {
@@ -1063,19 +1070,76 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     setShowImageModal(false);
   };
 
-  // Voice Note Recording Simulator
-  const startVoiceRecording = () => {
-    setIsRecordingVoice(true);
-    setRecordingSeconds(0);
-    recordingTimerRef.current = setInterval(() => {
-      setRecordingSeconds((prev) => prev + 1);
-    }, 1000);
+  // Voice Note Recording
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await requestMicrophoneStream();
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+
+      let mimeType = 'audio/webm;codecs=opus';
+      if (typeof MediaRecorder !== 'undefined' && !MediaRecorder.isTypeSupported(mimeType)) {
+        if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+        else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+        else mimeType = '';
+      }
+
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+      recorder.start(250);
+
+      setIsRecordingVoice(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error('Failed to start group voice recording:', err);
+      triggerToast('Microphone Notice', err.message || 'Please allow microphone access to record voice notes.', 'Important Alerts');
+    }
   };
 
-  const stopVoiceRecordingAndSend = () => {
+  const stopVoiceRecordingAndSend = async () => {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     setIsRecordingVoice(false);
-    handleSendMessage(`🎤 Voice Note (${recordingSeconds}s)`, 'voice');
+
+    let voiceUrl = '';
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        await new Promise<void>((resolve) => {
+          if (!mediaRecorderRef.current) return resolve();
+          mediaRecorderRef.current.onstop = () => resolve();
+          mediaRecorderRef.current.stop();
+        });
+      } catch (e) {
+        console.warn('Group voice recorder stop error:', e);
+      }
+    }
+
+    if (audioChunksRef.current.length > 0) {
+      const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+      const blob = new Blob(audioChunksRef.current, { type: mimeType });
+      if (blob.size > 200) {
+        try {
+          voiceUrl = await blobToDataUrl(blob);
+        } catch (e) {
+          console.warn('Audio blob conversion error:', e);
+        }
+      }
+    }
+
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach(t => t.stop());
+      audioStreamRef.current = null;
+    }
+
+    audioChunksRef.current = [];
+    handleSendMessage(`🎤 Voice Note (${recordingSeconds || 3}s)`, 'voice', { voiceUrl });
     setRecordingSeconds(0);
   };
 
@@ -1769,7 +1833,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       <div
         className={`${
           !showMobileChat ? 'hidden lg:flex' : 'flex'
-        } flex-1 flex-col ${currentGroupBg?.imageUrl || currentGroupBg?.bgColor ? '' : 'bg-slate-100/60 dark:bg-slate-950'} relative overflow-hidden`}
+        } flex-1 flex-col ${currentGroupBg?.imageUrl || currentGroupBg?.bgColor ? '' : 'bg-slate-100/60 dark:bg-slate-950'} relative overflow-hidden ${
+          isEnlarged ? 'fixed inset-0 z-[100] h-screen w-screen bg-white dark:bg-slate-950 flex' : ''
+        }`}
         style={{
           background: currentGroupBg?.bgColor || undefined,
         }}
@@ -2011,7 +2077,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                         {/* Message Box */}
                         <div
-                          className={`p-3.5 rounded-2xl shadow-sm text-sm relative ${
+                          className={`rounded-2xl shadow-sm transition-all relative ${
+                            isEnlarged ? 'p-5 text-base sm:text-lg leading-relaxed' : 'p-3.5 text-sm'
+                          } ${
                             isMe
                               ? 'bg-primary-600 text-white rounded-tr-xs'
                               : isAi
@@ -2043,11 +2111,20 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                           {/* Image Attachment */}
                           {msg.type === 'image' && msg.mediaUrl && (
                             <div className="space-y-2">
-                              <img
-                                src={msg.mediaUrl}
-                                alt="SharedAttachment"
-                                className="rounded-xl max-h-60 object-cover w-full border border-black/10"
-                              />
+                              <div
+                                onClick={() => setPreviewMediaUrl(msg.mediaUrl || null)}
+                                className="cursor-pointer relative group/img max-h-60 rounded-xl overflow-hidden"
+                                title="Click to enlarge image"
+                              >
+                                <img
+                                  src={msg.mediaUrl}
+                                  alt="SharedAttachment"
+                                  className="rounded-xl max-h-60 object-cover w-full border border-black/10 group-hover/img:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Maximize2 className="w-6 h-6 text-white drop-shadow-md" />
+                                </div>
+                              </div>
                               {msg.text && (
                                 <div className="text-xs whitespace-pre-wrap">
                                   {renderMessageWithMentionsAndLinks(msg.text, isMe, activeGroup)}
@@ -2112,18 +2189,24 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                             </div>
                           )}
 
-                          {/* Voice Note Simulation Card */}
+                          {/* Voice Note Card */}
                           {msg.type === 'voice' && (
-                            <div className="flex items-center gap-3 p-1">
-                              <div className="w-9 h-9 rounded-full bg-primary-500 text-white flex items-center justify-center">
-                                <Play className="w-4 h-4 ml-0.5 fill-current" />
-                              </div>
-                              <div className="flex-1">
-                                <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                  <div className="h-full bg-primary-500 w-2/3"></div>
+                            <div className="p-1 space-y-1.5 min-w-[200px]">
+                              {msg.voiceUrl && msg.voiceUrl.startsWith('data:audio') ? (
+                                <audio controls src={msg.voiceUrl} className="w-full h-8 rounded-lg outline-none" />
+                              ) : (
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-full bg-primary-500 text-white flex items-center justify-center">
+                                    <Play className="w-4 h-4 ml-0.5 fill-current" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                      <div className="h-full bg-primary-500 w-2/3"></div>
+                                    </div>
+                                    <span className="text-[10px] opacity-70 mt-1 block">Voice Message</span>
+                                  </div>
                                 </div>
-                                <span className="text-[10px] opacity-70 mt-1 block">Voice Message</span>
-                              </div>
+                              )}
                             </div>
                           )}
 
@@ -4038,6 +4121,46 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             }}
             onClose={() => setShowBgModal(false)}
           />
+        )}
+      </AnimatePresence>
+      {/* ENLARGED IMAGE PREVIEW MODAL */}
+      <AnimatePresence>
+        {previewMediaUrl && (
+          <div className="fixed inset-0 z-[250] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in">
+            <div className="relative max-w-5xl w-full max-h-[90vh] bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+              <div className="p-4 flex items-center justify-between border-b border-slate-800 bg-slate-950">
+                <span className="text-sm font-bold text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  Enlarged Image Preview
+                </span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={previewMediaUrl}
+                    download="study-attachment.jpg"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                    title="Download Attachment"
+                  >
+                    <Download className="w-5 h-5" />
+                  </a>
+                  <button
+                    onClick={() => setPreviewMediaUrl(null)}
+                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6 flex items-center justify-center overflow-auto max-h-[calc(90vh-80px)] bg-slate-950/50">
+                <img
+                  src={previewMediaUrl}
+                  alt="Preview"
+                  className="max-w-full max-h-[75vh] object-contain rounded-2xl shadow-xl"
+                />
+              </div>
+            </div>
+          </div>
         )}
       </AnimatePresence>
       </div>

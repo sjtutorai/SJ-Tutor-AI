@@ -8,6 +8,7 @@ import {
   Check, 
   QrCode, 
   Maximize2, 
+  Minimize2,
   ShieldCheck, 
   Users, 
   BookOpen,
@@ -171,10 +172,10 @@ export const GroupQRModal: React.FC<GroupQRModalProps> = ({
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
               title={isFullscreen ? "Exit Fullscreen" : "Fullscreen View"}
             >
-              <Maximize2 className="w-4 h-4" />
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
             <button
               onClick={onClose}

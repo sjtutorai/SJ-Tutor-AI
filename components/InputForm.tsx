@@ -20,8 +20,10 @@ import {
   FileText, 
   FileSpreadsheet, 
   FileCode, 
-  FileUp
+  FileUp,
+  AlertCircle
 } from 'lucide-react';
+import { VoiceDictationSession } from '../services/audioService';
 
 interface InputFormProps {
   data: StudyRequestData;
@@ -120,6 +122,7 @@ const InputForm: React.FC<InputFormProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isListening, setIsListening] = useState(false);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
   const isRewardMode = mode === AppMode.QUIZ && data.questionCount === 10 && data.difficulty === 'Hard';
 
   const stateRef = useRef({
@@ -139,72 +142,86 @@ const InputForm: React.FC<InputFormProps> = ({
     };
   });
 
+  const voiceSessionRef = useRef<VoiceDictationSession | null>(null);
+
   useEffect(() => {
-    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!Recognition) return;
-
-    if (!isListening) return;
-
-    const rec = new Recognition();
-    rec.continuous = false;
-    rec.interimResults = false;
-    rec.lang = 'en-US';
-
-    rec.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript;
-      const { mode, homeworkQuery, chapterName, onChange } = stateRef.current;
-      if (mode === AppMode.HOMEWORK) {
-        const currentVal = homeworkQuery || '';
-        onChange('homeworkQuery', currentVal + (currentVal ? ' ' : '') + transcript);
-      } else {
-        const currentVal = chapterName || '';
-        onChange('chapterName', currentVal + (currentVal ? ' ' : '') + transcript);
-      }
-      setIsListening(false);
-    };
-
-    rec.onerror = (err: any) => {
-      console.warn("Speech recognition error:", err);
-      setIsListening(false);
-      const errorType = err.error;
-      if (errorType === 'not-allowed') {
-        alert("Microphone permission was denied or blocked. Since the application is running inside a preview iframe, the browser restricts microphone access. Please click the 'Open in New Tab' button in the top-right of your screen, then click 'Dictate' there to grant microphone permissions!");
-      } else if (errorType === 'no-speech') {
-        alert("No speech was detected. Please try speaking clearly into your microphone.");
-      } else if (errorType === 'audio-capture') {
-        alert("No microphone was found on your device or audio capture failed.");
-      } else {
-        alert(`Speech recognition issue: ${errorType || 'unknown error'}. Please try opening the app in a new tab for full permissions.`);
-      }
-    };
-
-    rec.onend = () => {
-      setIsListening(false);
-    };
-
-    try {
-      rec.start();
-    } catch (e) {
-      console.error("Speech recognition start failed:", e);
-      setIsListening(false);
-    }
-
     return () => {
-      try {
-        rec.stop();
-      } catch {
-        // Already stopped
+      if (voiceSessionRef.current) {
+        voiceSessionRef.current.stop().catch(() => {});
+        voiceSessionRef.current = null;
       }
     };
-  }, [isListening]);
+  }, []);
 
-  const toggleVoiceInput = () => {
-    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!Recognition) {
-      alert("Speech recognition is not supported in this browser. Try Google Chrome.");
-      return;
+  const toggleVoiceInput = async () => {
+    setVoiceNotice(null);
+
+    if (isListening) {
+      setIsListening(false);
+      if (voiceSessionRef.current) {
+        try {
+          const transcript = await voiceSessionRef.current.stop();
+          if (transcript) {
+            const { mode, homeworkQuery, chapterName, onChange } = stateRef.current;
+            if (mode === AppMode.HOMEWORK) {
+              const currentVal = homeworkQuery || '';
+              if (!currentVal.toLowerCase().includes(transcript.toLowerCase())) {
+                onChange('homeworkQuery', currentVal + (currentVal ? ' ' : '') + transcript);
+              }
+            } else {
+              const currentVal = chapterName || '';
+              if (!currentVal.toLowerCase().includes(transcript.toLowerCase())) {
+                onChange('chapterName', currentVal + (currentVal ? ' ' : '') + transcript);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('InputForm voice stop notice:', e);
+        }
+        voiceSessionRef.current = null;
+      }
+    } else {
+      try {
+        const session = new VoiceDictationSession({
+          language: data.language || 'English',
+          onInterim: (text) => {
+            const { mode, homeworkQuery, chapterName, onChange } = stateRef.current;
+            if (mode === AppMode.HOMEWORK) {
+              const currentVal = homeworkQuery || '';
+              onChange('homeworkQuery', currentVal + (currentVal ? ' ' : '') + text);
+            } else {
+              const currentVal = chapterName || '';
+              onChange('chapterName', currentVal + (currentVal ? ' ' : '') + text);
+            }
+          },
+          onFinal: (text) => {
+            const { mode, homeworkQuery, chapterName, onChange } = stateRef.current;
+            if (mode === AppMode.HOMEWORK) {
+              const currentVal = homeworkQuery || '';
+              onChange('homeworkQuery', currentVal + (currentVal ? ' ' : '') + text);
+            } else {
+              const currentVal = chapterName || '';
+              onChange('chapterName', currentVal + (currentVal ? ' ' : '') + text);
+            }
+          },
+          onError: (err) => {
+            setVoiceNotice(err);
+            setIsListening(false);
+          },
+          onRecordingStateChange: (rec) => {
+            setIsListening(rec);
+          }
+        });
+
+        voiceSessionRef.current = session;
+        await session.start();
+        setIsListening(true);
+      } catch (err: any) {
+        console.error('Failed to start InputForm dictation:', err);
+        setVoiceNotice(err.message || 'Microphone access is unavailable. Please grant microphone permissions.');
+        setIsListening(false);
+      }
     }
-    setIsListening(!isListening);
   };
 
 
@@ -356,6 +373,22 @@ const InputForm: React.FC<InputFormProps> = ({
               <span className="text-[8px] text-slate-400 text-center mt-0.5 leading-tight">PDF, DOCS, SHEETS, PHOTO, TEXT</span>
             </button>
           </div>
+
+          {voiceNotice && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <span className="font-semibold">Microphone Notice:</span> {voiceNotice}
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setVoiceNotice(null)}
+                className="text-amber-500 hover:text-amber-800 dark:hover:text-white p-0.5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           <div className="space-y-1">
             <div className="flex justify-between items-center">

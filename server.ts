@@ -200,6 +200,68 @@ app.post("/api/calls/notify", async (req, res) => {
   }
 });
 
+// Audio Transcription Endpoint using Gemini AI
+app.post("/api/transcribe-audio", async (req, res) => {
+  try {
+    const { audio, mimeType = "audio/webm", language = "English" } = req.body;
+    if (!audio) {
+      return res.status(400).json({ error: "Audio data is required" });
+    }
+
+    let cleanBase64 = audio;
+    let finalMimeType = mimeType;
+    if (typeof audio === "string" && audio.startsWith("data:")) {
+      const parts = audio.split(";base64,");
+      if (parts.length === 2) {
+        finalMimeType = parts[0].replace("data:", "");
+        cleanBase64 = parts[1];
+      }
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+    if (!apiKey) {
+      return res.status(500).json({ error: "GEMINI_API_KEY not configured on server" });
+    }
+
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+
+    const prompt = `Transcribe all spoken words in this audio recording accurately and faithfully. 
+Preserve the speaker's language (primarily ${language} or any spoken language in the audio).
+Return ONLY the raw transcription text with proper capitalization and punctuation. 
+Do NOT include any timestamps, markdown labels, explanations, or quotes. 
+If the audio is completely silent or contains no discernible speech, return an empty string.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.7-flash',
+      contents: [
+        {
+          inlineData: {
+            mimeType: finalMimeType || 'audio/webm',
+            data: cleanBase64,
+          }
+        },
+        {
+          text: prompt
+        }
+      ]
+    });
+
+    const transcript = response.text?.trim() || "";
+    res.json({ success: true, transcript });
+  } catch (error: any) {
+    console.error("[Audio Transcription API Error]:", error);
+    res.status(500).json({ success: false, error: error.message || "Failed to transcribe audio" });
+  }
+});
+
 // Background call decline endpoint from Service Worker
 app.post("/api/calls/decline", async (req, res) => {
   try {
