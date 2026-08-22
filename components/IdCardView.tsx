@@ -105,8 +105,8 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
              {/* Header */}
              <div className="absolute top-0 inset-x-0 p-5 flex justify-between items-start z-10">
                 <div className="flex items-center gap-2">
-                   <div className="w-8 h-8 bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/20">
-                      <Logo className="w-full h-full" iconOnly />
+                   <div className="w-8 h-8 bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/20 overflow-hidden">
+                      <Logo className="w-full h-full" iconOnly noBorder />
                    </div>
                    <div>
                       <h3 className="font-bold text-sm leading-none tracking-tight">SJ Tutor AI</h3>

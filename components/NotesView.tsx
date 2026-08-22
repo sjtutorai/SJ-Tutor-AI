@@ -12,6 +12,7 @@ import { SettingsService } from '../services/settingsService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
+import Logo from './Logo';
 import { saveNotesToFirestore, getNotesFromFirestore } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
 import { blobToDataUrl, transcribeAudioViaAI, requestMicrophoneStream } from '../services/audioService';
@@ -999,7 +1000,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
               <div className="max-w-2xl mx-auto bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-8">
                 <div className="text-center mb-8">
                   <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg overflow-hidden">
-                     <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
+                     <Logo className="w-full h-full" iconOnly noBorder />
                   </div>
                   <h2 className="text-2xl font-bold text-slate-800 dark:text-white">SJ Tutor AI&apos;s Planner</h2>
                   <p className="text-slate-500">I can generate a personalized timetable for your upcoming exams.</p>

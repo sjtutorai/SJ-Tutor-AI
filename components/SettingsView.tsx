@@ -241,8 +241,17 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Account Settings</h3>
             
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
-               <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-500">
-                 <img src={userProfile.photoURL || SJTUTOR_AVATAR} alt="Profile" className="w-full h-full object-cover" />
+               <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-500 bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                 <img 
+                   src={userProfile.photoURL || SJTUTOR_AVATAR} 
+                   alt="Profile" 
+                   className="w-full h-full object-cover" 
+                   onError={(e) => {
+                     if (e.currentTarget.src !== window.location.origin + '/logo.png') {
+                       e.currentTarget.src = '/logo.png';
+                     }
+                   }}
+                 />
                </div>
                <div className="flex-1">
                  <h4 className="font-bold text-slate-800 dark:text-white text-lg">{userProfile.displayName || 'Scholar'}</h4>

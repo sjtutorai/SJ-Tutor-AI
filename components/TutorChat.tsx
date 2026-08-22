@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage, SJTUTOR_AVATAR } from '../types';
+import { ChatMessage } from '../types';
+import Logo from './Logo';
 import { GeminiService } from '../services/geminiService';
 import { 
   Send, 
@@ -1559,8 +1560,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               >
                 {/* AI Avatar */}
                 {msg.role === 'model' && (
-                  <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm">
-                    <img src={SJTUTOR_AVATAR} alt="AI" className="w-full h-full object-cover" />
+                  <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm flex items-center justify-center">
+                    <Logo className="w-full h-full" iconOnly noBorder />
                   </div>
                 )}
                 
@@ -1748,8 +1749,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           {/* MULTI-STEP ANIMATED STAGGERED THINKING INDICATOR */}
           {thinkingStep && (
             <div className="flex gap-4 justify-start items-start">
-              <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm">
-                <img src={SJTUTOR_AVATAR} alt="AI" className="w-full h-full object-cover" />
+              <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm flex items-center justify-center">
+                <Logo className="w-full h-full" iconOnly noBorder />
               </div>
               <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm flex flex-col gap-3 min-w-[260px] animate-pulse">
                 <div className="flex items-center gap-2">

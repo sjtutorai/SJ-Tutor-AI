@@ -33,7 +33,7 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, onNavigateToLe
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-950/80 sticky top-0 z-20 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary-500 shadow-sm flex items-center justify-center bg-white dark:bg-slate-800">
-              <Logo className="w-full h-full" iconOnly />
+              <Logo className="w-full h-full" iconOnly noBorder />
             </div>
             <div>
               <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">

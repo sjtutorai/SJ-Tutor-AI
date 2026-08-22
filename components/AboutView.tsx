@@ -17,7 +17,7 @@ const AboutView: React.FC<AboutViewProps> = ({ onNavigateToLegal }) => {
            <div className="relative">
              <div className="absolute inset-0 bg-primary-200 blur-2xl opacity-20 rounded-full"></div>
              <div className="w-28 h-28 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center border-4 border-white dark:border-slate-700 shadow-xl overflow-hidden relative z-10">
-                <Logo className="w-full h-full" iconOnly />
+                <Logo className="w-full h-full" iconOnly noBorder />
              </div>
            </div>
         </div>

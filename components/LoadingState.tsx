@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { AppMode, SJTUTOR_AVATAR } from "../types";
+import { AppMode } from "../types";
+import Logo from "./Logo";
 import { 
   BookOpen, BrainCircuit, Sparkles, FileText, Upload, 
   CheckCircle, FileUp, Cpu, Hourglass, Star
@@ -204,10 +205,10 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             className="relative w-20 h-20 rounded-full bg-gradient-to-tr from-primary-500 via-indigo-500 to-purple-500 flex items-center justify-center p-1 overflow-hidden"
           >
-            <img 
-              src={SJTUTOR_AVATAR} 
-              alt="Orb avatar" 
-              className="w-full h-full object-cover rounded-full" 
+            <Logo 
+              className="w-full h-full" 
+              iconOnly 
+              noBorder 
             />
           </motion.div>
 

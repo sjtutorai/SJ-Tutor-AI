@@ -2,7 +2,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Check, Crown, Zap, Shield, Upload, Loader2, Image as ImageIcon, AlertCircle, ExternalLink, QrCode, Copy, CheckCircle, Clock } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
-import { SJTUTOR_AVATAR, UserProfile } from '../types';
+import { UserProfile } from '../types';
+import Logo from './Logo';
 import { calculateTrialInfo, TrialInfo } from './TrialTimerWidget';
 
 interface PremiumModalProps {
@@ -216,7 +217,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess, 
           {step === 'PLANS' && (
              <div className="space-y-6 w-full animate-in fade-in slide-in-from-right-4">
                 <div className="w-20 h-20 bg-primary-50 rounded-full flex items-center justify-center mx-auto text-primary-600 border-4 border-white shadow-lg overflow-hidden">
-                   <img src={SJTUTOR_AVATAR} alt="SJ Tutor AI" className="w-full h-full object-cover" />
+                   <Logo className="w-full h-full" iconOnly noBorder />
                 </div>
                 <div>
                    <h3 className="text-2xl font-bold text-slate-800">Selected: {currentPlan.name}</h3>

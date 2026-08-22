@@ -2132,7 +2132,7 @@ const App: React.FC = () => {
           {baseFiltered.length === 0 ? (
             <div className="text-center py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 border-dashed animate-in zoom-in duration-500">
               <div className="w-16 h-16 bg-primary-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 dark:border-slate-600 p-1">
-                <Logo className="w-full h-full" iconOnly />
+                <Logo className="w-full h-full" iconOnly noBorder />
               </div>
               <p className="text-slate-500 dark:text-slate-400 font-medium mb-5 text-sm">
                 No {categoryLabel.toLowerCase()} found yet.
@@ -3001,7 +3001,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-primary-50 dark:bg-slate-900 flex items-center justify-center flex-col gap-4">
         <div className="relative">
           <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-500 animate-bounce">
-            <Logo className="w-full h-full" iconOnly />
+            <Logo className="w-full h-full" iconOnly noBorder />
           </div>
           <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-primary-500 rounded-full animate-ping"></div>
         </div>
@@ -3026,7 +3026,7 @@ const App: React.FC = () => {
           <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-500 shadow-sm flex-shrink-0 bg-white dark:bg-slate-800">
-                <Logo className="w-full h-full" iconOnly />
+                <Logo className="w-full h-full" iconOnly noBorder />
               </div>
               <h1 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
                 SJ Tutor AI
@@ -3147,7 +3147,7 @@ const App: React.FC = () => {
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 flex-1 overflow-hidden">
                   <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0 bg-white dark:bg-slate-800">
-                    <Logo className="w-full h-full" iconOnly />
+                    <Logo className="w-full h-full" iconOnly noBorder />
                   </div>
                   <div className="truncate">
                     <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
@@ -3172,7 +3172,7 @@ const App: React.FC = () => {
               </div>
             ) : (
               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-md flex-shrink-0 bg-white dark:bg-slate-800 flex items-center justify-center animate-pulse">
-                <Logo className="w-full h-full" iconOnly />
+                <Logo className="w-full h-full" iconOnly noBorder />
               </div>
             )}
           </div>

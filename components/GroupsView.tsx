@@ -56,13 +56,13 @@ import {
   GroupMember,
   GroupPoll,
   UserProfile,
-  SJTUTOR_AVATAR,
   DirectCall,
   GroupCall,
 } from '../types';
 import { GroupQRModal } from './GroupQRModal';
 import { GroupQRScannerModal } from './GroupQRScannerModal';
 import { ChatBackgroundModal, ChatBgSettings } from './ChatBackgroundModal';
+import Logo from './Logo';
 import { startOrJoinGroupCall, subscribeToAllActiveGroupCalls } from '../services/webrtcService';
 import {
   createGroupInFirestore,
@@ -2041,9 +2041,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                       {/* Avatar */}
                       {!isMe && (
                         <div className="relative flex-shrink-0 mt-1">
-                          <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 bg-white">
+                          <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 bg-white flex items-center justify-center">
                             {isAi ? (
-                              <img src={SJTUTOR_AVATAR} alt="AI Tutor" className="w-full h-full object-cover" />
+                              <Logo className="w-full h-full" iconOnly noBorder />
                             ) : msg.senderAvatar ? (
                               <img src={msg.senderAvatar} alt={msg.senderName || 'Member'} className="w-full h-full object-cover" />
                             ) : (
