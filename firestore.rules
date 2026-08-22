@@ -107,9 +107,13 @@ service cloud.firestore {
       allow read, write: if isSignedIn() || true;
     }
 
-    // Group study calls collection
+    // Group study calls collection and signaling subcollections
     match /group_calls/{callId} {
       allow read, write: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
     }
 
     // Friendships collection

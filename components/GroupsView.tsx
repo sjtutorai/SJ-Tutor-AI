@@ -1869,18 +1869,33 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   {isEnlarged ? <Minimize2 className="w-5 h-5 text-amber-600 dark:text-amber-400" /> : <Maximize2 className="w-5 h-5" />}
                 </button>
 
-                {/* Group Info & Settings Button */}
+                {/* Group Info Drawer Button */}
                 <button
                   onClick={() => setShowGroupInfo(true)}
                   className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer relative"
-                  title="Group Info & Settings"
+                  title="Group Info & Members"
                 >
-                  <Settings className="w-5 h-5" />
+                  <Info className="w-5 h-5" />
                   {isAdmin && activeGroup.joinRequests && Object.keys(activeGroup.joinRequests).length > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
                       {Object.keys(activeGroup.joinRequests).length}
                     </span>
                   )}
+                </button>
+
+                {/* Group Settings Button */}
+                <button
+                  onClick={() => {
+                    if (isAdmin) {
+                      handleOpenEditModal();
+                    } else {
+                      setShowGroupInfo(true);
+                    }
+                  }}
+                  className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer relative"
+                  title={isAdmin ? "Group Settings & Privacy" : "Group Info"}
+                >
+                  <Settings className="w-5 h-5 text-slate-600 dark:text-slate-300 hover:text-indigo-600 transition" />
                 </button>
               </div>
             </div>
@@ -3011,6 +3026,126 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                         }`}
                       />
                     </button>
+                  </div>
+                </div>
+
+                {/* All Group Options & Integrated Tools */}
+                <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Group Tools & Quick Actions
+                  </label>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {/* QR Code Pass */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEditModal(false);
+                        setShowQRPassModal(true);
+                      }}
+                      className="p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-2.5 text-left transition group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                        <QrCode className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-xs font-bold text-slate-800 dark:text-slate-200 truncate">QR Pass & Poster</span>
+                        <span className="text-[10px] text-slate-400 block truncate">Scan-to-join card</span>
+                      </div>
+                    </button>
+
+                    {/* Chat Wallpaper Customizer */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEditModal(false);
+                        setShowBgModal(true);
+                      }}
+                      className="p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-2.5 text-left transition group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <Palette className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-xs font-bold text-slate-800 dark:text-slate-200 truncate">Chat Wallpaper</span>
+                        <span className="text-[10px] text-slate-400 block truncate">AI Art & Atmosphere</span>
+                      </div>
+                    </button>
+
+                    {/* Create Poll */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEditModal(false);
+                        setShowPollCreator(true);
+                      }}
+                      className="p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-2.5 text-left transition group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <BarChart2 className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="block text-xs font-bold text-slate-800 dark:text-slate-200 truncate">Create Poll</span>
+                        <span className="text-[10px] text-slate-400 block truncate">Ask member votes</span>
+                      </div>
+                    </button>
+
+                    {/* Join Requests */}
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowEditModal(false);
+                          setShowRequestsModal(true);
+                        }}
+                        className="p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-2.5 text-left transition group cursor-pointer"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                          <UserPlus className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="block text-xs font-bold text-slate-800 dark:text-slate-200 truncate">Join Requests</span>
+                          <span className="text-[10px] text-slate-400 block truncate">
+                            {activeGroup.joinRequests ? `${Object.keys(activeGroup.joinRequests).length} pending` : 'Review approvals'}
+                          </span>
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Share Link & ID in Settings */}
+                <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Group Link & Invite Code
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
+                        navigator.clipboard.writeText(shareUrl);
+                        triggerToast('Copied Group Link! 🔗', 'Share this link with any student to invite them.', 'Important Alerts');
+                      }}
+                      className="flex-1 py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border border-indigo-200/60 dark:border-indigo-800/60"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      Copy Invite Link
+                    </button>
+
+                    {activeGroup.inviteCode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(activeGroup.inviteCode || '');
+                          triggerToast('Invite Code Copied!', 'Invite code copied to clipboard.', 'Important Alerts');
+                        }}
+                        className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        {activeGroup.inviteCode}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

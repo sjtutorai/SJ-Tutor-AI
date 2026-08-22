@@ -3,14 +3,12 @@ import { QuizQuestion } from '../types';
 import { 
   CheckCircle, XCircle, ArrowRight, ArrowLeft, RefreshCw, Facebook, 
   Send, MessageCircle, Link, Share2, X, Trophy, Check, 
-  Copy, Download, Timer, Sparkles, Award, ShieldAlert, Star,
-  Maximize2, ZoomIn, Image as ImageIcon
+  Copy, Download, Timer, Sparkles, Award, ShieldAlert, Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ExportModal } from './ExportModal';
 import confetti from 'canvas-confetti';
 import { useNotifications } from './NotificationContext';
-import { generateEducationalDiagramSvg } from '../utils/quizImageHelper';
 
 interface QuizViewProps {
   questions: QuizQuestion[];
@@ -27,7 +25,7 @@ const LOADING_STEPS = [
   "Loading Questions...",
   "Preparing Timer...",
   "Randomizing Questions...",
-  "Loading Images & Diagrams...",
+  "Formatting Questions...",
   "Setting Difficulty...",
   "Almost Ready..."
 ];
@@ -51,7 +49,6 @@ const QuizView: React.FC<QuizViewProps> = ({
   const [localSaved, setLocalSaved] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isSharingPublic, setIsSharingPublic] = useState(false);
-  const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
 
   const handleSharePublicLinkClick = async () => {
     if (isSharingPublic) return;
@@ -133,19 +130,6 @@ const QuizView: React.FC<QuizViewProps> = ({
       setShowResultModal(true);
     }
   }, [existingScore]);
-
-  // Helper to ensure question always has an image/diagram
-  const getResolvedImageUrl = (q: QuizQuestion, idx: number): string => {
-    if (q.imageUrl && q.imageUrl.trim().length > 0 && !q.imageUrl.includes('placehold.co') && !q.imageUrl.includes('example.com')) {
-      return q.imageUrl;
-    }
-    return generateEducationalDiagramSvg({
-      subject: 'Academic Studies',
-      chapter: `Question ${idx + 1}`,
-      question: q.question,
-      index: idx
-    });
-  };
 
   // 2. RESULT COUNTING ANIMATION & CONFETTI
   useEffect(() => {
@@ -272,7 +256,7 @@ const QuizView: React.FC<QuizViewProps> = ({
     }));
 
     return (
-      <div className="relative p-12 bg-gradient-to-tr from-slate-950 via-slate-900 to-blue-950 text-white rounded-[24px] border border-slate-800 shadow-2xl min-h-[480px] flex flex-col items-center justify-center overflow-hidden">
+      <div className="relative p-8 sm:p-12 bg-gradient-to-tr from-slate-950 via-slate-900 to-blue-950 text-white rounded-[24px] border border-slate-800 shadow-2xl min-h-[480px] max-h-[85vh] flex flex-col items-center justify-center overflow-y-auto custom-scrollbar">
         {/* Floating Background Particles */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           {particles.map((p) => (
@@ -600,54 +584,6 @@ const QuizView: React.FC<QuizViewProps> = ({
     <div className="flex flex-col min-h-full space-y-6 animate-in fade-in duration-300">
       {renderResultModal()}
 
-      {/* Full-view Zoom Modal for Question Context Diagrams */}
-      <AnimatePresence>
-        {zoomedImage && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-4xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              <div className="flex justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="p-2 rounded-lg bg-primary-50 dark:bg-primary-950/30 text-primary-600">
-                    <ImageIcon className="w-5 h-5" />
-                  </span>
-                  <div>
-                    <h3 className="font-bold text-slate-900 dark:text-white text-base">Visual Context & Diagram</h3>
-                    <p className="text-xs text-slate-500">{zoomedImage.title}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setZoomedImage(null)}
-                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-auto flex items-center justify-center py-6">
-                <img
-                  src={zoomedImage.url}
-                  alt="High Resolution Diagram"
-                  className="max-h-[65vh] w-auto object-contain rounded-xl shadow-md border border-slate-100 dark:border-slate-800"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-                <button
-                  onClick={() => setZoomedImage(null)}
-                  className="px-5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition"
-                >
-                  Close Diagram
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
       {isViewingShared && onAddToMyList && (
         <div className="bg-primary-50 dark:bg-slate-800 border border-primary-100 dark:border-slate-700 px-6 py-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4 animate-in fade-in duration-300">
           <div className="flex items-center gap-3">
@@ -676,7 +612,7 @@ const QuizView: React.FC<QuizViewProps> = ({
           <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
             <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
               <CheckCircle className="w-5 h-5 text-emerald-500" />
-              Review Answers & Visuals
+              Review Answers & Explanations
             </h3>
             <button 
               onClick={() => setShowResultModal(true)}
@@ -690,7 +626,6 @@ const QuizView: React.FC<QuizViewProps> = ({
               const userAnswer = userAnswers[idx];
               const isCorrect = userAnswer === q.correctAnswerIndex;
               const isSkipped = userAnswer === null;
-              const imageUrl = getResolvedImageUrl(q, idx);
 
               return (
                 <div key={idx} className="p-6">
@@ -718,35 +653,6 @@ const QuizView: React.FC<QuizViewProps> = ({
                       )}
                     </div>
                   </div>
-
-                  {/* Question Visual Context / Diagram in Review */}
-                  {imageUrl && (
-                    <div className="mt-2 mb-4 ml-0 sm:ml-8 max-w-lg rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm bg-slate-50 dark:bg-slate-900 group relative">
-                      <img 
-                        src={imageUrl} 
-                        alt={`Context Diagram Question ${idx + 1}`} 
-                        className="w-full max-h-56 object-contain cursor-pointer transition-transform group-hover:scale-102" 
-                        referrerPolicy="no-referrer"
-                        onClick={() => setZoomedImage({ url: imageUrl, title: `Question ${idx + 1} Diagram` })}
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          target.src = generateEducationalDiagramSvg({
-                            subject: 'Academic Studies',
-                            chapter: `Question ${idx + 1}`,
-                            question: q.question,
-                            index: idx
-                          });
-                        }}
-                      />
-                      <button
-                        onClick={() => setZoomedImage({ url: imageUrl, title: `Question ${idx + 1} Diagram` })}
-                        className="absolute bottom-2 right-2 px-2.5 py-1 bg-slate-900/80 text-white rounded-lg text-[11px] font-medium backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 cursor-pointer"
-                      >
-                        <ZoomIn className="w-3 h-3" />
-                        Zoom
-                      </button>
-                    </div>
-                  )}
 
                   <div className="space-y-2 pl-0 sm:pl-8 mb-4">
                     {q.options.map((opt, optIdx) => {
@@ -816,37 +722,6 @@ const QuizView: React.FC<QuizViewProps> = ({
           <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-6 text-left leading-relaxed">
             {currentQuestion?.question}
           </h3>
-          
-          {/* Active Question Image / Diagram Preview */}
-          {currentQuestion && (
-            <div className="mb-6 w-full max-w-xl mx-auto rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 group relative">
-              <img 
-                src={getResolvedImageUrl(currentQuestion, currentIndex)} 
-                alt="Visual Context & Diagram" 
-                className="w-full max-h-64 object-contain transition-transform group-hover:scale-102 cursor-pointer" 
-                referrerPolicy="no-referrer"
-                onClick={() => setZoomedImage({
-                  url: getResolvedImageUrl(currentQuestion, currentIndex),
-                  title: `Question ${currentIndex + 1} Diagram`
-                })}
-                onError={(e) => {
-                  const target = e.currentTarget;
-                  target.src = generateEducationalDiagramSvg({
-                    subject: 'Academic Studies',
-                    chapter: `Question ${currentIndex + 1}`,
-                    question: currentQuestion.question,
-                    index: currentIndex
-                  });
-                }}
-              />
-              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                <span className="px-3 py-1.5 bg-slate-900/90 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg">
-                  <Maximize2 className="w-3.5 h-3.5" />
-                  Click to Expand Diagram
-                </span>
-              </div>
-            </div>
-          )}
 
           <div className="space-y-3">
             {currentQuestion?.options.map((option, idx) => {

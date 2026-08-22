@@ -34,6 +34,8 @@ import {
   BrainCircuit,
   ArrowRight,
   ArrowDown,
+  ArrowUp,
+  ChevronsDown,
   Maximize2,
   Minimize2,
   Palette
@@ -257,6 +259,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   // Stable session identifier across continuous messages
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
     if (activeSessionId) return activeSessionId;
+    if (recentSessions && recentSessions.length > 0) {
+      return recentSessions[0].id;
+    }
     try {
       const saved = localStorage.getItem('sjtutor_active_chat_state');
       if (saved) {
@@ -275,6 +280,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     if (activeSessionId && recentSessions) {
       const found = recentSessions.find(s => s.id === activeSessionId);
       if (found?.title) return found.title;
+    }
+    if (recentSessions && recentSessions.length > 0 && recentSessions[0].title) {
+      return recentSessions[0].title;
     }
     try {
       const saved = localStorage.getItem('sjtutor_active_chat_state');
@@ -297,6 +305,18 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         images: m.images,
         timestamp: m.timestamp || Date.now(),
         suggestions: m.suggestions
+      }));
+    }
+    if (recentSessions && recentSessions.length > 0 && recentSessions[0].content?.messages?.length > 0) {
+      return recentSessions[0].content.messages.map((m: any, i: number) => ({
+        id: m.id || `msg-${i}-${Date.now()}`,
+        role: m.role,
+        text: m.text,
+        images: m.images,
+        timestamp: m.timestamp || Date.now(),
+        suggestions: m.suggestions,
+        liked: m.liked,
+        disliked: m.disliked,
       }));
     }
     // Check if we have an autosaved ongoing active session in localStorage to recover from accidental refresh
@@ -331,7 +351,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     ];
   });
   
-  const [loadedSessionId, setLoadedSessionId] = useState<string | null | undefined>(activeSessionId);
   const [isSessionsOpen, setIsSessionsOpen] = useState(false);
   const [showResumePrompt, setShowResumePrompt] = useState(true);
   const [isBgModalOpen, setIsBgModalOpen] = useState(false);
@@ -367,16 +386,27 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
   // Sync messages state when switching sessions from sidebar or history
   useEffect(() => {
-    if (activeSessionId !== loadedSessionId) {
+    if (activeSessionId && activeSessionId !== currentSessionIdRef.current) {
       setLoadedSessionId(activeSessionId);
-      if (activeSessionId) {
-        setCurrentSessionId(activeSessionId);
-        const matched = recentSessions?.find(s => s.id === activeSessionId);
-        if (matched?.title) {
-          setSessionTitle(matched.title);
-        }
+      setCurrentSessionId(activeSessionId);
+      currentSessionIdRef.current = activeSessionId;
+      const matched = recentSessions?.find(s => s.id === activeSessionId);
+      if (matched?.title) {
+        setSessionTitle(matched.title);
+        sessionTitleRef.current = matched.title;
       }
-      if (initialMessages && initialMessages.length > 0) {
+      if (matched?.content?.messages && Array.isArray(matched.content.messages)) {
+        setMessages(matched.content.messages.map((m: any, i: number) => ({
+          id: m.id || `msg-${i}-${Date.now()}`,
+          role: m.role,
+          text: m.text,
+          images: m.images,
+          timestamp: m.timestamp || Date.now(),
+          suggestions: m.suggestions,
+          liked: m.liked,
+          disliked: m.disliked,
+        })));
+      } else if (initialMessages && initialMessages.length > 0) {
         setMessages(initialMessages.map((m, i) => ({
           id: m.id || `msg-${i}-${Date.now()}`,
           role: m.role,
@@ -385,28 +415,10 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           timestamp: m.timestamp || Date.now(),
           suggestions: m.suggestions
         })));
-      } else if (!activeSessionId) {
-        // Active session reset to null (fresh chat)
-        const newId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-        setCurrentSessionId(newId);
-        setSessionTitle(`${subject} (${grade})`);
-        setMessages([
-          {
-            id: `msg-welcome-${Date.now()}`,
-            role: 'model',
-            text: `Hi there! I'm **SJ Tutor AI**, your premium, intelligent learning companion. 🎓\n\nI have fully customized our lesson for your **${grade} Grade ${subject}** studies. What are we exploring today? Let's break it down step-by-step together!`,
-            timestamp: Date.now()
-          }
-        ]);
-        try {
-          localStorage.removeItem('sjtutor_active_chat_state');
-        } catch (e) {
-          console.debug("Failed to remove active chat state", e);
-        }
       }
       setShowResumePrompt(false);
     }
-  }, [activeSessionId, initialMessages, loadedSessionId, grade, subject, recentSessions]);
+  }, [activeSessionId, initialMessages, recentSessions]);
 
   const messagesRef = useRef<ExtendedChatMessage[]>(messages);
   const currentSessionIdRef = useRef<string>(currentSessionId);
@@ -599,21 +611,44 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [showScrollTopButton, setShowScrollTopButton] = useState(false);
+  const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true);
+  const [isScrollMenuOpen, setIsScrollMenuOpen] = useState(false);
 
   const handleScroll = () => {
     if (scrollContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-      if (scrollHeight - scrollTop - clientHeight > 150) {
-        setShowScrollButton(true);
-      } else {
-        setShowScrollButton(false);
-      }
+      const isScrolledUp = scrollHeight - scrollTop - clientHeight > 120;
+      setShowScrollButton(isScrolledUp);
+      setShowScrollTopButton(scrollTop > 200);
     }
   };
 
   const scrollToBottom = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  const scrollToTop = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Auto-scroll when new messages arrive or when AI is responding
+  useEffect(() => {
+    if (isAutoScrollEnabled && !showScrollButton) {
+      scrollToBottom();
+    }
+  }, [messages, thinkingStep, isAutoScrollEnabled]);
 
   // File Upload Handlers
   const handleFilesSelected = (files: FileList | null) => {
@@ -1326,6 +1361,70 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             >
               <Palette className="w-4 h-4" />
             </button>
+            
+            {/* Scroll Navigation Quick Tools */}
+            <div className="relative">
+              <button
+                onClick={() => setIsScrollMenuOpen(!isScrollMenuOpen)}
+                className={`p-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                  isScrollMenuOpen 
+                    ? 'text-primary-600 bg-primary-50 dark:bg-primary-950/40 ring-1 ring-primary-500/30' 
+                    : 'text-slate-500 dark:text-slate-400 hover:text-primary-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+                title="Scroll & Navigation Options"
+              >
+                <ChevronsDown className="w-4 h-4" />
+                <span className="text-xs font-black hidden lg:inline">Scroll</span>
+              </button>
+
+              {isScrollMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-2 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                    Scroll Controls
+                  </div>
+                  <div className="space-y-1 mt-1">
+                    <button
+                      onClick={() => {
+                        scrollToTop();
+                        setIsScrollMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-primary-50 dark:hover:bg-primary-950/30 hover:text-primary-600 rounded-xl transition cursor-pointer"
+                    >
+                      <ArrowUp className="w-4 h-4 text-primary-500" />
+                      <span>Scroll to Top</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        scrollToBottom();
+                        setIsScrollMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-primary-50 dark:hover:bg-primary-950/30 hover:text-primary-600 rounded-xl transition cursor-pointer"
+                    >
+                      <ArrowDown className="w-4 h-4 text-primary-500" />
+                      <span>Scroll to Bottom</span>
+                    </button>
+                    <div className="border-t border-slate-100 dark:border-slate-800 my-1 pt-1">
+                      <button
+                        onClick={() => {
+                          setIsAutoScrollEnabled(!isAutoScrollEnabled);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                      >
+                        <span>Auto-Scroll</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+                          isAutoScrollEnabled
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                            : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                        }`}>
+                          {isAutoScrollEnabled ? 'ON' : 'OFF'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={() => setShowBookmarks(!showBookmarks)}
               className={`p-2 rounded-xl transition-all flex items-center gap-1.5 ${showBookmarks ? 'text-amber-600 bg-amber-50 dark:bg-amber-950/20' : 'text-slate-500 dark:text-slate-400 hover:text-amber-550 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
@@ -1704,21 +1803,35 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* SCROLL TO BOTTOM BUTTON */}
-        <AnimatePresence>
-          {showScrollButton && (
-            <motion.button
-              initial={{ opacity: 0, y: 10, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.9 }}
-              onClick={scrollToBottom}
-              className="absolute bottom-28 right-6 p-3 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg transition-colors z-30"
-              title="Scroll to bottom"
-            >
-              <ArrowDown className="w-5 h-5" />
-            </motion.button>
-          )}
-        </AnimatePresence>
+        {/* FLOATING SCROLL NAVIGATION CONTROLS */}
+        <div className="absolute bottom-28 right-6 flex flex-col gap-2 z-30 pointer-events-none">
+          <AnimatePresence>
+            {showScrollTopButton && (
+              <motion.button
+                initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                onClick={scrollToTop}
+                className="p-3 bg-white/95 dark:bg-slate-800/95 hover:bg-slate-100 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-full shadow-lg border border-slate-200/80 dark:border-slate-700/80 transition-all pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 flex items-center justify-center backdrop-blur-xs group"
+                title="Scroll to Top"
+              >
+                <ArrowUp className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform text-primary-600 dark:text-primary-400" />
+              </motion.button>
+            )}
+            {showScrollButton && (
+              <motion.button
+                initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                onClick={scrollToBottom}
+                className="p-3 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-xl transition-all pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 flex items-center justify-center group"
+                title="Scroll to Bottom"
+              >
+                <ArrowDown className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
         </div>
 
         {/* Input Control Console */}

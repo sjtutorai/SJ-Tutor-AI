@@ -259,8 +259,10 @@ export async function getLocalUserMedia(type: CallType, facingMode: "user" | "en
     throw new Error("Camera/Microphone access is not supported on this browser.");
   }
 
+  // Multi-tier fallback strategy to ensure microphone and camera reliably activate
+  // Tier 1: Advanced Studio Audio + HD Video if requested
   try {
-    const constraints: MediaStreamConstraints = {
+    const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
@@ -268,25 +270,40 @@ export async function getLocalUserMedia(type: CallType, facingMode: "user" | "en
       },
       video: type === "video" ? {
         facingMode,
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
       } : false,
-    };
+    });
+    // Ensure all audio tracks are explicitly enabled
+    stream.getAudioTracks().forEach((t) => { t.enabled = true; });
+    return stream;
+  } catch (err1: any) {
+    console.warn("Tier 1 getUserMedia failed, trying Tier 2 standard constraints...", err1);
+  }
 
-    return await navigator.mediaDevices.getUserMedia(constraints);
-  } catch (err: any) {
-    // If video fails (e.g. no camera attached), fallback gracefully to audio-only
-    if (type === "video") {
-      console.warn("Video stream request failed, falling back to audio only", err);
-      return await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-        video: false,
-      });
-    }
-    throw err;
+  // Tier 2: Standard Audio + basic Video
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: type === "video" ? { facingMode } : false,
+    });
+    stream.getAudioTracks().forEach((t) => { t.enabled = true; });
+    return stream;
+  } catch (err2: any) {
+    console.warn("Tier 2 getUserMedia failed, trying Tier 3 fallback...", err2);
+  }
+
+  // Tier 3: Audio-Only Fallback (if camera was requested but not available or blocked)
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false,
+    });
+    stream.getAudioTracks().forEach((t) => { t.enabled = true; });
+    return stream;
+  } catch (err3: any) {
+    console.error("All getUserMedia attempts failed:", err3);
+    throw err3;
   }
 }
 
@@ -294,19 +311,77 @@ export async function getVideoMediaTrack(facingMode: "user" | "environment" = "u
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     return null;
   }
+  // Try ideal HD resolution first
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode,
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
       },
       audio: false,
     });
-    return stream.getVideoTracks()[0] || null;
-  } catch (e) {
-    console.warn("Could not acquire standalone video track:", e);
+    const track = stream.getVideoTracks()[0] || null;
+    if (track) track.enabled = true;
+    return track;
+  } catch (e1) {
+    console.warn("HD Video track acquisition failed, trying basic video constraints...", e1);
+  }
+
+  // Fallback to basic video
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode },
+      audio: false,
+    });
+    const track = stream.getVideoTracks()[0] || null;
+    if (track) track.enabled = true;
+    return track;
+  } catch (e2) {
+    console.warn("Basic video track acquisition failed, trying default camera...", e2);
+  }
+
+  // Fallback to any video device
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: false,
+    });
+    const track = stream.getVideoTracks()[0] || null;
+    if (track) track.enabled = true;
+    return track;
+  } catch (e3) {
+    console.error("Could not acquire any video media track:", e3);
     return null;
+  }
+}
+
+export async function getAudioMediaTrack(): Promise<MediaStreamTrack | null> {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return null;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: false,
+    });
+    const track = stream.getAudioTracks()[0] || null;
+    if (track) track.enabled = true;
+    return track;
+  } catch {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const track = stream.getAudioTracks()[0] || null;
+      if (track) track.enabled = true;
+      return track;
+    } catch (e) {
+      console.error("Could not acquire microphone track:", e);
+      return null;
+    }
   }
 }
 
@@ -696,4 +771,310 @@ export function subscribeToAllActiveGroupCalls(onUpdate: (callsMap: Record<strin
   }, (err) => {
     console.warn("All active group calls subscription error:", err);
   });
+}
+
+// ==========================================
+// 5. Group Study WebRTC Multi-Peer Mesh Signaling
+// ==========================================
+
+export interface GroupSignalMessage {
+  id?: string;
+  fromUid: string;
+  toUid: string;
+  type: "offer" | "answer" | "candidate";
+  sdp?: any;
+  candidate?: any;
+  timestamp: number;
+}
+
+export async function sendGroupSignal(groupId: string, message: GroupSignalMessage) {
+  try {
+    const docId = `${message.fromUid}_to_${message.toUid}_${message.type}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const signalRef = doc(db, "group_calls", groupId, "signals", docId);
+    await setDoc(signalRef, {
+      ...message,
+      timestamp: Date.now(),
+    });
+  } catch (e) {
+    console.warn("Failed to send group signal", e);
+  }
+}
+
+export function subscribeToGroupSignals(
+  groupId: string,
+  currentUid: string,
+  onSignal: (signal: GroupSignalMessage) => void
+): () => void {
+  const signalsCol = collection(db, "group_calls", groupId, "signals");
+  return onSnapshot(signalsCol, (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === "added") {
+        const data = change.doc.data() as GroupSignalMessage;
+        if (data.toUid === currentUid && data.fromUid !== currentUid) {
+          onSignal(data);
+        }
+      }
+    });
+  }, (err) => {
+    console.warn("Group signals subscription error:", err);
+  });
+}
+
+export class GroupMeshManager {
+  private groupId: string;
+  private currentUid: string;
+  private localStream: MediaStream | null = null;
+  private peerConnections = new Map<string, RTCPeerConnection>();
+  private pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
+  private unsubscribeSignals: (() => void) | null = null;
+  private onRemoteTrackCallback: (peerUid: string, stream: MediaStream) => void;
+  private onRemoteAudioLevelCallback?: (peerUid: string, level: number) => void;
+  private audioMeters = new Map<string, () => void>();
+
+  constructor(
+    groupId: string,
+    currentUid: string,
+    onRemoteTrack: (peerUid: string, stream: MediaStream) => void,
+    onRemoteAudioLevel?: (peerUid: string, level: number) => void
+  ) {
+    this.groupId = groupId;
+    this.currentUid = currentUid;
+    this.onRemoteTrackCallback = onRemoteTrack;
+    this.onRemoteAudioLevelCallback = onRemoteAudioLevel;
+
+    this.unsubscribeSignals = subscribeToGroupSignals(groupId, currentUid, (signal) => {
+      this.handleIncomingSignal(signal);
+    });
+  }
+
+  setLocalStream(stream: MediaStream | null) {
+    this.localStream = stream;
+    if (!stream) return;
+
+    // Attach or update tracks across all active peer connections
+    this.peerConnections.forEach((pc) => {
+      const senders = pc.getSenders();
+      stream.getTracks().forEach((track) => {
+        const sender = senders.find((s) => s.track && s.track.kind === track.kind);
+        if (sender) {
+          sender.replaceTrack(track).catch(() => {});
+        } else {
+          try {
+            pc.addTrack(track, stream);
+          } catch (e) {
+            console.debug("addTrack warning:", e);
+          }
+        }
+      });
+    });
+  }
+
+  async syncParticipants(participants: Record<string, GroupCallParticipant>) {
+    const peerUids = Object.keys(participants).filter((uid) => uid !== this.currentUid);
+
+    // Close removed peers
+    this.peerConnections.forEach((pc, peerUid) => {
+      if (!peerUids.includes(peerUid)) {
+        pc.close();
+        this.peerConnections.delete(peerUid);
+        if (this.audioMeters.has(peerUid)) {
+          this.audioMeters.get(peerUid)!();
+          this.audioMeters.delete(peerUid);
+        }
+      }
+    });
+
+    // For new peers, initiate if currentUid > peerUid (prevents dual-offer collisions)
+    for (const peerUid of peerUids) {
+      if (!this.peerConnections.has(peerUid)) {
+        if (this.currentUid > peerUid) {
+          await this.createOfferForPeer(peerUid);
+        }
+      }
+    }
+  }
+
+  private getOrCreatePeerConnection(peerUid: string): RTCPeerConnection {
+    if (this.peerConnections.has(peerUid)) {
+      return this.peerConnections.get(peerUid)!;
+    }
+
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+    this.peerConnections.set(peerUid, pc);
+
+    // Add local tracks
+    if (this.localStream) {
+      this.localStream.getTracks().forEach((track) => {
+        pc.addTrack(track, this.localStream!);
+      });
+    }
+
+    // Always add video transceiver if no video track present yet so video can be added anytime
+    const hasVideo = this.localStream && this.localStream.getVideoTracks().length > 0;
+    if (!hasVideo && pc.addTransceiver) {
+      try {
+        pc.addTransceiver("video", { direction: "sendrecv" });
+      } catch (e) {
+        console.debug("Video transceiver fallback in mesh:", e);
+      }
+    }
+
+    pc.ontrack = (event) => {
+      const [incomingStream] = event.streams;
+      const stream = incomingStream || new MediaStream([event.track]);
+      this.onRemoteTrackCallback(peerUid, stream);
+
+      if (this.onRemoteAudioLevelCallback) {
+        if (this.audioMeters.has(peerUid)) {
+          this.audioMeters.get(peerUid)!();
+        }
+        const stopMeter = createAudioLevelMeter(stream, (level) => {
+          this.onRemoteAudioLevelCallback?.(peerUid, level);
+        });
+        this.audioMeters.set(peerUid, stopMeter);
+      }
+    };
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        sendGroupSignal(this.groupId, {
+          fromUid: this.currentUid,
+          toUid: peerUid,
+          type: "candidate",
+          candidate: event.candidate.toJSON(),
+          timestamp: Date.now(),
+        });
+      }
+    };
+
+    return pc;
+  }
+
+  private async createOfferForPeer(peerUid: string) {
+    try {
+      const pc = this.getOrCreatePeerConnection(peerUid);
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true,
+      });
+      await pc.setLocalDescription(offer);
+
+      await sendGroupSignal(this.groupId, {
+        fromUid: this.currentUid,
+        toUid: peerUid,
+        type: "offer",
+        sdp: { type: offer.type, sdp: offer.sdp },
+        timestamp: Date.now(),
+      });
+    } catch (e) {
+      console.warn("Failed to create offer for group peer:", peerUid, e);
+    }
+  }
+
+  private async handleIncomingSignal(signal: GroupSignalMessage) {
+    const peerUid = signal.fromUid;
+    try {
+      if (signal.type === "offer" && signal.sdp) {
+        const pc = this.getOrCreatePeerConnection(peerUid);
+        await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+
+        // Process any queued ICE candidates
+        if (this.pendingCandidates.has(peerUid)) {
+          const candidates = this.pendingCandidates.get(peerUid)!;
+          for (const c of candidates) {
+            await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+          }
+          this.pendingCandidates.delete(peerUid);
+        }
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        await sendGroupSignal(this.groupId, {
+          fromUid: this.currentUid,
+          toUid: peerUid,
+          type: "answer",
+          sdp: { type: answer.type, sdp: answer.sdp },
+          timestamp: Date.now(),
+        });
+      } else if (signal.type === "answer" && signal.sdp) {
+        const pc = this.peerConnections.get(peerUid);
+        if (pc && !pc.currentRemoteDescription) {
+          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+
+          if (this.pendingCandidates.has(peerUid)) {
+            const candidates = this.pendingCandidates.get(peerUid)!;
+            for (const c of candidates) {
+              await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+            }
+            this.pendingCandidates.delete(peerUid);
+          }
+        }
+      } else if (signal.type === "candidate" && signal.candidate) {
+        const pc = this.peerConnections.get(peerUid);
+        if (pc && pc.remoteDescription) {
+          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+        } else {
+          const list = this.pendingCandidates.get(peerUid) || [];
+          list.push(signal.candidate);
+          this.pendingCandidates.set(peerUid, list);
+        }
+      }
+    } catch (e) {
+      console.warn("Error handling incoming group signal:", signal.type, e);
+    }
+  }
+
+  toggleMic(isMuted: boolean) {
+    if (this.localStream) {
+      this.localStream.getAudioTracks().forEach((track) => {
+        track.enabled = !isMuted;
+      });
+    }
+    this.peerConnections.forEach((pc) => {
+      pc.getSenders().forEach((sender) => {
+        if (sender.track && sender.track.kind === "audio") {
+          sender.track.enabled = !isMuted;
+        }
+      });
+    });
+  }
+
+  toggleVideo(isVideoOff: boolean) {
+    this.peerConnections.forEach((pc) => {
+      pc.getSenders().forEach((sender) => {
+        if (sender.track && sender.track.kind === "video") {
+          sender.track.enabled = !isVideoOff;
+        }
+      });
+    });
+  }
+
+  async addOrReplaceVideoTrack(videoTrack: MediaStreamTrack) {
+    for (const [peerUid, pc] of this.peerConnections.entries()) {
+      const senders = pc.getSenders();
+      const videoSender = senders.find((s) => s.track?.kind === "video" || (!s.track && (s as any).dtlsTransport));
+      if (videoSender) {
+        await videoSender.replaceTrack(videoTrack);
+      } else {
+        pc.addTrack(videoTrack, this.localStream || new MediaStream([videoTrack]));
+        // Re-offer if initiator
+        if (this.currentUid > peerUid) {
+          await this.createOfferForPeer(peerUid);
+        }
+      }
+    }
+  }
+
+  close() {
+    if (this.unsubscribeSignals) {
+      this.unsubscribeSignals();
+      this.unsubscribeSignals = null;
+    }
+    this.audioMeters.forEach((stop) => stop());
+    this.audioMeters.clear();
+    this.peerConnections.forEach((pc) => pc.close());
+    this.peerConnections.clear();
+    this.pendingCandidates.clear();
+  }
 }

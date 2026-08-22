@@ -262,113 +262,115 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
   // 2. QUIZ GENERATION WORKFLOW ANIMATION
   const renderQuizGeneration = () => {
     return (
-      <div className="p-6 sm:p-8 md:p-10 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-xl w-full mx-auto relative overflow-y-auto max-h-[85vh] custom-scrollbar">
-        {/* Subtle Ambient Light */}
-        <div className="absolute top-0 right-0 w-48 h-48 bg-primary-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-center p-2 sm:p-4 overflow-y-auto custom-scrollbar">
+        <div className="p-6 sm:p-8 md:p-10 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-xl w-full relative overflow-y-auto max-h-[82vh] sm:max-h-[85vh] custom-scrollbar my-auto">
+          {/* Subtle Ambient Light */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-primary-500/5 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex flex-col sm:flex-row items-center gap-6 mb-6 sm:mb-8 border-b border-slate-100 dark:border-slate-800 pb-6 shrink-0">
-          {/* Progress Ring (Circular Progress) */}
-          <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center flex-shrink-0">
-            <svg className="w-full h-full -rotate-90">
-              <circle
-                cx="48"
-                cy="48"
-                r="40"
-                className="stroke-slate-100 dark:stroke-slate-800 fill-none"
-                strokeWidth="6"
-              />
-              <motion.circle
-                cx="48"
-                cy="48"
-                r="40"
-                className="stroke-primary-500 fill-none"
-                strokeWidth="6"
-                strokeDasharray="251.2"
-                strokeDashoffset={251.2 - (251.2 * progress) / 100}
-                transition={{ ease: "easeInOut" }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-lg sm:text-xl font-black text-slate-800 dark:text-white">{Math.round(progress)}%</span>
+          <div className="flex flex-col sm:flex-row items-center gap-6 mb-6 sm:mb-8 border-b border-slate-100 dark:border-slate-800 pb-6 shrink-0">
+            {/* Progress Ring (Circular Progress) */}
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center flex-shrink-0">
+              <svg className="w-full h-full -rotate-90">
+                <circle
+                  cx="48"
+                  cy="48"
+                  r="40"
+                  className="stroke-slate-100 dark:stroke-slate-800 fill-none"
+                  strokeWidth="6"
+                />
+                <motion.circle
+                  cx="48"
+                  cy="48"
+                  r="40"
+                  className="stroke-primary-500 fill-none"
+                  strokeWidth="6"
+                  strokeDasharray="251.2"
+                  strokeDashoffset={251.2 - (251.2 * progress) / 100}
+                  transition={{ ease: "easeInOut" }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-lg sm:text-xl font-black text-slate-800 dark:text-white">{Math.round(progress)}%</span>
+              </div>
+            </div>
+
+            <div className="text-center sm:text-left">
+              <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center justify-center sm:justify-start gap-2">
+                <BrainCircuit className="w-5 h-5 text-primary-500" />
+                Crafting Your Custom Quiz
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Building exam-aligned challenge questions with answers, diagrams, and feedback sheets...
+              </p>
             </div>
           </div>
 
-          <div className="text-center sm:text-left">
-            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center justify-center sm:justify-start gap-2">
-              <BrainCircuit className="w-5 h-5 text-primary-500" />
-              Crafting Your Custom Quiz
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Building exam-aligned challenge questions with answers, diagrams, and feedback sheets...
-            </p>
+          {/* Checklist Steps with Green Checkmark Animations & scroll support */}
+          <div className="space-y-3 sm:space-y-4 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
+            {quizSteps.map((step, idx) => {
+              const isCompleted = idx < activeStep;
+              const isActive = idx === activeStep;
+              const Icon = step.icon;
+
+              return (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ 
+                    opacity: isCompleted || isActive ? 1 : 0.4, 
+                    x: 0,
+                    scale: isActive ? 1.02 : 1
+                  }}
+                  className={`flex items-start gap-4 p-3 sm:p-3.5 rounded-xl border transition-all duration-300 ${
+                    isActive 
+                      ? "bg-primary-50/50 dark:bg-primary-950/20 border-primary-200 dark:border-primary-900/50 shadow-xs" 
+                      : "border-transparent"
+                  }`}
+                >
+                  {/* Step Indicator (Checkbox vs Bullet) */}
+                  <div className="flex-shrink-0 mt-0.5">
+                    {isCompleted ? (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </motion.div>
+                    ) : isActive ? (
+                      <div className="w-5 h-5 rounded-full border-2 border-primary-500 flex items-center justify-center">
+                        <span className="w-2.5 h-2.5 bg-primary-500 rounded-full animate-ping" />
+                      </div>
+                    ) : (
+                      <div className="w-5 h-5 rounded-full border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                        <span className="text-[10px] font-bold text-slate-400">{idx + 1}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Text Content */}
+                  <div className="flex-1 text-left">
+                    <h4 className={`text-xs sm:text-sm font-bold ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-800 dark:text-slate-200"}`}>
+                      {step.label}
+                    </h4>
+                    {isActive && (
+                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium font-mono mt-0.5 animate-pulse">
+                        {step.desc}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Animated Right Icon */}
+                  <div className={`text-slate-300 ${isActive ? "text-primary-400 animate-pulse" : isCompleted ? "text-emerald-400" : ""}`}>
+                    <Icon className="w-4.5 h-4.5" />
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
-        </div>
-
-        {/* Checklist Steps with Green Checkmark Animations */}
-        <div className="space-y-3 sm:space-y-4">
-          {quizSteps.map((step, idx) => {
-            const isCompleted = idx < activeStep;
-            const isActive = idx === activeStep;
-            const Icon = step.icon;
-
-            return (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ 
-                  opacity: isCompleted || isActive ? 1 : 0.4, 
-                  x: 0,
-                  scale: isActive ? 1.02 : 1
-                }}
-                className={`flex items-start gap-4 p-3 sm:p-3.5 rounded-xl border transition-all duration-300 ${
-                  isActive 
-                    ? "bg-primary-50/50 dark:bg-primary-950/20 border-primary-200 dark:border-primary-900/50 shadow-xs" 
-                    : "border-transparent"
-                }`}
-              >
-                {/* Step Indicator (Checkbox vs Bullet) */}
-                <div className="flex-shrink-0 mt-0.5">
-                  {isCompleted ? (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                      className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </motion.div>
-                  ) : isActive ? (
-                    <div className="w-5 h-5 rounded-full border-2 border-primary-500 flex items-center justify-center">
-                      <span className="w-2.5 h-2.5 bg-primary-500 rounded-full animate-ping" />
-                    </div>
-                  ) : (
-                    <div className="w-5 h-5 rounded-full border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                      <span className="text-[10px] font-bold text-slate-400">{idx + 1}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Text Content */}
-                <div className="flex-1 text-left">
-                  <h4 className={`text-xs sm:text-sm font-bold ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-800 dark:text-slate-200"}`}>
-                    {step.label}
-                  </h4>
-                  {isActive && (
-                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium font-mono mt-0.5 animate-pulse">
-                      {step.desc}
-                    </p>
-                  )}
-                </div>
-
-                {/* Animated Right Icon */}
-                <div className={`text-slate-300 ${isActive ? "text-primary-400 animate-pulse" : isCompleted ? "text-emerald-400" : ""}`}>
-                  <Icon className="w-4.5 h-4.5" />
-                </div>
-              </motion.div>
-            );
-          })}
         </div>
       </div>
     );

@@ -1,7 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate, HomeworkFile } from "../types";
 import { SettingsService } from "./settingsService";
-import { generateEducationalDiagramSvg } from "../utils/quizImageHelper";
 
 // Helper to initialize AI client.
 const getAI = () => {
@@ -267,7 +266,6 @@ Generate notes based on:
       Return the result as a JSON array.
       
       IMPORTANT: Randomize the position of the correct answer for every question.
-      Include questions with clear visual context, diagrams, scientific illustrations, and conceptual problem solving.
       
       Subject: ${data.subject}
       Chapter: ${data.chapterName}
@@ -287,7 +285,6 @@ Generate notes based on:
             type: Type.OBJECT,
             properties: {
               question: { type: Type.STRING },
-              imageUrl: { type: Type.STRING },
               options: { type: Type.ARRAY, items: { type: Type.STRING } },
               correctAnswerIndex: { type: Type.INTEGER },
               explanation: { type: Type.STRING }
@@ -300,23 +297,7 @@ Generate notes based on:
 
     if (response.text) {
       const parsed: QuizQuestion[] = JSON.parse(response.text.trim());
-      // Ensure all questions have a rich, topic-specific educational diagram / illustration
-      return parsed.map((q, idx) => {
-        let finalImageUrl = q.imageUrl;
-        // If image URL is missing, empty, or a generic placeholder that might fail to render
-        if (!finalImageUrl || finalImageUrl.includes('placehold.co') || finalImageUrl.includes('example.com') || !finalImageUrl.startsWith('http')) {
-          finalImageUrl = generateEducationalDiagramSvg({
-            subject: data.subject || 'Academic Studies',
-            chapter: data.chapterName || 'Conceptual Review',
-            question: q.question,
-            index: idx
-          });
-        }
-        return {
-          ...q,
-          imageUrl: finalImageUrl
-        };
-      });
+      return parsed;
     }
     throw new Error("Failed to generate quiz data");
   },

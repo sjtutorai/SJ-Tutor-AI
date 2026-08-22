@@ -22,6 +22,7 @@ import {
   subscribeToDirectCall,
   subscribeToGroupCall,
   ICE_SERVERS,
+  GroupMeshManager,
 } from "../services/webrtcService";
 import {
   Phone,
@@ -69,6 +70,154 @@ interface CallModalProps {
   triggerToast?: (title: string, message: string, category?: string) => void;
 }
 
+const ParticipantTile: React.FC<{
+  participant: any;
+  isMe: boolean;
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
+  isVideoOff: boolean;
+  isMuted: boolean;
+  cameraFacing: "user" | "environment";
+  isSpeaking: boolean;
+  isSpeakerMuted: boolean;
+  onFlipCamera?: () => void;
+}> = ({
+  participant,
+  isMe,
+  localStream,
+  remoteStream,
+  isVideoOff,
+  isMuted,
+  cameraFacing,
+  isSpeaking,
+  isSpeakerMuted,
+  onFlipCamera,
+}) => {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stream = isMe ? localStream : remoteStream;
+  const hasLiveVideoTrack = Boolean(
+    stream &&
+    stream.getVideoTracks().length > 0 &&
+    stream.getVideoTracks().some((t) => t.enabled && t.readyState === "live")
+  );
+
+  const showVideo = isMe ? (!isVideoOff && hasLiveVideoTrack) : (!participant.isVideoOff && hasLiveVideoTrack);
+
+  // Attach video stream to videoRef
+  useEffect(() => {
+    if (videoRef.current && stream && showVideo) {
+      if (videoRef.current.srcObject !== stream) {
+        videoRef.current.srcObject = stream;
+      }
+      videoRef.current.play().catch(() => {});
+    }
+  }, [stream, showVideo]);
+
+  // For remote members: attach audio stream and strictly respect mute states
+  useEffect(() => {
+    if (!isMe && audioRef.current && remoteStream) {
+      if (audioRef.current.srcObject !== remoteStream) {
+        audioRef.current.srcObject = remoteStream;
+      }
+      const shouldMute = isSpeakerMuted || Boolean(participant.isMuted);
+      audioRef.current.muted = shouldMute;
+      if (!shouldMute) {
+        audioRef.current.play().catch(() => {});
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [isMe, remoteStream, isSpeakerMuted, participant.isMuted]);
+
+  return (
+    <div className="relative rounded-3xl bg-slate-900/95 border border-slate-800 overflow-hidden flex flex-col items-center justify-center p-3 sm:p-4 min-h-[180px] sm:min-h-[230px] shadow-xl group transition-all">
+      {/* Remote audio playback element */}
+      {!isMe && (
+        <audio
+          ref={audioRef}
+          autoPlay
+          muted={isSpeakerMuted || Boolean(participant.isMuted)}
+          className="hidden"
+        />
+      )}
+
+      {/* Speaking Glow indicator */}
+      {isSpeaking && (
+        <div className="absolute inset-0 rounded-3xl border-2 border-emerald-400 animate-pulse pointer-events-none z-20 shadow-[0_0_15px_rgba(52,211,153,0.35)]" />
+      )}
+
+      {/* Video View or Avatar */}
+      {showVideo && stream ? (
+        <div className="relative w-full h-full flex items-center justify-center overflow-hidden rounded-2xl bg-black">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted={isMe}
+            className={`w-full h-full object-cover rounded-2xl ${isMe && cameraFacing === "user" ? "scale-x-[-1]" : ""}`}
+          />
+          {isMe && onFlipCamera && (
+            <button
+              onClick={onFlipCamera}
+              className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg text-xs cursor-pointer shadow z-10"
+              title="Switch Camera"
+            >
+              <Camera className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="relative flex flex-col items-center justify-center">
+          {/* Avatar with speaking wave */}
+          <div className="relative">
+            {isSpeaking && (
+              <span className="absolute -inset-2 rounded-full border-2 border-emerald-400/80 animate-ping pointer-events-none" />
+            )}
+            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 text-white font-extrabold text-2xl sm:text-3xl flex items-center justify-center shadow-lg border-2 border-slate-700 overflow-hidden">
+              {participant.photoURL ? (
+                <img src={participant.photoURL} alt={participant.displayName} className="w-full h-full object-cover" />
+              ) : (
+                participant.displayName?.charAt(0)?.toUpperCase() || "U"
+              )}
+            </div>
+            {participant.isHandRaised && (
+              <div className="absolute -top-1 -right-1 p-2 bg-amber-500 text-white rounded-full shadow-lg animate-bounce z-10">
+                <Hand className="w-4 h-4" />
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-slate-400 mt-2 font-medium">
+            {isMe ? (isVideoOff ? "Camera Off" : "Starting camera...") : (participant.isVideoOff ? "Camera Off" : (remoteStream ? "Connecting video..." : "Connecting audio/video..."))}
+          </p>
+        </div>
+      )}
+
+      {/* Participant Name & Mic Status Bar */}
+      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between z-20">
+        <div className="px-2.5 py-1 bg-black/70 backdrop-blur-md rounded-xl text-white text-xs font-bold flex items-center gap-1.5 truncate max-w-[80%] shadow">
+          <span className="truncate">{participant.displayName} {isMe && "(You)"}</span>
+          {participant.role === "host" && <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          {isMuted ? (
+            <div className="p-1.5 bg-rose-500 text-white rounded-lg text-xs shadow" title="Muted">
+              <MicOff className="w-3.5 h-3.5" />
+            </div>
+          ) : (
+            <div className={`p-1.5 rounded-lg text-xs text-white shadow ${isSpeaking ? "bg-emerald-500 animate-pulse" : "bg-slate-700/80"}`} title="Microphone Active">
+              <Mic className="w-3.5 h-3.5" />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const CallModal: React.FC<CallModalProps> = ({
   currentUser = { uid: "guest_user", displayName: "Scholar User" },
   activeDirectCall,
@@ -100,6 +249,11 @@ export const CallModal: React.FC<CallModalProps> = ({
   // Audio level meters
   const [localAudioLevel, setLocalAudioLevel] = useState(0);
   const [remoteAudioLevel, setRemoteAudioLevel] = useState(0);
+  const [groupRemoteAudioLevels, setGroupRemoteAudioLevels] = useState<Record<string, number>>({});
+
+  // Group Study Room Mesh Connection and Remote Streams
+  const groupMeshRef = useRef<GroupMeshManager | null>(null);
+  const [groupRemoteStreams, setGroupRemoteStreams] = useState<Record<string, MediaStream>>({});
 
   // Call duration counter
   const [callDuration, setCallDuration] = useState(0);
@@ -210,6 +364,42 @@ export const CallModal: React.FC<CallModalProps> = ({
       unsubscribe();
     };
   }, [activeGroupCall?.groupId]);
+
+  // ----------------------------------------------------
+  // Group Call Mesh WebRTC Connections Management
+  // ----------------------------------------------------
+  useEffect(() => {
+    if (!liveGroupCall || liveGroupCall.status !== "active") {
+      if (groupMeshRef.current) {
+        groupMeshRef.current.close();
+        groupMeshRef.current = null;
+      }
+      setGroupRemoteStreams({});
+      setGroupRemoteAudioLevels({});
+      return;
+    }
+
+    if (!groupMeshRef.current) {
+      groupMeshRef.current = new GroupMeshManager(
+        liveGroupCall.groupId,
+        currentUser.uid,
+        (peerUid, stream) => {
+          setGroupRemoteStreams((prev) => ({ ...prev, [peerUid]: stream }));
+        },
+        (peerUid, level) => {
+          setGroupRemoteAudioLevels((prev) => ({ ...prev, [peerUid]: level }));
+        }
+      );
+    }
+
+    if (localStream) {
+      groupMeshRef.current.setLocalStream(localStream);
+    }
+
+    if (liveGroupCall.participants) {
+      groupMeshRef.current.syncParticipants(liveGroupCall.participants);
+    }
+  }, [liveGroupCall?.groupId, liveGroupCall?.participants, localStream]);
 
   // ----------------------------------------------------
   // Call Duration Timer
@@ -461,12 +651,18 @@ export const CallModal: React.FC<CallModalProps> = ({
       peerConnRef.current.close();
       peerConnRef.current = null;
     }
+    if (groupMeshRef.current) {
+      groupMeshRef.current.close();
+      groupMeshRef.current = null;
+    }
     addedIceCandidatesRef.current.clear();
     stopAllStreamTracks(localStream);
     stopAllStreamTracks(screenStream);
     setLocalStream(null);
     setRemoteStream(null);
     setScreenStream(null);
+    setGroupRemoteStreams({});
+    setGroupRemoteAudioLevels({});
     setIsMuted(false);
     setIsVideoOff(false);
     setIsScreenSharing(false);
@@ -607,7 +803,7 @@ export const CallModal: React.FC<CallModalProps> = ({
       track.enabled = !nextMuted;
     });
 
-    // 2. Immediately toggle all audio senders in WebRTC RTCPeerConnection
+    // 2. Immediately toggle all audio senders in WebRTC RTCPeerConnection (1-on-1)
     if (peerConnRef.current) {
       peerConnRef.current.getSenders().forEach((sender) => {
         if (sender.track && sender.track.kind === "audio") {
@@ -616,7 +812,12 @@ export const CallModal: React.FC<CallModalProps> = ({
       });
     }
 
-    // 3. Immediately update Group Call participant state
+    // 3. Immediately toggle audio in group mesh connections
+    if (groupMeshRef.current) {
+      groupMeshRef.current.toggleMic(nextMuted);
+    }
+
+    // 4. Immediately update Group Call participant state in Firestore
     if (liveGroupCall) {
       updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
         isMuted: nextMuted,
@@ -637,6 +838,10 @@ export const CallModal: React.FC<CallModalProps> = ({
         setIsVideoOff(false);
         if (peerConnRef.current) {
           newStream.getTracks().forEach((t) => peerConnRef.current?.addTrack(t, newStream));
+        }
+        if (groupMeshRef.current) {
+          groupMeshRef.current.setLocalStream(newStream);
+          groupMeshRef.current.toggleVideo(false);
         }
         if (liveGroupCall) {
           updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
@@ -666,6 +871,10 @@ export const CallModal: React.FC<CallModalProps> = ({
         });
       }
 
+      if (groupMeshRef.current) {
+        groupMeshRef.current.toggleVideo(nextVideoOff);
+      }
+
       if (liveGroupCall) {
         updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
           isVideoOff: nextVideoOff,
@@ -689,6 +898,11 @@ export const CallModal: React.FC<CallModalProps> = ({
             } else {
               pc.addTrack(newVideoTrack, localStream);
             }
+          }
+
+          if (groupMeshRef.current) {
+            await groupMeshRef.current.addOrReplaceVideoTrack(newVideoTrack);
+            groupMeshRef.current.toggleVideo(false);
           }
 
           if (localVideoRef.current) {
@@ -785,6 +999,11 @@ export const CallModal: React.FC<CallModalProps> = ({
           if (videoSender) {
             await videoSender.replaceTrack(newVideoTrack);
           }
+        }
+
+        if (groupMeshRef.current) {
+          await groupMeshRef.current.addOrReplaceVideoTrack(newVideoTrack);
+          groupMeshRef.current.toggleVideo(false);
         }
 
         if (localVideoRef.current) {
@@ -1257,66 +1476,24 @@ export const CallModal: React.FC<CallModalProps> = ({
 
             {participantsList.map((p) => {
               const isMe = p.uid === currentUser.uid;
-              const hasVideo = isMe ? !isVideoOff : !p.isVideoOff;
-              const isUserMuted = isMe ? isMuted : p.isMuted;
-              const isSpeaking = isMe ? (!isMuted && localAudioLevel > 15) : false;
+              const isSpeaking = isMe
+                ? (!isMuted && localAudioLevel > 12)
+                : (!p.isMuted && (groupRemoteAudioLevels[p.uid] || 0) > 12);
 
               return (
-                <div
+                <ParticipantTile
                   key={p.uid}
-                  className="relative rounded-3xl bg-slate-900/90 border border-slate-800 overflow-hidden flex flex-col items-center justify-center p-4 min-h-[160px] sm:min-h-[220px] shadow-xl group transition-all"
-                >
-                  {/* Glowing speaking ring */}
-                  {isSpeaking && (
-                    <div className="absolute inset-0 rounded-3xl border-2 border-emerald-400 animate-pulse pointer-events-none" />
-                  )}
-
-                  {/* Video or Avatar */}
-                  {isMe && hasVideo && localStream ? (
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className={`w-full h-full object-cover rounded-2xl ${cameraFacing === "user" ? "scale-x-[-1]" : ""}`}
-                    />
-                  ) : (
-                    <div className="relative">
-                      <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 text-white font-extrabold text-2xl sm:text-3xl flex items-center justify-center shadow-lg border-2 border-slate-700 overflow-hidden">
-                        {p.photoURL ? (
-                          <img src={p.photoURL} alt={p.displayName} className="w-full h-full object-cover" />
-                        ) : (
-                          p.displayName.charAt(0).toUpperCase()
-                        )}
-                      </div>
-                      {p.isHandRaised && (
-                        <div className="absolute -top-1 -right-1 p-2 bg-amber-500 text-white rounded-full shadow-lg animate-bounce">
-                          <Hand className="w-4 h-4" />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Name and Status Pill */}
-                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between z-10">
-                    <div className="px-2.5 py-1 bg-black/60 backdrop-blur-md rounded-xl text-white text-xs font-bold flex items-center gap-1.5 truncate max-w-[80%]">
-                      {p.displayName} {isMe && "(You)"}
-                      {p.role === "host" && <Crown className="w-3.5 h-3.5 text-amber-400" />}
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      {isUserMuted ? (
-                        <div className="p-1.5 bg-rose-500 text-white rounded-lg text-xs" title="Muted">
-                          <MicOff className="w-3.5 h-3.5" />
-                        </div>
-                      ) : (
-                        <div className="p-1.5 bg-emerald-500 text-white rounded-lg text-xs" title="Microphone Active">
-                          <Mic className="w-3.5 h-3.5" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                  participant={p}
+                  isMe={isMe}
+                  localStream={localStream}
+                  remoteStream={groupRemoteStreams[p.uid] || null}
+                  isVideoOff={isMe ? isVideoOff : p.isVideoOff}
+                  isMuted={isMe ? isMuted : p.isMuted}
+                  cameraFacing={cameraFacing}
+                  isSpeaking={isSpeaking}
+                  isSpeakerMuted={isSpeakerMuted}
+                  onFlipCamera={isMe ? handleFlipCamera : undefined}
+                />
               );
             })}
           </div>

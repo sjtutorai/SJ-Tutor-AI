@@ -339,7 +339,16 @@ export function generateEducationalDiagramSvg(config: DiagramConfig): string {
     </svg>
   `;
 
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svgContent.trim())}`;
+  try {
+    const cleaned = svgContent.trim();
+    // Base64 encoding provides 100% reliable rendering in all browsers and iframes
+    const base64 = typeof window !== 'undefined' && window.btoa 
+      ? window.btoa(unescape(encodeURIComponent(cleaned)))
+      : Buffer.from(cleaned).toString('base64');
+    return `data:image/svg+xml;base64,${base64}`;
+  } catch {
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgContent.trim())}`;
+  }
 }
 
 function escapeXml(unsafe: string): string {

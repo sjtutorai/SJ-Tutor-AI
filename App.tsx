@@ -98,7 +98,6 @@ import {
   Search,
   X,
   Trash2,
-  Keyboard,
   Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -606,7 +605,14 @@ const App: React.FC = () => {
     setHomeworkFiles([]);
     setQuizData(null);
     setExistingQuizScore(undefined);
-    setCurrentHistoryId(null);
+    if (newMode !== AppMode.TUTOR) {
+      setCurrentHistoryId(null);
+    } else if (!currentHistoryId) {
+      const recentTutor = history.find((h) => h.type === AppMode.TUTOR);
+      if (recentTutor) {
+        setCurrentHistoryId(recentTutor.id);
+      }
+    }
     setError(null);
 
     // Reset form with profile defaults
@@ -2721,7 +2727,7 @@ const App: React.FC = () => {
 
       case AppMode.TUTOR:
         return (
-          <div className="max-w-7xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex-1 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
             <TutorChat
               onDeductCredit={deductCredit}
               currentCredits={userProfile.credits}
@@ -2747,7 +2753,7 @@ const App: React.FC = () => {
                   const tutorItemContent = {
                     messages: msgs,
                   };
-                  const targetSessionId = sessionId || currentHistoryId;
+                  const targetSessionId = sessionId || currentHistoryId || `session_${Date.now()}`;
                   // Check if already in history to update or add
                   const existing = history.find(
                     (h) =>
@@ -2778,9 +2784,8 @@ const App: React.FC = () => {
                       saveHistoryItemToFirestore(user.uid, updatedItem);
                     }
                   } else {
-                    const newSessionId = targetSessionId || Date.now().toString();
                     const newItem: HistoryItem = {
-                      id: newSessionId,
+                      id: targetSessionId,
                       type: AppMode.TUTOR,
                       title: derivedTitle,
                       subtitle: `${formData.gradeClass || userProfile.grade || "General"} • ${formData.subject || "AI Tutor"}`,
@@ -2788,8 +2793,8 @@ const App: React.FC = () => {
                       content: tutorItemContent,
                       formData: { ...formData },
                     };
-                    setHistory((prev) => [newItem, ...prev.filter((h) => h.id !== newSessionId)]);
-                    setCurrentHistoryId(newSessionId);
+                    setHistory((prev) => [newItem, ...prev.filter((h) => h.id !== targetSessionId)]);
+                    setCurrentHistoryId(targetSessionId);
                     if (user) {
                       saveHistoryItemToFirestore(user.uid, newItem);
                     }
@@ -2798,7 +2803,7 @@ const App: React.FC = () => {
               }}
               initialMessages={
                 history.find(
-                  (h) => h.id === currentHistoryId && h.type === AppMode.TUTOR,
+                  (h) => (h.id === currentHistoryId || (!currentHistoryId && h.type === AppMode.TUTOR)) && h.type === AppMode.TUTOR,
                 )?.content?.messages
               }
               recentSessions={history.filter((h) => h.type === AppMode.TUTOR)}
@@ -2843,6 +2848,7 @@ const App: React.FC = () => {
               onOpenPremium={() => setShowPremiumModal(true)}
               onNavigateToLegal={(legalMode) => setMode(legalMode as any)}
               onUpdateProfile={handleProfileSave}
+              onOpenShortcuts={() => setShowShortcutsModal(true)}
             />
           </div>
         );
@@ -3338,13 +3344,6 @@ const App: React.FC = () => {
               );
             })()}
             
-            <button
-              onClick={() => setShowShortcutsModal(true)}
-              className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors hidden sm:flex items-center gap-1"
-              title="Keyboard Shortcuts (Ctrl+K)"
-            >
-              <Keyboard className="w-5 h-5 text-amber-500" />
-            </button>
             <button
               onClick={handleThemeToggle}
               className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors hidden sm:block"
