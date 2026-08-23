@@ -18,20 +18,25 @@ const FALLBACK_SOURCES = [
   SJTUTOR_AVATAR_REMOTE
 ];
 
-// Infallible Vector SVG Logo Fallback (Gold ring, deep midnight blue, graduation cap & AI sparkle)
+// Infallible High-Definition Vector SVG Logo Fallback (Gold ring, deep midnight blue, graduation cap & AI sparkle)
 export const BrandSvgLogo: React.FC<{ className?: string }> = ({ className = "w-full h-full" }) => (
   <svg 
     viewBox="0 0 512 512" 
     className={className} 
     xmlns="http://www.w3.org/2000/svg"
     fill="none"
+    preserveAspectRatio="xMidYMid slice"
+    role="img"
+    aria-label="SJ Tutor AI Logo"
   >
+    {/* Outer Gold Border Ring */}
     <circle cx="256" cy="256" r="250" fill="#D4AF37" />
     <circle cx="256" cy="256" r="236" fill="#0F172A" />
-    {/* Inner Gold Ambient Ring */}
-    <circle cx="256" cy="256" r="210" stroke="#F59E0B" strokeWidth="6" strokeDasharray="16 8" opacity="0.6" />
     
-    {/* Graduation Cap */}
+    {/* Inner Gold Ambient Dotted Accent Ring */}
+    <circle cx="256" cy="256" r="210" stroke="#F59E0B" strokeWidth="6" strokeDasharray="16 8" opacity="0.75" />
+    
+    {/* Graduation Academic Cap */}
     <path 
       d="M256 120 L400 190 L256 260 L112 190 Z" 
       fill="#FBBF24" 
@@ -46,18 +51,18 @@ export const BrandSvgLogo: React.FC<{ className?: string }> = ({ className = "w-
       strokeLinecap="round" 
       fill="none" 
     />
-    {/* Tassel */}
+    {/* Academic Tassel */}
     <path d="M380 200 V300" stroke="#EF4444" strokeWidth="10" strokeLinecap="round" />
     <circle cx="380" cy="305" r="10" fill="#EF4444" />
     
-    {/* AI Sparkle / Brain Star */}
+    {/* AI Sparkle / Brain Neural Star */}
     <path 
       d="M256 350 Q256 390 290 390 Q256 390 256 430 Q256 390 222 390 Q256 390 256 350 Z" 
       fill="#38BDF8" 
     />
     <circle cx="256" cy="390" r="8" fill="#FFFFFF" />
     
-    {/* SJ Text Monogram */}
+    {/* SJ Monogram */}
     <text 
       x="256" 
       y="325" 
@@ -103,17 +108,19 @@ export default function Logo({
     : 'border border-primary-500/60 shadow-sm';
 
   const imageElement = (
-    <div className={`${className} rounded-full overflow-hidden ${borderClasses} flex-shrink-0 bg-white dark:bg-slate-900 flex items-center justify-center`}>
+    <div className={`${className} rounded-full overflow-hidden ${borderClasses} flex-shrink-0 aspect-square bg-white dark:bg-slate-900 flex items-center justify-center relative`}>
       {!hasAllFailed && currentSrc ? (
         <img 
           src={currentSrc} 
           alt="SJ Tutor AI Logo" 
-          className="w-full h-full object-cover block"
+          className="w-full h-full object-cover block select-none pointer-events-none"
+          loading="eager"
+          decoding="async"
           referrerPolicy="no-referrer"
           onError={handleImageError}
         />
       ) : (
-        <BrandSvgLogo className="w-full h-full object-cover" />
+        <BrandSvgLogo className="w-full h-full object-cover block" />
       )}
     </div>
   );
