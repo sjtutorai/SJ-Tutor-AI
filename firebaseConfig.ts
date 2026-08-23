@@ -1,7 +1,7 @@
 
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, GithubAuthProvider, OAuthProvider } from "firebase/auth";
-import { initializeFirestore } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { getMessaging, isSupported } from "firebase/messaging";
 
 import firebaseConfig from './firebase-applet-config.json';
@@ -9,15 +9,9 @@ import firebaseConfig from './firebase-applet-config.json';
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Authentication and Firestore with forced long polling for robust connection
+// Initialize Firebase Authentication and Firestore with specific database ID
 export const auth = getAuth(app);
-export const db = initializeFirestore(
-  app,
-  {
-    experimentalForceLongPolling: true,
-  },
-  firebaseConfig.firestoreDatabaseId
-);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 export const githubProvider = new GithubAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
