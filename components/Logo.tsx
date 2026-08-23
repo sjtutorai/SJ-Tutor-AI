@@ -12,10 +12,10 @@ interface LogoProps {
 
 const FALLBACK_SOURCES = [
   SJTUTOR_AVATAR, // "/logo.png"
-  SJTUTOR_AVATAR_REMOTE, // "https://sjtutorai.vercel.app/logo.png"
   SJTUTOR_AVATAR_IBB, // "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg"
+  "/favicon-512x512.png",
   "/favicon.png",
-  "/favicon-512x512.png"
+  SJTUTOR_AVATAR_REMOTE
 ];
 
 // Infallible Vector SVG Logo Fallback (Gold ring, deep midnight blue, graduation cap & AI sparkle)
@@ -88,7 +88,6 @@ export default function Logo({
 
   const handleImageError = () => {
     if (src) {
-      // If a custom src was provided and failed, start cycling through default fallbacks
       setSourceIndex(0);
       return;
     }
@@ -103,28 +102,37 @@ export default function Logo({
     ? '' 
     : 'border border-primary-500/60 shadow-sm';
 
-  return (
-    <div className={`flex items-center gap-3 ${iconOnly ? 'w-full h-full justify-center' : ''}`}>
-      <div className={`${className} rounded-full overflow-hidden ${borderClasses} flex-shrink-0 bg-white dark:bg-slate-900 flex items-center justify-center`}>
-        {!hasAllFailed && currentSrc ? (
-          <img 
-            src={currentSrc} 
-            alt="SJ Tutor AI Logo" 
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-            onError={handleImageError}
-          />
-        ) : (
-          <BrandSvgLogo className="w-full h-full object-cover" />
-        )}
-      </div>
-      
-      {showText && !iconOnly && (
-        <div className="flex flex-col leading-none">
-          <span className={`font-bold text-lg tracking-tight ${textColor}`}>SJ Tutor <span className="text-primary-600">AI</span></span>
-          <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400">Your Study Buddy</span>
-        </div>
+  const imageElement = (
+    <div className={`${className} rounded-full overflow-hidden ${borderClasses} flex-shrink-0 bg-white dark:bg-slate-900 flex items-center justify-center`}>
+      {!hasAllFailed && currentSrc ? (
+        <img 
+          src={currentSrc} 
+          alt="SJ Tutor AI Logo" 
+          className="w-full h-full object-cover block"
+          referrerPolicy="no-referrer"
+          onError={handleImageError}
+        />
+      ) : (
+        <BrandSvgLogo className="w-full h-full object-cover" />
       )}
+    </div>
+  );
+
+  if (iconOnly || !showText) {
+    return imageElement;
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      {imageElement}
+      <div className="flex flex-col leading-none">
+        <span className={`font-bold text-lg tracking-tight ${textColor}`}>
+          SJ Tutor <span className="text-primary-600">AI</span>
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400">
+          Your Study Buddy
+        </span>
+      </div>
     </div>
   );
 }
