@@ -41,8 +41,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess, 
       generations: 500,
       features: ['500 AI Generations', 'Basic Support', 'Standard Speed'],
       color: 'bg-blue-50 border-blue-200 text-blue-900',
-      btnColor: 'bg-blue-600 hover:bg-blue-700',
-      paymentUrl: 'https://rzp.io/rzp/AaR3YkeN'
+      btnColor: 'bg-blue-600 hover:bg-blue-700'
     },
     SCHOLAR: {
       name: 'Scholar',
@@ -51,8 +50,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess, 
       generations: 2000,
       features: ['2000 AI Generations', 'Priority Support', 'Fast Generation', 'Export to PDF'],
       color: 'bg-primary-50 border-primary-200 text-primary-900',
-      btnColor: 'bg-primary-600 hover:bg-primary-700',
-      paymentUrl: 'https://rzp.io/rzp/pOcXrKBU'
+      btnColor: 'bg-primary-600 hover:bg-primary-700'
     },
     ACHIEVER: {
       name: 'Achiever',
@@ -61,8 +59,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess, 
       generations: 'Unlimited',
       features: ['Unlimited Generations', '24/7 Priority Support', 'Turbo Speed', 'All Future Features'],
       color: 'bg-purple-50 border-purple-200 text-purple-900',
-      btnColor: 'bg-purple-600 hover:bg-purple-700',
-      paymentUrl: 'https://rzp.io/rzp/pOcXrKBU'
+      btnColor: 'bg-purple-600 hover:bg-purple-700'
     }
   };
 
@@ -276,17 +273,6 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess, 
                   >
                     ⚡ Open UPI App (GPay / PhonePe / Paytm)
                   </a>
-
-                  <div className="mt-2 text-center">
-                    <a
-                      href={currentPlan.paymentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] text-slate-400 hover:text-amber-400 underline transition inline-flex items-center gap-1"
-                    >
-                      Or pay via Razorpay web link <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
                 </div>
 
                 <div className="space-y-2 pt-1">

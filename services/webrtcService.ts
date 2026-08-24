@@ -259,7 +259,7 @@ export async function getLocalUserMedia(type: CallType, facingMode: "user" | "en
     throw new Error("Camera/Microphone access is not supported on this browser.");
   }
 
-  // Multi-tier fallback strategy to ensure microphone and camera reliably activate
+  // Multi-tier fallback strategy to guarantee microphone and camera reliably activate across all devices
   // Tier 1: Advanced Studio Audio + HD Video if requested
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -269,41 +269,70 @@ export async function getLocalUserMedia(type: CallType, facingMode: "user" | "en
         autoGainControl: true,
       },
       video: type === "video" ? {
-        facingMode,
+        facingMode: { ideal: facingMode },
         width: { ideal: 1280, max: 1920 },
         height: { ideal: 720, max: 1080 },
       } : false,
     });
-    // Ensure all audio tracks are explicitly enabled
-    stream.getAudioTracks().forEach((t) => { t.enabled = true; });
+    stream.getTracks().forEach((t) => { t.enabled = true; });
     return stream;
   } catch (err1: any) {
     console.warn("Tier 1 getUserMedia failed, trying Tier 2 standard constraints...", err1);
   }
 
-  // Tier 2: Standard Audio + basic Video
+  // Tier 2: Standard Audio + Relaxed Video
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: type === "video" ? { facingMode } : false,
     });
-    stream.getAudioTracks().forEach((t) => { t.enabled = true; });
+    stream.getTracks().forEach((t) => { t.enabled = true; });
     return stream;
   } catch (err2: any) {
-    console.warn("Tier 2 getUserMedia failed, trying Tier 3 fallback...", err2);
+    console.warn("Tier 2 getUserMedia failed, trying Tier 3 unconstrained video...", err2);
   }
 
-  // Tier 3: Audio-Only Fallback (if camera was requested but not available or blocked)
+  // Tier 3: Unconstrained Video + Standard Audio
+  if (type === "video") {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
+      });
+      stream.getTracks().forEach((t) => { t.enabled = true; });
+      return stream;
+    } catch (err3: any) {
+      console.warn("Tier 3 unconstrained video failed, trying audio-only fallback...", err3);
+    }
+  }
+
+  // Tier 4: Audio-Only Fallback
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: false,
     });
-    stream.getAudioTracks().forEach((t) => { t.enabled = true; });
+    stream.getTracks().forEach((t) => { t.enabled = true; });
     return stream;
-  } catch (err3: any) {
-    console.error("All getUserMedia attempts failed:", err3);
-    throw err3;
+  } catch (err4: any) {
+    console.warn("Audio-only getUserMedia failed, attempting silent audio fallback context...", err4);
+    // Tier 5: Dummy silent audio track so WebRTC signaling does not fail when no hardware mic is connected
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const dst = ctx.createMediaStreamDestination();
+      const gain = ctx.createGain();
+      gain.gain.value = 0; // completely silent
+      osc.connect(gain);
+      gain.connect(dst);
+      osc.start();
+      const dummyStream = dst.stream;
+      return dummyStream;
+    } catch (err5) {
+      console.error("All getUserMedia attempts failed:", err5);
+      throw err4;
+    }
   }
 }
 
@@ -315,7 +344,7 @@ export async function getVideoMediaTrack(facingMode: "user" | "environment" = "u
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode,
+        facingMode: { ideal: facingMode },
         width: { ideal: 1280, max: 1920 },
         height: { ideal: 720, max: 1080 },
       },
@@ -328,7 +357,7 @@ export async function getVideoMediaTrack(facingMode: "user" | "environment" = "u
     console.warn("HD Video track acquisition failed, trying basic video constraints...", e1);
   }
 
-  // Fallback to basic video
+  // Fallback to basic video with facingMode
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode },
@@ -338,10 +367,10 @@ export async function getVideoMediaTrack(facingMode: "user" | "environment" = "u
     if (track) track.enabled = true;
     return track;
   } catch (e2) {
-    console.warn("Basic video track acquisition failed, trying default camera...", e2);
+    console.warn("Basic video track acquisition failed, trying unconstrained camera...", e2);
   }
 
-  // Fallback to any video device
+  // Fallback to any unconstrained video device
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: true,
@@ -806,11 +835,17 @@ export function subscribeToGroupSignals(
   onSignal: (signal: GroupSignalMessage) => void
 ): () => void {
   const signalsCol = collection(db, "group_calls", groupId, "signals");
+  const connectionStartTime = Date.now() - 45000; // Allow recent messages up to 45 seconds old
+
   return onSnapshot(signalsCol, (snapshot) => {
     snapshot.docChanges().forEach((change) => {
       if (change.type === "added") {
         const data = change.doc.data() as GroupSignalMessage;
         if (data.toUid === currentUid && data.fromUid !== currentUid) {
+          // Discard signals older than 45 seconds to avoid corrupting renegotiation with stale sessions
+          if (data.timestamp && data.timestamp < connectionStartTime) {
+            return;
+          }
           onSignal(data);
         }
       }

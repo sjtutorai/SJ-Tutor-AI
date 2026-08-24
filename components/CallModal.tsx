@@ -135,13 +135,27 @@ const ParticipantTile: React.FC<{
 
   return (
     <div className="relative rounded-3xl bg-slate-900/95 border border-slate-800 overflow-hidden flex flex-col items-center justify-center p-3 sm:p-4 min-h-[180px] sm:min-h-[230px] shadow-xl group transition-all">
-      {/* Remote audio playback element */}
+      {/* Remote audio playback element - placed offscreen to avoid browser media throttling */}
       {!isMe && (
         <audio
-          ref={audioRef}
+          ref={(el) => {
+            audioRef.current = el;
+            if (el && remoteStream) {
+              if (el.srcObject !== remoteStream) {
+                el.srcObject = remoteStream;
+              }
+              const shouldMute = isSpeakerMuted || Boolean(participant.isMuted);
+              el.muted = shouldMute;
+              if (!shouldMute) {
+                el.play().catch(() => {});
+              } else {
+                el.pause();
+              }
+            }
+          }}
           autoPlay
           muted={isSpeakerMuted || Boolean(participant.isMuted)}
-          className="hidden"
+          className="fixed -top-[9999px] -left-[9999px] w-0 h-0 opacity-0 pointer-events-none"
         />
       )}
 
@@ -154,7 +168,15 @@ const ParticipantTile: React.FC<{
       {showVideo && stream ? (
         <div className="relative w-full h-full flex items-center justify-center overflow-hidden rounded-2xl bg-black">
           <video
-            ref={videoRef}
+            ref={(el) => {
+              videoRef.current = el;
+              if (el && stream && showVideo) {
+                if (el.srcObject !== stream) {
+                  el.srcObject = stream;
+                }
+                el.play().catch(() => {});
+              }
+            }}
             autoPlay
             playsInline
             muted={isMe}
@@ -256,6 +278,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   const [showInCallChat, setShowInCallChat] = useState(false);
   const [quickNote, setQuickNote] = useState("");
   const [sharedNotes, setSharedNotes] = useState<string[]>([]);
+  const [isAudioAutoplayBlocked, setIsAudioAutoplayBlocked] = useState(false);
 
   // Audio level meters
   const [localAudioLevel, setLocalAudioLevel] = useState(0);
@@ -272,11 +295,39 @@ export const CallModal: React.FC<CallModalProps> = ({
 
   // WebRTC Peer Connection ref for 1-on-1
   const peerConnRef = useRef<RTCPeerConnection | null>(null);
+  const isInitializingMediaRef = useRef<boolean>(false);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const addedIceCandidatesRef = useRef<Set<string>>(new Set());
+  const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+
+  // Function to unlock audio on user gesture
+  const unlockCallAudio = useCallback(() => {
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current
+        .play()
+        .then(() => setIsAudioAutoplayBlocked(false))
+        .catch(() => {});
+    }
+    setIsAudioAutoplayBlocked(false);
+  }, []);
+
+  // Global click/touch listener to automatically unlock audio if autoplay was restricted
+  useEffect(() => {
+    if (isAudioAutoplayBlocked) {
+      const handleUserGesture = () => {
+        unlockCallAudio();
+      };
+      window.addEventListener("click", handleUserGesture, { once: true });
+      window.addEventListener("touchstart", handleUserGesture, { once: true });
+      return () => {
+        window.removeEventListener("click", handleUserGesture);
+        window.removeEventListener("touchstart", handleUserGesture);
+      };
+    }
+  }, [isAudioAutoplayBlocked, unlockCallAudio]);
 
   // Track if incoming call was answered/dismissed to transition UI immediately
   const [incomingCallDismissed, setIncomingCallDismissed] = useState(false);
@@ -473,12 +524,14 @@ export const CallModal: React.FC<CallModalProps> = ({
       (liveGroupCall && liveGroupCall.status === "active")
     );
 
-    if (shouldStartMedia && !localStream) {
+    if (shouldStartMedia && !localStream && !isInitializingMediaRef.current) {
+      isInitializingMediaRef.current = true;
       let isMounted = true;
       const callType: CallType = activeCallType || "audio";
 
       getLocalUserMedia(callType, cameraFacing)
         .then((stream) => {
+          isInitializingMediaRef.current = false;
           if (!isMounted) {
             stopAllStreamTracks(stream);
             return;
@@ -488,6 +541,7 @@ export const CallModal: React.FC<CallModalProps> = ({
 
           if (localVideoRef.current) {
             localVideoRef.current.srcObject = stream;
+            localVideoRef.current.play().catch(() => {});
           }
 
           // Setup Web Audio level meter
@@ -495,14 +549,15 @@ export const CallModal: React.FC<CallModalProps> = ({
             if (isMounted) setLocalAudioLevel(level);
           });
 
-          // WebRTC Setup if 1-on-1 Direct Call
-          if (liveDirectCall) {
+          // WebRTC Setup if 1-on-1 Direct Call and we don't already have an active peer connection
+          if (liveDirectCall && !peerConnRef.current) {
             setupDirectWebRTC(stream, liveDirectCall);
           }
 
           return () => stopMeter();
         })
         .catch((err) => {
+          isInitializingMediaRef.current = false;
           console.warn("Could not access camera/mic:", err);
           triggerToast?.("Media Access Notice", "Microphone/camera access was limited. You can still join the call in listening mode.", "Important Alerts");
         });
@@ -542,7 +597,11 @@ export const CallModal: React.FC<CallModalProps> = ({
       remoteAudioRef.current.muted = isSpeakerMuted;
       remoteAudioRef.current
         .play()
-        .catch((err) => console.warn("Autoplay audio blocked by browser policy, will play on interaction:", err));
+        .then(() => setIsAudioAutoplayBlocked(false))
+        .catch((err) => {
+          console.warn("Autoplay audio blocked by browser policy, will unlock on click:", err);
+          setIsAudioAutoplayBlocked(true);
+        });
     }
   }, [remoteStream, isSpeakerMuted]);
 
@@ -551,17 +610,20 @@ export const CallModal: React.FC<CallModalProps> = ({
   // ----------------------------------------------------
   const setupDirectWebRTC = async (stream: MediaStream, call: DirectCall) => {
     try {
+      if (peerConnRef.current) {
+        peerConnRef.current.close();
+      }
       const pc = new RTCPeerConnection(ICE_SERVERS);
       peerConnRef.current = pc;
       addedIceCandidatesRef.current.clear();
+      pendingIceCandidatesRef.current = [];
 
       // Add local stream tracks to connection
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream);
       });
 
-      // If video track is not present (audio call), create video transceiver upfront
-      // so turning video ON dynamically works seamlessly with replaceTrack
+      // Always add video transceiver if not present so any member can toggle camera at any time
       const hasVideoTrack = stream.getVideoTracks().length > 0;
       if (!hasVideoTrack && pc.addTransceiver) {
         try {
@@ -573,20 +635,38 @@ export const CallModal: React.FC<CallModalProps> = ({
 
       // Handle remote incoming stream tracks
       pc.ontrack = (event) => {
-        const [incomingStream] = event.streams;
-        const streamToUse = incomingStream || new MediaStream([event.track]);
-        setRemoteStream(streamToUse);
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = streamToUse;
-          remoteAudioRef.current.play().catch(() => {});
-        }
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = streamToUse;
-          remoteVideoRef.current.play().catch(() => {});
-        }
-        // Meter remote audio for visual speaking ripples
-        createAudioLevelMeter(streamToUse, (level) => {
-          setRemoteAudioLevel(level);
+        setRemoteStream((prevStream) => {
+          let updatedStream: MediaStream;
+          if (event.streams && event.streams[0]) {
+            updatedStream = event.streams[0];
+          } else if (prevStream) {
+            const existing = prevStream.getTracks().find((t) => t.id === event.track.id);
+            if (!existing) {
+              prevStream.addTrack(event.track);
+            }
+            updatedStream = new MediaStream(prevStream.getTracks());
+          } else {
+            updatedStream = new MediaStream([event.track]);
+          }
+
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = updatedStream;
+            remoteAudioRef.current
+              .play()
+              .then(() => setIsAudioAutoplayBlocked(false))
+              .catch(() => setIsAudioAutoplayBlocked(true));
+          }
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = updatedStream;
+            remoteVideoRef.current.play().catch(() => {});
+          }
+
+          // Meter remote audio for visual speaking ripples
+          createAudioLevelMeter(updatedStream, (level) => {
+            setRemoteAudioLevel(level);
+          });
+
+          return updatedStream;
         });
       };
 
@@ -621,35 +701,41 @@ export const CallModal: React.FC<CallModalProps> = ({
     if (isCaller && liveDirectCall.answer && !pc.currentRemoteDescription) {
       const desc = new RTCSessionDescription(liveDirectCall.answer as any);
       pc.setRemoteDescription(desc)
-        .then(() => {
-          // Process any queued receiver candidates
-          if (liveDirectCall.receiverCandidates && liveDirectCall.receiverCandidates.length > 0) {
-            liveDirectCall.receiverCandidates.forEach((cand) => {
-              const key = JSON.stringify(cand);
-              if (!addedIceCandidatesRef.current.has(key)) {
-                addedIceCandidatesRef.current.add(key);
-                pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
-              }
-            });
+        .then(async () => {
+          // Process any queued receiver candidates from Firestore
+          const candidateList = liveDirectCall.receiverCandidates || [];
+          for (const cand of candidateList) {
+            const key = JSON.stringify(cand);
+            if (!addedIceCandidatesRef.current.has(key)) {
+              addedIceCandidatesRef.current.add(key);
+              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+            }
           }
+          // Process local pending queue if any
+          for (const cand of pendingIceCandidatesRef.current) {
+            await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          }
+          pendingIceCandidatesRef.current = [];
         })
         .catch((err) => console.warn("Failed to set remote description", err));
     }
 
     // Add candidate pairs once remoteDescription is established
     const candidateList = isCaller ? liveDirectCall.receiverCandidates : liveDirectCall.callerCandidates;
-    if (candidateList && candidateList.length > 0 && pc.remoteDescription) {
-      candidateList.forEach((cand) => {
-        const key = JSON.stringify(cand);
-        if (!addedIceCandidatesRef.current.has(key)) {
-          addedIceCandidatesRef.current.add(key);
-          try {
+    if (candidateList && candidateList.length > 0) {
+      if (pc.remoteDescription) {
+        candidateList.forEach((cand) => {
+          const key = JSON.stringify(cand);
+          if (!addedIceCandidatesRef.current.has(key)) {
+            addedIceCandidatesRef.current.add(key);
             pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
-          } catch {
-            // ignore
           }
-        }
-      });
+        });
+      } else {
+        candidateList.forEach((cand) => {
+          pendingIceCandidatesRef.current.push(cand);
+        });
+      }
     }
   }, [liveDirectCall?.answer, liveDirectCall?.receiverCandidates, liveDirectCall?.callerCandidates]);
 
@@ -658,6 +744,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   // ----------------------------------------------------
   const cleanupCall = () => {
     callAudio.stopAll();
+    isInitializingMediaRef.current = false;
     if (peerConnRef.current) {
       peerConnRef.current.close();
       peerConnRef.current = null;
@@ -667,6 +754,7 @@ export const CallModal: React.FC<CallModalProps> = ({
       groupMeshRef.current = null;
     }
     addedIceCandidatesRef.current.clear();
+    pendingIceCandidatesRef.current = [];
     stopAllStreamTracks(localStream);
     stopAllStreamTracks(screenStream);
     setLocalStream(null);
@@ -679,6 +767,7 @@ export const CallModal: React.FC<CallModalProps> = ({
     setIsScreenSharing(false);
     setIsHandRaised(false);
     setIsMinimized(false);
+    setIsAudioAutoplayBlocked(false);
     if (durationTimerRef.current) {
       clearInterval(durationTimerRef.current);
       durationTimerRef.current = null;
@@ -697,9 +786,13 @@ export const CallModal: React.FC<CallModalProps> = ({
       setLocalStream(stream);
       setIsVideoOff(type === "audio");
 
+      if (peerConnRef.current) {
+        peerConnRef.current.close();
+      }
       const pc = new RTCPeerConnection(ICE_SERVERS);
       peerConnRef.current = pc;
       addedIceCandidatesRef.current.clear();
+      pendingIceCandidatesRef.current = [];
 
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream);
@@ -716,18 +809,35 @@ export const CallModal: React.FC<CallModalProps> = ({
       }
 
       pc.ontrack = (event) => {
-        const [incoming] = event.streams;
-        const streamToUse = incoming || new MediaStream([event.track]);
-        setRemoteStream(streamToUse);
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = streamToUse;
-          remoteAudioRef.current.play().catch(() => {});
-        }
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = streamToUse;
-          remoteVideoRef.current.play().catch(() => {});
-        }
-        createAudioLevelMeter(streamToUse, (lvl) => setRemoteAudioLevel(lvl));
+        setRemoteStream((prevStream) => {
+          let updatedStream: MediaStream;
+          if (event.streams && event.streams[0]) {
+            updatedStream = event.streams[0];
+          } else if (prevStream) {
+            const existing = prevStream.getTracks().find((t) => t.id === event.track.id);
+            if (!existing) {
+              prevStream.addTrack(event.track);
+            }
+            updatedStream = new MediaStream(prevStream.getTracks());
+          } else {
+            updatedStream = new MediaStream([event.track]);
+          }
+
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = updatedStream;
+            remoteAudioRef.current
+              .play()
+              .then(() => setIsAudioAutoplayBlocked(false))
+              .catch(() => setIsAudioAutoplayBlocked(true));
+          }
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = updatedStream;
+            remoteVideoRef.current.play().catch(() => {});
+          }
+
+          createAudioLevelMeter(updatedStream, (lvl) => setRemoteAudioLevel(lvl));
+          return updatedStream;
+        });
       };
 
       pc.onicecandidate = (event) => {
@@ -741,13 +851,13 @@ export const CallModal: React.FC<CallModalProps> = ({
         
         // Add any early caller candidates
         if (incomingDirectCall.callerCandidates && incomingDirectCall.callerCandidates.length > 0) {
-          incomingDirectCall.callerCandidates.forEach((cand) => {
+          for (const cand of incomingDirectCall.callerCandidates) {
             const key = JSON.stringify(cand);
             if (!addedIceCandidatesRef.current.has(key)) {
               addedIceCandidatesRef.current.add(key);
-              pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+              await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
             }
-          });
+          }
         }
 
         const answer = await pc.createAnswer();
@@ -1188,7 +1298,19 @@ export const CallModal: React.FC<CallModalProps> = ({
       return (
         <div className="fixed bottom-6 right-6 z-[9999] bg-slate-900 text-white p-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-fade-in backdrop-blur-lg">
           {/* Dedicated Audio Element for Minimized State */}
-          <audio ref={remoteAudioRef} autoPlay muted={isSpeakerMuted} className="hidden" />
+          <audio
+            ref={(el) => {
+              remoteAudioRef.current = el;
+              if (el && remoteStream) {
+                if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
+                el.muted = isSpeakerMuted;
+                el.play().catch(() => setIsAudioAutoplayBlocked(true));
+              }
+            }}
+            autoPlay
+            muted={isSpeakerMuted}
+            className="fixed -top-[9999px] -left-[9999px] w-0 h-0 opacity-0 pointer-events-none"
+          />
           <div className="relative">
             <div className="w-10 h-10 rounded-xl bg-amber-500 text-white font-bold flex items-center justify-center overflow-hidden">
               {otherPersonAvatar ? (
@@ -1238,13 +1360,31 @@ export const CallModal: React.FC<CallModalProps> = ({
     // Full Screen Direct Call Modal
     return (
       <div className="fixed inset-0 z-[9999] bg-slate-950 flex flex-col justify-between overflow-hidden">
-        {/* Dedicated Hidden Audio Element to ensure two-way voice stream playback */}
+        {/* Dedicated Audio Element placed offscreen to guarantee two-way voice stream playback */}
         <audio
-          ref={remoteAudioRef}
+          ref={(el) => {
+            remoteAudioRef.current = el;
+            if (el && remoteStream) {
+              if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
+              el.muted = isSpeakerMuted;
+              el.play().catch(() => setIsAudioAutoplayBlocked(true));
+            }
+          }}
           autoPlay
           muted={isSpeakerMuted}
-          className="hidden"
+          className="fixed -top-[9999px] -left-[9999px] w-0 h-0 opacity-0 pointer-events-none"
         />
+
+        {/* Audio Autoplay Unblock Notification */}
+        {isAudioAutoplayBlocked && (
+          <div
+            onClick={unlockCallAudio}
+            className="absolute top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-full shadow-2xl animate-bounce cursor-pointer flex items-center gap-2 border border-amber-300 transition"
+          >
+            <Volume2 className="w-4 h-4" />
+            <span>Browser paused audio. Tap anywhere to enable sound 🔊</span>
+          </div>
+        )}
 
         {/* Top Floating Info Bar */}
         <div className="p-4 sm:p-6 flex items-center justify-between z-20 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
@@ -1285,7 +1425,13 @@ export const CallModal: React.FC<CallModalProps> = ({
           {remoteStream && remoteStream.getVideoTracks().length > 0 && remoteStream.getVideoTracks().some(t => t.enabled) ? (
             <div className="relative w-full h-full max-w-4xl flex items-center justify-center">
               <video
-                ref={remoteVideoRef}
+                ref={(el) => {
+                  remoteVideoRef.current = el;
+                  if (el && remoteStream) {
+                    if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
+                    el.play().catch(() => {});
+                  }
+                }}
                 autoPlay
                 playsInline
                 muted
@@ -1319,7 +1465,13 @@ export const CallModal: React.FC<CallModalProps> = ({
           {localStream && localStream.getVideoTracks().length > 0 && (
             <div className="absolute bottom-6 right-6 w-32 h-44 sm:w-44 sm:h-60 rounded-2xl overflow-hidden shadow-2xl border-2 border-slate-700 bg-slate-900 z-10">
               <video
-                ref={localVideoRef}
+                ref={(el) => {
+                  localVideoRef.current = el;
+                  if (el && localStream) {
+                    if (el.srcObject !== localStream) el.srcObject = localStream;
+                    el.play().catch(() => {});
+                  }
+                }}
                 autoPlay
                 playsInline
                 muted
