@@ -18,14 +18,32 @@ import {
   GroupCallParticipant,
 } from "../types";
 import { NotificationService } from "./notificationService";
+import { SettingsService } from "./settingsService";
+import {
+  CallType,
+  DirectCall,
+  GroupCall,
+  GroupCallParticipant,
+  RingtoneStyle,
+} from "../types";
 
 // ==========================================
 // 1. Web Audio API Ringtone & Chime Synthesizer
 // ==========================================
+export const RINGTONE_STYLES: { id: RingtoneStyle; name: string; desc: string; icon: string }[] = [
+  { id: 'Modern Chime', name: 'Modern Chime', desc: 'Harmonic crystalline chime with gentle melody', icon: '✨' },
+  { id: 'Classic Phone', name: 'Classic Phone', desc: 'Traditional dual-tone retro telephone ringer', icon: '☎️' },
+  { id: 'Melodic Marimba', name: 'Melodic Marimba', desc: 'Warm acoustic wooden marimba arpeggio', icon: '🪵' },
+  { id: 'Cosmic Synth', name: 'Cosmic Synth', desc: 'Futuristic ambient synth wave shimmer', icon: '🚀' },
+  { id: 'Gentle Zen', name: 'Gentle Zen', desc: 'Soothing Tibetan singing bowl harmonic chime', icon: '🧘' },
+  { id: 'Energetic Pulse', name: 'Energetic Pulse', desc: 'Upbeat bouncy electronic double pulse', icon: '⚡' },
+];
+
 class CallAudioSynthesizer {
   private ctx: AudioContext | null = null;
   private ringOscillator: OscillatorNode | null = null;
   private ringInterval: any = null;
+  private previewTimeout: any = null;
 
   private getContext(): AudioContext {
     if (!this.ctx || this.ctx.state === "closed") {
@@ -38,95 +56,398 @@ class CallAudioSynthesizer {
     return this.ctx;
   }
 
-  // Play continuous incoming ring melody (pleasant dual tone)
-  startIncomingRing() {
+  private getCallSettings() {
+    try {
+      const s = SettingsService.getSettings();
+      return s.calls || {
+        ringtone: 'Modern Chime' as RingtoneStyle,
+        ringtoneVolume: 80,
+        ringbackStyle: 'Standard',
+        vibrateOnCall: true,
+        enableSoundAlerts: true,
+      };
+    } catch {
+      return {
+        ringtone: 'Modern Chime' as RingtoneStyle,
+        ringtoneVolume: 80,
+        ringbackStyle: 'Standard',
+        vibrateOnCall: true,
+        enableSoundAlerts: true,
+      };
+    }
+  }
+
+  private getVolume(overrideVolume?: number): number {
+    const s = this.getCallSettings();
+    if (!s.enableSoundAlerts && overrideVolume === undefined) return 0;
+    const vol = overrideVolume !== undefined ? overrideVolume : (s.ringtoneVolume ?? 80);
+    return Math.max(0, Math.min(100, vol)) / 100;
+  }
+
+  private triggerVibration() {
+    try {
+      const s = this.getCallSettings();
+      if (s.vibrateOnCall && typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate([300, 150, 300, 150, 600]);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // --- Synthesis of individual ringtone styles (one single pattern cycle) ---
+
+  private playModernChime(ctx: AudioContext, masterVolume: number) {
+    const now = ctx.currentTime;
+    const notes = [
+      { f: 698.46, t: 0, d: 0.35, g: 0.18 },   // F5
+      { f: 880.00, t: 0.12, d: 0.35, g: 0.19 }, // A5
+      { f: 1046.50, t: 0.24, d: 0.45, g: 0.22 }, // C6
+      { f: 1318.51, t: 0.36, d: 0.60, g: 0.24 }, // E6
+      // Response harmony
+      { f: 1174.66, t: 0.85, d: 0.40, g: 0.20 }, // D6
+      { f: 1567.98, t: 0.98, d: 0.65, g: 0.23 }, // G6
+    ];
+
+    notes.forEach((n) => {
+      const startTime = now + n.t;
+      const osc = ctx.createOscillator();
+      const oscHarmonic = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(n.f, startTime);
+
+      oscHarmonic.type = "triangle";
+      oscHarmonic.frequency.setValueAtTime(n.f * 2, startTime);
+
+      const targetGain = n.g * masterVolume;
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.linearRampToValueAtTime(targetGain, startTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + n.d);
+
+      osc.connect(gain);
+      oscHarmonic.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      oscHarmonic.start(startTime);
+      osc.stop(startTime + n.d + 0.05);
+      oscHarmonic.stop(startTime + n.d + 0.05);
+    });
+  }
+
+  private playClassicPhone(ctx: AudioContext, masterVolume: number) {
+    const now = ctx.currentTime;
+    const bursts = [0, 0.9]; // Two bursts in sequence
+
+    bursts.forEach((offset) => {
+      const startTime = now + offset;
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = "sine";
+      osc2.type = "sine";
+      osc1.frequency.setValueAtTime(440, startTime); // A4
+      osc2.frequency.setValueAtTime(480, startTime); // B4
+
+      const targetGain = 0.20 * masterVolume;
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.linearRampToValueAtTime(targetGain, startTime + 0.05);
+      gain.gain.setValueAtTime(targetGain, startTime + 0.65);
+      gain.gain.linearRampToValueAtTime(0.0001, startTime + 0.75);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(startTime);
+      osc2.start(startTime);
+      osc1.stop(startTime + 0.8);
+      osc2.stop(startTime + 0.8);
+    });
+  }
+
+  private playMelodicMarimba(ctx: AudioContext, masterVolume: number) {
+    const now = ctx.currentTime;
+    const notes = [
+      { f: 523.25, t: 0 },    // C5
+      { f: 659.25, t: 0.12 }, // E5
+      { f: 783.99, t: 0.24 }, // G5
+      { f: 987.77, t: 0.36 }, // B5
+      { f: 1046.50, t: 0.48 }, // C6
+      { f: 783.99, t: 0.68 }, // G5
+      { f: 1046.50, t: 0.80 }, // C6
+    ];
+
+    notes.forEach((n) => {
+      const startTime = now + n.t;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(n.f, startTime);
+
+      const targetGain = 0.24 * masterVolume;
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.linearRampToValueAtTime(targetGain, startTime + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.28);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.3);
+    });
+  }
+
+  private playCosmicSynth(ctx: AudioContext, masterVolume: number) {
+    const now = ctx.currentTime;
+    const notes = [
+      { f: 440, t: 0, d: 0.5 },
+      { f: 659.25, t: 0.18, d: 0.5 },
+      { f: 880, t: 0.36, d: 0.6 },
+      { f: 1318.5, t: 0.54, d: 0.8 },
+    ];
+
+    notes.forEach((n) => {
+      const startTime = now + n.t;
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(n.f, startTime);
+
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(800, startTime);
+      filter.frequency.exponentialRampToValueAtTime(2800, startTime + 0.3);
+
+      const targetGain = 0.16 * masterVolume;
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.linearRampToValueAtTime(targetGain, startTime + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + n.d);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + n.d + 0.05);
+    });
+  }
+
+  private playGentleZen(ctx: AudioContext, masterVolume: number) {
+    const now = ctx.currentTime;
+    // Solfeggio 528Hz Love/DNA harmonic bowl resonance
+    const freqs = [
+      { f: 528, g: 0.22, d: 1.8 },
+      { f: 1056, g: 0.12, d: 1.4 },
+      { f: 264, g: 0.16, d: 2.0 },
+    ];
+
+    freqs.forEach((item) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(item.f, now);
+
+      const targetGain = item.g * masterVolume;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(targetGain, now + 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + item.d);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + item.d + 0.05);
+    });
+  }
+
+  private playEnergeticPulse(ctx: AudioContext, masterVolume: number) {
+    const now = ctx.currentTime;
+    const pulses = [
+      { f: 783.99, t: 0, d: 0.12 },
+      { f: 1046.50, t: 0.12, d: 0.15 },
+      { f: 1318.51, t: 0.24, d: 0.18 },
+      { f: 1567.98, t: 0.36, d: 0.35 },
+      // Second snappy echo
+      { f: 1318.51, t: 0.72, d: 0.15 },
+      { f: 1567.98, t: 0.84, d: 0.40 },
+    ];
+
+    pulses.forEach((p) => {
+      const startTime = now + p.t;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "square";
+      osc.frequency.setValueAtTime(p.f, startTime);
+
+      const targetGain = 0.14 * masterVolume;
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.linearRampToValueAtTime(targetGain, startTime + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + p.d);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + p.d + 0.02);
+    });
+  }
+
+  private playRingtoneByStyle(style: RingtoneStyle, ctx: AudioContext, masterVolume: number) {
+    switch (style) {
+      case 'Classic Phone':
+        this.playClassicPhone(ctx, masterVolume);
+        break;
+      case 'Melodic Marimba':
+        this.playMelodicMarimba(ctx, masterVolume);
+        break;
+      case 'Cosmic Synth':
+        this.playCosmicSynth(ctx, masterVolume);
+        break;
+      case 'Gentle Zen':
+        this.playGentleZen(ctx, masterVolume);
+        break;
+      case 'Energetic Pulse':
+        this.playEnergeticPulse(ctx, masterVolume);
+        break;
+      case 'Modern Chime':
+      default:
+        this.playModernChime(ctx, masterVolume);
+        break;
+    }
+  }
+
+  // Play continuous incoming ring melody (customizable ringtone across devices)
+  startIncomingRing(overrideRingtone?: RingtoneStyle, overrideVolume?: number) {
     this.stopAll();
     try {
       const ctx = this.getContext();
-      const playTonePattern = () => {
+      const callSettings = this.getCallSettings();
+      const style = overrideRingtone || callSettings.ringtone || 'Modern Chime';
+      const volume = this.getVolume(overrideVolume);
+
+      if (volume <= 0) return;
+
+      const playCycle = () => {
         if (!ctx || ctx.state === "closed") return;
-        const now = ctx.currentTime;
-
-        const osc1 = ctx.createOscillator();
-        const osc2 = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc1.type = "sine";
-        osc2.type = "sine";
-        osc1.frequency.setValueAtTime(440, now); // A4
-        osc2.frequency.setValueAtTime(480, now); // B4
-
-        gain.gain.setValueAtTime(0.001, now);
-        gain.gain.linearRampToValueAtTime(0.18, now + 0.08);
-        gain.gain.setValueAtTime(0.18, now + 0.85);
-        gain.gain.linearRampToValueAtTime(0.001, now + 0.95);
-
-        osc1.connect(gain);
-        osc2.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc1.start(now);
-        osc2.start(now);
-        osc1.stop(now + 1.0);
-        osc2.stop(now + 1.0);
-
-        // Second chirp in pattern
-        const now2 = now + 1.1;
-        const osc3 = ctx.createOscillator();
-        const osc4 = ctx.createOscillator();
-        const gain2 = ctx.createGain();
-
-        osc3.type = "sine";
-        osc4.type = "sine";
-        osc3.frequency.setValueAtTime(440, now2);
-        osc4.frequency.setValueAtTime(480, now2);
-
-        gain2.gain.setValueAtTime(0.001, now2);
-        gain2.gain.linearRampToValueAtTime(0.18, now2 + 0.08);
-        gain2.gain.setValueAtTime(0.18, now2 + 0.85);
-        gain2.gain.linearRampToValueAtTime(0.001, now2 + 0.95);
-
-        osc3.connect(gain2);
-        osc4.connect(gain2);
-        gain2.connect(ctx.destination);
-
-        osc3.start(now2);
-        osc4.start(now2);
-        osc3.stop(now2 + 1.0);
-        osc4.stop(now2 + 1.0);
+        this.playRingtoneByStyle(style, ctx, volume);
+        this.triggerVibration();
       };
 
-      playTonePattern();
-      this.ringInterval = setInterval(playTonePattern, 3000);
+      playCycle();
+      const intervalMs = style === 'Gentle Zen' ? 3200 : style === 'Classic Phone' ? 3400 : 2800;
+      this.ringInterval = setInterval(playCycle, intervalMs);
     } catch (e) {
       console.warn("Could not play incoming ringtone", e);
     }
   }
 
-  // Play outgoing ringback tone (soft rhythmic beep)
-  startOutgoingRingback() {
+  // Preview a single cycle of any ringtone style in Settings
+  previewRingtone(style: RingtoneStyle, volumePercent?: number) {
     this.stopAll();
     try {
       const ctx = this.getContext();
+      const volume = this.getVolume(volumePercent);
+      if (volume <= 0) return;
+
+      this.playRingtoneByStyle(style, ctx, volume);
+      this.triggerVibration();
+
+      // Auto-stop preview after 2.8s
+      this.previewTimeout = setTimeout(() => {
+        this.stopAll();
+      }, 2800);
+    } catch (e) {
+      console.warn("Could not preview ringtone", e);
+    }
+  }
+
+  // Play outgoing ringback tone (soft rhythmic beep / melodic pulse)
+  startOutgoingRingback(overrideVolume?: number) {
+    this.stopAll();
+    try {
+      const ctx = this.getContext();
+      const callSettings = this.getCallSettings();
+      const volume = this.getVolume(overrideVolume);
+      if (volume <= 0) return;
+
+      const style = callSettings.ringbackStyle || 'Standard';
+
       const playBeep = () => {
         if (!ctx || ctx.state === "closed") return;
         const now = ctx.currentTime;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
 
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(425, now);
+        if (style === 'Melodic') {
+          // Soft melodic dual chime
+          const osc1 = ctx.createOscillator();
+          const osc2 = ctx.createOscillator();
+          const gain = ctx.createGain();
 
-        gain.gain.setValueAtTime(0.001, now);
-        gain.gain.linearRampToValueAtTime(0.12, now + 0.05);
-        gain.gain.setValueAtTime(0.12, now + 1.2);
-        gain.gain.linearRampToValueAtTime(0.001, now + 1.3);
+          osc1.type = "sine";
+          osc2.type = "sine";
+          osc1.frequency.setValueAtTime(523.25, now);
+          osc2.frequency.setValueAtTime(659.25, now + 0.15);
 
-        osc.connect(gain);
-        gain.connect(ctx.destination);
+          const targetGain = 0.10 * volume;
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.linearRampToValueAtTime(targetGain, now + 0.04);
+          gain.gain.setValueAtTime(targetGain, now + 0.8);
+          gain.gain.linearRampToValueAtTime(0.0001, now + 0.95);
 
-        osc.start(now);
-        osc.stop(now + 1.35);
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc1.start(now);
+          osc2.start(now + 0.15);
+          osc1.stop(now + 0.95);
+          osc2.stop(now + 0.95);
+        } else if (style === 'Subtle') {
+          // Very gentle low-frequency single pulse
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(380, now);
+
+          const targetGain = 0.08 * volume;
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.linearRampToValueAtTime(targetGain, now + 0.06);
+          gain.gain.setValueAtTime(targetGain, now + 0.6);
+          gain.gain.linearRampToValueAtTime(0.0001, now + 0.7);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.75);
+        } else {
+          // Standard ringback beep (425Hz)
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(425, now);
+
+          const targetGain = 0.12 * volume;
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.linearRampToValueAtTime(targetGain, now + 0.05);
+          gain.gain.setValueAtTime(targetGain, now + 1.1);
+          gain.gain.linearRampToValueAtTime(0.0001, now + 1.25);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 1.3);
+        }
       };
 
       playBeep();
@@ -137,10 +458,13 @@ class CallAudioSynthesizer {
   }
 
   // Play cheerful connected chime
-  playConnectedChime() {
+  playConnectedChime(overrideVolume?: number) {
     this.stopAll();
     try {
       const ctx = this.getContext();
+      const volume = this.getVolume(overrideVolume);
+      if (volume <= 0) return;
+
       const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
       notes.forEach((freq, idx) => {
         const now = ctx.currentTime + idx * 0.09;
@@ -150,9 +474,10 @@ class CallAudioSynthesizer {
         osc.type = "sine";
         osc.frequency.setValueAtTime(freq, now);
 
-        gain.gain.setValueAtTime(0.001, now);
-        gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        const targetGain = 0.15 * volume;
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(targetGain, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
 
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -166,10 +491,13 @@ class CallAudioSynthesizer {
   }
 
   // Play call ended drop tone
-  playEndedChime() {
+  playEndedChime(overrideVolume?: number) {
     this.stopAll();
     try {
       const ctx = this.getContext();
+      const volume = this.getVolume(overrideVolume);
+      if (volume <= 0) return;
+
       const notes = [440, 330, 220]; // Descending
       notes.forEach((freq, idx) => {
         const now = ctx.currentTime + idx * 0.1;
@@ -179,9 +507,10 @@ class CallAudioSynthesizer {
         osc.type = "sine";
         osc.frequency.setValueAtTime(freq, now);
 
-        gain.gain.setValueAtTime(0.001, now);
-        gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        const targetGain = 0.12 * volume;
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(targetGain, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
 
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -195,9 +524,12 @@ class CallAudioSynthesizer {
   }
 
   // Play hand raised ping
-  playHandRaisedChime() {
+  playHandRaisedChime(overrideVolume?: number) {
     try {
       const ctx = this.getContext();
+      const volume = this.getVolume(overrideVolume);
+      if (volume <= 0) return;
+
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -206,9 +538,10 @@ class CallAudioSynthesizer {
       osc.frequency.setValueAtTime(880, now);
       osc.frequency.exponentialRampToValueAtTime(1320, now + 0.15);
 
-      gain.gain.setValueAtTime(0.001, now);
-      gain.gain.linearRampToValueAtTime(0.2, now + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      const targetGain = 0.20 * volume;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(targetGain, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -221,6 +554,10 @@ class CallAudioSynthesizer {
   }
 
   stopAll() {
+    if (this.previewTimeout) {
+      clearTimeout(this.previewTimeout);
+      this.previewTimeout = null;
+    }
     if (this.ringInterval) {
       clearInterval(this.ringInterval);
       this.ringInterval = null;
@@ -548,6 +885,19 @@ export async function initiateDirectCall(params: {
     console.warn("Background call push trigger notice:", err);
   });
 
+  // Record in-app notification entry for receiver's notification center
+  try {
+    const callTypeLabel = params.type === "video" ? "Video" : "Voice";
+    NotificationService.sendNotification(
+      `Incoming ${callTypeLabel} Call 📞`,
+      `${params.callerName} called you (${callTypeLabel} Call).`,
+      "Important Alerts",
+      params.receiverId
+    ).catch(() => {});
+  } catch (e) {
+    console.warn("Failed to create in-app call notification doc:", e);
+  }
+
   return callId;
 }
 
@@ -636,20 +986,27 @@ export function subscribeToIncomingCalls(
   const q = query(
     callsCol,
     where("receiverId", "==", currentUid),
-    where("status", "==", "ringing"),
-    limit(1)
+    limit(10)
   );
 
   return onSnapshot(q, (snapshot) => {
-    if (!snapshot.empty) {
-      const docData = snapshot.docs[0].data() as DirectCall;
-      // Ensure call is recent (less than 60 seconds old to prevent stale popups)
-      if (Date.now() - docData.startedAt < 60000) {
-        onIncomingCall(docData);
-        return;
+    const now = Date.now();
+    let activeRingingCall: DirectCall | null = null;
+
+    snapshot.forEach((docSnap) => {
+      const docData = docSnap.data() as DirectCall;
+      if (
+        docData &&
+        docData.status === "ringing" &&
+        now - (docData.startedAt || 0) < 90000 // 90-second ringing grace window
+      ) {
+        if (!activeRingingCall || (docData.startedAt || 0) > (activeRingingCall.startedAt || 0)) {
+          activeRingingCall = docData;
+        }
       }
-    }
-    onIncomingCall(null);
+    });
+
+    onIncomingCall(activeRingingCall);
   }, (err) => {
     console.warn("Incoming calls subscription error:", err);
   });

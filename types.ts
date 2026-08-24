@@ -94,6 +94,14 @@ export interface UserProfile {
   trialStartDate?: number;
 }
 
+export type RingtoneStyle = 
+  | 'Modern Chime' 
+  | 'Classic Phone' 
+  | 'Melodic Marimba' 
+  | 'Cosmic Synth' 
+  | 'Gentle Zen' 
+  | 'Energetic Pulse';
+
 export interface UserSettings {
   learning: {
     preferredSubject: string;
@@ -130,6 +138,13 @@ export interface UserSettings {
   privacy: {
     twoFactor: boolean;
     appLock: boolean;
+  };
+  calls: {
+    ringtone: RingtoneStyle;
+    ringtoneVolume: number; // 0 to 100
+    ringbackStyle: 'Standard' | 'Melodic' | 'Subtle';
+    vibrateOnCall: boolean;
+    enableSoundAlerts: boolean;
   };
 }
 
@@ -221,6 +236,13 @@ export const DEFAULT_SETTINGS: UserSettings = {
   privacy: {
     twoFactor: false,
     appLock: false,
+  },
+  calls: {
+    ringtone: 'Modern Chime',
+    ringtoneVolume: 80,
+    ringbackStyle: 'Standard',
+    vibrateOnCall: true,
+    enableSoundAlerts: true,
   },
 };
 

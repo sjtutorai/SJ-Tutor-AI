@@ -10,8 +10,12 @@ import {
   User, BookOpen, Bot, MessageSquare, Bell, Moon, Lock, 
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, ChevronDown, ChevronUp,
   Save, LogOut, Trash2, Shield, Activity, Type, Palette, Monitor, Zap,
-  Volume2, Terminal, Crown, Check, Clock, FileText, Keyboard, Command, Sparkles
+  Volume2, Volume1, VolumeX, PhoneCall, Phone, Play, Square, AlertTriangle, CheckCircle2,
+  Terminal, Crown, Check, Clock, FileText, Keyboard, Command, Sparkles
 } from 'lucide-react';
+import { callAudio, RINGTONE_STYLES } from '../services/webrtcService';
+import { NotificationService } from '../services/notificationService';
+import { RingtoneStyle } from '../types';
 
 interface SettingsViewProps {
   userProfile: UserProfile;
@@ -23,7 +27,7 @@ interface SettingsViewProps {
   onOpenShortcuts?: () => void;
 }
 
-type SettingsTab = 'account' | 'learning' | 'aiTutor' | 'chat' | 'notifications' | 'appearance' | 'privacy' | 'shortcuts' | 'system' | 'billing' | 'help';
+type SettingsTab = 'account' | 'learning' | 'aiTutor' | 'chat' | 'calls' | 'notifications' | 'appearance' | 'privacy' | 'shortcuts' | 'system' | 'billing' | 'help';
 
 const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const { 
@@ -46,6 +50,46 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [playingRingtoneId, setPlayingRingtoneId] = useState<string | null>(null);
+  const [previewingChime, setPreviewingChime] = useState<string | null>(null);
+
+  // Stop any playing audio previews on unmount or tab change
+  useEffect(() => {
+    return () => {
+      callAudio.stopAll();
+    };
+  }, []);
+
+  const handlePreviewRingtone = (style: RingtoneStyle) => {
+    if (playingRingtoneId === style) {
+      callAudio.stopAll();
+      setPlayingRingtoneId(null);
+      return;
+    }
+    callAudio.stopAll();
+    setPlayingRingtoneId(style);
+    setPreviewingChime(null);
+    callAudio.previewRingtone(style, settings.calls?.ringtoneVolume);
+    setTimeout(() => {
+      setPlayingRingtoneId((prev) => (prev === style ? null : prev));
+    }, 2800);
+  };
+
+  const handlePreviewChime = (type: 'connected' | 'ended' | 'handRaise') => {
+    callAudio.stopAll();
+    setPlayingRingtoneId(null);
+    setPreviewingChime(type);
+    if (type === 'connected') {
+      callAudio.playConnectedChime(settings.calls?.ringtoneVolume);
+    } else if (type === 'ended') {
+      callAudio.playEndedChime(settings.calls?.ringtoneVolume);
+    } else if (type === 'handRaise') {
+      callAudio.playHandRaisedChime(settings.calls?.ringtoneVolume);
+    }
+    setTimeout(() => {
+      setPreviewingChime((prev) => (prev === type ? null : prev));
+    }, 1200);
+  };
 
   const showFeedback = (msg: string) => {
     setFeedbackMessage(msg);
@@ -185,6 +229,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     { id: 'learning', label: 'Learning Preference', icon: BookOpen },
     { id: 'aiTutor', label: 'AI Tutor', icon: Bot },
     { id: 'chat', label: 'Chat', icon: MessageSquare },
+    { id: 'calls', label: 'Audio & Calls', icon: PhoneCall },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'privacy', label: 'Privacy', icon: Lock },
@@ -504,41 +549,453 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
           </div>
         );
 
-      case 'notifications':
+      case 'calls':
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Notifications</h3>
-             
-             <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-100 dark:border-amber-800/50 mb-6">
-                <div className="flex items-center gap-3 mb-2">
-                   <Bell className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                   <h4 className="font-bold text-amber-800 dark:text-amber-300 text-sm">System Permission Required</h4>
+             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700 pb-3">
+               <div>
+                 <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                   <PhoneCall className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                   Audio & Call Ringtones
+                 </h3>
+                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                   Customize incoming call ringtones, ringback tones, and sound alerts across all your devices.
+                 </p>
+               </div>
+               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 self-start sm:self-auto">
+                 <Check className="w-3.5 h-3.5" />
+                 Synced across all devices
+               </span>
+             </div>
+
+             {/* Ringtone Selection Cards */}
+             <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-sm font-bold text-slate-800 dark:text-white block">
+                      Incoming Call Ringtone
+                    </label>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      Choose the melody that plays during incoming 1-on-1 calls and study rooms.
+                    </span>
+                  </div>
+                  <span className="text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/40 px-2.5 py-1 rounded-lg border border-primary-200 dark:border-primary-800">
+                    Selected: {settings.calls?.ringtone || 'Modern Chime'}
+                  </span>
                 </div>
-                <p className="text-xs text-amber-700 dark:text-amber-400 mb-4 leading-relaxed">
-                   To receive study reminders and exam alerts, your browser must allow notifications. If you&apos;re not getting notifications, click the button below.
-                </p>
-                <button 
-                  onClick={async () => {
-                    if ("Notification" in window) {
-                      const permission = await Notification.requestPermission();
-                      alert(`Notification permission: ${permission}`);
-                      if (permission === 'granted') {
-                        new Notification("SJ Tutor AI", { body: "Notifications are now active!" });
-                      }
-                    }
-                  }}
-                  className="bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-300 px-4 py-2 rounded-lg text-xs font-bold border border-amber-200 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+                  {RINGTONE_STYLES.map((style) => {
+                    const isSelected = (settings.calls?.ringtone || 'Modern Chime') === style.id;
+                    const isPlaying = playingRingtoneId === style.id;
+
+                    return (
+                      <div
+                        key={style.id}
+                        onClick={() => {
+                          handleSettingChange('calls', 'ringtone', style.id);
+                          handlePreviewRingtone(style.id);
+                        }}
+                        className={`relative group p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between select-none ${
+                          isSelected
+                            ? 'bg-primary-50/60 dark:bg-primary-950/20 border-primary-500 shadow-sm ring-1 ring-primary-400/30'
+                            : 'bg-slate-50/70 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-100/60 dark:hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-lg" role="img" aria-label={style.name}>{style.icon}</span>
+                            <div className="flex items-center gap-1.5">
+                              {isPlaying && (
+                                <span className="flex items-end gap-0.5 h-3 px-1.5 py-0.5 bg-primary-100 dark:bg-primary-900/60 rounded">
+                                  <span className="w-1 bg-primary-600 dark:bg-primary-400 rounded-full animate-bounce [animation-delay:0ms] h-3"></span>
+                                  <span className="w-1 bg-primary-600 dark:bg-primary-400 rounded-full animate-bounce [animation-delay:150ms] h-2"></span>
+                                  <span className="w-1 bg-primary-600 dark:bg-primary-400 rounded-full animate-bounce [animation-delay:300ms] h-3.5"></span>
+                                </span>
+                              )}
+                              <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                isSelected
+                                  ? 'border-primary-600 bg-primary-600 text-white'
+                                  : 'border-slate-300 dark:border-slate-600'
+                              }`}>
+                                {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                              </span>
+                            </div>
+                          </div>
+
+                          <h4 className={`text-sm font-bold ${
+                            isSelected ? 'text-primary-900 dark:text-primary-200' : 'text-slate-800 dark:text-slate-200'
+                          }`}>
+                            {style.name}
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
+                            {style.description}
+                          </p>
+                        </div>
+
+                        <div className="pt-3 mt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePreviewRingtone(style.id);
+                            }}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                              isPlaying
+                                ? 'bg-primary-600 text-white shadow-sm'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {isPlaying ? (
+                              <>
+                                <Square className="w-3 h-3 fill-current" />
+                                Stop
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3 h-3 fill-current" />
+                                Preview
+                              </>
+                            )}
+                          </button>
+                          {isSelected && (
+                            <span className="text-[10px] font-bold text-primary-600 dark:text-primary-400 uppercase tracking-wider">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+             </div>
+
+             {/* Volume & Toggles */}
+             <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
+                {/* Volume Slider */}
+                <div className="space-y-3">
+                   <div className="flex items-center justify-between">
+                     <label className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                       {(settings.calls?.ringtoneVolume ?? 80) === 0 || !settings.calls?.enableSoundAlerts ? (
+                         <VolumeX className="w-4 h-4 text-slate-400" />
+                       ) : (settings.calls?.ringtoneVolume ?? 80) < 50 ? (
+                         <Volume1 className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                       ) : (
+                         <Volume2 className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                       )}
+                       Ringtone Volume
+                     </label>
+                     <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                       {settings.calls?.enableSoundAlerts ? `${settings.calls?.ringtoneVolume ?? 80}%` : 'Muted'}
+                     </span>
+                   </div>
+
+                   <div className="flex items-center gap-3">
+                     <VolumeX className="w-4 h-4 text-slate-400 shrink-0" />
+                     <input
+                       type="range"
+                       min="0"
+                       max="100"
+                       step="5"
+                       value={settings.calls?.ringtoneVolume ?? 80}
+                       onChange={(e) => {
+                         const val = Number(e.target.value);
+                         handleSettingChange('calls', 'ringtoneVolume', val);
+                       }}
+                       onMouseUp={() => {
+                         handlePreviewRingtone(settings.calls?.ringtone || 'Modern Chime');
+                       }}
+                       onTouchEnd={() => {
+                         handlePreviewRingtone(settings.calls?.ringtone || 'Modern Chime');
+                       }}
+                       className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                     />
+                     <Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-400 shrink-0" />
+                   </div>
+                </div>
+
+                <div className="border-t border-slate-100 dark:border-slate-700 pt-4 space-y-4">
+                   <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 block">
+                          Play Ringtone on Incoming Calls
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          Audible ringtone when someone calls you or invites you to a study room.
+                        </span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                         <input 
+                           type="checkbox" 
+                           checked={settings.calls?.enableSoundAlerts ?? true} 
+                           onChange={(e) => handleSettingChange('calls', 'enableSoundAlerts', e.target.checked)} 
+                           className="sr-only peer" 
+                         />
+                         <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                      </label>
+                   </div>
+
+                   <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 block">
+                          Vibrate on Incoming Calls
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          Triggers rhythmic vibration on supported mobile devices and tablets.
+                        </span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                         <input 
+                           type="checkbox" 
+                           checked={settings.calls?.vibrateOnCall ?? true} 
+                           onChange={(e) => handleSettingChange('calls', 'vibrateOnCall', e.target.checked)} 
+                           className="sr-only peer" 
+                         />
+                         <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                      </label>
+                   </div>
+                </div>
+             </div>
+
+             {/* Outgoing Ringback Style & Call Chimes */}
+             <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
+                <div>
+                   <label className="text-sm font-bold text-slate-800 dark:text-white block mb-1">
+                     Outgoing Ringback Style
+                   </label>
+                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                     The audio tone you hear in your headphones while waiting for the other person to answer.
+                   </p>
+                   <div className="grid grid-cols-3 gap-3">
+                     {(['Standard', 'Melodic', 'Subtle'] as const).map((style) => (
+                       <button
+                         key={style}
+                         type="button"
+                         onClick={() => {
+                           handleSettingChange('calls', 'ringbackStyle', style);
+                           callAudio.stopAll();
+                           callAudio.startOutgoingRingback();
+                           setTimeout(() => callAudio.stopAll(), 2400);
+                         }}
+                         className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all text-center ${
+                           (settings.calls?.ringbackStyle || 'Standard') === style
+                             ? 'bg-primary-50 dark:bg-primary-950/30 border-primary-500 text-primary-700 dark:text-primary-300 shadow-sm'
+                             : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                         }`}
+                       >
+                         {style}
+                       </button>
+                     ))}
+                   </div>
+                </div>
+
+                <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
+                   <label className="text-sm font-bold text-slate-800 dark:text-white block mb-1">
+                     Call Sound Effects & Audio Cues
+                   </label>
+                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                     Test the instant sound cues triggered during live call events.
+                   </p>
+                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                     <button
+                       type="button"
+                       onClick={() => handlePreviewChime('connected')}
+                       className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                         previewingChime === 'connected'
+                           ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                           : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                       }`}
+                     >
+                       <Zap className="w-3.5 h-3.5 text-emerald-500" />
+                       Call Connected
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => handlePreviewChime('ended')}
+                       className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                         previewingChime === 'ended'
+                           ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                           : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                       }`}
+                     >
+                       <Phone className="w-3.5 h-3.5 text-rose-500" />
+                       Call Ended
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => handlePreviewChime('handRaise')}
+                       className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                         previewingChime === 'handRaise'
+                           ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                           : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                       }`}
+                     >
+                       <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                       Hand Raised
+                     </button>
+                   </div>
+                </div>
+             </div>
+          </div>
+        );
+
+      case 'notifications': {
+        const currentPermission = typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default';
+
+        return (
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Notifications & Call Alerts</h3>
+             
+             {/* Call Ringtone Quick Access Card */}
+             <div className="bg-gradient-to-r from-primary-50 via-sky-50 to-indigo-50 dark:from-slate-800 dark:to-slate-850 p-4 sm:p-5 rounded-2xl border border-primary-200 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-primary-600 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-md">
+                    <PhoneCall className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-2">
+                      Incoming Call Ringtones & Sounds
+                      <span className="px-2 py-0.5 bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 text-[10px] font-extrabold rounded-full">Active</span>
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Selected Melody: <span className="font-semibold text-primary-600 dark:text-primary-400">{settings.calls?.ringtone || 'Modern Chime'}</span> • Volume: <span className="font-semibold text-slate-700 dark:text-slate-300">{settings.calls?.ringtoneVolume ?? 80}%</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('calls')}
+                  className="px-4 py-2 bg-white dark:bg-slate-700 hover:bg-primary-50 dark:hover:bg-slate-650 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-slate-600 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  Request Device Permission
+                  <Palette className="w-3.5 h-3.5" />
+                  <span>Customize Call Audio →</span>
                 </button>
              </div>
 
-             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
+             {/* Device Notification Status & Test Bench */}
+             <div className={`p-5 rounded-2xl border transition-all ${
+               currentPermission === 'granted'
+                 ? 'bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/40'
+                 : currentPermission === 'denied'
+                 ? 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/40'
+                 : 'bg-amber-50/70 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/40'
+             }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-3">
+                   <div className="flex items-center gap-3">
+                      {currentPermission === 'granted' ? (
+                        <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                          <CheckCircle2 className="w-5 h-5" />
+                        </div>
+                      ) : currentPermission === 'denied' ? (
+                        <div className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                          <AlertTriangle className="w-5 h-5" />
+                        </div>
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                          <Bell className="w-5 h-5" />
+                        </div>
+                      )}
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+                          Browser Notification Status:
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
+                            currentPermission === 'granted'
+                              ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300'
+                              : currentPermission === 'denied'
+                              ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'
+                              : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                          }`}>
+                            {currentPermission === 'granted' ? 'Allowed & Active ✅' : currentPermission === 'denied' ? 'Blocked in Browser 🚫' : 'Permission Required 🔔'}
+                          </span>
+                        </h4>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                          {currentPermission === 'granted'
+                            ? 'Your device is fully configured to receive instant incoming calls, peer study invites, and streak notifications.'
+                            : currentPermission === 'denied'
+                            ? 'Notifications are blocked in your browser site settings. Click the Lock icon in your browser address bar to set Notifications to "Allow".'
+                            : 'Grant permission so you never miss an incoming 1-on-1 audio/video call or study group lounge alert.'}
+                        </p>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                   {currentPermission !== 'granted' && (
+                     <button
+                       type="button"
+                       onClick={async () => {
+                         if ("Notification" in window) {
+                           const perm = await NotificationService.requestPermission();
+                           if (perm === 'granted') {
+                             showFeedback('Device Notifications Enabled! 🎉');
+                             NotificationService.showLocalNotification(
+                               "SJ Tutor AI Notifications Active 🔔",
+                               "You will now receive incoming call alerts and study updates.",
+                               "Important Alerts"
+                             );
+                           } else {
+                             showFeedback(`Permission state: ${perm}`);
+                           }
+                         }
+                       }}
+                       className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                     >
+                       <Bell className="w-4 h-4" />
+                       <span>Enable Browser Notifications</span>
+                     </button>
+                   )}
+
+                   {/* Test Live Call Notification Button */}
+                   <button
+                     type="button"
+                     onClick={async () => {
+                       if ("Notification" in window && Notification.permission !== 'granted') {
+                         await NotificationService.requestPermission();
+                       }
+                       showFeedback("Dispatching Test Incoming Call Notification... 📞");
+                       NotificationService.showIncomingCallNotification({
+                         id: `test_${Date.now()}`,
+                         callerName: "SJ Tutor AI Study Buddy",
+                         type: "audio",
+                         callerAvatar: "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg"
+                       });
+                       callAudio.previewRingtone(settings.calls?.ringtone || 'Modern Chime', settings.calls?.ringtoneVolume);
+                     }}
+                     className="px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-800 dark:text-white border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                   >
+                     <PhoneCall className="w-4 h-4 text-emerald-500" />
+                     <span>Test Incoming Call Alert 📞</span>
+                   </button>
+
+                   {/* Test General Notification Button */}
+                   <button
+                     type="button"
+                     onClick={async () => {
+                       if ("Notification" in window && Notification.permission !== 'granted') {
+                         await NotificationService.requestPermission();
+                       }
+                       showFeedback("Test notification dispatched 🔔");
+                       NotificationService.showLocalNotification(
+                         "Test Study Reminder 📚",
+                         "Keep your 4-day learning streak alive on SJ Tutor AI!",
+                         "Daily Streak Reminders"
+                       );
+                     }}
+                     className="px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                   >
+                     <Zap className="w-4 h-4 text-amber-500" />
+                     <span>Test General Alert 🔔</span>
+                   </button>
+                </div>
+             </div>
+
+             <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
+                <h4 className="text-sm font-bold text-slate-800 dark:text-white">Notification Categories & Preferences</h4>
                 {[
-                  { id: 'studyReminders', label: 'Daily Study Reminders', desc: 'Get reminded to hit your daily goals.' },
-                  { id: 'examAlerts', label: 'Exam & Test Alerts', desc: 'Notifications for upcoming scheduled exams.' },
-                  { id: 'aiTips', label: 'AI Study Tips', desc: 'Receive personalized tips from your AI tutor.' },
-                  { id: 'push', label: 'Push Notifications', desc: 'Enable notifications on this device.' },
+                  { id: 'studyReminders', label: 'Daily Study Reminders', desc: 'Get reminded to hit your daily study targets and maintain streaks.' },
+                  { id: 'examAlerts', label: 'Exam & Test Alerts', desc: 'Alerts for upcoming scheduled tests and practice series.' },
+                  { id: 'aiTips', label: 'AI Study Tips', desc: 'Receive personalized insights from your AI tutor.' },
+                  { id: 'push', label: 'Push Notifications', desc: 'Enable native push notification delivery on this device.' },
                 ].map((item) => (
                   <div key={item.id} className="flex items-center justify-between">
                      <div>
@@ -559,6 +1016,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
              </div>
           </div>
         );
+      }
 
       case 'appearance':
         return (

@@ -22,6 +22,7 @@ export const SettingsService = {
           notifications: { ...DEFAULT_SETTINGS.notifications, ...parsed.notifications },
           appearance: { ...DEFAULT_SETTINGS.appearance, ...parsed.appearance },
           privacy: { ...DEFAULT_SETTINGS.privacy, ...parsed.privacy },
+          calls: { ...DEFAULT_SETTINGS.calls, ...parsed.calls },
         };
       }
     } catch (e) {
@@ -56,6 +57,7 @@ export const SettingsService = {
         notifications: { ...current.notifications, ...(partialSettings.notifications || {}) },
         appearance: { ...current.appearance, ...(partialSettings.appearance || {}) },
         privacy: { ...current.privacy, ...(partialSettings.privacy || {}) },
+        calls: { ...current.calls, ...(partialSettings.calls || {}) },
       };
       SettingsService.saveSettings(updated);
       window.dispatchEvent(new Event('settings-changed'));
