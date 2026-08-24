@@ -445,6 +445,10 @@ export interface DirectCall {
   answer?: { type: string; sdp: string };
   callerCandidates?: any[];
   receiverCandidates?: any[];
+  callerMuted?: boolean;
+  receiverMuted?: boolean;
+  callerVideoOff?: boolean;
+  receiverVideoOff?: boolean;
   connectedAt?: number;
   endedAt?: number;
   duration?: number;

@@ -964,6 +964,23 @@ export async function addDirectCallIceCandidate(callId: string, isCaller: boolea
   }
 }
 
+export async function updateDirectCallMedia(
+  callId: string,
+  media: {
+    callerMuted?: boolean;
+    receiverMuted?: boolean;
+    callerVideoOff?: boolean;
+    receiverVideoOff?: boolean;
+  }
+) {
+  try {
+    const callRef = doc(db, "calls", callId);
+    await updateDoc(callRef, media);
+  } catch (e) {
+    console.warn("Failed to update direct call media state:", e);
+  }
+}
+
 export function subscribeToDirectCall(callId: string, onUpdate: (call: DirectCall | null) => void): () => void {
   const callRef = doc(db, "calls", callId);
   return onSnapshot(callRef, (snapshot) => {

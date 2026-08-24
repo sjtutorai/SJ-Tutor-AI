@@ -17,6 +17,7 @@ import {
   leaveGroupCall,
   endGroupCallForGroup,
   updateGroupCallParticipantMedia,
+  updateDirectCallMedia,
   setDirectCallOffer,
   addDirectCallIceCandidate,
   subscribeToDirectCall,
@@ -179,7 +180,7 @@ const ParticipantTile: React.FC<{
             }}
             autoPlay
             playsInline
-            muted={isMe ? true : (isSpeakerMuted || Boolean(participant.isMuted))}
+            muted={true}
             onLoadedMetadata={(e) => {
               (e.target as HTMLVideoElement).play().catch(() => {});
             }}
@@ -594,16 +595,26 @@ export const CallModal: React.FC<CallModalProps> = ({
       if (remoteAudioRef.current.srcObject !== remoteStream) {
         remoteAudioRef.current.srcObject = remoteStream;
       }
-      remoteAudioRef.current.muted = isSpeakerMuted;
-      remoteAudioRef.current
-        .play()
-        .then(() => setIsAudioAutoplayBlocked(false))
-        .catch((err) => {
-          console.warn("Autoplay audio blocked by browser policy, will unlock on click:", err);
-          setIsAudioAutoplayBlocked(true);
-        });
+      const isOtherPersonMuted = liveDirectCall
+        ? (liveDirectCall.callerId === currentUser.uid
+            ? Boolean(liveDirectCall.receiverMuted)
+            : Boolean(liveDirectCall.callerMuted))
+        : false;
+      const shouldMute = isSpeakerMuted || isOtherPersonMuted;
+      remoteAudioRef.current.muted = shouldMute;
+      if (!shouldMute) {
+        remoteAudioRef.current
+          .play()
+          .then(() => setIsAudioAutoplayBlocked(false))
+          .catch((err) => {
+            console.warn("Autoplay audio blocked by browser policy, will unlock on click:", err);
+            setIsAudioAutoplayBlocked(true);
+          });
+      } else {
+        remoteAudioRef.current.pause();
+      }
     }
-  }, [remoteStream, isSpeakerMuted]);
+  }, [remoteStream, isSpeakerMuted, liveDirectCall?.callerMuted, liveDirectCall?.receiverMuted]);
 
   // ----------------------------------------------------
   // WebRTC Peer Connection (1-on-1)
@@ -1005,7 +1016,15 @@ export const CallModal: React.FC<CallModalProps> = ({
       groupMeshRef.current.toggleMic(nextMuted);
     }
 
-    // 4. Immediately update Group Call participant state in Firestore
+    // 4. Immediately update Direct Call state in Firestore
+    if (liveDirectCall) {
+      const isCaller = liveDirectCall.callerId === currentUser.uid;
+      updateDirectCallMedia(liveDirectCall.id, {
+        [isCaller ? "callerMuted" : "receiverMuted"]: nextMuted,
+      });
+    }
+
+    // 5. Immediately update Group Call participant state in Firestore
     if (liveGroupCall) {
       updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
         isMuted: nextMuted,
@@ -1358,6 +1377,8 @@ export const CallModal: React.FC<CallModalProps> = ({
     const isCaller = liveDirectCall.callerId === currentUser.uid;
     const otherPersonName = isCaller ? liveDirectCall.receiverName : liveDirectCall.callerName;
     const otherPersonAvatar = isCaller ? liveDirectCall.receiverAvatar : liveDirectCall.callerAvatar;
+    const isOtherPersonMuted = isCaller ? Boolean(liveDirectCall.receiverMuted) : Boolean(liveDirectCall.callerMuted);
+    const shouldMuteRemoteAudio = isSpeakerMuted || isOtherPersonMuted;
     const isConnecting = liveDirectCall.status === "ringing";
 
     // Minimized Floating Widget
@@ -1370,12 +1391,16 @@ export const CallModal: React.FC<CallModalProps> = ({
               remoteAudioRef.current = el;
               if (el && remoteStream) {
                 if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
-                el.muted = isSpeakerMuted;
-                el.play().catch(() => setIsAudioAutoplayBlocked(true));
+                el.muted = shouldMuteRemoteAudio;
+                if (!shouldMuteRemoteAudio) {
+                  el.play().catch(() => setIsAudioAutoplayBlocked(true));
+                } else {
+                  el.pause();
+                }
               }
             }}
             autoPlay
-            muted={isSpeakerMuted}
+            muted={shouldMuteRemoteAudio}
             className="absolute inset-0 opacity-0 pointer-events-none w-0 h-0"
           />
           <div className="relative">
@@ -1386,13 +1411,16 @@ export const CallModal: React.FC<CallModalProps> = ({
                 (otherPersonName?.charAt(0) || 'U').toUpperCase()
               )}
             </div>
-            {remoteAudioLevel > 15 && (
+            {!shouldMuteRemoteAudio && remoteAudioLevel > 15 && (
               <span className="absolute -inset-1 rounded-xl border-2 border-emerald-400 animate-ping pointer-events-none" />
             )}
           </div>
 
           <div>
-            <p className="text-xs font-bold text-slate-200 truncate max-w-[110px]">{otherPersonName}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs font-bold text-slate-200 truncate max-w-[110px]">{otherPersonName}</p>
+              {isOtherPersonMuted && <MicOff className="w-3 h-3 text-rose-400" title="Microphone muted" />}
+            </div>
             <p className="text-[10px] font-mono text-emerald-400">{formatSeconds(callDuration)}</p>
           </div>
 
@@ -1433,12 +1461,16 @@ export const CallModal: React.FC<CallModalProps> = ({
             remoteAudioRef.current = el;
             if (el && remoteStream) {
               if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
-              el.muted = isSpeakerMuted;
-              el.play().catch(() => setIsAudioAutoplayBlocked(true));
+              el.muted = shouldMuteRemoteAudio;
+              if (!shouldMuteRemoteAudio) {
+                el.play().catch(() => setIsAudioAutoplayBlocked(true));
+              } else {
+                el.pause();
+              }
             }
           }}
           autoPlay
-          muted={isSpeakerMuted}
+          muted={shouldMuteRemoteAudio}
           className="absolute inset-0 opacity-0 pointer-events-none w-0 h-0"
         />
 
@@ -1467,6 +1499,11 @@ export const CallModal: React.FC<CallModalProps> = ({
               <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
                 {otherPersonName}
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                {isOtherPersonMuted && (
+                  <span className="px-1.5 py-0.5 bg-rose-500/20 border border-rose-500/30 text-rose-400 text-[10px] font-bold rounded flex items-center gap-1">
+                    <MicOff className="w-2.5 h-2.5" /> Mic Muted
+                  </span>
+                )}
               </h3>
               <p className="text-xs font-mono text-emerald-400 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -1501,7 +1538,7 @@ export const CallModal: React.FC<CallModalProps> = ({
                 }}
                 autoPlay
                 playsInline
-                muted={isSpeakerMuted}
+                muted={true}
                 onLoadedMetadata={(e) => {
                   (e.target as HTMLVideoElement).play().catch(() => {});
                 }}
@@ -1511,7 +1548,7 @@ export const CallModal: React.FC<CallModalProps> = ({
           ) : (
             <div className="text-center relative">
               {/* Outer Ambient Audio Ripples */}
-              {!isSpeakerMuted && remoteAudioLevel > 10 && (
+              {!shouldMuteRemoteAudio && remoteAudioLevel > 10 && (
                 <div
                   className="absolute inset-0 -m-8 rounded-full border-2 border-emerald-500/40 animate-ping pointer-events-none"
                   style={{ animationDuration: "1.5s" }}
@@ -1524,9 +1561,16 @@ export const CallModal: React.FC<CallModalProps> = ({
                   (otherPersonName?.charAt(0) || 'U').toUpperCase()
                 )}
               </div>
-              <h2 className="text-xl sm:text-2xl font-bold text-white mt-4">{otherPersonName}</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-white mt-4 flex items-center justify-center gap-2">
+                {otherPersonName}
+                {isOtherPersonMuted && (
+                  <span className="p-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30" title="User is muted">
+                    <MicOff className="w-4 h-4" />
+                  </span>
+                )}
+              </h2>
               <p className="text-xs text-slate-400 mt-1 font-medium">
-                {isConnecting ? "Waiting for answer..." : "End-to-End Encrypted Live Study Call"}
+                {isConnecting ? "Waiting for answer..." : isOtherPersonMuted ? "Remote participant microphone is muted" : "End-to-End Encrypted Live Study Call"}
               </p>
             </div>
           )}
