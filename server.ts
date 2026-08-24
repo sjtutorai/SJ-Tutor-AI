@@ -3,6 +3,7 @@ import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
+import { pushNotificationService } from "./server/services/pushNotificationService";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -187,18 +188,95 @@ app.post("/api/generate-image", async (req, res, next) => {
   }
 });
 
+// Push Notification Subscription Endpoints
+app.get("/api/push/vapid-public-key", (req, res) => {
+  try {
+    const publicKey = pushNotificationService.getPublicKey();
+    res.json({ success: true, publicKey });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/push/subscribe", (req, res) => {
+  try {
+    const { userId, subscription, userAgent } = req.body;
+    if (!userId || !subscription) {
+      return res.status(400).json({ success: false, error: "userId and subscription are required" });
+    }
+    const saved = pushNotificationService.saveSubscription(userId, subscription, userAgent);
+    res.json({ success: saved });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/push/unsubscribe", (req, res) => {
+  try {
+    const { endpoint, userId } = req.body;
+    if (endpoint) {
+      pushNotificationService.removeSubscription(endpoint, userId);
+    }
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Send general push notification
+app.post("/api/notifications/push", async (req, res) => {
+  try {
+    const { targetUserId = "all", title, body, category, url } = req.body;
+    const result = await pushNotificationService.sendGeneralPushNotification(targetUserId, {
+      title,
+      body,
+      category,
+      url,
+    });
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Call notification dispatch endpoint
 app.post("/api/calls/notify", async (req, res) => {
   try {
-    const { callId, callerId, callerName, receiverId, receiverName, type } = req.body;
+    const { callId, callerId, callerName, callerAvatar, receiverId, receiverName, type = "audio" } = req.body;
     console.log(`[CALL NOTIFY API] Incoming ${type} call from ${callerName} (${callerId}) to ${receiverName} (${receiverId}), callId: ${callId}`);
+
+    // Trigger high-priority Web Push to receiver's background devices
+    let pushResult = { sentCount: 0, failureCount: 0 };
+    if (receiverId) {
+      pushResult = await pushNotificationService.sendCallPushNotification(receiverId, {
+        callId,
+        callerId,
+        callerName: callerName || "A Scholar",
+        callerAvatar,
+        type: type === "video" ? "video" : "audio",
+      });
+    }
+
     res.json({ 
       success: true, 
       callId, 
+      sentCount: pushResult.sentCount,
+      failureCount: pushResult.failureCount,
       message: "Call notification broadcasted successfully" 
     });
   } catch (err: any) {
     console.error("[CALL NOTIFY API Error]:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Call decline endpoint (called from background Service Worker notification button)
+app.post("/api/calls/decline", async (req, res) => {
+  try {
+    const { callId } = req.body;
+    console.log(`[CALL DECLINE API] Call declined via background notification: ${callId}`);
+    res.json({ success: true, callId });
+  } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });

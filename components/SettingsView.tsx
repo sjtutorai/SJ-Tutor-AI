@@ -897,7 +897,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                       )}
                       <div>
                         <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
-                          Browser Notification Status:
+                          Browser & Background Call Push:
                           <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
                             currentPermission === 'granted'
                               ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300'
@@ -905,15 +905,15 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                               ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'
                               : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
                           }`}>
-                            {currentPermission === 'granted' ? 'Allowed & Active ✅' : currentPermission === 'denied' ? 'Blocked in Browser 🚫' : 'Permission Required 🔔'}
+                            {currentPermission === 'granted' ? 'Background Calls Active 📞✅' : currentPermission === 'denied' ? 'Blocked in Browser 🚫' : 'Permission Required 🔔'}
                           </span>
                         </h4>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">
                           {currentPermission === 'granted'
-                            ? 'Your device is fully configured to receive instant incoming calls, peer study invites, and streak notifications.'
+                            ? 'Your device is configured to receive incoming voice & video calls in the background with interactive Accept & Decline buttons, even when this tab is closed or you are away from the website.'
                             : currentPermission === 'denied'
-                            ? 'Notifications are blocked in your browser site settings. Click the Lock icon in your browser address bar to set Notifications to "Allow".'
-                            : 'Grant permission so you never miss an incoming 1-on-1 audio/video call or study group lounge alert.'}
+                            ? 'Notifications are blocked in your browser site settings. Click the Lock icon in your browser address bar to set Notifications to "Allow" to receive background calls.'
+                            : 'Grant permission to receive background voice/video call rings and peer study lounge alerts even when you are not visiting the website.'}
                         </p>
                       </div>
                    </div>

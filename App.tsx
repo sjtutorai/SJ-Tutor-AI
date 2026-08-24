@@ -837,6 +837,20 @@ const App: React.FC = () => {
           setActiveDirectCall(incomingDirectCall);
           setIncomingDirectCall(null);
           NotificationService.dismissCallNotification(callId);
+        } else {
+          // Cold-start fallback: Fetch directly from Firestore doc
+          getDoc(doc(db, "calls", callId)).then((callSnap) => {
+            if (callSnap.exists()) {
+              const data = callSnap.data() as DirectCall;
+              if (data.status === "ringing" || data.status === "connected") {
+                setActiveDirectCall(data);
+                setIncomingDirectCall(null);
+                NotificationService.dismissCallNotification(callId);
+              }
+            }
+          }).catch((err) => {
+            console.warn("Failed to load cold-start call doc:", err);
+          });
         }
         // Clean URL search query
         window.history.replaceState({}, document.title, window.location.pathname);

@@ -283,12 +283,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Track auth state & register service worker
+  // Track auth state & register service worker + push subscriptions
   useEffect(() => {
     NotificationService.registerServiceWorker().catch(() => {});
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
+      if (user && Notification.permission === 'granted') {
+        NotificationService.registerPushSubscription(user.uid).catch(() => {});
+        setupFCM(user).catch(() => {});
+      }
     });
     return unsubscribe;
   }, []);
@@ -536,6 +540,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           'You will now receive incoming call alerts with Accept/Decline actions even when away from the app.'
         );
         if (currentUser) {
+          NotificationService.registerPushSubscription(currentUser.uid).catch(() => {});
           setupFCM(currentUser);
         }
         return true;

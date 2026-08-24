@@ -587,6 +587,8 @@ export const ICE_SERVERS: RTCConfiguration = {
     { urls: "stun:stun2.l.google.com:19302" },
     { urls: "stun:stun3.l.google.com:19302" },
     { urls: "stun:stun4.l.google.com:19302" },
+    { urls: "stun:global.stun.twilio.com:3478" },
+    { urls: "stun:stun.relay.metered.ca:80" },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -1338,9 +1340,14 @@ export class GroupMeshManager {
 
       // Add or update track in peer's remote stream
       if (event.track) {
+        event.track.enabled = true;
         const existingTrack = rStream.getTracks().find((t) => t.kind === event.track.kind);
         if (existingTrack && existingTrack.id !== event.track.id) {
-          rStream.removeTrack(existingTrack);
+          try {
+            rStream.removeTrack(existingTrack);
+          } catch (e) {
+            console.debug("Track removal notice:", e);
+          }
         }
         if (!rStream.getTracks().some((t) => t.id === event.track.id)) {
           rStream.addTrack(event.track);

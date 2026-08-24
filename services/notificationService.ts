@@ -7,11 +7,25 @@ import {
   where, 
   orderBy, 
   addDoc, 
+  setDoc,
   updateDoc, 
   serverTimestamp,
   deleteDoc
 } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
 
 export interface AppNotification {
   id: string;
@@ -144,9 +158,9 @@ export function sanitizeAppNotification(raw: any, defaultId?: string): AppNotifi
 
 export class NotificationService {
   /**
-   * Request browser push notification permissions and register service worker.
+   * Request browser push notification permissions and register service worker + push subscription.
    */
-  static async requestPermission(): Promise<NotificationPermission> {
+  static async requestPermission(userId?: string | null): Promise<NotificationPermission> {
     if (!('Notification' in window)) {
       console.warn('This browser does not support system notifications.');
       return 'denied';
@@ -154,9 +168,104 @@ export class NotificationService {
 
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      await this.registerServiceWorker();
+      const reg = await this.registerServiceWorker();
+      const currentUid = userId || auth.currentUser?.uid;
+      if (currentUid && reg) {
+        await this.registerPushSubscription(currentUid, reg).catch((e) => {
+          console.warn('Background push subscription registration notice:', e);
+        });
+      }
     }
     return permission;
+  }
+
+  /**
+   * Subscribe device to background Web Push for incoming calls even when not on the website.
+   */
+  static async registerPushSubscription(
+    userId: string, 
+    existingReg?: ServiceWorkerRegistration
+  ): Promise<PushSubscription | null> {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return null;
+    }
+
+    if (Notification.permission !== 'granted') {
+      return null;
+    }
+
+    try {
+      let registration = existingReg || await navigator.serviceWorker.getRegistration('/sw.js');
+      if (!registration) {
+        registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      }
+      await navigator.serviceWorker.ready;
+
+      // 1. Fetch server VAPID public key
+      let vapidPublicKey = '';
+      try {
+        const res = await fetch('/api/push/vapid-public-key');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.publicKey) {
+            vapidPublicKey = data.publicKey;
+          }
+        }
+      } catch (err) {
+        console.warn('Error fetching VAPID public key:', err);
+      }
+
+      if (!vapidPublicKey) {
+        console.warn('No VAPID key available for Web Push.');
+        return null;
+      }
+
+      // 2. Check existing subscription or subscribe new
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey as any,
+        });
+      }
+
+      if (subscription) {
+        const subJson = subscription.toJSON();
+        
+        // 3. Register with backend server
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            subscription: subJson,
+            userAgent: navigator.userAgent,
+          }),
+        }).catch((err) => console.warn('Server push subscription sync notice:', err));
+
+        // 4. Also backup in Firestore for durable cloud state
+        try {
+          const endpointHash = btoa(subscription.endpoint.slice(-40)).replace(/[/+=]/g, '_');
+          const subDocRef = doc(db, `users/${userId}/pushSubscriptions`, endpointHash);
+          await setDoc(subDocRef, {
+            endpoint: subscription.endpoint,
+            keys: subJson.keys || {},
+            userAgent: navigator.userAgent,
+            updatedAt: Date.now(),
+          }, { merge: true });
+        } catch (dbErr) {
+          console.warn('Firestore push subscription store notice:', dbErr);
+        }
+
+        console.log('[NotificationService] Web Push successfully registered for background calls on user:', userId);
+        return subscription;
+      }
+      return null;
+    } catch (error) {
+      console.warn('[NotificationService] Failed to register push subscription:', error);
+      return null;
+    }
   }
 
   /**
