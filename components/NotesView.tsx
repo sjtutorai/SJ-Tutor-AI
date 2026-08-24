@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { NoteItem, ReminderItem, TimetableEntry, NoteStatus, NoteTemplate, UserProfile } from '../types';
+import { NoteItem, ReminderItem, TimetableEntry, NoteStatus, NoteTemplate, UserProfile, DifficultyLevel } from '../types';
 import { 
   Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, 
   StickyNote, Bell, Edit3, Loader2, Folder, 
   ChevronRight, Star, Tag, Book, Lightbulb, Languages,
-  CheckCircle2, Circle, Download, Mic, Square, Radio
+  CheckCircle2, Circle, Download, Mic, MicOff, Square, Radio,
+  BookOpen, GraduationCap, School, User, BookType, BarChart, Zap, Crown, FileText, AlertCircle
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 import { SettingsService } from '../services/settingsService';
@@ -15,7 +16,7 @@ import { ExportModal } from './ExportModal';
 import Logo from './Logo';
 import { saveNotesToFirestore, getNotesFromFirestore } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
-import { blobToDataUrl, transcribeAudioViaAI, requestMicrophoneStream } from '../services/audioService';
+import { blobToDataUrl, transcribeAudioViaAI, requestMicrophoneStream, VoiceDictationSession } from '../services/audioService';
 
 interface NotesViewProps {
   userId: string | null;
@@ -28,9 +29,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   const [activeTab, setActiveTab] = useState<'NOTES' | 'REMINDERS' | 'TIMETABLE'>('NOTES');
   const [viewMode, setViewMode] = useState<'FOLDERS' | 'LIST' | 'EDITOR' | 'AI_GENERATOR'>('FOLDERS');
   
-  const userClass = userProfile?.grade || "10th";
-  const userBoard = userProfile?.board || "CBSE (Central Board of Secondary Education)";
-  
   // States
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -39,13 +37,19 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // AI Notes Generator Form States
+  // AI Notes Generator Form States (Matching Quiz Generator layout)
   const [subjectInput, setSubjectInput] = useState('Science');
+  const [classGradeInput, setClassGradeInput] = useState(userProfile?.grade || '10th Grade');
+  const [boardInput, setBoardInput] = useState(userProfile?.board || 'CBSE');
   const [languageInput, setLanguageInput] = useState('English');
   const [chapterNameInput, setChapterNameInput] = useState('');
   const [authorInput, setAuthorInput] = useState('');
   const [maxCharactersInput, setMaxCharactersInput] = useState(5000);
+  const [difficultyInput, setDifficultyInput] = useState<DifficultyLevel>('Medium');
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
+  const [isListeningChapter, setIsListeningChapter] = useState(false);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const chapterVoiceSessionRef = useRef<VoiceDictationSession | null>(null);
   
   // Reminders/Timetable (Existing Logic Preserved)
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
@@ -194,6 +198,77 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     triggerToast('Note Deleted 🗑️', `"${noteToDelete?.title || 'Note'}" has been deleted.`, 'Important Alerts');
   };
 
+  const handleFillSample = () => {
+    setSubjectInput('Science');
+    setClassGradeInput(userProfile?.grade || '10th Grade');
+    setBoardInput(userProfile?.board || 'CBSE');
+    setLanguageInput('English');
+    setChapterNameInput('Chemical Reactions and Equations');
+    setAuthorInput('NCERT');
+    setMaxCharactersInput(5000);
+    setDifficultyInput('Medium');
+  };
+
+  const toggleChapterVoice = async () => {
+    if (isListeningChapter) {
+      if (chapterVoiceSessionRef.current) {
+        try {
+          const finalVal = await chapterVoiceSessionRef.current.stop();
+          if (finalVal) {
+            setChapterNameInput((prev) => {
+              const trimmed = finalVal.trim();
+              if (!prev.toLowerCase().includes(trimmed.toLowerCase())) {
+                return prev ? `${prev} ${trimmed}` : trimmed;
+              }
+              return prev;
+            });
+          }
+        } catch (e) {
+          console.warn('Chapter voice stop error:', e);
+        }
+        chapterVoiceSessionRef.current = null;
+      }
+      setIsListeningChapter(false);
+    } else {
+      setVoiceNotice(null);
+      try {
+        const session = new VoiceDictationSession({
+          language: languageInput || 'English',
+          onInterim: (text) => {
+            setChapterNameInput((prev) => {
+              if (!prev.toLowerCase().includes(text.toLowerCase())) {
+                return prev ? `${prev} ${text}` : text;
+              }
+              return prev;
+            });
+          },
+          onFinal: (text) => {
+            setChapterNameInput((prev) => {
+              if (!prev.toLowerCase().includes(text.toLowerCase())) {
+                return prev ? `${prev} ${text}` : text;
+              }
+              return prev;
+            });
+          },
+          onError: (err) => {
+            setVoiceNotice(err);
+            setIsListeningChapter(false);
+          },
+          onRecordingStateChange: (rec) => {
+            setIsListeningChapter(rec);
+          }
+        });
+        chapterVoiceSessionRef.current = session;
+        await session.start();
+        setIsListeningChapter(true);
+      } catch (err: any) {
+        console.error('Failed to start chapter dictation:', err);
+        setVoiceNotice(err.message || 'Microphone access is unavailable.');
+        setIsListeningChapter(false);
+      }
+    }
+  };
+
   const handleGenerateAiNotesSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subjectInput || !languageInput || !chapterNameInput) {
@@ -209,8 +284,8 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
 
     setIsGeneratingNotes(true);
     try {
-      const classGrade = userProfile?.grade || "10th";
-      const board = userProfile?.board || "CBSE (Central Board of Secondary Education)";
+      const classGrade = classGradeInput || userProfile?.grade || "10th";
+      const board = boardInput || userProfile?.board || "CBSE";
 
       const content = await GeminiService.generateAiNotes({
         classGrade,
@@ -219,7 +294,8 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
         language: languageInput,
         chapterName: chapterNameInput,
         author: authorInput || undefined,
-        maxCharacters: maxCharactersInput
+        maxCharacters: maxCharactersInput,
+        difficulty: difficultyInput,
       });
 
       if (content) {
@@ -776,143 +852,239 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
             )}
 
             {viewMode === 'AI_GENERATOR' && (
-              <div className="space-y-6 max-w-2xl mx-auto animate-in zoom-in-95 duration-300">
+              <div className="space-y-4 max-w-4xl mx-auto animate-in zoom-in-95 duration-300">
                 <button 
                   onClick={() => setViewMode('FOLDERS')}
-                  className="flex items-center text-sm font-bold text-slate-500 hover:text-primary-600 mb-2"
+                  className="flex items-center text-sm font-bold text-slate-500 hover:text-primary-600 mb-1 transition-colors"
                 >
-                  <ChevronRight className="w-4 h-4 rotate-180" /> Back to Notes
+                  <ChevronRight className="w-4 h-4 rotate-180 mr-1" /> Back to Notes
                 </button>
                 
-                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden p-8">
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-12 h-12 bg-gradient-to-tr from-violet-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-md shadow-indigo-500/10">
-                      <Sparkles className="w-6 h-6 text-amber-300 fill-amber-300/20" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-800 dark:text-white">SJ Tutor AI Notes Generator</h2>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Generate high-quality, syllabus-aligned exam notes instantly.</p>
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-5 relative overflow-hidden">
+                  {/* Background decoration */}
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-primary-50 dark:bg-primary-950/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+
+                  {/* Header Row */}
+                  <div className="flex justify-between items-center mb-5 relative z-10">
+                    <h2 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                      Study Details
+                    </h2>
+
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wide bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-100 dark:border-amber-900/30">
+                        <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
+                        Cost: 5 Credits
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={handleFillSample}
+                        className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/30 dark:text-primary-300 dark:hover:bg-primary-900/40 border border-primary-100 dark:border-primary-800 rounded-full transition-all hover:scale-105 active:scale-95 uppercase tracking-wide"
+                      >
+                        <Sparkles className="w-3 h-3 fill-primary-400 text-primary-600 dark:text-primary-400" />
+                        Try Example
+                      </button>
                     </div>
                   </div>
 
-                  {/* Student Profile Info Banner - Read-only */}
-                  <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-900/30 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="text-sm font-bold text-slate-800 dark:text-white">Class: <span className="text-primary-600 dark:text-primary-400">{userClass}</span></span>
-                      <span className="text-primary-300 dark:text-primary-700">•</span>
-                      <span className="text-sm font-bold text-slate-800 dark:text-white truncate max-w-[240px]" title={userBoard}>Board: <span className="text-primary-600 dark:text-primary-400">{userBoard}</span></span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSubjectInput('Science');
-                        setLanguageInput('English');
-                        setChapterNameInput('Chemical Reactions and Equations');
-                        setAuthorInput('');
-                        setMaxCharactersInput(3000);
-                      }}
-                      className="px-4 py-1.5 bg-primary-100 hover:bg-primary-200 text-primary-700 dark:bg-primary-900/40 dark:hover:bg-primary-800/60 dark:text-primary-300 rounded-xl text-xs font-bold border border-primary-200 dark:border-primary-800 shadow-sm transition-all whitespace-nowrap flex items-center gap-1.5"
-                    >
-                      <Sparkles className="w-3 h-3" /> Try Example
-                    </button>
-                  </div>
-
-                  <form onSubmit={handleGenerateAiNotesSubmit} className="space-y-5">
-                    {/* Subject Input */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex justify-between">
-                        <span>Subject <span className="text-red-500">*</span></span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={subjectInput}
-                        onChange={(e) => setSubjectInput(e.target.value)}
-                        placeholder="e.g. Science, Mathematics, History, Economics"
-                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none dark:text-white font-medium"
-                      />
-                    </div>
-
-                    {/* Language Input */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Language <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={languageInput}
-                        onChange={(e) => setLanguageInput(e.target.value)}
-                        placeholder="e.g. English, Hindi, Spanish, French"
-                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none dark:text-white font-medium"
-                      />
-                    </div>
-
-                    {/* Chapter Name Input */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                        Chapter Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={chapterNameInput}
-                        onChange={(e) => setChapterNameInput(e.target.value)}
-                        placeholder="e.g. Chemical Reactions and Equations"
-                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none dark:text-white font-medium"
-                      />
-                    </div>
-
-                    {/* Author/Poet Input */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex justify-between">
-                        <span>Author / Poet <span className="text-slate-400 font-normal">(Optional)</span></span>
-                      </label>
-                      <input
-                        type="text"
-                        value={authorInput}
-                        onChange={(e) => setAuthorInput(e.target.value)}
-                        placeholder="e.g. Shakespeare, Rabindranath Tagore, Robert Frost"
-                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none dark:text-white"
-                      />
-                    </div>
-
-                    {/* Max Characters Input */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider">
-                        <span className="text-slate-500 dark:text-slate-400">Maximum Characters <span className="text-red-500">*</span></span>
-                        <span className="text-indigo-600 dark:text-indigo-400 font-mono">{maxCharactersInput.toLocaleString()} characters</span>
+                  <form onSubmit={handleGenerateAiNotesSubmit}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-4 mb-4 relative z-10">
+                      {/* Subject */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Subject</label>
+                        <div className="relative">
+                          <BookType className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                          <input
+                            type="text"
+                            required
+                            value={subjectInput}
+                            onChange={(e) => setSubjectInput(e.target.value)}
+                            disabled={isGeneratingNotes}
+                            placeholder="e.g. Science"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 dark:text-white text-sm"
+                          />
+                        </div>
                       </div>
-                      <input
-                        type="range"
-                        min="1000"
-                        max="12000"
-                        step="500"
-                        value={maxCharactersInput}
-                        onChange={(e) => setMaxCharactersInput(Number(e.target.value))}
-                        className="w-full accent-indigo-600 cursor-pointer"
-                      />
-                      <div className="flex justify-between text-[10px] text-slate-400 font-bold">
-                        <span>1,000 (Quick Summary)</span>
-                        <span>12,000 (Very Detailed)</span>
+
+                      {/* Class / Grade */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                          <span>Class / Grade</span>
+                          {userProfile?.grade && (
+                            <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Profile Set
+                            </span>
+                          )}
+                        </label>
+                        <div className="relative">
+                          <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                          <input
+                            type="text"
+                            required
+                            value={classGradeInput}
+                            onChange={(e) => setClassGradeInput(e.target.value)}
+                            disabled={isGeneratingNotes}
+                            placeholder="e.g. 10th Grade"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 dark:text-white text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Board */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Board</label>
+                        <div className="relative">
+                          <School className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                          <input
+                            type="text"
+                            required
+                            value={boardInput}
+                            onChange={(e) => setBoardInput(e.target.value)}
+                            disabled={isGeneratingNotes}
+                            placeholder="e.g. CBSE"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 dark:text-white text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Language */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Language</label>
+                        <div className="relative">
+                          <Languages className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                          <input
+                            type="text"
+                            required
+                            value={languageInput}
+                            onChange={(e) => setLanguageInput(e.target.value)}
+                            disabled={isGeneratingNotes}
+                            placeholder="e.g. English"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 dark:text-white text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Chapter Name with Dictate button */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Chapter Name</label>
+                          <button
+                            type="button"
+                            onClick={toggleChapterVoice}
+                            disabled={isGeneratingNotes}
+                            className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded transition-all ${
+                              isListeningChapter
+                                ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 animate-pulse'
+                                : 'bg-primary-50 dark:bg-primary-950/40 hover:bg-primary-100 dark:hover:bg-primary-900/60 text-primary-700 dark:text-primary-300'
+                            }`}
+                          >
+                            {isListeningChapter ? <MicOff className="w-2.5 h-2.5" /> : <Mic className="w-2.5 h-2.5" />}
+                            {isListeningChapter ? 'LISTENING...' : 'DICTATE'}
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <BookOpen className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                          <input
+                            type="text"
+                            required
+                            value={chapterNameInput}
+                            onChange={(e) => setChapterNameInput(e.target.value)}
+                            disabled={isGeneratingNotes}
+                            placeholder="e.g. Chemical Reactions and Equations"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 dark:text-white text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Author (Optional) */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Author (Optional)</label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                          <input
+                            type="text"
+                            value={authorInput}
+                            onChange={(e) => setAuthorInput(e.target.value)}
+                            disabled={isGeneratingNotes}
+                            placeholder="e.g. NCERT"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 dark:text-white text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* No. of Characters (replacing No. of Questions) */}
+                      <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">No. of Characters</label>
+                        <div className="relative">
+                          <FileText className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                          <input
+                            type="number"
+                            value={maxCharactersInput || ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              setMaxCharactersInput(isNaN(val) ? 0 : val);
+                            }}
+                            disabled={isGeneratingNotes}
+                            min="500"
+                            max="20000"
+                            step="500"
+                            placeholder="e.g. 5000"
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 dark:text-white text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Difficulty */}
+                      <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Difficulty</label>
+                        <div className="relative">
+                          <BarChart className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                          <select
+                            value={difficultyInput}
+                            onChange={(e) => setDifficultyInput(e.target.value as DifficultyLevel)}
+                            disabled={isGeneratingNotes}
+                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 appearance-none text-slate-900 dark:text-white text-sm"
+                          >
+                            <option value="Easy">Easy (Quick Revision)</option>
+                            <option value="Medium">Medium (Standard Notes)</option>
+                            <option value="Hard">Hard (In-Depth / Exam Prep)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Helper Tip */}
+                      <div className="col-span-full mt-1">
+                        <p className="text-[10px] text-slate-400 dark:text-slate-400 flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-amber-500" />
+                          Tip: Customize <span className="font-bold text-primary-600 dark:text-primary-400">No. of Characters</span> (e.g. 5,000) and <span className="font-bold text-primary-600 dark:text-primary-400">Difficulty</span> for syllabus-aligned revision notes!
+                        </p>
                       </div>
                     </div>
 
-                    {/* Generate Button */}
+                    {/* Voice Dictation Status Notice if active */}
+                    {voiceNotice && (
+                      <div className="mb-4 p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span>{voiceNotice}</span>
+                      </div>
+                    )}
+
+                    {/* Submit button */}
                     <button
                       type="submit"
                       disabled={isGeneratingNotes}
-                      className="w-full py-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20 disabled:opacity-75 transition-all mt-4"
+                      className="w-full py-3.5 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-75 disabled:transform-none mt-2"
                     >
                       {isGeneratingNotes ? (
                         <>
-                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <Loader2 className="w-4 h-4 animate-spin" />
                           <span>Generating Syllabus-Aligned Notes...</span>
                         </>
                       ) : (
                         <>
-                          <Sparkles className="w-5 h-5 text-amber-300 fill-amber-300/20" />
-                          <span>Generate Notes (Cost: 5 Credits)</span>
+                          <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" />
+                          <span>Generate AI Notes (Cost: 5 Credits)</span>
                         </>
                       )}
                     </button>

@@ -1411,24 +1411,28 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
               <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-slate-300">Basic Explorer</h3>
-                  <span className="text-[10px] text-slate-500 uppercase block mt-1 tracking-wider">Free account study credentials</span>
+                  <span className="text-[10px] text-emerald-400 font-bold uppercase block mt-1 tracking-wider">10-Day Free Trial + 100 Free Credits</span>
                 </div>
 
                 <div className="flex items-baseline gap-1 text-white">
                   <span className="text-4xl font-extrabold font-mono">₹0</span>
-                  <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">/ Month</span>
+                  <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">/ Free Tier</span>
                 </div>
 
-                <p className="text-xs text-slate-400">Great for fundamental study assistance and standard chapter summaries.</p>
+                <p className="text-xs text-slate-400">10-day full unlimited access, plus 100 Free Credits awarded automatically after trial ends.</p>
 
                 <ul className="space-y-3.5 pt-6 border-t border-slate-900">
                   <li className="flex items-center gap-3 text-xs text-slate-300">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Limited daily AI Questions</span>
+                    <span>10 Days of Unlimited AI Study Access</span>
                   </li>
                   <li className="flex items-center gap-3 text-xs text-slate-300">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Basic Learning Tools (Summaries)</span>
+                    <span>100 Free Credits Post-Trial Balance</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-xs text-slate-300">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>AI Tutor, Summaries & Quizzes</span>
                   </li>
                   <li className="flex items-center gap-3 text-xs text-slate-500 line-through">
                     <span>Advanced Interactive Graphs</span>

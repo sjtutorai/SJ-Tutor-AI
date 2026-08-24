@@ -840,30 +840,46 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                    <Crown className="w-32 h-32 rotate-12" />
                 </div>
-                <div className="relative z-10">
-                   <div className="flex items-center gap-3 mb-2">
-                      <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm"><Crown className="w-5 h-5 text-amber-400" /></div>
-                      <span className="font-bold text-amber-400 tracking-wider text-sm uppercase">Current Plan</span>
-                   </div>
-                   <h2 className="text-3xl font-bold mb-1">10-Day Free Trial</h2>
-                   <p className="text-slate-400 text-sm mb-6">Complete free unlimited access to all AI models and interactive study tools for 10 days.</p>
-                   
-                   <div className="flex items-center justify-between bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/5">
-                      <div>
-                         <p className="text-xs text-slate-400 mb-1">Available Credits</p>
-                         <p className="text-2xl font-bold flex items-center gap-2">
-                            <Zap className="w-5 h-5 text-emerald-400 fill-emerald-400 animate-pulse" />
-                            Unlimited
-                         </p>
-                      </div>
-                      <button 
-                         
-                         className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-lg text-xs font-black uppercase tracking-wider select-none"
-                      >
-                         Free Pass Active
-                      </button>
-                   </div>
-                </div>
+                {(() => {
+                   const trialInfo = calculateTrialInfo(userProfile, auth.currentUser?.uid);
+                   const isTrialActive = !trialInfo.isExpired && (!userProfile.planType || userProfile.planType === 'Free');
+                   const isPro = Boolean(userProfile.planType && userProfile.planType !== 'Free');
+
+                   return (
+                     <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2">
+                           <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm"><Crown className="w-5 h-5 text-amber-400" /></div>
+                           <span className="font-bold text-amber-400 tracking-wider text-sm uppercase">Current Plan</span>
+                        </div>
+                        <h2 className="text-3xl font-bold mb-1">
+                           {isPro ? `${userProfile.planType} Plan` : isTrialActive ? '10-Day Free Trial' : 'Free Tier (100 Credits)'}
+                        </h2>
+                        <p className="text-slate-400 text-sm mb-6">
+                           {isPro 
+                             ? 'Unlimited access to all AI models and advanced learning tools.' 
+                             : isTrialActive 
+                             ? 'Complete free unlimited access to all AI models for 10 days, followed by 100 Free Credits.' 
+                             : 'You have 100 Free Credits to study and generate notes. Upgrade for unlimited access.'}
+                        </p>
+                        
+                        <div className="flex items-center justify-between bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/5">
+                           <div>
+                              <p className="text-xs text-slate-400 mb-1">Available Credits</p>
+                              <p className="text-2xl font-bold flex items-center gap-2">
+                                 <Zap className="w-5 h-5 text-emerald-400 fill-emerald-400 animate-pulse" />
+                                 {isPro || isTrialActive ? "Unlimited" : `${userProfile.credits ?? 100} Credits`}
+                              </p>
+                           </div>
+                           <button 
+                              onClick={onOpenPremium}
+                              className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-lg text-xs font-black uppercase tracking-wider hover:bg-emerald-500/20 transition cursor-pointer"
+                           >
+                              {isPro ? "Active Plan" : isTrialActive ? "Trial Active" : "Upgrade Plan"}
+                           </button>
+                        </div>
+                     </div>
+                   );
+                })()}
              </div>
 
              {/* Permanent Premium Options Invitation */}
@@ -871,10 +887,10 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                 <div className="text-left font-sans">
                    <h4 className="font-extrabold text-slate-800 dark:text-white flex items-center gap-2 text-sm">
                       <Crown className="w-5 h-5 text-amber-500 fill-amber-500 animate-bounce" />
-                      Buy Lifetime Premium Upgrades
+                      Upgrade to Premium
                    </h4>
-                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed animate-pulse">
-                      Our free trial pass is fully active for 10 days! Want standard permanent lifetime credits or unlimited packs? Select our lifetime packages anytime.
+                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      Enjoy unlimited AI tutor credits, exam prep packs, and real-time WebRTC study tools with our lifetime packages starting at ₹99.
                    </p>
                 </div>
                 <button

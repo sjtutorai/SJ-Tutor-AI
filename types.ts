@@ -36,6 +36,7 @@ export interface StudyRequestData {
   chapterName: string;
   author?: string;
   questionCount?: number;
+  maxCharacters?: number;
   difficulty?: DifficultyLevel;
   homeworkQuery?: string;
 }
@@ -180,6 +181,7 @@ export const INITIAL_FORM_DATA: StudyRequestData = {
   chapterName: '',
   author: '',
   questionCount: 5,
+  maxCharacters: 5000,
   difficulty: 'Medium',
 };
 

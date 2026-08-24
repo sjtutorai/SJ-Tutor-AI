@@ -152,17 +152,17 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onPaymentSuccess, 
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
-                      {trial.isExpired ? '10-Day Trial Expired' : '10-Day Free Trial Active'}
+                      {trial.isExpired ? '10-Day Trial Concluded' : '10-Day Free Trial Active'}
                     </span>
                     <span className="text-xs font-mono font-extrabold text-white">
-                      {trial.isExpired ? 'Trial Finished' : `${trial.days}d ${trial.hours}h ${trial.minutes}m ${trial.seconds}s Remaining`}
+                      {trial.isExpired ? '100 Free Credits Active on Free Tier' : `${trial.days}d ${trial.hours}h ${trial.minutes}m ${trial.seconds}s Remaining`}
                     </span>
                   </div>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] font-bold text-slate-300 block">Status</span>
                   <span className="text-[11px] font-extrabold text-amber-300">
-                    {trial.isExpired ? 'Free Tier' : 'Full Access'}
+                    {trial.isExpired ? '100 Credits' : 'Full Access'}
                   </span>
                 </div>
               </div>

@@ -23,6 +23,8 @@ export const createUserProfile = async (user: User) => {
       streak: 0,
       totalStudyTime: 0,
       points: 0,
+      credits: 100,
+      planType: "Free",
       trialStartDate: Date.now(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -86,6 +88,8 @@ export const getCurrentUserProfile = async (user: User) => {
         console.error("Error updating user login info in Firestore:", updateError);
       }
       return {
+        credits: 100,
+        planType: "Free",
         ...data,
         trialStartDate,
         uid: user.uid,
@@ -109,6 +113,8 @@ export const getCurrentUserProfile = async (user: User) => {
       displayName: user.displayName || "",
       email: user.email || "",
       photoURL: user.photoURL || "",
+      credits: 100,
+      planType: "Free",
       hasCompletedOnboarding: false,
       role: "student",
     };

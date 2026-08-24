@@ -507,6 +507,56 @@ const InputForm: React.FC<InputFormProps> = ({
           </>
         )}
 
+        {/* Summary / AI Notes Specific Options */}
+        {mode === AppMode.SUMMARY && (
+          <>
+            <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">No. of Characters</label>
+              <div className="relative">
+                <FileText className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                <input
+                  type="number"
+                  value={data.maxCharacters || 5000}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    onChange('maxCharacters', isNaN(val) ? 0 : val);
+                  }}
+                  disabled={disabled}
+                  min="500"
+                  max="20000"
+                  step="500"
+                  placeholder="e.g. 5000"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Difficulty</label>
+              <div className="relative">
+                <BarChart className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                <select
+                  value={data.difficulty || 'Medium'}
+                  onChange={(e) => onChange('difficulty', e.target.value as DifficultyLevel)}
+                  disabled={disabled}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 appearance-none text-slate-900 text-sm"
+                >
+                  <option value="Easy">Easy (Quick Revision)</option>
+                  <option value="Medium">Medium (Standard Notes)</option>
+                  <option value="Hard">Hard (In-Depth / Exam Prep)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="col-span-full mt-1">
+              <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                <Zap className="w-3 h-3 text-amber-500" />
+                Tip: Customize <span className="font-bold text-primary-600">No. of Characters</span> (e.g. 5,000) and <span className="font-bold text-primary-600">Difficulty</span> for syllabus-aligned study notes!
+              </p>
+            </div>
+          </>
+        )}
+
         {/* Quiz Specific Options */}
         {mode === AppMode.QUIZ && (
           <>

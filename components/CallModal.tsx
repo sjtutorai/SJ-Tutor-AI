@@ -100,10 +100,12 @@ const ParticipantTile: React.FC<{
   const hasLiveVideoTrack = Boolean(
     stream &&
     stream.getVideoTracks().length > 0 &&
-    stream.getVideoTracks().some((t) => t.enabled && t.readyState === "live")
+    stream.getVideoTracks().some((t) => t.enabled && t.readyState !== "ended")
   );
 
-  const showVideo = isMe ? (!isVideoOff && hasLiveVideoTrack) : (!participant.isVideoOff && hasLiveVideoTrack);
+  const showVideo = isMe
+    ? (!isVideoOff && hasLiveVideoTrack)
+    : (!participant.isVideoOff && (hasLiveVideoTrack || Boolean(remoteStream)));
 
   // Attach video stream to videoRef
   useEffect(() => {
@@ -113,7 +115,7 @@ const ParticipantTile: React.FC<{
       }
       videoRef.current.play().catch(() => {});
     }
-  }, [stream, showVideo]);
+  }, [stream, showVideo, isVideoOff, participant.isVideoOff]);
 
   // For remote members: attach audio stream and strictly respect mute states
   useEffect(() => {
@@ -156,8 +158,17 @@ const ParticipantTile: React.FC<{
             autoPlay
             playsInline
             muted={isMe}
+            onLoadedMetadata={(e) => {
+              (e.target as HTMLVideoElement).play().catch(() => {});
+            }}
             className={`w-full h-full object-cover rounded-2xl ${isMe && cameraFacing === "user" ? "scale-x-[-1]" : ""}`}
           />
+          {/* Live HD camera indicator tag */}
+          <div className="absolute top-2.5 left-2.5 px-2 py-0.5 bg-emerald-500/85 backdrop-blur-md rounded-lg text-white text-[10px] font-extrabold flex items-center gap-1 z-10 shadow">
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            <span>CAMERA ON</span>
+          </div>
+
           {isMe && onFlipCamera && (
             <button
               onClick={onFlipCamera}
@@ -856,68 +867,118 @@ export const CallModal: React.FC<CallModalProps> = ({
     }
 
     const currentVideoTracks = localStream.getVideoTracks();
-    if (currentVideoTracks.length > 0) {
-      const nextVideoOff = !isVideoOff;
-      setIsVideoOff(nextVideoOff);
+    const hasActiveLiveTrack = currentVideoTracks.some((t) => t.readyState !== "ended");
+
+    if (isVideoOff) {
+      // Turning ON Camera
+      if (currentVideoTracks.length > 0 && hasActiveLiveTrack) {
+        currentVideoTracks.forEach((track) => {
+          track.enabled = true;
+        });
+        const updatedStream = new MediaStream(localStream.getTracks());
+        setLocalStream(updatedStream);
+        setIsVideoOff(false);
+
+        if (peerConnRef.current) {
+          peerConnRef.current.getSenders().forEach((sender) => {
+            if (sender.track && sender.track.kind === "video") {
+              sender.track.enabled = true;
+            }
+          });
+        }
+
+        if (groupMeshRef.current) {
+          groupMeshRef.current.setLocalStream(updatedStream);
+          groupMeshRef.current.toggleVideo(false);
+        }
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = updatedStream;
+          localVideoRef.current.play().catch(() => {});
+        }
+
+        if (liveGroupCall) {
+          updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
+            isVideoOff: false,
+          });
+        }
+      } else {
+        // No active video track in localStream -> acquire fresh camera track
+        try {
+          const newVideoTrack = await getVideoMediaTrack(cameraFacing);
+          if (newVideoTrack) {
+            // Remove any old ended video tracks
+            currentVideoTracks.forEach((oldTrack) => {
+              try {
+                oldTrack.stop();
+                localStream.removeTrack(oldTrack);
+              } catch (e) {
+                console.debug("Could not remove old track:", e);
+              }
+            });
+
+            localStream.addTrack(newVideoTrack);
+            const updatedStream = new MediaStream(localStream.getTracks());
+            setLocalStream(updatedStream);
+            setIsVideoOff(false);
+
+            if (peerConnRef.current) {
+              const pc = peerConnRef.current;
+              const videoSender = pc.getSenders().find(
+                (s) => s.track?.kind === "video" || (!s.track && (s as any).dtlsTransport)
+              );
+              if (videoSender) {
+                await videoSender.replaceTrack(newVideoTrack);
+              } else {
+                pc.addTrack(newVideoTrack, updatedStream);
+              }
+            }
+
+            if (groupMeshRef.current) {
+              groupMeshRef.current.setLocalStream(updatedStream);
+              await groupMeshRef.current.addOrReplaceVideoTrack(newVideoTrack);
+              groupMeshRef.current.toggleVideo(false);
+            }
+
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = updatedStream;
+              localVideoRef.current.play().catch(() => {});
+            }
+
+            if (liveGroupCall) {
+              updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
+                isVideoOff: false,
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Failed to acquire video track on camera toggle:", err);
+          triggerToast?.("Camera Error", "Could not turn on camera. Check browser permissions.", "Important Alerts");
+        }
+      }
+    } else {
+      // Turning OFF Camera
+      setIsVideoOff(true);
       currentVideoTracks.forEach((track) => {
-        track.enabled = !nextVideoOff;
+        track.enabled = false;
       });
 
       if (peerConnRef.current) {
         peerConnRef.current.getSenders().forEach((sender) => {
           if (sender.track && sender.track.kind === "video") {
-            sender.track.enabled = !nextVideoOff;
+            sender.track.enabled = false;
           }
         });
       }
 
       if (groupMeshRef.current) {
-        groupMeshRef.current.toggleVideo(nextVideoOff);
+        groupMeshRef.current.toggleVideo(true);
       }
 
       if (liveGroupCall) {
         updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
-          isVideoOff: nextVideoOff,
+          isVideoOff: true,
         });
-      }
-    } else {
-      // No video track in localStream yet (e.g. started as audio-only call) -> Request new video track from camera!
-      try {
-        const newVideoTrack = await getVideoMediaTrack(cameraFacing);
-        if (newVideoTrack) {
-          localStream.addTrack(newVideoTrack);
-          setIsVideoOff(false);
-
-          if (peerConnRef.current) {
-            const pc = peerConnRef.current;
-            const videoSender = pc.getSenders().find(
-              (s) => s.track?.kind === "video" || (!s.track && (s as any).dtlsTransport)
-            );
-            if (videoSender) {
-              await videoSender.replaceTrack(newVideoTrack);
-            } else {
-              pc.addTrack(newVideoTrack, localStream);
-            }
-          }
-
-          if (groupMeshRef.current) {
-            await groupMeshRef.current.addOrReplaceVideoTrack(newVideoTrack);
-            groupMeshRef.current.toggleVideo(false);
-          }
-
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = localStream;
-          }
-
-          if (liveGroupCall) {
-            updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
-              isVideoOff: false,
-            });
-          }
-        }
-      } catch (err) {
-        console.error("Failed to acquire video track on camera toggle:", err);
-        triggerToast?.("Camera Error", "Could not turn on camera. Check browser permissions.", "Important Alerts");
       }
     }
   };
@@ -985,11 +1046,17 @@ export const CallModal: React.FC<CallModalProps> = ({
       if (newVideoTrack && localStream) {
         // Stop and remove old video tracks
         localStream.getVideoTracks().forEach((oldTrack) => {
-          oldTrack.stop();
-          localStream.removeTrack(oldTrack);
+          try {
+            oldTrack.stop();
+            localStream.removeTrack(oldTrack);
+          } catch (e) {
+            console.debug("Could not remove old track on flip:", e);
+          }
         });
 
         localStream.addTrack(newVideoTrack);
+        const updatedStream = new MediaStream(localStream.getTracks());
+        setLocalStream(updatedStream);
         setIsVideoOff(false);
 
         if (peerConnRef.current) {
@@ -998,16 +1065,26 @@ export const CallModal: React.FC<CallModalProps> = ({
           );
           if (videoSender) {
             await videoSender.replaceTrack(newVideoTrack);
+          } else {
+            peerConnRef.current.addTrack(newVideoTrack, updatedStream);
           }
         }
 
         if (groupMeshRef.current) {
+          groupMeshRef.current.setLocalStream(updatedStream);
           await groupMeshRef.current.addOrReplaceVideoTrack(newVideoTrack);
           groupMeshRef.current.toggleVideo(false);
         }
 
         if (localVideoRef.current) {
-          localVideoRef.current.srcObject = localStream;
+          localVideoRef.current.srcObject = updatedStream;
+          localVideoRef.current.play().catch(() => {});
+        }
+
+        if (liveGroupCall) {
+          updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
+            isVideoOff: false,
+          });
         }
       }
     } catch (e) {

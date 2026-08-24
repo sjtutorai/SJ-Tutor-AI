@@ -93,6 +93,7 @@ export const GeminiService = {
     chapterName: string;
     author?: string;
     maxCharacters: number;
+    difficulty?: DifficultyLevel;
   }) => {
     const ai = getAI();
     
@@ -107,12 +108,13 @@ Generate notes based on:
 * Chapter: **${params.chapterName}**
 * Author/Poet: **${params.author || 'None'}** (Optional)
 * Maximum Characters: **${params.maxCharacters}**
+* Depth / Difficulty Level: **${params.difficulty || 'Medium'}**
 
 ### Requirements
 1. Follow the syllabus of **${params.board}** for **Class ${params.classGrade}**.
 2. Write entirely in the selected language: ${params.language}.
 3. Never exceed the specified character limit: ${params.maxCharacters} characters.
-4. Keep the notes simple, student-friendly, and exam-oriented.
+4. Keep the notes simple, student-friendly, and exam-oriented with ${params.difficulty || 'Medium'} depth.
 5. Use clear Markdown headings.
 6. Include only relevant information.
 7. If an author/poet is provided, include a brief introduction.
@@ -173,26 +175,38 @@ Generate notes based on:
     const ai = getAI();
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
+    const maxChars = data.maxCharacters || 5000;
+    const difficulty = data.difficulty || 'Medium';
 
     const prompt = `
-      Create a comprehensive, structured summary for the following study material.
-      THE ENTIRE SUMMARY MUST BE WRITTEN IN ${language.toUpperCase()}.
+      Create a comprehensive, syllabus-aligned, and structured study notes & summary for the following:
+      THE ENTIRE NOTES/SUMMARY MUST BE WRITTEN IN ${language.toUpperCase()}.
       
       Subject: ${data.subject}
       Class/Grade: ${data.gradeClass || settings.learning.grade}
       Education Board: ${data.board}
       Language: ${language}
-      Chapter Name: ${data.chapterName}
-      ${data.author ? `Author: ${data.author}` : ''}
+      Chapter/Topic: ${data.chapterName}
+      ${data.author ? `Author/Poet: ${data.author}` : ''}
+      Depth & Difficulty Level: ${difficulty}
+      Target Character Limit: Approximately ${maxChars} characters (do not exceed ${maxChars + 500} characters).
       
       Style Preference: ${settings.aiTutor.explanationStyle}
+
+      Please format the study notes cleanly with Markdown:
+      # ${data.chapterName}
+      ## Overview
+      ## Key Concepts & Theory
+      ## Important Definitions & Formulas
+      ## Step-by-Step Explanations & Examples
+      ## Quick Revision Summary & Key Takeaways
     `;
 
     const response = await ai.models.generateContentStream({
       model: 'gemini-3.5-flash',
       contents: prompt,
       config: {
-        systemInstruction: `You are an expert academic tutor. Personality: ${settings.aiTutor.personality}. You generate content only in ${language}.`,
+        systemInstruction: `You are an expert academic tutor and notes creator. Personality: ${settings.aiTutor.personality}. You generate high quality, structured syllabus-aligned notes only in ${language}.`,
       }
     });
 

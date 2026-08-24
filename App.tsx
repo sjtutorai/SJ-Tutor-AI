@@ -1212,9 +1212,37 @@ const App: React.FC = () => {
       } else {
         setShowCompletionReminder(false);
       }
-
-          }
+    }
   }, [user]);
+
+  // Monitor trial expiration and ensure post-trial 100 credits are awarded
+  useEffect(() => {
+    if (!user) return;
+    const trialInfo = calculateTrialInfo(userProfile, user.uid);
+    if (trialInfo.isExpired && (!userProfile.planType || userProfile.planType === "Free")) {
+      const grantKey = `post_trial_credits_granted_${user.uid}`;
+      const alreadyAwarded = localStorage.getItem(grantKey) === "true";
+      if (!alreadyAwarded) {
+        localStorage.setItem(grantKey, "true");
+        const currentCredits = typeof userProfile.credits === "number" ? userProfile.credits : 0;
+        const newCredits = Math.max(100, currentCredits);
+        const updated = {
+          ...userProfile,
+          credits: newCredits,
+        };
+        setUserProfile(updated);
+        localStorage.setItem(`profile_${user.uid}`, JSON.stringify(updated));
+        saveProfileToFirestore(user.uid, updated);
+
+        sendNotificationRef.current(
+          "100 Free Credits Awarded 🎁",
+          "Your 10-day unlimited trial has concluded. We've credited 100 free study credits to your account so you can continue learning!",
+          "Important Alerts",
+          user.uid
+        ).catch((e) => console.warn("Failed to send trial expiration notification:", e));
+      }
+    }
+  }, [userProfile.trialStartDate, user, userProfile.planType]);
 
   // History Persistence and Database Synchronization
   useEffect(() => {

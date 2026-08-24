@@ -825,6 +825,7 @@ export class GroupMeshManager {
   private currentUid: string;
   private localStream: MediaStream | null = null;
   private peerConnections = new Map<string, RTCPeerConnection>();
+  private remoteStreams = new Map<string, MediaStream>();
   private pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
   private unsubscribeSignals: (() => void) | null = null;
   private onRemoteTrackCallback: (peerUid: string, stream: MediaStream) => void;
@@ -877,6 +878,7 @@ export class GroupMeshManager {
       if (!peerUids.includes(peerUid)) {
         pc.close();
         this.peerConnections.delete(peerUid);
+        this.remoteStreams.delete(peerUid);
         if (this.audioMeters.has(peerUid)) {
           this.audioMeters.get(peerUid)!();
           this.audioMeters.delete(peerUid);
@@ -905,30 +907,69 @@ export class GroupMeshManager {
     // Add local tracks
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => {
-        pc.addTrack(track, this.localStream!);
+        try {
+          pc.addTrack(track, this.localStream!);
+        } catch (err) {
+          console.debug("Could not add initial track:", err);
+        }
       });
     }
 
-    // Always add video transceiver if no video track present yet so video can be added anytime
-    const hasVideo = this.localStream && this.localStream.getVideoTracks().length > 0;
+    // Always add video and audio transceivers if not present so any member can toggle camera at any time
+    const senders = pc.getSenders();
+    const hasAudio = senders.some((s) => s.track?.kind === "audio");
+    const hasVideo = senders.some((s) => s.track?.kind === "video");
+
+    if (!hasAudio && pc.addTransceiver) {
+      try {
+        pc.addTransceiver("audio", { direction: "sendrecv" });
+      } catch (e) {
+        console.debug("Audio transceiver init:", e);
+      }
+    }
+
     if (!hasVideo && pc.addTransceiver) {
       try {
         pc.addTransceiver("video", { direction: "sendrecv" });
       } catch (e) {
-        console.debug("Video transceiver fallback in mesh:", e);
+        console.debug("Video transceiver init:", e);
       }
     }
 
     pc.ontrack = (event) => {
-      const [incomingStream] = event.streams;
-      const stream = incomingStream || new MediaStream([event.track]);
-      this.onRemoteTrackCallback(peerUid, stream);
+      let rStream = this.remoteStreams.get(peerUid);
+      if (!rStream) {
+        const [incomingStream] = event.streams;
+        rStream = incomingStream ? new MediaStream(incomingStream.getTracks()) : new MediaStream();
+        this.remoteStreams.set(peerUid, rStream);
+      }
+
+      // Add or update track in peer's remote stream
+      if (event.track) {
+        const existingTrack = rStream.getTracks().find((t) => t.kind === event.track.kind);
+        if (existingTrack && existingTrack.id !== event.track.id) {
+          rStream.removeTrack(existingTrack);
+        }
+        if (!rStream.getTracks().some((t) => t.id === event.track.id)) {
+          rStream.addTrack(event.track);
+        }
+
+        // Listen for unmuting or track activation
+        event.track.onunmute = () => {
+          const updatedStream = new MediaStream(rStream!.getTracks());
+          this.remoteStreams.set(peerUid, updatedStream);
+          this.onRemoteTrackCallback(peerUid, updatedStream);
+        };
+      }
+
+      const streamSnapshot = new MediaStream(rStream.getTracks());
+      this.onRemoteTrackCallback(peerUid, streamSnapshot);
 
       if (this.onRemoteAudioLevelCallback) {
         if (this.audioMeters.has(peerUid)) {
           this.audioMeters.get(peerUid)!();
         }
-        const stopMeter = createAudioLevelMeter(stream, (level) => {
+        const stopMeter = createAudioLevelMeter(streamSnapshot, (level) => {
           this.onRemoteAudioLevelCallback?.(peerUid, level);
         });
         this.audioMeters.set(peerUid, stopMeter);
@@ -950,7 +991,7 @@ export class GroupMeshManager {
     return pc;
   }
 
-  private async createOfferForPeer(peerUid: string) {
+  async createOfferForPeer(peerUid: string) {
     try {
       const pc = this.getOrCreatePeerConnection(peerUid);
       const offer = await pc.createOffer({
@@ -999,7 +1040,7 @@ export class GroupMeshManager {
         });
       } else if (signal.type === "answer" && signal.sdp) {
         const pc = this.peerConnections.get(peerUid);
-        if (pc && !pc.currentRemoteDescription) {
+        if (pc && pc.signalingState === "have-local-offer") {
           await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
 
           if (this.pendingCandidates.has(peerUid)) {
@@ -1041,6 +1082,11 @@ export class GroupMeshManager {
   }
 
   toggleVideo(isVideoOff: boolean) {
+    if (this.localStream) {
+      this.localStream.getVideoTracks().forEach((track) => {
+        track.enabled = !isVideoOff;
+      });
+    }
     this.peerConnections.forEach((pc) => {
       pc.getSenders().forEach((sender) => {
         if (sender.track && sender.track.kind === "video") {
@@ -1058,11 +1104,9 @@ export class GroupMeshManager {
         await videoSender.replaceTrack(videoTrack);
       } else {
         pc.addTrack(videoTrack, this.localStream || new MediaStream([videoTrack]));
-        // Re-offer if initiator
-        if (this.currentUid > peerUid) {
-          await this.createOfferForPeer(peerUid);
-        }
       }
+      // Trigger renegotiation offer so remote peer immediately receives and renders the video stream
+      await this.createOfferForPeer(peerUid);
     }
   }
 
@@ -1075,6 +1119,7 @@ export class GroupMeshManager {
     this.audioMeters.clear();
     this.peerConnections.forEach((pc) => pc.close());
     this.peerConnections.clear();
+    this.remoteStreams.clear();
     this.pendingCandidates.clear();
   }
 }

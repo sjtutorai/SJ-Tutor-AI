@@ -50,6 +50,35 @@ function ensureCanonicalLink(href: string) {
   el.setAttribute('href', href);
 }
 
+function ensureFaviconLinks() {
+  const favicons = [
+    { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+    { rel: 'shortcut icon', type: 'image/x-icon', href: '/favicon.ico' },
+    { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+    { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
+    { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
+    { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon-48x48.png' },
+    { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/favicon-192x192.png' },
+    { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/favicon-512x512.png' },
+    { rel: 'icon', type: 'image/png', href: '/favicon.png' },
+    { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+  ];
+
+  favicons.forEach(({ rel, type, href, sizes }) => {
+    let selector = `link[rel="${rel}"][href="${href}"]`;
+    if (sizes) selector += `[sizes="${sizes}"]`;
+    let el = document.querySelector(selector) as HTMLLinkElement | null;
+    if (!el) {
+      el = document.createElement('link');
+      el.setAttribute('rel', rel);
+      if (type) el.setAttribute('type', type);
+      if (sizes) el.setAttribute('sizes', sizes);
+      el.setAttribute('href', href);
+      document.head.appendChild(el);
+    }
+  });
+}
+
 function updateStructuredData(canonicalUrl: string, title: string, description: string) {
   let scriptEl = document.querySelector('script[type="application/ld+json"]') as HTMLScriptElement | null;
   if (!scriptEl) {
@@ -177,6 +206,9 @@ export const SEOService = {
 
       // 7. Structured Data (JSON-LD)
       updateStructuredData(canonicalUrl, title, description);
+
+      // 8. Ensure Favicon Links are maintained
+      ensureFaviconLinks();
     } catch (err) {
       console.warn('[SEO Engine] Error updating page SEO:', err);
     }

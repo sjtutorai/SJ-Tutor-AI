@@ -114,16 +114,16 @@ export const TrialHeaderBadge: React.FC<TrialHeaderBadgeProps> = ({
         onClick={() => setShowModal(true)}
         className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm border ${
           trial.isExpired
-            ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20'
+            ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
             : trial.days <= 2
             ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 animate-pulse'
             : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
         }`}
-        title="View 10-Day Free Trial Countdown"
+        title="View 10-Day Free Trial & 100 Credits Status"
       >
         <Clock className="w-3.5 h-3.5 animate-spin-slow" />
         <span className="font-mono font-extrabold">
-          {trial.isExpired ? 'Trial Expired' : `${trial.formattedTime} Trial`}
+          {trial.isExpired ? '100 Credits (Free Tier)' : `${trial.formattedTime} Trial`}
         </span>
       </button>
 
@@ -145,12 +145,12 @@ export const TrialHeaderBadge: React.FC<TrialHeaderBadgeProps> = ({
               </div>
 
               <h3 className="text-2xl font-black tracking-tight mb-1">
-                {trial.isExpired ? 'Trial Period Ended' : 'Free Trial Status'}
+                {trial.isExpired ? '10-Day Trial Finished' : 'Free Trial Status'}
               </h3>
               <p className="text-xs text-slate-300">
                 {trial.isExpired
-                  ? 'Upgrade now to continue unlimited AI study tools.'
-                  : 'Enjoy complete access to all AI features for 10 days.'}
+                  ? 'You have 100 Free Credits active on your Free Tier! Upgrade anytime for unlimited access.'
+                  : 'Enjoy unlimited access to all AI features for 10 days, followed by 100 Free Credits.'}
               </p>
 
               {/* Countdown Grid */}
@@ -202,20 +202,24 @@ export const TrialHeaderBadge: React.FC<TrialHeaderBadgeProps> = ({
               <div className="space-y-2 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800 text-xs">
                 <p className="font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
                   <Zap className="w-4 h-4 text-amber-500" />
-                  Included in your 10-day trial:
+                  Your 10-Day Trial & Free Tier Benefits:
                 </p>
                 <ul className="space-y-1.5 text-slate-600 dark:text-slate-300 font-medium">
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Unlimited AI Tutor & Homework Helper</span>
+                    <span>Unlimited AI Tutor & Homework Helper during 10 days</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Custom Quiz & Summary Generators</span>
+                    <span>100 Free Credits awarded automatically after trial ends</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Private 1-on-1 & Group Study Chats</span>
+                    <span>Custom Quiz, Flashcard & Summary Generators</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Private 1-on-1 & Group Study Rooms with WebRTC Voice/Video</span>
                   </li>
                 </ul>
               </div>
@@ -278,19 +282,19 @@ export const TrialBannerCard: React.FC<TrialBannerCardProps> = ({
         <div className="space-y-2 max-w-xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-extrabold border border-emerald-500/30">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>{trial.isExpired ? '10-Day Free Trial Expired' : '10-Day Free Trial Active'}</span>
+            <span>{trial.isExpired ? '100 Free Credits Active' : '10-Day Free Trial Active'}</span>
           </div>
 
           <h3 className="text-xl md:text-2xl font-black tracking-tight">
             {trial.isExpired
-              ? 'Your 10-day trial has finished'
+              ? 'Your 10-day trial concluded — 100 Free Credits awarded!'
               : `You have ${trial.days} days and ${trial.hours} hours left in your free trial`}
           </h3>
 
           <p className="text-xs md:text-sm text-slate-300 leading-relaxed font-medium">
             {trial.isExpired
-              ? 'Upgrade to a plan starting at ₹99 to unlock unlimited AI tutor credits, quiz generation & note tools.'
-              : 'Explore all premium AI features without restrictions. Upgrade anytime to keep uninterrupted access.'}
+              ? 'You have received 100 Free Credits to continue generating notes, quizzes, and asking questions. Upgrade to Premium anytime for unlimited access.'
+              : 'Explore all AI features with unlimited access for 10 days. After your trial, you will get 100 Free Credits on the Free Plan!'}
           </p>
 
           {/* Progress bar */}
