@@ -14,7 +14,8 @@ import {
   RefreshCw,
   CheckCircle2,
   Lock,
-  Sparkles
+  Sparkles,
+  Power
 } from "lucide-react";
 import { DeviceSession, DeviceService } from "../services/deviceService";
 
@@ -24,6 +25,7 @@ interface DevicesModalProps {
   devices: DeviceSession[];
   userId: string | null;
   onLogoutCurrentDevice: () => Promise<void>;
+  onLogoutAllDevices?: () => Promise<void>;
   onTriggerToast?: (title: string, message: string, category?: any) => void;
 }
 
@@ -33,12 +35,15 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
   devices,
   userId,
   onLogoutCurrentDevice,
+  onLogoutAllDevices,
   onTriggerToast,
 }) => {
   const [loggingOutId, setLoggingOutId] = useState<string | null>(null);
   const [isLoggingOutAll, setIsLoggingOutAll] = useState(false);
+  const [isLoggingOutEntireAccount, setIsLoggingOutEntireAccount] = useState(false);
   const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
-  const [confirmRevokeAll, setConfirmRevokeAll] = useState(false);
+  const [confirmRevokeAllOthers, setConfirmRevokeAllOthers] = useState(false);
+  const [confirmRevokeEntireAccount, setConfirmRevokeEntireAccount] = useState(false);
 
   if (!isOpen) return null;
 
@@ -58,7 +63,7 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
     return <Monitor className="w-5 h-5" />;
   };
 
-  const handleLogoutDevice = async (device: DeviceSession) => {
+  const handleLogoutSingleDevice = async (device: DeviceSession) => {
     if (!userId) return;
 
     setLoggingOutId(device.deviceId);
@@ -92,15 +97,36 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
     try {
       const count = await DeviceService.logoutAllOtherDevices(userId);
       onTriggerToast?.(
-        "All Other Devices Logged Out", 
+        "Other Devices Logged Out", 
         `Successfully logged out ${count} remote device${count !== 1 ? 's' : ''}.`, 
         "Important Alerts"
       );
-      setConfirmRevokeAll(false);
+      setConfirmRevokeAllOthers(false);
     } catch (err) {
       console.error("Failed to logout all other devices:", err);
+      onTriggerToast?.("Error", "Could not log out other devices. Please try again.", "Important Alerts");
     } finally {
       setIsLoggingOutAll(false);
+    }
+  };
+
+  const handleLogoutAllDevicesEntirely = async () => {
+    if (!userId) return;
+
+    setIsLoggingOutEntireAccount(true);
+    try {
+      onClose();
+      if (onLogoutAllDevices) {
+        await onLogoutAllDevices();
+      } else {
+        await DeviceService.logoutAllDevices(userId);
+      }
+    } catch (err) {
+      console.error("Failed to logout from all devices:", err);
+      onTriggerToast?.("Error", "Failed to complete global logout.", "Important Alerts");
+    } finally {
+      setIsLoggingOutEntireAccount(false);
+      setConfirmRevokeEntireAccount(false);
     }
   };
 
@@ -128,7 +154,7 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Manage all devices and browser sessions currently logged into your account.
+                Manage all computers and mobile sessions currently logged into your account.
               </p>
             </div>
           </div>
@@ -143,6 +169,119 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
+
+          {/* Master Global Logout Actions Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Security & Session Control
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {otherDevices.length > 0 && (
+                <button
+                  onClick={() => {
+                    setConfirmRevokeAllOthers(true);
+                    setConfirmRevokeEntireAccount(false);
+                  }}
+                  disabled={isLoggingOutAll}
+                  className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Logout Other Devices ({otherDevices.length})
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  setConfirmRevokeEntireAccount(true);
+                  setConfirmRevokeAllOthers(false);
+                }}
+                disabled={isLoggingOutEntireAccount}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+              >
+                <Power className="w-3.5 h-3.5" />
+                Logout from ALL Devices
+              </button>
+            </div>
+          </div>
+
+          {/* Confirm Logout from ALL Devices Box */}
+          {confirmRevokeEntireAccount && (
+            <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border-2 border-rose-500/50 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h5 className="text-sm font-bold text-rose-900 dark:text-rose-100">
+                    Log out from ALL devices (including this current one)?
+                  </h5>
+                  <p className="text-xs text-rose-700 dark:text-rose-300 mt-1">
+                    This will immediately revoke active sessions across all your phones, laptops, and browsers. You will be signed out right now and will need to log back in.
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={handleLogoutAllDevicesEntirely}
+                      disabled={isLoggingOutEntireAccount}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+                    >
+                      {isLoggingOutEntireAccount ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          Logging Out Everywhere...
+                        </>
+                      ) : (
+                        <>
+                          <Power className="w-3.5 h-3.5" />
+                          Yes, Logout from ALL Devices
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setConfirmRevokeEntireAccount(false)}
+                      className="px-3.5 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Confirm Logout All Others Box */}
+          {confirmRevokeAllOthers && (
+            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h5 className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                    Sign out of all other {otherDevices.length} remote devices?
+                  </h5>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                    This will revoke active logins across all your other computers and phones. You will remain signed in on this current device.
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={handleLogoutAllOtherDevices}
+                      disabled={isLoggingOutAll}
+                      className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+                    >
+                      {isLoggingOutAll && <RefreshCw className="w-3 h-3 animate-spin" />}
+                      Yes, Logout All Others
+                    </button>
+                    <button
+                      onClick={() => setConfirmRevokeAllOthers(false)}
+                      className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Current Device Section */}
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -204,7 +343,7 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
 
                   <div className="flex sm:flex-col items-center sm:items-end justify-end flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-emerald-200 dark:border-emerald-800/40">
                     <button
-                      onClick={() => handleLogoutDevice(currentDevice)}
+                      onClick={() => handleLogoutSingleDevice(currentDevice)}
                       disabled={loggingOutId === currentDevice.deviceId}
                       className="w-full sm:w-auto px-4 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
                     >
@@ -237,51 +376,7 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
                 <Laptop className="w-3.5 h-3.5" />
                 Other Logged-in Devices ({otherDevices.length})
               </h4>
-
-              {otherDevices.length > 0 && (
-                <button
-                  onClick={() => setConfirmRevokeAll(true)}
-                  disabled={isLoggingOutAll}
-                  className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:underline flex items-center gap-1 transition-colors"
-                >
-                  <LogOut className="w-3 h-3" />
-                  Logout from All Other Devices
-                </button>
-              )}
             </div>
-
-            {/* Confirm Logout All Box */}
-            {confirmRevokeAll && (
-              <div className="mb-4 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 animate-in fade-in slide-in-from-top-2">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <h5 className="text-xs font-bold text-rose-900 dark:text-rose-200">
-                      Sign out of all other {otherDevices.length} devices?
-                    </h5>
-                    <p className="text-xs text-rose-700 dark:text-rose-300 mt-0.5">
-                      This will revoke active logins across all your other computers and phones immediately. You will stay signed in on this current device.
-                    </p>
-                    <div className="mt-3 flex items-center gap-2">
-                      <button
-                        onClick={handleLogoutAllOtherDevices}
-                        disabled={isLoggingOutAll}
-                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
-                      >
-                        {isLoggingOutAll && <RefreshCw className="w-3 h-3 animate-spin" />}
-                        Yes, Logout All Others
-                      </button>
-                      <button
-                        onClick={() => setConfirmRevokeAll(false)}
-                        className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {otherDevices.length > 0 ? (
               <div className="space-y-3">
@@ -337,7 +432,7 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
                           {isConfirming ? (
                             <div className="flex items-center gap-1.5">
                               <button
-                                onClick={() => handleLogoutDevice(device)}
+                                onClick={() => handleLogoutSingleDevice(device)}
                                 disabled={loggingOutId === device.deviceId}
                                 className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1"
                               >
@@ -388,7 +483,7 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
               <Lock className="w-4 h-4" />
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              <strong>Account Security Tip:</strong> If you spot a device or location you don&apos;t recognize, click <strong>Logout from this device</strong> immediately to secure your account.
+              <strong>Account Security Tip:</strong> If you spot a device or location you don&apos;t recognize, click <strong>Logout from this device</strong> or <strong>Logout from ALL Devices</strong> immediately to secure your account.
             </p>
           </div>
         </div>

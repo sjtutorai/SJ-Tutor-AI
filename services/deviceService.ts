@@ -267,7 +267,7 @@ export class DeviceService {
   }
 
   /**
-   * Listen for remote revocation of the current device.
+   * Listen for remote revocation or deletion of the current device.
    */
   static listenForRevocation(
     userId: string, 
@@ -278,15 +278,26 @@ export class DeviceService {
     const currentDeviceId = getCurrentDeviceId();
     const currentDeviceRef = doc(db, "users", userId, "devices", currentDeviceId);
 
+    let docEverExisted = false;
+
     return onSnapshot(currentDeviceRef, (snap) => {
       if (snap.exists()) {
+        docEverExisted = true;
         const data = snap.data() as DeviceSession;
-        if (data.status === 'revoked') {
+        if (data && data.status === 'revoked') {
+          onRevoked();
+        }
+      } else {
+        // If it was registered and active, and is now deleted from another device/action:
+        if (docEverExisted) {
           onRevoked();
         }
       }
     }, (err) => {
-      console.warn("[DeviceService] Revocation check error:", err);
+      const errMsg = err?.message || String(err);
+      if (err?.code !== 'unavailable' && !errMsg.includes('offline')) {
+        console.warn("[DeviceService] Revocation check notice:", err);
+      }
     });
   }
 
@@ -294,26 +305,72 @@ export class DeviceService {
    * Logout/Revoke a specific device.
    */
   static async logoutDevice(userId: string, targetDeviceId: string): Promise<boolean> {
+    const currentDeviceId = getCurrentDeviceId();
+    const isCurrent = targetDeviceId === currentDeviceId;
+
     try {
-      const currentDeviceId = getCurrentDeviceId();
-      const isCurrent = targetDeviceId === currentDeviceId;
-
-      const deviceRef = doc(db, "users", userId, "devices", targetDeviceId);
-      
-      // Delete document from Firestore
-      await deleteDoc(deviceRef);
-
+      if (userId && targetDeviceId) {
+        const deviceRef = doc(db, "users", userId, "devices", targetDeviceId);
+        // Set revoked first so remote listeners react instantly, then delete
+        await setDoc(deviceRef, { status: 'revoked' }, { merge: true }).catch(() => {});
+        await deleteDoc(deviceRef).catch(() => {});
+      }
+    } catch (error) {
+      console.warn("[DeviceService] Notice deleting device document from Firestore:", error);
+    } finally {
       if (isCurrent) {
         localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
+        localStorage.removeItem(DEVICE_ID_KEY);
         this.stopHeartbeat();
-        await signOut(auth);
+        try {
+          await signOut(auth);
+        } catch (authErr) {
+          console.warn("[DeviceService] Signout warning:", authErr);
+        }
       }
-
-      return true;
-    } catch (error) {
-      console.error("[DeviceService] Failed to logout device:", error);
-      return false;
     }
+
+    return true;
+  }
+
+  /**
+   * Logout from ALL devices including this current device.
+   * Completely terminates all sessions across all phones, tablets, and computers.
+   */
+  static async logoutAllDevices(userId: string): Promise<boolean> {
+    try {
+      if (userId) {
+        const devicesColRef = collection(db, "users", userId, "devices");
+        const snapshot = await getDocs(devicesColRef).catch(() => null);
+
+        if (snapshot && !snapshot.empty) {
+          const deletePromises: Promise<any>[] = [];
+          snapshot.forEach((docSnap) => {
+            const devRef = doc(db, "users", userId, "devices", docSnap.id);
+            // Mark revoked and delete
+            deletePromises.push(
+              setDoc(devRef, { status: 'revoked' }, { merge: true })
+                .then(() => deleteDoc(devRef))
+                .catch((err) => console.warn("Error deleting device doc:", err))
+            );
+          });
+          await Promise.all(deletePromises);
+        }
+      }
+    } catch (error) {
+      console.error("[DeviceService] Error revoking all devices:", error);
+    } finally {
+      localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
+      localStorage.removeItem(DEVICE_ID_KEY);
+      this.stopHeartbeat();
+      try {
+        await signOut(auth);
+      } catch (authErr) {
+        console.warn("[DeviceService] Signout warning:", authErr);
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -321,17 +378,24 @@ export class DeviceService {
    */
   static async logoutAllOtherDevices(userId: string): Promise<number> {
     try {
+      if (!userId) return 0;
+
       const currentDeviceId = getCurrentDeviceId();
       const devicesColRef = collection(db, "users", userId, "devices");
       const snapshot = await getDocs(devicesColRef);
 
       let removedCount = 0;
-      const deletePromises: Promise<void>[] = [];
+      const deletePromises: Promise<any>[] = [];
 
       snapshot.forEach((docSnap) => {
         if (docSnap.id !== currentDeviceId) {
           removedCount++;
-          deletePromises.push(deleteDoc(doc(db, "users", userId, "devices", docSnap.id)));
+          const devRef = doc(db, "users", userId, "devices", docSnap.id);
+          deletePromises.push(
+            setDoc(devRef, { status: 'revoked' }, { merge: true })
+              .then(() => deleteDoc(devRef))
+              .catch((err) => console.warn("Error deleting other device doc:", err))
+          );
         }
       });
 

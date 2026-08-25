@@ -2002,10 +2002,27 @@ const App: React.FC = () => {
       } else {
         await signOut(auth);
       }
-      setMode(AppMode.DASHBOARD);
-      setDashboardView("OVERVIEW");
     } catch (error) {
       console.error("Error signing out:", error);
+    } finally {
+      setMode(AppMode.DASHBOARD);
+      setDashboardView("OVERVIEW");
+    }
+  };
+
+  const handleLogoutAllDevices = async () => {
+    try {
+      if (user) {
+        await DeviceService.logoutAllDevices(user.uid);
+      } else {
+        await signOut(auth);
+      }
+      triggerToast("Logged Out Successfully", "You have been logged out from all devices.", "Important Alerts");
+    } catch (error) {
+      console.error("Error signing out all devices:", error);
+    } finally {
+      setMode(AppMode.DASHBOARD);
+      setDashboardView("OVERVIEW");
     }
   };
 
@@ -3751,6 +3768,7 @@ const App: React.FC = () => {
         devices={loggedInDevices}
         userId={user ? user.uid : null}
         onLogoutCurrentDevice={handleLogout}
+        onLogoutAllDevices={handleLogoutAllDevices}
         onTriggerToast={triggerToast}
       />
 
