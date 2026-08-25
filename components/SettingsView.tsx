@@ -25,6 +25,8 @@ interface SettingsViewProps {
   onNavigateToLegal: (mode: 'PRIVACY' | 'TERMS') => void;
   onUpdateProfile?: (updatedProfile: UserProfile) => void;
   onOpenShortcuts?: () => void;
+  onOpenDevices?: () => void;
+  devicesCount?: number;
 }
 
 type SettingsTab = 'account' | 'learning' | 'aiTutor' | 'chat' | 'calls' | 'notifications' | 'appearance' | 'privacy' | 'shortcuts' | 'system' | 'billing' | 'help';
@@ -36,7 +38,9 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     onNavigateToProfile, 
     onOpenPremium,
     onNavigateToLegal,
-    onUpdateProfile
+    onUpdateProfile,
+    onOpenDevices,
+    devicesCount,
   } = props;
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
   const [settings, setSettings] = useState<UserSettings>(() => {
@@ -335,6 +339,21 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                </div>
+
+               {onOpenDevices && (
+                 <div className="p-4 flex justify-between items-center hover:bg-white dark:hover:bg-slate-700/50 cursor-pointer" onClick={onOpenDevices}>
+                    <div>
+                      <p className="font-medium text-slate-700 dark:text-slate-200">Logged-in Devices</p>
+                      <p className="text-xs text-slate-400">View active login sessions, dates, and sign out</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 text-xs font-bold bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 rounded-full border border-primary-200 dark:border-primary-800">
+                        {devicesCount || 1} Active
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </div>
+                 </div>
+               )}
                
                <div className="p-4 flex justify-between items-center hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer group" onClick={onLogout}>
                   <div>

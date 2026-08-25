@@ -52,6 +52,10 @@ service cloud.firestore {
         allow read, write: if (isOwner(userId) || !isSignedIn()) && isValidId(userId);
       }
 
+      match /devices/{deviceId} {
+        allow read, write: if (isOwner(userId) || !isSignedIn()) && isValidId(userId);
+      }
+
       match /{subcollection=**} {
         allow read, write: if (isOwner(userId) || isAdmin() || !isSignedIn());
       }

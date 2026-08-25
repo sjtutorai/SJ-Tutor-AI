@@ -414,7 +414,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           currentDirect = items;
           mergeAndStore();
         }, (err) => {
-          handleFirestoreError(err, OperationType.LIST, `users/${currentUser.uid}/notifications`);
+          const errMsg = err?.message || String(err);
+          if (err?.code === 'unavailable' || errMsg.includes('offline') || errMsg.includes('could not be completed')) {
+            console.warn('Firestore operating in offline mode for personal notifications.');
+          } else {
+            handleFirestoreError(err, OperationType.LIST, `users/${currentUser.uid}/notifications`);
+          }
         });
       } catch (e) {
         console.warn('Failed to listen to personal notifications:', e);
@@ -437,7 +442,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           currentGlobal = items;
           mergeAndStore();
         }, (err) => {
-          handleFirestoreError(err, OperationType.LIST, 'global_notifications');
+          const errMsg = err?.message || String(err);
+          if (err?.code === 'unavailable' || errMsg.includes('offline') || errMsg.includes('could not be completed')) {
+            console.warn('Firestore operating in offline mode for global notifications.');
+          } else {
+            handleFirestoreError(err, OperationType.LIST, 'global_notifications');
+          }
         });
       } catch (e) {
         console.warn('Failed to listen to global notifications:', e);

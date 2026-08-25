@@ -1,7 +1,13 @@
 
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, GithubAuthProvider, OAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { 
+  initializeFirestore, 
+  getFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager,
+  memoryLocalCache 
+} from "firebase/firestore";
 import { getMessaging, isSupported } from "firebase/messaging";
 
 import firebaseConfig from './firebase-applet-config.json';
@@ -9,9 +15,28 @@ import firebaseConfig from './firebase-applet-config.json';
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Authentication and Firestore with specific database ID
+// Initialize Firebase Authentication and Firestore with auto-detect long polling & persistence
+let firestoreInstance;
+try {
+  firestoreInstance = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  }, firebaseConfig.firestoreDatabaseId);
+} catch {
+  try {
+    firestoreInstance = initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+      localCache: memoryLocalCache()
+    }, firebaseConfig.firestoreDatabaseId);
+  } catch {
+    firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  }
+}
+
+export const db = firestoreInstance;
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 export const githubProvider = new GithubAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
@@ -24,4 +49,5 @@ export const getFCM = async () => {
   }
   return null;
 };
+
 

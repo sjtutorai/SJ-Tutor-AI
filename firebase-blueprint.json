@@ -78,6 +78,24 @@
       },
       "required": ["id", "type", "title", "timestamp"]
     },
+    "DeviceSession": {
+      "title": "DeviceSession",
+      "description": "Active user device session and login metadata",
+      "type": "object",
+      "properties": {
+        "deviceId": { "type": "string" },
+        "deviceName": { "type": "string" },
+        "deviceType": { "type": "string" },
+        "os": { "type": "string" },
+        "browser": { "type": "string" },
+        "timezone": { "type": "string" },
+        "loginTime": { "type": "number" },
+        "lastActive": { "type": "number" },
+        "status": { "type": "string" },
+        "userAgent": { "type": "string" }
+      },
+      "required": ["deviceId", "deviceName", "loginTime", "lastActive", "status"]
+    },
     "SharedContent": {
       "title": "SharedContent",
       "description": "Public shared quiz, summary, notes, homework or tutor transcripts",
@@ -362,6 +380,10 @@
     "/users/{userId}/study_sessions/{sessionId}": {
       "schema": "StudySession",
       "description": "User recorded study sessions"
+    },
+    "/users/{userId}/devices/{deviceId}": {
+      "schema": "DeviceSession",
+      "description": "User active logged-in device sessions and metadata"
     },
     "/global_notifications/{notificationId}": {
       "schema": "GlobalNotification",

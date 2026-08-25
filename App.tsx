@@ -48,6 +48,9 @@ import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
 import { TrialHeaderBadge, TrialBannerCard, calculateTrialInfo } from "./components/TrialTimerWidget";
 import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
+import { DevicesHeaderButton } from "./components/DevicesHeaderButton";
+import { DevicesModal } from "./components/DevicesModal";
+import { DeviceService, DeviceSession, getCurrentDeviceId } from "./services/deviceService";
 import {
   saveProfileToFirestore,
   saveHistoryItemToFirestore,
@@ -265,6 +268,8 @@ const App: React.FC = () => {
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showCompletionReminder, setShowCompletionReminder] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [loggedInDevices, setLoggedInDevices] = useState<DeviceSession[]>([]);
+  const [showDevicesModal, setShowDevicesModal] = useState(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
     return localStorage.getItem("hasSeenTutorial") === "true";
   });
@@ -1151,6 +1156,44 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Real-time Active Devices & Session Revocation Synchronization
+  useEffect(() => {
+    if (!user) {
+      setLoggedInDevices([]);
+      return;
+    }
+
+    // 1. Register current device session
+    DeviceService.registerCurrentDevice(user.uid);
+
+    // 2. Subscribe to all active logged-in devices in real-time
+    const unsubscribeDevices = DeviceService.subscribeToUserDevices(user.uid, (devicesList) => {
+      setLoggedInDevices(devicesList);
+    });
+
+    // 3. Listen if this current device gets remotely logged out/revoked
+    const unsubscribeRevocation = DeviceService.listenForRevocation(user.uid, async () => {
+      triggerToast(
+        "Session Terminated 🔒",
+        "This device was logged out remotely from another device.",
+        "Important Alerts"
+      );
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.warn("Sign-out on revocation warning:", err);
+      }
+      setMode(AppMode.DASHBOARD);
+      setDashboardView("OVERVIEW");
+    });
+
+    return () => {
+      unsubscribeDevices();
+      unsubscribeRevocation();
+      DeviceService.stopHeartbeat();
+    };
+  }, [user?.uid]);
+
   // Sync hasSeenTutorial state with localStorage
   useEffect(() => {
     const saved = localStorage.getItem("hasSeenTutorial") === "true";
@@ -1953,7 +1996,12 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      if (user) {
+        const currentDeviceId = getCurrentDeviceId();
+        await DeviceService.logoutDevice(user.uid, currentDeviceId);
+      } else {
+        await signOut(auth);
+      }
       setMode(AppMode.DASHBOARD);
       setDashboardView("OVERVIEW");
     } catch (error) {
@@ -2891,6 +2939,8 @@ const App: React.FC = () => {
               onNavigateToLegal={(legalMode) => setMode(legalMode as any)}
               onUpdateProfile={handleProfileSave}
               onOpenShortcuts={() => setShowShortcutsModal(true)}
+              onOpenDevices={() => setShowDevicesModal(true)}
+              devicesCount={loggedInDevices.length}
             />
           </div>
         );
@@ -3394,6 +3444,15 @@ const App: React.FC = () => {
               <Moon className="w-5 h-5 hidden dark:block" />
               <Sun className="w-5 h-5 block dark:hidden" />
             </button>
+
+            {/* Devices Logged In Button */}
+            {user && (
+              <DevicesHeaderButton 
+                devices={loggedInDevices} 
+                onClick={() => setShowDevicesModal(true)} 
+              />
+            )}
+
             <div className="relative">
               <button
                 onClick={() => {
@@ -3684,6 +3743,15 @@ const App: React.FC = () => {
       <ShortcutsModal
         isOpen={showShortcutsModal}
         onClose={() => setShowShortcutsModal(false)}
+      />
+
+      <DevicesModal
+        isOpen={showDevicesModal}
+        onClose={() => setShowDevicesModal(false)}
+        devices={loggedInDevices}
+        userId={user ? user.uid : null}
+        onLogoutCurrentDevice={handleLogout}
+        onTriggerToast={triggerToast}
       />
 
       {/* Global 1-on-1 & Group Audio/Video Calling Engine */}
