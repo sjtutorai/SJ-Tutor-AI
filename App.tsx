@@ -1202,14 +1202,21 @@ const App: React.FC = () => {
     const unsubscribeRevocation = DeviceService.listenForRevocation(user.uid, async () => {
       triggerToast(
         "Session Terminated 🔒",
-        "This device was logged out remotely from another device.",
+        "This device was logged out remotely from another device. You can log back in at any time.",
         "Important Alerts"
       );
+      if (user?.uid) {
+        SecurityPinService.clearTwoStepVerified(user.uid);
+        SecurityPinService.lockSession(user.uid);
+      }
+      DeviceService.cleanupLocalDeviceState();
       try {
         await signOut(auth);
       } catch (err) {
         console.warn("Sign-out on revocation warning:", err);
       }
+      setIsTwoStepVerified(true);
+      setIsPinSessionUnlocked(true);
       setMode(AppMode.DASHBOARD);
       setDashboardView("OVERVIEW");
     });

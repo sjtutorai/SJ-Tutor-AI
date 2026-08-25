@@ -142,9 +142,22 @@ export class DeviceService {
     if (!userId) return null;
 
     try {
-      const deviceId = getCurrentDeviceId();
+      let deviceId = getCurrentDeviceId();
       const detected = detectDeviceInfo();
-      const deviceRef = doc(db, "users", userId, "devices", deviceId);
+      let deviceRef = doc(db, "users", userId, "devices", deviceId);
+
+      // Check if session doc already exists in Firestore or was revoked
+      const existingDoc = await getDoc(deviceRef).catch(() => null);
+      if (existingDoc && existingDoc.exists()) {
+        const existingData = existingDoc.data() as DeviceSession;
+        if (existingData.status === 'revoked') {
+          // Reset device ID so relogin gets a fresh, clean active session
+          deviceId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+          localStorage.setItem(DEVICE_ID_KEY, deviceId);
+          localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
+          deviceRef = doc(db, "users", userId, "devices", deviceId);
+        }
+      }
 
       let loginTime = Date.now();
       const storedLoginTime = localStorage.getItem(DEVICE_LOGIN_TIME_KEY);
@@ -152,15 +165,6 @@ export class DeviceService {
         loginTime = parseInt(storedLoginTime, 10) || Date.now();
       } else {
         localStorage.setItem(DEVICE_LOGIN_TIME_KEY, loginTime.toString());
-      }
-
-      // Check if session doc already exists in Firestore
-      const existingDoc = await getDoc(deviceRef);
-      if (existingDoc.exists()) {
-        const existingData = existingDoc.data() as DeviceSession;
-        if (existingData.loginTime) {
-          loginTime = existingData.loginTime;
-        }
       }
 
       const sessionData: DeviceSession = {
@@ -189,6 +193,19 @@ export class DeviceService {
       console.warn("[DeviceService] Failed to register device session:", error);
       return null;
     }
+  }
+
+  /**
+   * Reset local storage keys and heartbeat for this device.
+   */
+  static cleanupLocalDeviceState() {
+    try {
+      localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
+      localStorage.removeItem(DEVICE_ID_KEY);
+    } catch {
+      // Ignore
+    }
+    this.stopHeartbeat();
   }
 
   /**
