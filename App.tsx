@@ -1310,7 +1310,7 @@ const App: React.FC = () => {
     }
 
     // 2. PIN Lock on Refresh / Revisit Check
-    const isPinRequired = !!userProfile.pinLockEnabled || !!userProfile.securityPin;
+    const isPinRequired = !!userProfile.pinLockEnabled || !!userProfile.securityPin || !!SettingsService.getSettings().privacy.pinLock || !!SettingsService.getSettings().privacy.pin;
     if (isPinRequired) {
       const alreadyPinUnlocked = SecurityPinService.isSessionUnlocked(user.uid);
       setIsPinSessionUnlocked(alreadyPinUnlocked);
@@ -3878,7 +3878,7 @@ const App: React.FC = () => {
       )}
 
       {/* 2. Security PIN Lock Screen on Refresh / Website Visit */}
-      {user && isTwoStepVerified && !isPinSessionUnlocked && (!!userProfile.pinLockEnabled || !!userProfile.securityPin) && (
+      {user && isTwoStepVerified && !isPinSessionUnlocked && (!!userProfile.pinLockEnabled || !!userProfile.securityPin || !!SettingsService.getSettings().privacy.pinLock || !!SettingsService.getSettings().privacy.pin) && (
         <SecurityPinLockScreen
           userProfile={userProfile}
           uid={user.uid}

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { SecurityPinService } from '../services/securityPinService';
+import { SettingsService } from '../services/settingsService';
 import Logo from './Logo';
 
 interface SecurityPinLockScreenProps {
@@ -27,7 +28,8 @@ export const SecurityPinLockScreen: React.FC<SecurityPinLockScreenProps> = ({
   onUnlock,
   onLogout,
 }) => {
-  const pinLength: 4 | 6 = userProfile.securityPinLength === 6 ? 6 : 4;
+  const privacySettings = SettingsService.getSettings().privacy;
+  const pinLength: 4 | 6 = (userProfile.securityPinLength === 6 || privacySettings.pinLength === 6) ? 6 : 4;
   const [pin, setPin] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isShaking, setIsShaking] = useState(false);
@@ -37,7 +39,7 @@ export const SecurityPinLockScreen: React.FC<SecurityPinLockScreenProps> = ({
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [isBiometricsAvailable, setIsBiometricsAvailable] = useState(false);
 
-  const storedPin = userProfile.securityPin || '';
+  const storedPin = userProfile.securityPin || privacySettings.pin || '';
 
   useEffect(() => {
     SecurityPinService.isBiometricsAvailable().then(setIsBiometricsAvailable);

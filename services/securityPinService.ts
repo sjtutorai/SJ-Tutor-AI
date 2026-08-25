@@ -12,9 +12,12 @@ export interface SecurityPinConfig {
   updatedAt: number;
 }
 
-const STORAGE_SESSION_PREFIX = 'sjtutor_pin_unlocked_';
 const STORAGE_2STEP_PREFIX = 'sjtutor_2step_verified_';
 const LOCAL_PIN_PREFIX = 'sjtutor_security_pin_';
+
+// In-memory set of unlocked user IDs for the active page session.
+// This resets when the web page is refreshed or reloaded so the user is prompted for their PIN.
+const inMemoryUnlockedUids = new Set<string>();
 
 export const SecurityPinService = {
   /**
@@ -118,39 +121,31 @@ export const SecurityPinService = {
   },
 
   /**
-   * Checks if the user's session is already unlocked in this browser session.
+   * Checks if the user's session is already unlocked in the active page lifecycle.
+   * Resets upon page refresh so the user is asked for their PIN again.
    */
   isSessionUnlocked: (uid?: string | null): boolean => {
     if (!uid) return true;
-    try {
-      return sessionStorage.getItem(`${STORAGE_SESSION_PREFIX}${uid}`) === 'true';
-    } catch {
-      return false;
-    }
+    return inMemoryUnlockedUids.has(uid);
   },
 
   /**
-   * Marks the session as unlocked for the current browser session.
+   * Marks the session as unlocked for the active page session.
    */
   setSessionUnlocked: (uid?: string | null): void => {
     if (!uid) return;
-    try {
-      sessionStorage.setItem(`${STORAGE_SESSION_PREFIX}${uid}`, 'true');
-    } catch (e) {
-      console.warn('Failed to set session unlock state:', e);
-    }
+    inMemoryUnlockedUids.add(uid);
   },
 
   /**
    * Locks the session for the given user.
    */
   lockSession: (uid?: string | null): void => {
-    if (!uid) return;
-    try {
-      sessionStorage.removeItem(`${STORAGE_SESSION_PREFIX}${uid}`);
-    } catch (e) {
-      console.warn('Failed to lock session:', e);
+    if (!uid) {
+      inMemoryUnlockedUids.clear();
+      return;
     }
+    inMemoryUnlockedUids.delete(uid);
   },
 
   /**
