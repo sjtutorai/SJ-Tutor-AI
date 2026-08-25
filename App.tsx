@@ -51,6 +51,8 @@ import { PublicShareViewer } from "./components/PublicShareViewer";
 import { DevicesHeaderButton } from "./components/DevicesHeaderButton";
 import { DevicesModal } from "./components/DevicesModal";
 import { DeviceService, DeviceSession, getCurrentDeviceId } from "./services/deviceService";
+import { SecurityPinLockScreen } from "./components/SecurityPinLockScreen";
+import { SecurityPinService } from "./services/securityPinService";
 import {
   saveProfileToFirestore,
   saveHistoryItemToFirestore,
@@ -269,6 +271,7 @@ const App: React.FC = () => {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [loggedInDevices, setLoggedInDevices] = useState<DeviceSession[]>([]);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
+  const [isPinSessionUnlocked, setIsPinSessionUnlocked] = useState<boolean>(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
     return localStorage.getItem("hasSeenTutorial") === "true";
   });
@@ -1274,6 +1277,22 @@ const App: React.FC = () => {
     }
   }, [user]);
 
+  // Two-Step Verification & PIN Lock Session Check
+  useEffect(() => {
+    if (!user) {
+      setIsPinSessionUnlocked(true);
+      return;
+    }
+
+    const is2FA = !!userProfile.twoFactorEnabled || !!userProfile.securityPin;
+    if (is2FA) {
+      const alreadyUnlocked = SecurityPinService.isSessionUnlocked(user.uid);
+      setIsPinSessionUnlocked(alreadyUnlocked);
+    } else {
+      setIsPinSessionUnlocked(true);
+    }
+  }, [user?.uid, userProfile.twoFactorEnabled, userProfile.securityPin]);
+
   // Monitor trial expiration and ensure post-trial 100 credits are awarded
   useEffect(() => {
     if (!user) return;
@@ -1999,6 +2018,7 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     try {
       if (user) {
+        SecurityPinService.lockSession(user.uid);
         const currentDeviceId = getCurrentDeviceId();
         await DeviceService.logoutDevice(user.uid, currentDeviceId);
       } else {
@@ -2007,6 +2027,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Error signing out:", error);
     } finally {
+      setIsPinSessionUnlocked(true);
       setMode(AppMode.DASHBOARD);
       setDashboardView("OVERVIEW");
     }
@@ -2015,6 +2036,7 @@ const App: React.FC = () => {
   const handleLogoutAllDevices = async () => {
     try {
       if (user) {
+        SecurityPinService.lockSession(user.uid);
         await DeviceService.logoutAllDevices(user.uid);
       } else {
         await signOut(auth);
@@ -2023,6 +2045,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Error signing out all devices:", error);
     } finally {
+      setIsPinSessionUnlocked(true);
       setMode(AppMode.DASHBOARD);
       setDashboardView("OVERVIEW");
     }
@@ -3786,6 +3809,19 @@ const App: React.FC = () => {
             setActiveDirectCall(call);
           }}
           triggerToast={triggerToast}
+        />
+      )}
+
+      {/* Two-Step Verification & Security PIN Lock Screen */}
+      {user && !isPinSessionUnlocked && (!!userProfile.twoFactorEnabled || !!userProfile.securityPin) && (
+        <SecurityPinLockScreen
+          userProfile={userProfile}
+          uid={user.uid}
+          onUnlock={() => {
+            SecurityPinService.setSessionUnlocked(user.uid);
+            setIsPinSessionUnlocked(true);
+          }}
+          onLogout={handleLogout}
         />
       )}
     </div>

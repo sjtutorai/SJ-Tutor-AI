@@ -11,11 +11,13 @@ import {
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, ChevronDown, ChevronUp,
   Save, LogOut, Trash2, Shield, Activity, Type, Palette, Monitor, Zap,
   Volume2, Volume1, VolumeX, PhoneCall, Phone, Play, Square, AlertTriangle, CheckCircle2,
-  Terminal, Crown, Check, Clock, FileText, Keyboard, Command, Sparkles
+  Terminal, Crown, Check, Clock, FileText, Keyboard, Command, Sparkles, KeyRound, Fingerprint, ShieldCheck
 } from 'lucide-react';
 import { callAudio, RINGTONE_STYLES } from '../services/webrtcService';
 import { NotificationService } from '../services/notificationService';
 import { RingtoneStyle } from '../types';
+import { SecurityPinSetupModal } from './SecurityPinSetupModal';
+import { SecurityPinService } from '../services/securityPinService';
 
 interface SettingsViewProps {
   userProfile: UserProfile;
@@ -53,6 +55,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const [hasChanges, setHasChanges] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [showPinSetupModal, setShowPinSetupModal] = useState(false);
+  const [isDisablingPin, setIsDisablingPin] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [playingRingtoneId, setPlayingRingtoneId] = useState<string | null>(null);
   const [previewingChime, setPreviewingChime] = useState<string | null>(null);
@@ -1182,37 +1186,119 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
            </div>
         );
 
-      case 'privacy':
+      case 'privacy': {
+        const is2FAActive = !!userProfile.twoFactorEnabled || !!settings.privacy.twoFactor || !!userProfile.securityPin;
+        const currentPinLength = userProfile.securityPinLength || settings.privacy.pinLength || 4;
+
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Privacy & Security</h3>
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
                
-               <div className="flex items-center justify-between">
-                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-650 rounded-lg"><Shield className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
-                    <div>
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300 block">Two-Factor Authentication</span>
-                      <span className="text-xs text-slate-400">Add an extra layer of security</span>
-                    </div>
+               {/* Two-Step Verification & Security PIN Card */}
+               <div className="p-5 rounded-2xl border bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700/80 space-y-4">
+                 <div className="flex items-start justify-between gap-4">
+                   <div className="flex items-start gap-3.5">
+                      <div className={`p-2.5 rounded-xl text-white shadow-sm shrink-0 ${is2FAActive ? 'bg-emerald-600' : 'bg-primary-600'}`}>
+                        {is2FAActive ? <ShieldCheck className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-bold text-slate-800 dark:text-white">
+                            Two-Step Verification & PIN Lock
+                          </span>
+                          {is2FAActive && (
+                            <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 rounded-full border border-emerald-300 dark:border-emerald-800">
+                              Active ({currentPinLength}-Digit)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                          Whenever you sign in (Google, Yahoo, Email) or refresh/visit the page, SJ Tutor AI asks for your {currentPinLength}-digit PIN before granting access to your study workspace.
+                        </p>
+                      </div>
+                   </div>
+
+                   <button
+                     onClick={() => {
+                       if (is2FAActive) {
+                         setIsDisablingPin(true);
+                         setShowPinSetupModal(true);
+                       } else {
+                         setIsDisablingPin(false);
+                         setShowPinSetupModal(true);
+                       }
+                     }}
+                     className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+                       is2FAActive
+                         ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 hover:bg-rose-100'
+                         : 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm'
+                     }`}
+                   >
+                     {is2FAActive ? 'Disable' : 'Set Up PIN'}
+                   </button>
                  </div>
-                 <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" checked={settings.privacy.twoFactor} onChange={(e) => handleSettingChange('privacy', 'twoFactor', e.target.checked)} className="sr-only peer" />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                 </label>
+
+                 {is2FAActive && (
+                   <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-medium">
+                       <KeyRound className="w-4 h-4 text-amber-500" />
+                       <span>Configured PIN Format: <strong>{currentPinLength}-Digit Security Code</strong></span>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       <button
+                         onClick={() => {
+                           setIsDisablingPin(false);
+                           setShowPinSetupModal(true);
+                         }}
+                         className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 font-bold transition text-xs flex items-center gap-1"
+                       >
+                         <KeyRound className="w-3.5 h-3.5 text-primary-500" /> Change PIN
+                       </button>
+                       <button
+                         onClick={() => {
+                           if (auth.currentUser) {
+                             SecurityPinService.lockSession(auth.currentUser.uid);
+                             window.location.reload();
+                           }
+                         }}
+                         className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold transition text-xs flex items-center gap-1"
+                         title="Lock the session now to test the PIN prompt"
+                       >
+                         <Lock className="w-3.5 h-3.5 text-slate-500" /> Test Lock
+                       </button>
+                     </div>
+                   </div>
+                 )}
                </div>
 
-               <div className="flex items-center justify-between">
+               {/* Biometric & App Lock */}
+               <div className="flex items-center justify-between p-4 rounded-xl border border-slate-100 dark:border-slate-750 bg-white dark:bg-slate-800">
                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-650 rounded-lg"><Lock className="w-4 h-4 text-slate-600 dark:text-slate-300" /></div>
+                    <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900 rounded-lg">
+                      <Fingerprint className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    </div>
                     <div>
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300 block">App Lock</span>
-                      <span className="text-xs text-slate-400">Require biometrics to open app</span>
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300 block">Biometric App Lock</span>
+                      <span className="text-xs text-slate-400">Unlock with Face ID, Touch ID or WebAuthn Passkey</span>
                     </div>
                  </div>
                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" checked={settings.privacy.appLock} onChange={(e) => handleSettingChange('privacy', 'appLock', e.target.checked)} className="sr-only peer" />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                    <input 
+                      type="checkbox" 
+                      checked={!!settings.privacy.appLock || !!userProfile.biometricsEnabled} 
+                      onChange={(e) => {
+                        handleSettingChange('privacy', 'appLock', e.target.checked);
+                        if (props.onUpdateProfile) {
+                          props.onUpdateProfile({
+                            ...userProfile,
+                            biometricsEnabled: e.target.checked
+                          });
+                        }
+                      }} 
+                      className="sr-only peer" 
+                    />
+                    <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                  </label>
                </div>
 
@@ -1263,6 +1349,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
             </div>
           </div>
         );
+      }
 
       case 'system':
         return (
@@ -1701,6 +1788,32 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                   </div>
                </div>
             </div>
+         )}
+
+         {/* Security PIN Setup / Management Modal */}
+         {showPinSetupModal && (
+           <SecurityPinSetupModal
+             isOpen={showPinSetupModal}
+             onClose={() => setShowPinSetupModal(false)}
+             userProfile={userProfile}
+             uid={auth.currentUser?.uid}
+             isDisabling={isDisablingPin}
+             onSuccess={(updatedProfile) => {
+               if (props.onUpdateProfile) {
+                 props.onUpdateProfile({
+                   ...userProfile,
+                   ...updatedProfile,
+                 });
+               }
+               setSettings(SettingsService.getSettings());
+               setFeedbackMessage(
+                 isDisablingPin
+                   ? 'Two-step verification has been disabled.'
+                   : 'Security PIN and Two-step verification updated successfully!'
+               );
+               setTimeout(() => setFeedbackMessage(null), 4000);
+             }}
+           />
          )}
       </div>
     </div>

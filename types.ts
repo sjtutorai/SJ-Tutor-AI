@@ -92,6 +92,10 @@ export interface UserProfile {
   hasCompletedOnboarding?: boolean;
   isRegisteredInFirestore?: boolean;
   trialStartDate?: number;
+  twoFactorEnabled?: boolean;
+  securityPin?: string;
+  securityPinLength?: 4 | 6;
+  biometricsEnabled?: boolean;
 }
 
 export type RingtoneStyle = 
@@ -138,6 +142,9 @@ export interface UserSettings {
   privacy: {
     twoFactor: boolean;
     appLock: boolean;
+    pin?: string;
+    pinLength?: 4 | 6;
+    biometrics?: boolean;
   };
   calls: {
     ringtone: RingtoneStyle;
@@ -236,6 +243,9 @@ export const DEFAULT_SETTINGS: UserSettings = {
   privacy: {
     twoFactor: false,
     appLock: false,
+    pin: '',
+    pinLength: 4,
+    biometrics: false,
   },
   calls: {
     ringtone: 'Modern Chime',
