@@ -13,24 +13,24 @@ export interface SecurityPinConfig {
 }
 
 const STORAGE_SESSION_PREFIX = 'sjtutor_pin_unlocked_';
+const STORAGE_2STEP_PREFIX = 'sjtutor_2step_verified_';
 const LOCAL_PIN_PREFIX = 'sjtutor_security_pin_';
 
 export const SecurityPinService = {
   /**
-   * Hashes a 4 or 6 digit PIN using Web Crypto SHA-256 with user salt.
+   * Hashes a password or secret using Web Crypto SHA-256 with user salt.
    */
-  hashPin: async (pin: string, salt: string = 'sjtutor_salt_v1'): Promise<string> => {
+  hashSecret: async (secret: string, salt: string = 'sjtutor_salt_v1'): Promise<string> => {
     try {
       const encoder = new TextEncoder();
-      const data = encoder.encode(`${salt}:${pin}:${salt}`);
+      const data = encoder.encode(`${salt}:${secret}:${salt}`);
       const hashBuffer = await crypto.subtle.digest('SHA-256', data);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
     } catch (e) {
       console.warn('Crypto subtle not supported, falling back to simple hash', e);
-      // Fallback
       let hash = 0;
-      const str = `${salt}_${pin}_${salt}`;
+      const str = `${salt}_${secret}_${salt}`;
       for (let i = 0; i < str.length; i++) {
         const char = str.charCodeAt(i);
         hash = (hash << 5) - hash + char;
@@ -41,6 +41,36 @@ export const SecurityPinService = {
   },
 
   /**
+   * Hashes a 4 or 6 digit PIN using Web Crypto SHA-256 with user salt.
+   */
+  hashPin: async (pin: string, salt: string = 'sjtutor_salt_v1'): Promise<string> => {
+    return SecurityPinService.hashSecret(pin, salt);
+  },
+
+  /**
+   * Checks if an entered secret (password or PIN) matches stored hash or plain string.
+   */
+  verifySecret: async (
+    enteredSecret: string,
+    storedSecretOrHash: string,
+    salt: string = 'sjtutor_salt_v1'
+  ): Promise<boolean> => {
+    if (!enteredSecret || !storedSecretOrHash) return false;
+    
+    if (enteredSecret.trim() === storedSecretOrHash.trim()) {
+      return true;
+    }
+
+    const computed = await SecurityPinService.hashSecret(enteredSecret.trim(), salt);
+    if (computed === storedSecretOrHash.trim()) {
+      return true;
+    }
+
+    const computedDefault = await SecurityPinService.hashSecret(enteredSecret.trim(), 'sjtutor_salt_v1');
+    return computedDefault === storedSecretOrHash.trim();
+  },
+
+  /**
    * Checks if an entered PIN matches the stored hash or stored plain string.
    */
   verifyPin: async (
@@ -48,22 +78,43 @@ export const SecurityPinService = {
     storedPinOrHash: string,
     salt: string = 'sjtutor_salt_v1'
   ): Promise<boolean> => {
-    if (!enteredPin || !storedPinOrHash) return false;
-    
-    // Direct match (if stored as plain 4/6 digit string)
-    if (enteredPin.trim() === storedPinOrHash.trim()) {
-      return true;
-    }
+    return SecurityPinService.verifySecret(enteredPin, storedPinOrHash, salt);
+  },
 
-    // Hash match
-    const computed = await SecurityPinService.hashPin(enteredPin.trim(), salt);
-    if (computed === storedPinOrHash.trim()) {
-      return true;
+  /**
+   * Checks if 2-Step Login verification was already passed in this login session.
+   */
+  isTwoStepVerified: (uid?: string | null): boolean => {
+    if (!uid) return true;
+    try {
+      return sessionStorage.getItem(`${STORAGE_2STEP_PREFIX}${uid}`) === 'true';
+    } catch {
+      return false;
     }
+  },
 
-    // Alternative default salt check
-    const computedDefault = await SecurityPinService.hashPin(enteredPin.trim(), 'sjtutor_salt_v1');
-    return computedDefault === storedPinOrHash.trim();
+  /**
+   * Marks 2-Step Login verification as passed for this login session.
+   */
+  setTwoStepVerified: (uid?: string | null): void => {
+    if (!uid) return;
+    try {
+      sessionStorage.setItem(`${STORAGE_2STEP_PREFIX}${uid}`, 'true');
+    } catch (e) {
+      console.warn('Failed to set 2-step verified state:', e);
+    }
+  },
+
+  /**
+   * Clears 2-Step Login verification state.
+   */
+  clearTwoStepVerified: (uid?: string | null): void => {
+    if (!uid) return;
+    try {
+      sessionStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
+    } catch (e) {
+      console.warn('Failed to clear 2-step verified state:', e);
+    }
   },
 
   /**

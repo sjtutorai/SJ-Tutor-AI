@@ -29,19 +29,21 @@ export const getMembershipByEmail = (email?: string | null) => {
 /**
  * Creates a new user profile in Firestore
  * @param user The Firebase Auth user object
+ * @param initialData Optional initial profile data (e.g. language)
  */
-export const createUserProfile = async (user: User) => {
+export const createUserProfile = async (user: User, initialData?: Partial<any>) => {
   try {
     const membership = getMembershipByEmail(user.email);
     const userRef = doc(db, "users", user.uid);
     const newProfile = {
       uid: user.uid,
-      name: user.displayName || "",
-      displayName: user.displayName || "",
+      name: user.displayName || initialData?.displayName || "",
+      displayName: user.displayName || initialData?.displayName || "",
       email: user.email || "",
-      photoURL: user.photoURL || "",
+      photoURL: user.photoURL || initialData?.photoURL || "",
       provider: user.providerData[0]?.providerId || "password",
       class: "",
+      language: initialData?.language || "English",
       role: membership?.role || "student",
       phoneNumber: user.phoneNumber || "",
       hasCompletedOnboarding: membership ? true : false,
@@ -55,6 +57,7 @@ export const createUserProfile = async (user: User) => {
       updatedAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),
       isActive: true,
+      ...initialData,
     };
     await setDoc(userRef, newProfile);
     return newProfile;

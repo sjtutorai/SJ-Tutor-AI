@@ -18,6 +18,7 @@ import { NotificationService } from '../services/notificationService';
 import { RingtoneStyle } from '../types';
 import { SecurityPinSetupModal } from './SecurityPinSetupModal';
 import { SecurityPinService } from '../services/securityPinService';
+import { SUPPORTED_LANGUAGES } from '../services/languageService';
 
 interface SettingsViewProps {
   userProfile: UserProfile;
@@ -56,6 +57,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [showPinSetupModal, setShowPinSetupModal] = useState(false);
+  const [pinSetupTab, setPinSetupTab] = useState<'twostep' | 'pin'>('twostep');
   const [isDisablingPin, setIsDisablingPin] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [playingRingtoneId, setPlayingRingtoneId] = useState<string | null>(null);
@@ -201,7 +203,13 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     if (onUpdateProfile && settings.learning.grade && settings.learning.grade !== userProfile.grade) {
       onUpdateProfile({
         ...userProfile,
-        grade: settings.learning.grade
+        grade: settings.learning.grade,
+        language: settings.learning.language || userProfile.language,
+      });
+    } else if (onUpdateProfile && settings.learning.language && settings.learning.language !== userProfile.language) {
+      onUpdateProfile({
+        ...userProfile,
+        language: settings.learning.language,
       });
     }
     
@@ -417,12 +425,17 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                </div>
                <div className="space-y-2">
                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Primary Language</label>
-                 <input 
-                   type="text" 
+                 <select 
                    value={settings.learning.language}
                    onChange={(e) => handleSettingChange('learning', 'language', e.target.value)}
-                   className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
-                 />
+                   className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 text-slate-800 dark:text-white"
+                 >
+                   {SUPPORTED_LANGUAGES.map((lang) => (
+                     <option key={lang} value={lang}>
+                       {lang}
+                     </option>
+                   ))}
+                 </select>
                </div>
                <div className="space-y-2">
                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex justify-between">
@@ -1187,7 +1200,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
         );
 
       case 'privacy': {
-        const is2FAActive = !!userProfile.twoFactorEnabled || !!settings.privacy.twoFactor || !!userProfile.securityPin;
+        const is2FAActive = !!userProfile.twoFactorEnabled || !!settings.privacy.twoFactor || !!userProfile.twoFactorPassword;
+        const isPinActive = !!userProfile.pinLockEnabled || !!settings.privacy.pinLock || !!userProfile.securityPin;
         const currentPinLength = userProfile.securityPinLength || settings.privacy.pinLength || 4;
 
         return (
@@ -1195,33 +1209,103 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Privacy & Security</h3>
             <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
                
-               {/* Two-Step Verification & Security PIN Card */}
+               {/* 1. Two-Step Verification (On Sign-In / Login) */}
                <div className="p-5 rounded-2xl border bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700/80 space-y-4">
                  <div className="flex items-start justify-between gap-4">
                    <div className="flex items-start gap-3.5">
-                      <div className={`p-2.5 rounded-xl text-white shadow-sm shrink-0 ${is2FAActive ? 'bg-emerald-600' : 'bg-primary-600'}`}>
-                        {is2FAActive ? <ShieldCheck className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
+                      <div className={`p-2.5 rounded-xl text-white shadow-sm shrink-0 ${is2FAActive ? 'bg-emerald-600' : 'bg-slate-600'}`}>
+                        <ShieldCheck className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-base font-bold text-slate-800 dark:text-white">
-                            Two-Step Verification & PIN Lock
+                            2-Step Verification (On Login)
                           </span>
-                          {is2FAActive && (
+                          {is2FAActive ? (
                             <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 rounded-full border border-emerald-300 dark:border-emerald-800">
-                              Active ({currentPinLength}-Digit)
+                              Active
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 rounded-full">
+                              Off
                             </span>
                           )}
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                          Whenever you sign in (Google, Yahoo, Email) or refresh/visit the page, SJ Tutor AI asks for your {currentPinLength}-digit PIN before granting access to your study workspace.
+                          Requires your 2-Step Verification Password whenever you log in via Google, Yahoo, or Email on any browser or device.
+                        </p>
+                      </div>
+                   </div>
+
+                   <div className="flex items-center gap-2 shrink-0">
+                     {is2FAActive && (
+                       <button
+                         onClick={() => {
+                           setPinSetupTab('twostep');
+                           setIsDisablingPin(false);
+                           setShowPinSetupModal(true);
+                         }}
+                         className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-slate-300 rounded-lg text-slate-700 dark:text-slate-200 font-bold transition text-xs flex items-center gap-1"
+                       >
+                         <KeyRound className="w-3.5 h-3.5 text-emerald-500" /> Change
+                       </button>
+                     )}
+
+                     <button
+                       onClick={() => {
+                         setPinSetupTab('twostep');
+                         if (is2FAActive) {
+                           setIsDisablingPin(true);
+                           setShowPinSetupModal(true);
+                         } else {
+                           setIsDisablingPin(false);
+                           setShowPinSetupModal(true);
+                         }
+                       }}
+                       className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                         is2FAActive
+                           ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 hover:bg-rose-100'
+                           : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
+                       }`}
+                     >
+                       {is2FAActive ? 'Disable' : 'Set Up 2-Step'}
+                     </button>
+                   </div>
+                 </div>
+               </div>
+
+               {/* 2. Security PIN Lock (On Refresh & Website Visits) */}
+               <div className="p-5 rounded-2xl border bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700/80 space-y-4">
+                 <div className="flex items-start justify-between gap-4">
+                   <div className="flex items-start gap-3.5">
+                      <div className={`p-2.5 rounded-xl text-white shadow-sm shrink-0 ${isPinActive ? 'bg-primary-600' : 'bg-slate-600'}`}>
+                        <KeyRound className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-bold text-slate-800 dark:text-white">
+                            Security PIN Lock (On Refresh / Revisit)
+                          </span>
+                          {isPinActive ? (
+                            <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-primary-100 dark:bg-primary-950/80 text-primary-700 dark:text-primary-300 rounded-full border border-primary-300 dark:border-primary-800">
+                              Active ({currentPinLength}-Digit)
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 rounded-full">
+                              Off
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                          Locks your current workspace whenever you refresh the page or revisit SJ Tutor AI, prompting for your {currentPinLength}-digit PIN or Biometrics.
                         </p>
                       </div>
                    </div>
 
                    <button
                      onClick={() => {
-                       if (is2FAActive) {
+                       setPinSetupTab('pin');
+                       if (isPinActive) {
                          setIsDisablingPin(true);
                          setShowPinSetupModal(true);
                        } else {
@@ -1230,24 +1314,25 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                        }
                      }}
                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
-                       is2FAActive
+                       isPinActive
                          ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 hover:bg-rose-100'
                          : 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm'
                      }`}
                    >
-                     {is2FAActive ? 'Disable' : 'Set Up PIN'}
+                     {isPinActive ? 'Disable' : 'Set Up PIN'}
                    </button>
                  </div>
 
-                 {is2FAActive && (
+                 {isPinActive && (
                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-medium">
                        <KeyRound className="w-4 h-4 text-amber-500" />
-                       <span>Configured PIN Format: <strong>{currentPinLength}-Digit Security Code</strong></span>
+                       <span>Configured PIN: <strong>{currentPinLength}-Digit Quick Code</strong></span>
                      </div>
                      <div className="flex items-center gap-2">
                        <button
                          onClick={() => {
+                           setPinSetupTab('pin');
                            setIsDisablingPin(false);
                            setShowPinSetupModal(true);
                          }}
@@ -1798,6 +1883,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
              userProfile={userProfile}
              uid={auth.currentUser?.uid}
              isDisabling={isDisablingPin}
+              initialTab={pinSetupTab}
              onSuccess={(updatedProfile) => {
                if (props.onUpdateProfile) {
                  props.onUpdateProfile({

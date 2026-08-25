@@ -10,19 +10,20 @@ import {
   X, 
   AlertCircle, 
   RefreshCw,
-  Sparkles
+  Smartphone
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { SecurityPinService } from '../services/securityPinService';
 import { SettingsService } from '../services/settingsService';
 
-interface SecurityPinSetupModalProps {
+export interface SecurityPinSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
   userProfile: UserProfile;
   uid?: string;
   onSuccess: (updatedProfile: Partial<UserProfile>) => void;
   isDisabling?: boolean;
+  initialTab?: 'twostep' | 'pin';
 }
 
 export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
@@ -32,26 +33,39 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
   uid,
   onSuccess,
   isDisabling = false,
+  initialTab = 'twostep',
 }) => {
+  const [activeTab, setActiveTab] = useState<'twostep' | 'pin'>(initialTab);
+  
+  // 2-Step Password States
+  const [twoStepPassword, setTwoStepPassword] = useState('');
+  const [confirmTwoStepPassword, setConfirmTwoStepPassword] = useState('');
+  const [currentTwoStepPassword, setCurrentTwoStepPassword] = useState('');
+
+  // PIN States
   const [pinLength, setPinLength] = useState<4 | 6>(userProfile.securityPinLength || 4);
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [enableBiometrics, setEnableBiometrics] = useState<boolean>(userProfile.biometricsEnabled ?? true);
   const [isBiometricsAvailable, setIsBiometricsAvailable] = useState(false);
-  const [showPin, setShowPin] = useState(false);
+
+  const [showSecret, setShowSecret] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const existingTwoFactor = !!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword;
   const existingPin = userProfile.securityPin || SettingsService.getSettings().privacy.pin || '';
-  const isUpdating = !isDisabling && !!existingPin;
 
-  const currentInputRef = useRef<HTMLInputElement>(null);
-  const newInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
+      setActiveTab(initialTab);
       setError(null);
+      setTwoStepPassword('');
+      setConfirmTwoStepPassword('');
+      setCurrentTwoStepPassword('');
       setCurrentPin('');
       setNewPin('');
       setConfirmPin('');
@@ -60,127 +74,223 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
       SecurityPinService.isBiometricsAvailable().then(setIsBiometricsAvailable);
 
       setTimeout(() => {
-        if (existingPin) {
-          currentInputRef.current?.focus();
-        } else {
-          newInputRef.current?.focus();
-        }
+        inputRef.current?.focus();
       }, 100);
     }
-  }, [isOpen, userProfile, existingPin]);
+  }, [isOpen, initialTab, userProfile]);
 
   if (!isOpen) return null;
 
+  // Handle Save / Disable
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsProcessing(true);
 
+    const salt = uid || 'sjtutor_user';
+
     try {
-      // If updating or disabling, verify current PIN first
-      if (existingPin) {
-        const isCurrentValid = await SecurityPinService.verifyPin(currentPin, existingPin, uid || 'sjtutor');
-        if (!isCurrentValid) {
-          setError('Current security PIN is incorrect. Please re-enter.');
+      if (activeTab === 'twostep') {
+        // --- TWO-STEP VERIFICATION (ON LOGIN) ---
+        if (isDisabling) {
+          if (userProfile.twoFactorPassword) {
+            const isValid = await SecurityPinService.verifySecret(currentTwoStepPassword, userProfile.twoFactorPassword, salt);
+            if (!isValid) {
+              setError('Current 2-Step password is incorrect.');
+              setIsProcessing(false);
+              return;
+            }
+          }
+
+          const updated: Partial<UserProfile> = {
+            twoFactorEnabled: false,
+            twoFactorPassword: '',
+          };
+
+          if (uid) {
+            SecurityPinService.clearTwoStepVerified(uid);
+          }
+
+          SettingsService.updateSettings({
+            privacy: {
+              ...SettingsService.getSettings().privacy,
+              twoFactor: false,
+              twoFactorPassword: '',
+            },
+          });
+
+          onSuccess(updated);
+          onClose();
+          return;
+        }
+
+        // Validate new 2-step password
+        if (userProfile.twoFactorPassword && !currentTwoStepPassword) {
+          setError('Please enter your current 2-Step password first.');
           setIsProcessing(false);
           return;
         }
-      }
 
-      // Handle disabling
-      if (isDisabling) {
+        if (userProfile.twoFactorPassword) {
+          const isValid = await SecurityPinService.verifySecret(currentTwoStepPassword, userProfile.twoFactorPassword, salt);
+          if (!isValid) {
+            setError('Current 2-Step password is incorrect.');
+            setIsProcessing(false);
+            return;
+          }
+        }
+
+        if (twoStepPassword.length < 4) {
+          setError('2-Step Password must be at least 4 characters long.');
+          setIsProcessing(false);
+          return;
+        }
+
+        if (twoStepPassword !== confirmTwoStepPassword) {
+          setError('New 2-Step password and confirmation do not match.');
+          setIsProcessing(false);
+          return;
+        }
+
+        const hashed = await SecurityPinService.hashSecret(twoStepPassword.trim(), salt);
         const updated: Partial<UserProfile> = {
-          twoFactorEnabled: false,
-          securityPin: '',
-          securityPinLength: 4,
-          biometricsEnabled: false,
+          twoFactorEnabled: true,
+          twoFactorPassword: hashed,
         };
 
         if (uid) {
-          SecurityPinService.clearLocalConfig(uid);
+          SecurityPinService.setTwoStepVerified(uid);
         }
 
         SettingsService.updateSettings({
           privacy: {
             ...SettingsService.getSettings().privacy,
-            twoFactor: false,
-            pin: '',
-            biometrics: false,
+            twoFactor: true,
+            twoFactorPassword: hashed,
           },
         });
 
         onSuccess(updated);
         onClose();
-        setIsProcessing(false);
-        return;
-      }
 
-      // Validate new PIN
-      const cleanNewPin = newPin.trim();
-      const cleanConfirmPin = confirmPin.trim();
+      } else {
+        // --- SECURITY PIN (ON REFRESH / VISIT) ---
+        if (isDisabling) {
+          if (existingPin) {
+            const isValid = await SecurityPinService.verifyPin(currentPin, existingPin, salt);
+            if (!isValid) {
+              setError('Current Security PIN is incorrect.');
+              setIsProcessing(false);
+              return;
+            }
+          }
 
-      if (cleanNewPin.length !== pinLength) {
-        setError(`Please enter a valid ${pinLength}-digit security PIN.`);
-        setIsProcessing(false);
-        return;
-      }
+          const updated: Partial<UserProfile> = {
+            pinLockEnabled: false,
+            securityPin: '',
+            securityPinLength: 4,
+            biometricsEnabled: false,
+          };
 
-      if (!/^\d+$/.test(cleanNewPin)) {
-        setError('Security PIN must contain numbers only.');
-        setIsProcessing(false);
-        return;
-      }
+          if (uid) {
+            SecurityPinService.clearLocalConfig(uid);
+          }
 
-      if (cleanNewPin !== cleanConfirmPin) {
-        setError('New PIN and confirmation PIN do not match.');
-        setIsProcessing(false);
-        return;
-      }
+          SettingsService.updateSettings({
+            privacy: {
+              ...SettingsService.getSettings().privacy,
+              pinLock: false,
+              appLock: false,
+              pin: '',
+              biometrics: false,
+            },
+          });
 
-      // Hash PIN for security
-      const salt = uid || 'sjtutor_user';
-      const pinHash = await SecurityPinService.hashPin(cleanNewPin, salt);
+          onSuccess(updated);
+          onClose();
+          return;
+        }
 
-      const updated: Partial<UserProfile> = {
-        twoFactorEnabled: true,
-        securityPin: pinHash,
-        securityPinLength: pinLength,
-        biometricsEnabled: enableBiometrics && isBiometricsAvailable,
-      };
+        if (existingPin && !currentPin) {
+          setError('Please enter your current PIN first.');
+          setIsProcessing(false);
+          return;
+        }
 
-      if (uid) {
-        SecurityPinService.saveLocalConfig(uid, {
-          enabled: true,
-          pinHash,
-          pinLength,
-          salt,
+        if (existingPin) {
+          const isValid = await SecurityPinService.verifyPin(currentPin, existingPin, salt);
+          if (!isValid) {
+            setError('Current Security PIN is incorrect.');
+            setIsProcessing(false);
+            return;
+          }
+        }
+
+        const cleanNewPin = newPin.trim();
+        const cleanConfirmPin = confirmPin.trim();
+
+        if (cleanNewPin.length !== pinLength) {
+          setError(`Please enter a valid ${pinLength}-digit security PIN.`);
+          setIsProcessing(false);
+          return;
+        }
+
+        if (!/^\d+$/.test(cleanNewPin)) {
+          setError('Security PIN must contain numbers only.');
+          setIsProcessing(false);
+          return;
+        }
+
+        if (cleanNewPin !== cleanConfirmPin) {
+          setError('New PIN and confirmation PIN do not match.');
+          setIsProcessing(false);
+          return;
+        }
+
+        const pinHash = await SecurityPinService.hashPin(cleanNewPin, salt);
+
+        const updated: Partial<UserProfile> = {
+          pinLockEnabled: true,
+          securityPin: pinHash,
+          securityPinLength: pinLength,
           biometricsEnabled: enableBiometrics && isBiometricsAvailable,
-          updatedAt: Date.now(),
+        };
+
+        if (uid) {
+          SecurityPinService.saveLocalConfig(uid, {
+            enabled: true,
+            pinHash,
+            pinLength,
+            salt,
+            biometricsEnabled: enableBiometrics && isBiometricsAvailable,
+            updatedAt: Date.now(),
+          });
+          SecurityPinService.setSessionUnlocked(uid);
+        }
+
+        SettingsService.updateSettings({
+          privacy: {
+            ...SettingsService.getSettings().privacy,
+            pinLock: true,
+            appLock: true,
+            pin: pinHash,
+            pinLength,
+            biometrics: enableBiometrics && isBiometricsAvailable,
+          },
         });
-        SecurityPinService.setSessionUnlocked(uid);
+
+        onSuccess(updated);
+        onClose();
       }
-
-      SettingsService.updateSettings({
-        privacy: {
-          ...SettingsService.getSettings().privacy,
-          twoFactor: true,
-          pin: pinHash,
-          pinLength,
-          biometrics: enableBiometrics && isBiometricsAvailable,
-        },
-      });
-
-      onSuccess(updated);
-      onClose();
     } catch (err: any) {
-      setError(err?.message || 'Failed to update security PIN. Please try again.');
+      setError(err?.message || 'Operation failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md animate-in fade-in duration-200 select-none">
       <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 sm:p-7 overflow-hidden text-left">
         {/* Close Button */}
         <button
@@ -190,27 +300,70 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Header Icon */}
+        {/* Tab Switcher (if not disabling) */}
+        {!isDisabling && (
+          <div className="flex p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('twostep');
+                setError(null);
+              }}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                activeTab === 'twostep'
+                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-300 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>2-Step (On Login)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('pin');
+                setError(null);
+              }}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                activeTab === 'pin'
+                  ? 'bg-white dark:bg-slate-700 text-primary-600 dark:text-primary-300 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>PIN (On Refresh / Visit)</span>
+            </button>
+          </div>
+        )}
+
+        {/* Header Section */}
         <div className="flex items-center gap-3 mb-5">
-          <div className="p-3 bg-gradient-to-tr from-primary-600 to-indigo-600 text-white rounded-2xl shadow-md">
+          <div className={`p-3 rounded-2xl text-white shadow-md ${
+            activeTab === 'twostep'
+              ? 'bg-gradient-to-tr from-emerald-600 to-teal-600'
+              : 'bg-gradient-to-tr from-primary-600 to-indigo-600'
+          }`}>
             {isDisabling ? (
               <Lock className="w-6 h-6" />
-            ) : (
+            ) : activeTab === 'twostep' ? (
               <ShieldCheck className="w-6 h-6" />
+            ) : (
+              <KeyRound className="w-6 h-6" />
             )}
           </div>
           <div>
-            <h3 className="text-xl font-black text-slate-900 dark:text-white">
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">
               {isDisabling
-                ? 'Disable Two-Step PIN'
-                : isUpdating
-                ? 'Change Security PIN'
-                : 'Set Up Two-Step Verification'}
+                ? activeTab === 'twostep' ? 'Disable 2-Step Login' : 'Disable Security PIN'
+                : activeTab === 'twostep'
+                ? existingTwoFactor ? 'Change 2-Step Password' : 'Set Up 2-Step Login'
+                : existingPin ? 'Change Security PIN' : 'Set Up Security PIN'}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {isDisabling
-                ? 'Enter your current PIN to turn off two-step lock.'
-                : 'Protect your account across all logins and page refreshes.'}
+              {activeTab === 'twostep'
+                ? 'Prompted every time you sign in to your account.'
+                : 'Prompted every time you refresh or revisit the website.'}
             </p>
           </div>
         </div>
@@ -223,146 +376,218 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
         )}
 
         <form onSubmit={handleSave} className="space-y-4">
-          {/* If updating or disabling, ask for current PIN */}
-          {existingPin && (
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                Current Security PIN
-              </label>
-              <div className="relative">
-                <input
-                  ref={currentInputRef}
-                  type={showPin ? 'text' : 'password'}
-                  maxLength={6}
-                  value={currentPin}
-                  onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Enter current PIN"
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-center tracking-widest text-lg font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
-                  required
-                />
-              </div>
-            </div>
-          )}
-
-          {!isDisabling && (
+          {/* ======================= TAB 1: 2-STEP ON LOGIN ======================= */}
+          {activeTab === 'twostep' && (
             <>
-              {/* Select PIN Length (4 vs 6 Digits) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  Select PIN Format
-                </label>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPinLength(4);
-                      setNewPin('');
-                      setConfirmPin('');
-                    }}
-                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 ${
-                      pinLength === 4
-                        ? 'bg-primary-50 dark:bg-primary-950/40 border-primary-500 text-primary-700 dark:text-primary-300 shadow-xs'
-                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                    }`}
-                  >
-                    <KeyRound className="w-4 h-4" /> 4-Digit PIN
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPinLength(6);
-                      setNewPin('');
-                      setConfirmPin('');
-                    }}
-                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 ${
-                      pinLength === 6
-                        ? 'bg-primary-50 dark:bg-primary-950/40 border-primary-500 text-primary-700 dark:text-primary-300 shadow-xs'
-                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                    }`}
-                  >
-                    <ShieldCheck className="w-4 h-4" /> 6-Digit PIN (Higher Security)
-                  </button>
-                </div>
-              </div>
-
-              {/* New PIN Input */}
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                    New {pinLength}-Digit PIN
+              {existingTwoFactor && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                    Current 2-Step Password
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowPin(!showPin)}
-                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1"
-                  >
-                    {showPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    <span>{showPin ? 'Hide' : 'Show'}</span>
-                  </button>
-                </div>
-                <input
-                  ref={newInputRef}
-                  type={showPin ? 'text' : 'password'}
-                  maxLength={pinLength}
-                  value={newPin}
-                  onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder={`Enter ${pinLength} numbers`}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-center tracking-widest text-lg font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
-                  required
-                />
-              </div>
-
-              {/* Confirm PIN Input */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  Confirm {pinLength}-Digit PIN
-                </label>
-                <input
-                  type={showPin ? 'text' : 'password'}
-                  maxLength={pinLength}
-                  value={confirmPin}
-                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder={`Re-enter ${pinLength} numbers`}
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-center tracking-widest text-lg font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
-                  required
-                />
-              </div>
-
-              {/* Biometrics Toggle (Fingerprint / Face ID / WebAuthn) */}
-              {isBiometricsAvailable && (
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-lg">
-                      <Fingerprint className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                        Enable Biometrics / Passkey
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        Unlock using Fingerprint or Face ID
-                      </span>
-                    </div>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={enableBiometrics}
-                      onChange={(e) => setEnableBiometrics(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-slate-300 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-600"></div>
-                  </label>
+                  <input
+                    ref={inputRef}
+                    type={showSecret ? 'text' : 'password'}
+                    value={currentTwoStepPassword}
+                    onChange={(e) => setCurrentTwoStepPassword(e.target.value)}
+                    placeholder="Enter current 2-step password"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                    required
+                  />
                 </div>
               )}
 
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
-                <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                <span>
-                  This PIN will be requested each time you log in or refresh the page to ensure complete account privacy.
-                </span>
-              </div>
+              {!isDisabling && (
+                <>
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        New 2-Step Password
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSecret(!showSecret)}
+                        className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1"
+                      >
+                        {showSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        <span>{showSecret ? 'Hide' : 'Show'}</span>
+                      </button>
+                    </div>
+                    <input
+                      type={showSecret ? 'text' : 'password'}
+                      value={twoStepPassword}
+                      onChange={(e) => setTwoStepPassword(e.target.value)}
+                      placeholder="Create a strong 2-step password"
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                      Confirm 2-Step Password
+                    </label>
+                    <input
+                      type={showSecret ? 'text' : 'password'}
+                      value={confirmTwoStepPassword}
+                      onChange={(e) => setConfirmTwoStepPassword(e.target.value)}
+                      placeholder="Confirm your 2-step password"
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
+                      required
+                    />
+                  </div>
+
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
+                    <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>
+                      <strong>Login Protection:</strong> Whenever you sign in from any browser (Google, Yahoo, Email), this password is required before access is granted.
+                    </span>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          {/* ======================= TAB 2: PIN ON REFRESH/VISIT ======================= */}
+          {activeTab === 'pin' && (
+            <>
+              {existingPin && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                    Current Security PIN
+                  </label>
+                  <input
+                    ref={inputRef}
+                    type={showSecret ? 'text' : 'password'}
+                    maxLength={6}
+                    value={currentPin}
+                    onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Enter current PIN"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-center tracking-widest text-base font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none transition"
+                    required
+                  />
+                </div>
+              )}
+
+              {!isDisabling && (
+                <>
+                  {/* Select PIN Length */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                      Select PIN Format
+                    </label>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPinLength(4);
+                          setNewPin('');
+                          setConfirmPin('');
+                        }}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                          pinLength === 4
+                            ? 'bg-primary-50 dark:bg-primary-950/40 border-primary-500 text-primary-700 dark:text-primary-300'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        <KeyRound className="w-3.5 h-3.5" /> 4-Digit PIN
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPinLength(6);
+                          setNewPin('');
+                          setConfirmPin('');
+                        }}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                          pinLength === 6
+                            ? 'bg-primary-50 dark:bg-primary-950/40 border-primary-500 text-primary-700 dark:text-primary-300'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" /> 6-Digit PIN
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* New PIN Input */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        New {pinLength}-Digit PIN
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSecret(!showSecret)}
+                        className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1"
+                      >
+                        {showSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        <span>{showSecret ? 'Hide' : 'Show'}</span>
+                      </button>
+                    </div>
+                    <input
+                      type={showSecret ? 'text' : 'password'}
+                      maxLength={pinLength}
+                      value={newPin}
+                      onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                      placeholder={`Enter ${pinLength} numbers`}
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-center tracking-widest text-base font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none transition"
+                      required
+                    />
+                  </div>
+
+                  {/* Confirm PIN Input */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                      Confirm {pinLength}-Digit PIN
+                    </label>
+                    <input
+                      type={showSecret ? 'text' : 'password'}
+                      maxLength={pinLength}
+                      value={confirmPin}
+                      onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+                      placeholder={`Re-enter ${pinLength} numbers`}
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-center tracking-widest text-base font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none transition"
+                      required
+                    />
+                  </div>
+
+                  {/* Biometrics */}
+                  {isBiometricsAvailable && (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-lg">
+                          <Fingerprint className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                            Fingerprint / Face ID
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            Fast biometric unlock on refresh
+                          </span>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={enableBiometrics}
+                          onChange={(e) => setEnableBiometrics(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-8 h-4 bg-slate-300 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary-600"></div>
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-xl text-[11px] text-indigo-800 dark:text-indigo-300 flex items-start gap-2">
+                    <Smartphone className="w-4 h-4 shrink-0 mt-0.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>
+                      <strong>Refresh & Visit Lock:</strong> Whenever you refresh the browser tab or revisit SJ Tutor AI, enter this {pinLength}-digit PIN (or use Touch/Face ID) to unlock.
+                    </span>
+                  </div>
+                </>
+              )}
             </>
           )}
 
@@ -371,16 +596,18 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isProcessing}
-              className={`flex-1 py-3 px-4 rounded-xl text-white text-xs font-black shadow-md transition flex items-center justify-center gap-2 ${
+              className={`flex-1 py-2.5 px-4 rounded-xl text-white text-xs font-black shadow-md transition flex items-center justify-center gap-1.5 ${
                 isDisabling
                   ? 'bg-rose-600 hover:bg-rose-700'
+                  : activeTab === 'twostep'
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
                   : 'bg-primary-600 hover:bg-primary-700'
               } disabled:opacity-50`}
             >
@@ -388,11 +615,11 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
                 <RefreshCw className="w-4 h-4 animate-spin" />
               ) : isDisabling ? (
                 <>
-                  <Lock className="w-4 h-4" /> Disable Verification
+                  <Lock className="w-4 h-4" /> Disable
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4" /> Save & Enable PIN
+                  <Check className="w-4 h-4" /> Save & Enable
                 </>
               )}
             </button>

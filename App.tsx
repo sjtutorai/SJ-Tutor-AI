@@ -52,6 +52,7 @@ import { DevicesHeaderButton } from "./components/DevicesHeaderButton";
 import { DevicesModal } from "./components/DevicesModal";
 import { DeviceService, DeviceSession, getCurrentDeviceId } from "./services/deviceService";
 import { SecurityPinLockScreen } from "./components/SecurityPinLockScreen";
+import { TwoStepLoginModal } from "./components/TwoStepLoginModal";
 import { SecurityPinService } from "./services/securityPinService";
 import {
   saveProfileToFirestore,
@@ -271,6 +272,7 @@ const App: React.FC = () => {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [loggedInDevices, setLoggedInDevices] = useState<DeviceSession[]>([]);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
+  const [isTwoStepVerified, setIsTwoStepVerified] = useState<boolean>(true);
   const [isPinSessionUnlocked, setIsPinSessionUnlocked] = useState<boolean>(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
     return localStorage.getItem("hasSeenTutorial") === "true";
@@ -1125,6 +1127,19 @@ const App: React.FC = () => {
                hasCompletedOnboarding: isRegisteredInDb ? true : userProf.hasCompletedOnboarding,
              } as any);
 
+             if (userProf.language) {
+               SettingsService.updateSettings({
+                 learning: {
+                   ...SettingsService.getSettings().learning,
+                   language: userProf.language,
+                 }
+               });
+               setFormData((prev) => ({
+                 ...prev,
+                 language: userProf.language || prev.language,
+               }));
+             }
+
              if (isRegisteredInDb) {
                // User is already registered in Firestore - navigate to dashboard, hide welcome & profile prompts
                setMode(AppMode.DASHBOARD);
@@ -1277,21 +1292,32 @@ const App: React.FC = () => {
     }
   }, [user]);
 
-  // Two-Step Verification & PIN Lock Session Check
+  // Two-Step Verification (on Login) & PIN Lock (on Refresh/Visit) Check
   useEffect(() => {
     if (!user) {
+      setIsTwoStepVerified(true);
       setIsPinSessionUnlocked(true);
       return;
     }
 
-    const is2FA = !!userProfile.twoFactorEnabled || !!userProfile.securityPin;
-    if (is2FA) {
-      const alreadyUnlocked = SecurityPinService.isSessionUnlocked(user.uid);
-      setIsPinSessionUnlocked(alreadyUnlocked);
+    // 1. Two-Step Verification on Login Check
+    const isTwoStepRequired = !!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword;
+    if (isTwoStepRequired) {
+      const alreadyTwoStepVerified = SecurityPinService.isTwoStepVerified(user.uid);
+      setIsTwoStepVerified(alreadyTwoStepVerified);
+    } else {
+      setIsTwoStepVerified(true);
+    }
+
+    // 2. PIN Lock on Refresh / Revisit Check
+    const isPinRequired = !!userProfile.pinLockEnabled || !!userProfile.securityPin;
+    if (isPinRequired) {
+      const alreadyPinUnlocked = SecurityPinService.isSessionUnlocked(user.uid);
+      setIsPinSessionUnlocked(alreadyPinUnlocked);
     } else {
       setIsPinSessionUnlocked(true);
     }
-  }, [user?.uid, userProfile.twoFactorEnabled, userProfile.securityPin]);
+  }, [user?.uid, userProfile.twoFactorEnabled, userProfile.twoFactorPassword, userProfile.pinLockEnabled, userProfile.securityPin]);
 
   // Monitor trial expiration and ensure post-trial 100 credits are awarded
   useEffect(() => {
@@ -1438,11 +1464,33 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSignUpSuccess = async () => {
+  const handleSignUpSuccess = async (signupData?: Partial<UserProfile>) => {
     if (auth.currentUser) {
       try {
         const userProf = await getCurrentUserProfile(auth.currentUser);
-        setUserProfile({ ...initialProfileState, ...userProf } as any);
+        const mergedProfile = {
+          ...initialProfileState,
+          ...userProf,
+          ...(signupData || {}),
+        };
+        setUserProfile(mergedProfile as any);
+
+        if (signupData?.language) {
+          SettingsService.updateSettings({
+            learning: {
+              ...SettingsService.getSettings().learning,
+              language: signupData.language,
+            }
+          });
+          setFormData((prev) => ({
+            ...prev,
+            language: signupData.language || prev.language,
+          }));
+          await saveProfileToFirestore(auth.currentUser.uid, {
+            language: signupData.language,
+          });
+        }
+
         if (!userProf.hasCompletedOnboarding) {
           setMode(AppMode.PROFILE);
         } else {
@@ -2018,6 +2066,7 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     try {
       if (user) {
+        SecurityPinService.clearTwoStepVerified(user.uid);
         SecurityPinService.lockSession(user.uid);
         const currentDeviceId = getCurrentDeviceId();
         await DeviceService.logoutDevice(user.uid, currentDeviceId);
@@ -2027,6 +2076,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Error signing out:", error);
     } finally {
+      setIsTwoStepVerified(true);
       setIsPinSessionUnlocked(true);
       setMode(AppMode.DASHBOARD);
       setDashboardView("OVERVIEW");
@@ -2036,6 +2086,7 @@ const App: React.FC = () => {
   const handleLogoutAllDevices = async () => {
     try {
       if (user) {
+        SecurityPinService.clearTwoStepVerified(user.uid);
         SecurityPinService.lockSession(user.uid);
         await DeviceService.logoutAllDevices(user.uid);
       } else {
@@ -2045,6 +2096,7 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Error signing out all devices:", error);
     } finally {
+      setIsTwoStepVerified(true);
       setIsPinSessionUnlocked(true);
       setMode(AppMode.DASHBOARD);
       setDashboardView("OVERVIEW");
@@ -3812,8 +3864,21 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Two-Step Verification & Security PIN Lock Screen */}
-      {user && !isPinSessionUnlocked && (!!userProfile.twoFactorEnabled || !!userProfile.securityPin) && (
+      {/* 1. Two-Step Verification on Login Modal */}
+      {user && !isTwoStepVerified && (!!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword) && (
+        <TwoStepLoginModal
+          userProfile={userProfile}
+          uid={user.uid}
+          onVerifySuccess={() => {
+            SecurityPinService.setTwoStepVerified(user.uid);
+            setIsTwoStepVerified(true);
+          }}
+          onLogout={handleLogout}
+        />
+      )}
+
+      {/* 2. Security PIN Lock Screen on Refresh / Website Visit */}
+      {user && isTwoStepVerified && !isPinSessionUnlocked && (!!userProfile.pinLockEnabled || !!userProfile.securityPin) && (
         <SecurityPinLockScreen
           userProfile={userProfile}
           uid={user.uid}

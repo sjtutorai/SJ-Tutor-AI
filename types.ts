@@ -78,6 +78,7 @@ export interface UserProfile {
   board?: string;
   bio: string;
   photoURL?: string;
+  language?: string;
   learningGoal?: string;
   learningStyle?: 'Visual' | 'Auditory' | 'Reading/Writing' | 'Kinesthetic';
   credits: number;
@@ -93,6 +94,8 @@ export interface UserProfile {
   isRegisteredInFirestore?: boolean;
   trialStartDate?: number;
   twoFactorEnabled?: boolean;
+  twoFactorPassword?: string;
+  pinLockEnabled?: boolean;
   securityPin?: string;
   securityPinLength?: 4 | 6;
   biometricsEnabled?: boolean;
@@ -141,6 +144,8 @@ export interface UserSettings {
   };
   privacy: {
     twoFactor: boolean;
+    twoFactorPassword?: string;
+    pinLock: boolean;
     appLock: boolean;
     pin?: string;
     pinLength?: 4 | 6;
@@ -242,6 +247,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   },
   privacy: {
     twoFactor: false,
+    twoFactorPassword: '',
+    pinLock: false,
     appLock: false,
     pin: '',
     pinLength: 4,

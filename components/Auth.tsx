@@ -8,9 +8,11 @@ import {
   updateProfile,
   
   } from 'firebase/auth';
-import { ArrowRight, Loader2, Mail, X, Github, Sparkles, User } from 'lucide-react';
+import { ArrowRight, Loader2, Mail, X, Github, Sparkles, User, Globe } from 'lucide-react';
 import { UserProfile } from '../types';
 import Logo from './Logo';
+import { SUPPORTED_LANGUAGES } from '../services/languageService';
+import { SettingsService } from '../services/settingsService';
 
 interface AuthProps {
   onSignUpSuccess?: (data?: Partial<UserProfile>) => void;
@@ -36,9 +38,16 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>(initialMode as any);
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [language, setLanguage] = useState(() => {
+    try {
+      return SettingsService.getSettings().learning.language || 'English';
+    } catch {
+      return 'English';
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-    const [password, setPassword] = useState('');
+  const [password, setPassword] = useState('');
 
   
   const handleProviderSignIn = async (provider: any, providerName: string) => {
@@ -49,10 +58,20 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
       const result = await signInWithPopup(auth, provider);
       const additionalUserInfo = getAdditionalUserInfo(result);
       
+      // Update global user settings with selected language if signed up
+      SettingsService.updateSettings({
+        learning: {
+          ...SettingsService.getSettings().learning,
+          language: language
+        }
+      });
+      window.dispatchEvent(new Event('settings-changed'));
+
       if (additionalUserInfo?.isNewUser && onSignUpSuccess) {
         onSignUpSuccess({
           displayName: result.user.displayName || '',
           photoURL: result.user.photoURL || '',
+          language: language,
         });
       } else {
         onClose();
@@ -92,10 +111,20 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(userCredential.user, { displayName: displayName.trim() });
         
+        // Update user settings language immediately
+        SettingsService.updateSettings({
+          learning: {
+            ...SettingsService.getSettings().learning,
+            language: language
+          }
+        });
+        window.dispatchEvent(new Event('settings-changed'));
+
         if (onSignUpSuccess) {
           onSignUpSuccess({
             displayName: displayName.trim(),
             photoURL: '',
+            language: language,
           });
         } else {
           onClose();
@@ -257,6 +286,31 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
                     required={authMode === 'signup'}
                     className="w-full pl-11 pr-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-slate-900 font-medium placeholder-slate-400"
                   />
+                </div>
+              </div>
+            )}
+
+            {authMode === 'signup' && (
+              <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                <label className="text-xs font-bold text-slate-600 ml-1">Preferred Language (AI Learning & Explanations)</label>
+                <div className="relative">
+                  <Globe className="absolute left-3.5 top-3.5 w-5 h-5 text-slate-400 pointer-events-none" />
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-slate-900 font-medium appearance-none cursor-pointer"
+                  >
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <option key={lang} value={lang}>
+                        {lang}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3.5 top-4 pointer-events-none text-slate-400">
+                    <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
+                      <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path>
+                    </svg>
+                  </div>
                 </div>
               </div>
             )}
