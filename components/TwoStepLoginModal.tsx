@@ -104,50 +104,75 @@ export const TwoStepLoginModal: React.FC<TwoStepLoginModalProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleVerify} className="space-y-4">
-          <div>
-            <div className="flex justify-between items-center mb-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                2-Step Password
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1"
-              >
-                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                <span>{showPassword ? 'Hide' : 'Show'}</span>
-              </button>
+        {!storedSecret ? (
+          <div className="space-y-4">
+            <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl text-amber-800 dark:text-amber-200 text-xs leading-relaxed space-y-1.5">
+              <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-100">
+                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                No 2-Step Password Kept
+              </div>
+              <p>
+                Your account does not have a 2-Step Verification password configured yet. You can continue into your account and configure one in Settings &gt; Privacy &amp; Security.
+              </p>
             </div>
 
-            <div className="relative">
-              <input
-                ref={inputRef}
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your 2-step password"
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition"
-                required
-                autoComplete="current-password"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                SecurityPinService.setTwoStepVerified(uid);
+                onVerifySuccess();
+              }}
+              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl font-bold text-sm shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2"
+            >
+              <ShieldCheck className="w-4 h-4" /> Continue to Dashboard
+            </button>
           </div>
+        ) : (
+          <form onSubmit={handleVerify} className="space-y-4">
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  2-Step Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1"
+                >
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  <span>{showPassword ? 'Hide' : 'Show'}</span>
+                </button>
+              </div>
 
-          <button
-            type="submit"
-            disabled={isVerifying}
-            className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl font-bold text-sm shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {isVerifying ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <Lock className="w-4 h-4" /> Verify & Continue
-              </>
-            )}
-          </button>
-        </form>
+              <div className="relative">
+                <input
+                  ref={inputRef}
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your 2-step password"
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition"
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isVerifying}
+              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl font-bold text-sm shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isVerifying ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Lock className="w-4 h-4" /> Verify &amp; Continue
+                </>
+              )}
+            </button>
+          </form>
+        )}
 
         {/* Footer Actions */}
         <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400">

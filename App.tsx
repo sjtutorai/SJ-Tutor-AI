@@ -53,6 +53,7 @@ import { DevicesModal } from "./components/DevicesModal";
 import { DeviceService, DeviceSession, getCurrentDeviceId } from "./services/deviceService";
 import { SecurityPinLockScreen } from "./components/SecurityPinLockScreen";
 import { TwoStepLoginModal } from "./components/TwoStepLoginModal";
+import { SecurityPasswordReminderCard } from "./components/SecurityPasswordReminderCard";
 import { SecurityPinService } from "./services/securityPinService";
 import {
   saveProfileToFirestore,
@@ -274,9 +275,18 @@ const App: React.FC = () => {
   const [showDevicesModal, setShowDevicesModal] = useState(false);
   const [isTwoStepVerified, setIsTwoStepVerified] = useState<boolean>(true);
   const [isPinSessionUnlocked, setIsPinSessionUnlocked] = useState<boolean>(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<any>('account');
+  const [settingsOpenPinTab, setSettingsOpenPinTab] = useState<'twostep' | 'pin' | undefined>(undefined);
+  const [dismissed2faReminder, setDismissed2faReminder] = useState<boolean>(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
     return localStorage.getItem("hasSeenTutorial") === "true";
   });
+
+  const navigateToPrivacySettings = (openTwoStepModal = false) => {
+    setSettingsInitialTab('privacy');
+    setSettingsOpenPinTab(openTwoStepModal ? 'twostep' : undefined);
+    setMode(AppMode.SETTINGS);
+  };
 
   // App State
   const [publicShareId, setPublicShareId] = useState<string | null>(() => {
@@ -1289,6 +1299,23 @@ const App: React.FC = () => {
       } else {
         setShowCompletionReminder(false);
       }
+
+      // Check if 2-Step Verification password is not kept, and send a security reminder notification
+      const hasTwoStep = !!userProfile.twoFactorPassword || !!userProfile.twoFactorEnabled;
+      if (!hasTwoStep) {
+        const twoStepNotifKey = `twostep_reminder_notif_${user.uid}`;
+        const lastSentTwoStepNotif = localStorage.getItem(twoStepNotifKey);
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        if (!lastSentTwoStepNotif || now - parseInt(lastSentTwoStepNotif) > oneDayMs) {
+          sendNotificationRef.current(
+            "Account Security Notice 🛡️",
+            "You haven't set a 2-Step Verification password yet. Protect your account from unauthorized logins across all devices in Settings > Privacy & Security.",
+            "Important Alerts",
+            user.uid
+          ).catch((e) => console.warn("Failed to send 2-step reminder notification:", e));
+          localStorage.setItem(twoStepNotifKey, now.toString());
+        }
+      }
     }
   }, [user]);
 
@@ -1301,7 +1328,7 @@ const App: React.FC = () => {
     }
 
     // 1. Two-Step Verification on Login Check
-    const isTwoStepRequired = !!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword;
+    const isTwoStepRequired = !!userProfile.twoFactorPassword || (!!userProfile.twoFactorEnabled && !!userProfile.twoFactorPassword);
     if (isTwoStepRequired) {
       const alreadyTwoStepVerified = SecurityPinService.isTwoStepVerified(user.uid);
       setIsTwoStepVerified(alreadyTwoStepVerified);
@@ -2468,6 +2495,18 @@ const App: React.FC = () => {
           onOpenUpgrade={() => setShowPremiumModal(true)} 
         />
 
+        {user && !userProfile.twoFactorPassword && !dismissed2faReminder && (
+          <SecurityPasswordReminderCard
+            onSetupClick={() => navigateToPrivacySettings(true)}
+            onDismiss={() => {
+              setDismissed2faReminder(true);
+              if (user) {
+                localStorage.setItem(`dismissed_2fa_reminder_${user.uid}`, "true");
+              }
+            }}
+          />
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {dashboardCards.map((card, idx) => (
             <motion.button
@@ -3035,6 +3074,8 @@ const App: React.FC = () => {
               onOpenShortcuts={() => setShowShortcutsModal(true)}
               onOpenDevices={() => setShowDevicesModal(true)}
               devicesCount={loggedInDevices.length}
+              initialTab={settingsInitialTab}
+              openPinSetupTab={settingsOpenPinTab}
             />
           </div>
         );

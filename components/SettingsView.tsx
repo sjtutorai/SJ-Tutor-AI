@@ -30,6 +30,8 @@ interface SettingsViewProps {
   onOpenShortcuts?: () => void;
   onOpenDevices?: () => void;
   devicesCount?: number;
+  initialTab?: SettingsTab;
+  openPinSetupTab?: 'twostep' | 'pin';
 }
 
 type SettingsTab = 'account' | 'learning' | 'aiTutor' | 'chat' | 'calls' | 'notifications' | 'appearance' | 'privacy' | 'shortcuts' | 'system' | 'billing' | 'help';
@@ -44,8 +46,10 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     onUpdateProfile,
     onOpenDevices,
     devicesCount,
+    initialTab,
+    openPinSetupTab,
   } = props;
-  const [activeTab, setActiveTab] = useState<SettingsTab>('account');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || 'account');
   const [settings, setSettings] = useState<UserSettings>(() => {
     const s = SettingsService.getSettings();
     if (userProfile.grade) {
@@ -56,9 +60,22 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const [hasChanges, setHasChanges] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
-  const [showPinSetupModal, setShowPinSetupModal] = useState(false);
-  const [pinSetupTab, setPinSetupTab] = useState<'twostep' | 'pin'>('twostep');
+  const [showPinSetupModal, setShowPinSetupModal] = useState(!!openPinSetupTab);
+  const [pinSetupTab, setPinSetupTab] = useState<'twostep' | 'pin'>(openPinSetupTab || 'twostep');
   const [isDisablingPin, setIsDisablingPin] = useState(false);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (openPinSetupTab) {
+      setPinSetupTab(openPinSetupTab);
+      setShowPinSetupModal(true);
+    }
+  }, [openPinSetupTab]);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [playingRingtoneId, setPlayingRingtoneId] = useState<string | null>(null);
   const [previewingChime, setPreviewingChime] = useState<string | null>(null);
@@ -1234,6 +1251,16 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                           Requires your 2-Step Verification Password whenever you log in via Google, Yahoo, or Email on any browser or device.
                         </p>
+                        {!is2FAActive && (
+                          <div className="mt-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-lg px-2.5 py-1 inline-flex items-center gap-1.5">
+                            <span>Password not kept — Setup recommended for multi-device protection</span>
+                          </div>
+                        )}
+                        {is2FAActive && (
+                          <div className="mt-2 text-[11px] font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-lg px-2.5 py-1 inline-flex items-center gap-1.5">
+                            <span>Password active — Required upon relogin on this and all devices</span>
+                          </div>
+                        )}
                       </div>
                    </div>
 
