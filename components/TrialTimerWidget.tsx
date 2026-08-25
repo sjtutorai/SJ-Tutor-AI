@@ -98,32 +98,43 @@ export const TrialHeaderBadge: React.FC<TrialHeaderBadgeProps> = ({
 
   if (trial.isPro) {
     return (
-      <div 
+      <button 
         onClick={onOpenUpgrade}
-        className="cursor-pointer flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs rounded-full shadow-sm hover:scale-105 transition-transform"
+        className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs rounded-full shadow-sm hover:scale-105 transition-transform"
+        title="Active Subscription Plan"
       >
         <Crown className="w-3.5 h-3.5 fill-current" />
-        <span>{userProfile?.planType || 'PRO'} Active</span>
-      </div>
+        <span>{userProfile?.planType || 'Achiever'} Plan</span>
+      </button>
     );
   }
 
   return (
     <>
       <button
-        onClick={() => setShowModal(true)}
-        className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all shadow-sm border ${
+        onClick={() => {
+          if (trial.isExpired) {
+            onOpenUpgrade();
+          } else {
+            setShowModal(true);
+          }
+        }}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm border ${
           trial.isExpired
             ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
             : trial.days <= 2
             ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 animate-pulse'
             : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
         }`}
-        title="View 10-Day Free Trial & 100 Credits Status"
+        title={trial.isExpired ? "Click to Upgrade Credits" : "10-Day Free Trial (Unlimited)"}
       >
-        <Clock className="w-3.5 h-3.5 animate-spin-slow" />
+        {trial.isExpired ? (
+          <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+        ) : (
+          <Clock className="w-3.5 h-3.5 animate-spin-slow text-emerald-600 dark:text-emerald-400" />
+        )}
         <span className="font-mono font-extrabold">
-          {trial.isExpired ? '100 Credits (Free Tier)' : `${trial.formattedTime} Trial`}
+          {trial.isExpired ? `${userProfile?.credits ?? 100} Credits` : `${trial.formattedTime} Trial`}
         </span>
       </button>
 
@@ -270,7 +281,7 @@ export const TrialBannerCard: React.FC<TrialBannerCardProps> = ({
     return () => clearInterval(interval);
   }, [userProfile, uid]);
 
-  if (trial.isPro) return null;
+  if (trial.isPro || trial.isExpired) return null;
 
   return (
     <div className="mb-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-5 md:p-6 text-white shadow-xl border border-indigo-500/30 relative overflow-hidden">

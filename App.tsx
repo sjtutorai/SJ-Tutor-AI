@@ -101,7 +101,6 @@ import {
   Search,
   X,
   Trash2,
-  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -1229,10 +1228,13 @@ const App: React.FC = () => {
         }
       }
 
+      const isOwnerAccount = user.email?.toLowerCase() === "sjtutorai@gmail.com";
       const initialProfile = {
         ...initialProfileState,
-        credits: 100,
+        credits: isOwnerAccount ? 99999 : 100,
+        planType: isOwnerAccount ? "Achiever" : "Free",
         ...cached,
+        ...(isOwnerAccount ? { planType: "Achiever", credits: 99999, hasCompletedOnboarding: true } : {}),
         displayName: (cached && cached.displayName) || user.displayName || "",
         photoURL: (cached && cached.photoURL) || user.photoURL || "",
       };
@@ -1241,7 +1243,7 @@ const App: React.FC = () => {
       setUserProfile((prev) => ({
         ...initialProfile,
         isRegisteredInFirestore: prev.isRegisteredInFirestore || cached?.isRegisteredInFirestore,
-        hasCompletedOnboarding: prev.hasCompletedOnboarding || cached?.hasCompletedOnboarding,
+        hasCompletedOnboarding: isOwnerAccount || prev.hasCompletedOnboarding || cached?.hasCompletedOnboarding,
       }));
 
       // Check profile completion to trigger alerts/notifications (skip for users registered in Firestore)
@@ -2947,7 +2949,7 @@ const App: React.FC = () => {
 
       case AppMode.SETTINGS:
         return (
-          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="w-full max-w-7xl mx-auto h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
             <SettingsView
               userProfile={userProfile}
               onLogout={handleLogout}
@@ -3442,17 +3444,6 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {(() => {
-              const trialInfo = calculateTrialInfo(userProfile, user?.uid);
-              const hasUnlimited = !trialInfo.isExpired;
-              return (
-                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 rounded-full text-xs font-bold shadow-sm" title={hasUnlimited ? "Unlimited Credits (Active Trial)" : "Your Credits"}>
-                  <Zap className="w-4 h-4 text-amber-500" />
-                  <span>{hasUnlimited ? "Unlimited" : `${userProfile.credits} Credits`}</span>
-                </div>
-              );
-            })()}
-            
             <button
               onClick={handleThemeToggle}
               className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors hidden sm:block"

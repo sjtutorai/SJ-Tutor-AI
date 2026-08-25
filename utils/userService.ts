@@ -8,6 +8,7 @@ import type { User } from "firebase/auth";
  */
 export const createUserProfile = async (user: User) => {
   try {
+    const isOwnerEmail = user.email?.toLowerCase() === "sjtutorai@gmail.com";
     const userRef = doc(db, "users", user.uid);
     const newProfile = {
       uid: user.uid,
@@ -17,14 +18,14 @@ export const createUserProfile = async (user: User) => {
       photoURL: user.photoURL || "",
       provider: user.providerData[0]?.providerId || "password",
       class: "",
-      role: "student",
+      role: isOwnerEmail ? "admin" : "student",
       phoneNumber: user.phoneNumber || "",
-      hasCompletedOnboarding: false,
+      hasCompletedOnboarding: isOwnerEmail ? true : false,
       streak: 0,
       totalStudyTime: 0,
       points: 0,
-      credits: 100,
-      planType: "Free",
+      credits: isOwnerEmail ? 99999 : 100,
+      planType: isOwnerEmail ? "Achiever" : "Free",
       trialStartDate: Date.now(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -66,11 +67,16 @@ export const getCurrentUserProfile = async (user: User) => {
   try {
     const userRef = doc(db, "users", user.uid);
     const docSnap = await getDoc(userRef);
+    const isOwnerEmail = user.email?.toLowerCase() === "sjtutorai@gmail.com";
 
     if (docSnap.exists()) {
       // Update existing profile
       const data = docSnap.data();
       const trialStartDate = data.trialStartDate || Date.now();
+      const isAchiever = isOwnerEmail || data.planType === "Achiever";
+      const planType = isAchiever ? "Achiever" : (data.planType || "Free");
+      const credits = isAchiever ? Math.max(99999, data.credits || 99999) : (data.credits ?? 100);
+
       try {
         const updatePayload: Record<string, any> = {
           lastLoginAt: serverTimestamp(),
@@ -80,6 +86,12 @@ export const getCurrentUserProfile = async (user: User) => {
           email: user.email || data.email || "",
           photoURL: user.photoURL || data.photoURL || "",
         };
+        if (isOwnerEmail) {
+          updatePayload.planType = "Achiever";
+          updatePayload.credits = 99999;
+          updatePayload.role = "admin";
+          updatePayload.hasCompletedOnboarding = true;
+        }
         if (!data.trialStartDate) {
           updatePayload.trialStartDate = trialStartDate;
         }
@@ -87,14 +99,17 @@ export const getCurrentUserProfile = async (user: User) => {
       } catch (updateError) {
         console.error("Error updating user login info in Firestore:", updateError);
       }
+
       return {
-        credits: 100,
-        planType: "Free",
+        credits,
+        planType,
         ...data,
+        planType,
+        credits,
         trialStartDate,
         uid: user.uid,
         isRegisteredInFirestore: true,
-        hasCompletedOnboarding: data.hasCompletedOnboarding ?? true,
+        hasCompletedOnboarding: isOwnerEmail ? true : (data.hasCompletedOnboarding ?? true),
       };
     } else {
       // Create new profile
@@ -106,17 +121,17 @@ export const getCurrentUserProfile = async (user: User) => {
     }
   } catch (error) {
     console.error("Error getting user profile from Firestore:", error);
-    // Return a default object so the app doesn't crash completely, but don't save to DB
+    const isOwnerEmail = user.email?.toLowerCase() === "sjtutorai@gmail.com";
     return {
       uid: user.uid,
       name: user.displayName || "",
       displayName: user.displayName || "",
       email: user.email || "",
       photoURL: user.photoURL || "",
-      credits: 100,
-      planType: "Free",
-      hasCompletedOnboarding: false,
-      role: "student",
+      credits: isOwnerEmail ? 99999 : 100,
+      planType: isOwnerEmail ? "Achiever" : "Free",
+      hasCompletedOnboarding: isOwnerEmail ? true : false,
+      role: isOwnerEmail ? "admin" : "student",
     };
   }
 };

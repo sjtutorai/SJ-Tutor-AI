@@ -1566,34 +1566,36 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-120px)] bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors duration-300">
+    <div className="flex flex-col md:flex-row min-h-[calc(100vh-100px)] w-full bg-white dark:bg-slate-900 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors duration-300">
       {/* Sidebar / Tabs */}
-      <div className="w-full md:w-64 bg-white dark:bg-slate-800 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700 flex md:flex-col overflow-x-auto md:overflow-y-auto">
-         <div className="p-4 md:p-6 font-bold text-slate-400 text-xs uppercase tracking-wider hidden md:block">
+      <div className="w-full md:w-72 lg:w-80 bg-slate-50/60 dark:bg-slate-900/60 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 flex md:flex-col overflow-x-auto md:overflow-y-auto shrink-0">
+         <div className="p-5 md:p-6 font-bold text-slate-400 dark:text-slate-500 text-xs uppercase tracking-wider hidden md:block">
             Settings Menu
          </div>
-         {tabs.map((tab) => {
-           const Icon = tab.icon;
-           const isActive = activeTab === tab.id;
-           return (
-             <button
-               key={tab.id}
-               onClick={() => setActiveTab(tab.id)}
-               className={`flex items-center gap-3 px-4 md:px-6 py-3 md:py-3.5 text-sm font-medium transition-colors whitespace-nowrap md:whitespace-normal ${
-                 isActive 
-                   ? 'bg-white dark:bg-slate-900 text-primary-700 dark:text-primary-400 border-b-2 md:border-b-0 md:border-r-2 border-primary-500' 
-                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
-               }`}
-             >
-               <Icon className={`w-4 h-4 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400'}`} />
-               {tab.label}
-             </button>
-           );
-         })}
+         <div className="flex md:flex-col p-2 md:p-3 gap-1 w-full">
+           {tabs.map((tab) => {
+             const Icon = tab.icon;
+             const isActive = activeTab === tab.id;
+             return (
+               <button
+                 key={tab.id}
+                 onClick={() => setActiveTab(tab.id)}
+                 className={`flex items-center gap-3 px-4 md:px-5 py-3 md:py-3.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap md:whitespace-normal text-left ${
+                   isActive 
+                     ? 'bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-400 font-bold border border-primary-200 dark:border-primary-800/60 shadow-xs' 
+                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+                 }`}
+               >
+                 <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-slate-400'}`} />
+                 <span>{tab.label}</span>
+               </button>
+             );
+           })}
+         </div>
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 relative bg-white dark:bg-slate-900">
+      <div className="flex-1 overflow-y-auto p-5 md:p-8 lg:p-10 relative bg-white dark:bg-slate-900 custom-scrollbar">
          {(() => {
            const completion = calculateProfileCompletion(userProfile);
            const isProfileComplete = completion >= 100 || !!userProfile.isRegisteredInFirestore || !!userProfile.hasCompletedOnboarding;
