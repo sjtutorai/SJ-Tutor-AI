@@ -67,7 +67,7 @@ import { SEOService } from "./services/seoService";
 import { db, auth } from "./firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { StudyGroup } from "./types";
-import { getCurrentUserProfile } from "./utils/userService";
+import { getCurrentUserProfile, getMembershipByEmail } from "./utils/userService";
 import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, } from "firebase/auth";
 import type { User } from "firebase/auth";
 import {
@@ -1228,13 +1228,13 @@ const App: React.FC = () => {
         }
       }
 
-      const isOwnerAccount = user.email?.toLowerCase() === "sjtutorai@gmail.com";
+      const membership = getMembershipByEmail(user.email);
       const initialProfile = {
         ...initialProfileState,
-        credits: isOwnerAccount ? 99999 : 100,
-        planType: isOwnerAccount ? "Achiever" : "Free",
+        credits: membership ? membership.credits : 100,
+        planType: membership ? membership.planType : "Free",
         ...cached,
-        ...(isOwnerAccount ? { planType: "Achiever", credits: 99999, hasCompletedOnboarding: true } : {}),
+        ...(membership ? { planType: membership.planType, credits: membership.credits, hasCompletedOnboarding: true } : {}),
         displayName: (cached && cached.displayName) || user.displayName || "",
         photoURL: (cached && cached.photoURL) || user.photoURL || "",
       };
@@ -1243,7 +1243,7 @@ const App: React.FC = () => {
       setUserProfile((prev) => ({
         ...initialProfile,
         isRegisteredInFirestore: prev.isRegisteredInFirestore || cached?.isRegisteredInFirestore,
-        hasCompletedOnboarding: isOwnerAccount || prev.hasCompletedOnboarding || cached?.hasCompletedOnboarding,
+        hasCompletedOnboarding: !!membership || prev.hasCompletedOnboarding || cached?.hasCompletedOnboarding,
       }));
 
       // Check profile completion to trigger alerts/notifications (skip for users registered in Firestore)

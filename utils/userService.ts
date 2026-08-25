@@ -3,12 +3,36 @@ import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firest
 import type { User } from "firebase/auth";
 
 /**
+ * Helper to get predefined membership & credits by email
+ */
+export const getMembershipByEmail = (email?: string | null) => {
+  const normalized = email?.toLowerCase().trim() || "";
+  if (normalized === "sjtutorai@gmail.com") {
+    return {
+      planType: "Achiever" as const,
+      credits: 99999,
+      role: "admin",
+      hasCompletedOnboarding: true,
+    };
+  }
+  if (normalized === "sadanandj2011@gmail.com" || normalized === "krishay5712@gmail.com") {
+    return {
+      planType: "Scholar" as const,
+      credits: 2000,
+      role: "student",
+      hasCompletedOnboarding: true,
+    };
+  }
+  return null;
+};
+
+/**
  * Creates a new user profile in Firestore
  * @param user The Firebase Auth user object
  */
 export const createUserProfile = async (user: User) => {
   try {
-    const isOwnerEmail = user.email?.toLowerCase() === "sjtutorai@gmail.com";
+    const membership = getMembershipByEmail(user.email);
     const userRef = doc(db, "users", user.uid);
     const newProfile = {
       uid: user.uid,
@@ -18,14 +42,14 @@ export const createUserProfile = async (user: User) => {
       photoURL: user.photoURL || "",
       provider: user.providerData[0]?.providerId || "password",
       class: "",
-      role: isOwnerEmail ? "admin" : "student",
+      role: membership?.role || "student",
       phoneNumber: user.phoneNumber || "",
-      hasCompletedOnboarding: isOwnerEmail ? true : false,
+      hasCompletedOnboarding: membership ? true : false,
       streak: 0,
       totalStudyTime: 0,
       points: 0,
-      credits: isOwnerEmail ? 99999 : 100,
-      planType: isOwnerEmail ? "Achiever" : "Free",
+      credits: membership ? membership.credits : 100,
+      planType: membership ? membership.planType : "Free",
       trialStartDate: Date.now(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -67,15 +91,18 @@ export const getCurrentUserProfile = async (user: User) => {
   try {
     const userRef = doc(db, "users", user.uid);
     const docSnap = await getDoc(userRef);
-    const isOwnerEmail = user.email?.toLowerCase() === "sjtutorai@gmail.com";
+    const membership = getMembershipByEmail(user.email);
 
     if (docSnap.exists()) {
       // Update existing profile
       const data = docSnap.data();
       const trialStartDate = data.trialStartDate || Date.now();
-      const isAchiever = isOwnerEmail || data.planType === "Achiever";
-      const planType = isAchiever ? "Achiever" : (data.planType || "Free");
-      const credits = isAchiever ? Math.max(99999, data.credits || 99999) : (data.credits ?? 100);
+      const planType = membership 
+        ? membership.planType 
+        : (data.planType || "Free");
+      const credits = membership 
+        ? Math.max(membership.credits, data.credits || membership.credits) 
+        : (data.credits ?? 100);
 
       try {
         const updatePayload: Record<string, any> = {
@@ -86,10 +113,10 @@ export const getCurrentUserProfile = async (user: User) => {
           email: user.email || data.email || "",
           photoURL: user.photoURL || data.photoURL || "",
         };
-        if (isOwnerEmail) {
-          updatePayload.planType = "Achiever";
-          updatePayload.credits = 99999;
-          updatePayload.role = "admin";
+        if (membership) {
+          updatePayload.planType = membership.planType;
+          updatePayload.credits = credits;
+          if (membership.role) updatePayload.role = membership.role;
           updatePayload.hasCompletedOnboarding = true;
         }
         if (!data.trialStartDate) {
@@ -109,7 +136,7 @@ export const getCurrentUserProfile = async (user: User) => {
         trialStartDate,
         uid: user.uid,
         isRegisteredInFirestore: true,
-        hasCompletedOnboarding: isOwnerEmail ? true : (data.hasCompletedOnboarding ?? true),
+        hasCompletedOnboarding: membership ? true : (data.hasCompletedOnboarding ?? true),
       };
     } else {
       // Create new profile
@@ -121,17 +148,17 @@ export const getCurrentUserProfile = async (user: User) => {
     }
   } catch (error) {
     console.error("Error getting user profile from Firestore:", error);
-    const isOwnerEmail = user.email?.toLowerCase() === "sjtutorai@gmail.com";
+    const membership = getMembershipByEmail(user.email);
     return {
       uid: user.uid,
       name: user.displayName || "",
       displayName: user.displayName || "",
       email: user.email || "",
       photoURL: user.photoURL || "",
-      credits: isOwnerEmail ? 99999 : 100,
-      planType: isOwnerEmail ? "Achiever" : "Free",
-      hasCompletedOnboarding: isOwnerEmail ? true : false,
-      role: isOwnerEmail ? "admin" : "student",
+      credits: membership ? membership.credits : 100,
+      planType: membership ? membership.planType : "Free",
+      hasCompletedOnboarding: membership ? true : false,
+      role: membership?.role || "student",
     };
   }
 };
