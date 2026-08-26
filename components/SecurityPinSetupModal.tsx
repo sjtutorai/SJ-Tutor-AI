@@ -10,7 +10,8 @@ import {
   X, 
   AlertCircle, 
   RefreshCw,
-  Smartphone
+  Smartphone,
+  HelpCircle
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { SecurityPinService } from '../services/securityPinService';
@@ -50,6 +51,15 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
   const [enableBiometrics, setEnableBiometrics] = useState<boolean>(userProfile.biometricsEnabled ?? true);
   const [isBiometricsAvailable, setIsBiometricsAvailable] = useState(false);
 
+  // Security Question States
+  const [securityQuestion, setSecurityQuestion] = useState<string>(
+    userProfile.securityQuestion || SettingsService.getSettings().privacy.securityQuestion || SecurityPinService.DEFAULT_SECURITY_QUESTIONS[0]
+  );
+  const [securityAnswer, setSecurityAnswer] = useState<string>(
+    userProfile.securityAnswer || SettingsService.getSettings().privacy.securityAnswer || ''
+  );
+  const [isCustomQuestion, setIsCustomQuestion] = useState(false);
+
   const [showSecret, setShowSecret] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -71,6 +81,12 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
       setConfirmPin('');
       setPinLength(userProfile.securityPinLength || 4);
       setEnableBiometrics(userProfile.biometricsEnabled ?? true);
+      setSecurityQuestion(
+        userProfile.securityQuestion || SettingsService.getSettings().privacy.securityQuestion || SecurityPinService.DEFAULT_SECURITY_QUESTIONS[0]
+      );
+      setSecurityAnswer(
+        userProfile.securityAnswer || SettingsService.getSettings().privacy.securityAnswer || ''
+      );
       SecurityPinService.isBiometricsAvailable().then(setIsBiometricsAvailable);
 
       setTimeout(() => {
@@ -152,10 +168,18 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           return;
         }
 
+        let hashedAnswer = userProfile.securityAnswer || '';
+        if (securityAnswer.trim()) {
+          hashedAnswer = await SecurityPinService.hashSecurityAnswer(securityAnswer.trim(), salt);
+        }
+
         const hashed = await SecurityPinService.hashSecret(twoStepPassword.trim(), salt);
         const updated: Partial<UserProfile> = {
           twoFactorEnabled: true,
           twoFactorPassword: hashed,
+          securityQuestion: securityQuestion.trim(),
+          securityAnswer: hashedAnswer,
+          securityQuestionSetAt: Date.now(),
         };
 
         if (uid) {
@@ -167,6 +191,8 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
             ...SettingsService.getSettings().privacy,
             twoFactor: true,
             twoFactorPassword: hashed,
+            securityQuestion: securityQuestion.trim(),
+            securityAnswer: hashedAnswer,
           },
         });
 
@@ -247,6 +273,11 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           return;
         }
 
+        let hashedAnswer = userProfile.securityAnswer || '';
+        if (securityAnswer.trim()) {
+          hashedAnswer = await SecurityPinService.hashSecurityAnswer(securityAnswer.trim(), salt);
+        }
+
         const pinHash = await SecurityPinService.hashPin(cleanNewPin, salt);
 
         const updated: Partial<UserProfile> = {
@@ -254,6 +285,9 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           securityPin: pinHash,
           securityPinLength: pinLength,
           biometricsEnabled: enableBiometrics && isBiometricsAvailable,
+          securityQuestion: securityQuestion.trim(),
+          securityAnswer: hashedAnswer,
+          securityQuestionSetAt: Date.now(),
         };
 
         if (uid) {
@@ -276,6 +310,8 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
             pin: pinHash,
             pinLength,
             biometrics: enableBiometrics && isBiometricsAvailable,
+            securityQuestion: securityQuestion.trim(),
+            securityAnswer: hashedAnswer,
           },
         });
 
@@ -550,6 +586,59 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
                       className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-center tracking-widest text-base font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none transition"
                       required
                     />
+                  </div>
+
+                  {/* Recovery Security Question */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <HelpCircle className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Security Question (PIN Recovery)</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomQuestion(!isCustomQuestion)}
+                        className="text-[10px] text-amber-600 dark:text-amber-400 font-bold hover:underline"
+                      >
+                        {isCustomQuestion ? 'Choose Preset' : 'Custom Question'}
+                      </button>
+                    </div>
+
+                    {isCustomQuestion ? (
+                      <input
+                        type="text"
+                        value={securityQuestion}
+                        onChange={(e) => setSecurityQuestion(e.target.value)}
+                        placeholder="Write your custom recovery question"
+                        className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
+                        required
+                      />
+                    ) : (
+                      <select
+                        value={securityQuestion}
+                        onChange={(e) => setSecurityQuestion(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
+                      >
+                        {SecurityPinService.DEFAULT_SECURITY_QUESTIONS.map((q, idx) => (
+                          <option key={idx} value={q}>
+                            {q}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    <div>
+                      <input
+                        type="text"
+                        value={securityAnswer}
+                        onChange={(e) => setSecurityAnswer(e.target.value)}
+                        placeholder="Your secret answer (e.g., Fluffy, Paris, Lincoln)"
+                        className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-1 block">
+                        Used to instantly reset your PIN if forgotten (otherwise requires a 50-day hold).
+                      </span>
+                    </div>
                   </div>
 
                   {/* Biometrics */}

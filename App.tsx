@@ -3935,6 +3935,12 @@ const App: React.FC = () => {
             setIsPinSessionUnlocked(true);
           }}
           onLogout={handleLogout}
+          onUpdateProfile={async (updated) => {
+            setUserProfile((prev) => ({ ...prev, ...updated }));
+            if (user) {
+              await saveProfileToFirestore(user.uid, updated);
+            }
+          }}
         />
       )}
     </div>

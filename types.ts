@@ -99,6 +99,9 @@ export interface UserProfile {
   securityPin?: string;
   securityPinLength?: 4 | 6;
   biometricsEnabled?: boolean;
+  securityQuestion?: string;
+  securityAnswer?: string;
+  securityQuestionSetAt?: number;
 }
 
 export type RingtoneStyle = 
@@ -150,6 +153,8 @@ export interface UserSettings {
     pin?: string;
     pinLength?: 4 | 6;
     biometrics?: boolean;
+    securityQuestion?: string;
+    securityAnswer?: string;
   };
   calls: {
     ringtone: RingtoneStyle;
@@ -253,6 +258,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
     pin: '',
     pinLength: 4,
     biometrics: false,
+    securityQuestion: '',
+    securityAnswer: '',
   },
   calls: {
     ringtone: 'Modern Chime',

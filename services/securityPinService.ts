@@ -166,6 +166,135 @@ export const SecurityPinService = {
   },
 
   /**
+   * Prompts the device's native biometric sensor / WebAuthn platform authenticator (TouchID, FaceID, Windows Hello, Fingerprint).
+   * Throws an error if the user cancels or biometric validation fails.
+   */
+  authenticateWithBiometrics: async (uid: string, userDisplayName?: string): Promise<boolean> => {
+    if (!window.PublicKeyCredential) {
+      throw new Error('Biometric authentication is not supported by your browser.');
+    }
+
+    const isAvailable = await SecurityPinService.isBiometricsAvailable();
+    if (!isAvailable) {
+      throw new Error('No biometric sensor or platform authenticator detected on this device.');
+    }
+
+    const challenge = new Uint8Array(32);
+    window.crypto.getRandomValues(challenge);
+
+    const storedCredKey = `sjtutor_webauthn_cred_${uid}`;
+    const storedCred = localStorage.getItem(storedCredKey);
+
+    if (storedCred) {
+      try {
+        const credential = await navigator.credentials.get({
+          publicKey: {
+            challenge,
+            timeout: 60000,
+            userVerification: 'required',
+            allowCredentials: [{
+              id: Uint8Array.from(atob(storedCred), (c) => c.charCodeAt(0)),
+              type: 'public-key',
+            }],
+          },
+        });
+        return !!credential;
+      } catch (err: any) {
+        if (err.name === 'NotAllowedError') {
+          throw new Error('Biometric verification cancelled or timed out.');
+        }
+        throw new Error(err.message || 'Biometric authentication failed.');
+      }
+    } else {
+      // First-time biometric registration on this device
+      try {
+        const userIdBytes = new TextEncoder().encode(uid.slice(0, 16));
+        const newCred = await navigator.credentials.create({
+          publicKey: {
+            challenge,
+            rp: { name: 'SJ Tutor AI' },
+            user: {
+              id: userIdBytes,
+              name: userDisplayName || 'Student User',
+              displayName: userDisplayName || 'Student User',
+            },
+            pubKeyCredParams: [
+              { alg: -7, type: 'public-key' },
+              { alg: -257, type: 'public-key' },
+            ],
+            authenticatorSelection: {
+              authenticatorAttachment: 'platform',
+              userVerification: 'required',
+            },
+            timeout: 60000,
+          },
+        }) as PublicKeyCredential | null;
+
+        if (newCred && newCred.rawId) {
+          const rawIdBase64 = btoa(String.fromCharCode(...new Uint8Array(newCred.rawId)));
+          localStorage.setItem(storedCredKey, rawIdBase64);
+          return true;
+        }
+        return false;
+      } catch (err: any) {
+        if (err.name === 'NotAllowedError') {
+          throw new Error('Biometric setup cancelled or not allowed.');
+        }
+        throw new Error(err.message || 'Biometric verification failed.');
+      }
+    }
+  },
+
+  /**
+   * Hashes a security question answer case-insensitively.
+   */
+  hashSecurityAnswer: async (answer: string, salt: string = 'sjtutor_security_q'): Promise<string> => {
+    const normalized = answer.trim().toLowerCase();
+    return SecurityPinService.hashSecret(normalized, salt);
+  },
+
+  /**
+   * Verifies an entered security answer against the stored answer or hash.
+   */
+  verifySecurityAnswer: async (
+    enteredAnswer: string,
+    storedAnswerOrHash: string,
+    salt: string = 'sjtutor_security_q'
+  ): Promise<boolean> => {
+    if (!enteredAnswer || !storedAnswerOrHash) return false;
+    const normalizedEntered = enteredAnswer.trim().toLowerCase();
+    const normalizedStored = storedAnswerOrHash.trim().toLowerCase();
+
+    // Direct plain match
+    if (normalizedEntered === normalizedStored) {
+      return true;
+    }
+
+    // Hash match with user salt
+    const computed = await SecurityPinService.hashSecurityAnswer(enteredAnswer, salt);
+    if (computed === storedAnswerOrHash.trim()) {
+      return true;
+    }
+
+    // Hash match with default salt
+    const computedDefault = await SecurityPinService.hashSecurityAnswer(enteredAnswer, 'sjtutor_security_q');
+    return computedDefault === storedAnswerOrHash.trim();
+  },
+
+  /**
+   * Standard Preset Security Questions.
+   */
+  DEFAULT_SECURITY_QUESTIONS: [
+    'What was the name of your first elementary school?',
+    'What was the name of your first childhood pet?',
+    'In what city or town were you born?',
+    'What is your mother\'s maiden name?',
+    'What was your favorite childhood nickname?',
+    'What is the title of your favorite book or movie?',
+    'What was the model of your family\'s first car?',
+  ],
+
+  /**
    * Saves local security pin configuration.
    */
   saveLocalConfig: (uid: string, config: SecurityPinConfig): void => {
