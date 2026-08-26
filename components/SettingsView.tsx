@@ -1414,6 +1414,52 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                  </label>
                </div>
 
+               {/* 3. Security Recovery Question */}
+               <div className="p-5 rounded-2xl border bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700/80 space-y-3">
+                 <div className="flex items-start justify-between gap-4">
+                   <div className="flex items-start gap-3.5">
+                     <div className="p-2.5 rounded-xl bg-amber-500 text-slate-950 shadow-sm shrink-0">
+                       <HelpCircle className="w-5 h-5" />
+                     </div>
+                     <div>
+                       <div className="flex items-center gap-2">
+                         <span className="text-base font-bold text-slate-800 dark:text-white">
+                           Security Recovery Question
+                         </span>
+                         {(userProfile.securityQuestion || settings.privacy.securityQuestion) ? (
+                           <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 rounded-full border border-emerald-300 dark:border-emerald-800">
+                             Configured
+                           </span>
+                         ) : (
+                           <span className="px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 rounded-full">
+                             Not Set
+                           </span>
+                         )}
+                       </div>
+                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                         {(userProfile.securityQuestion || settings.privacy.securityQuestion) ? (
+                           <span>Question: <em>&ldquo;{userProfile.securityQuestion || settings.privacy.securityQuestion}&rdquo;</em> — Allows instant password &amp; PIN recovery.</span>
+                         ) : (
+                           <span>Choose from categorized templates or write a custom question with repeated answer confirmation to prevent 50-day reset holding delays.</span>
+                         )}
+                       </p>
+                     </div>
+                   </div>
+
+                   <button
+                     onClick={() => {
+                       setPinSetupTab('pin');
+                       setIsDisablingPin(false);
+                       setShowPinSetupModal(true);
+                     }}
+                     className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-black transition flex items-center gap-1.5 shrink-0 shadow-sm"
+                   >
+                     <Sparkles className="w-3.5 h-3.5" />
+                     {(userProfile.securityQuestion || settings.privacy.securityQuestion) ? 'Update Question' : 'Set Question'}
+                   </button>
+                 </div>
+               </div>
+
                <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-3">
                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Data Management</h4>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

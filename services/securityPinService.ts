@@ -282,16 +282,75 @@ export const SecurityPinService = {
   },
 
   /**
-   * Standard Preset Security Questions.
+   * Categorized Preset Security Questions Templates.
+   */
+  SECURITY_QUESTION_CATEGORIES: [
+    {
+      category: 'Childhood & Personal',
+      icon: '🐾',
+      questions: [
+        'What was the name of your first childhood pet?',
+        'What street did you grow up on?',
+        'What was your favorite childhood nickname?',
+        'What was your dream job when you were a child?',
+      ],
+    },
+    {
+      category: 'Education & Study',
+      icon: '🎓',
+      questions: [
+        'What was the name of your first elementary school?',
+        'What was your favorite subject in high school?',
+        'Who was your most inspiring teacher or mentor?',
+        'What mascot did your first school or college have?',
+      ],
+    },
+    {
+      category: 'Places & Memories',
+      icon: '🌍',
+      questions: [
+        'In what city or town were you born?',
+        'What was the destination of your first flight or vacation?',
+        'What city do you consider your true hometown?',
+        'What was the address or name of your first apartment?',
+      ],
+    },
+    {
+      category: 'Favorites & Culture',
+      icon: '🎬',
+      questions: [
+        'What is the title of your favorite book or movie?',
+        'What was the first live concert or show you attended?',
+        'What was the make and model of your first car?',
+        'What is your all-time favorite meal or dessert?',
+      ],
+    },
+    {
+      category: 'Family & Heritage',
+      icon: '👨‍👩‍👧',
+      questions: [
+        'What is your mother\'s maiden name?',
+        'In what city or town did your parents meet?',
+        'What is the first name of your oldest sibling or cousin?',
+        'What is your maternal grandmother\'s first name?',
+      ],
+    },
+  ],
+
+  /**
+   * Standard Flat Preset Security Questions.
    */
   DEFAULT_SECURITY_QUESTIONS: [
-    'What was the name of your first elementary school?',
     'What was the name of your first childhood pet?',
+    'What was the name of your first elementary school?',
     'In what city or town were you born?',
     'What is your mother\'s maiden name?',
     'What was your favorite childhood nickname?',
     'What is the title of your favorite book or movie?',
-    'What was the model of your family\'s first car?',
+    'What street did you grow up on?',
+    'What was the make and model of your first car?',
+    'What was your favorite subject in high school?',
+    'In what city or town did your parents meet?',
   ],
 
   /**
