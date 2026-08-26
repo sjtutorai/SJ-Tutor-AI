@@ -34,6 +34,8 @@ export const TwoStepLoginModal: React.FC<TwoStepLoginModalProps> = ({
   const [showForgotModal, setShowForgotModal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const storedSecret = userProfile.twoFactorPassword || userProfile.securityPin || '';
+
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
