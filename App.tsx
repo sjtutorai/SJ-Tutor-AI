@@ -2808,7 +2808,9 @@ const App: React.FC = () => {
               mode={AppMode.SUMMARY}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
-              lockGradeClass={!!(userProfile.dob && userProfile.grade)}
+              lockGradeClass={!userProfile.planType || userProfile.planType === 'Free'}
+              userProfile={userProfile}
+              onOpenUpgrade={() => setShowPremiumModal(true)}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -2871,7 +2873,9 @@ const App: React.FC = () => {
               mode={AppMode.HOMEWORK}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
-              lockGradeClass={!!(userProfile.dob && userProfile.grade)}
+              lockGradeClass={!userProfile.planType || userProfile.planType === 'Free'}
+              userProfile={userProfile}
+              onOpenUpgrade={() => setShowPremiumModal(true)}
               onFilesUpload={setHomeworkFiles}
               homeworkFiles={homeworkFiles}
             />
@@ -2937,7 +2941,9 @@ const App: React.FC = () => {
               mode={AppMode.QUIZ}
               onChange={handleFormChange}
               onFillSample={handleFillSample}
-              lockGradeClass={!!(userProfile.dob && userProfile.grade)}
+              lockGradeClass={!userProfile.planType || userProfile.planType === 'Free'}
+              userProfile={userProfile}
+              onOpenUpgrade={() => setShowPremiumModal(true)}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -3052,6 +3058,7 @@ const App: React.FC = () => {
               userId={user ? user.uid : null}
               onDeductCredit={deductCredit}
               userProfile={userProfile}
+              onOpenUpgrade={() => setShowPremiumModal(true)}
             />
           </div>
         );

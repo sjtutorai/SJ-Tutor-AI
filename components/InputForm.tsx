@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { StudyRequestData, AppMode, DifficultyLevel, HomeworkFile } from '../types';
+import { StudyRequestData, AppMode, DifficultyLevel, HomeworkFile, UserProfile } from '../types';
 import { 
   BookOpen, 
   GraduationCap, 
@@ -34,6 +34,8 @@ interface InputFormProps {
   lockGradeClass?: boolean;
   onFilesUpload?: (files: HomeworkFile[]) => void;
   homeworkFiles?: HomeworkFile[];
+  userProfile?: UserProfile;
+  onOpenUpgrade?: () => void;
 }
 
 const getMimeTypeFromExtension = (filename: string): string => {
@@ -117,7 +119,9 @@ const InputForm: React.FC<InputFormProps> = ({
   disabled, 
   lockGradeClass,
   onFilesUpload,
-  homeworkFiles = []
+  homeworkFiles = [],
+  userProfile,
+  onOpenUpgrade
 }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -434,41 +438,128 @@ const InputForm: React.FC<InputFormProps> = ({
             {renderInput("Subject", "subject", BookType, "e.g. Mathematics")}
             {renderInput("Topic/Chapter", "chapterName", BookOpen, "e.g. Calculus / Integration")}
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
-              <div className="relative group">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
+                {lockGradeClass ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenUpgrade?.()}
+                    className="text-[9px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1 transition-all hover:scale-105 active:scale-95"
+                    title="Upgrade to change Class or Grade"
+                  >
+                    <Crown className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                    Upgrade to Change
+                  </button>
+                ) : (
+                  userProfile?.planType && userProfile.planType !== 'Free' && (
+                    <span className="text-[9px] font-semibold text-emerald-600 flex items-center gap-1">
+                      <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Premium Unlocked
+                    </span>
+                  )
+                )}
+              </div>
+              <div 
+                className={`relative group ${lockGradeClass ? 'cursor-pointer' : ''}`}
+                onClick={() => {
+                  if (lockGradeClass && onOpenUpgrade) {
+                    onOpenUpgrade();
+                  }
+                }}
+              >
                 <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   value={data.gradeClass}
-                  onChange={(e) => onChange("gradeClass", e.target.value)}
-                  disabled={disabled || lockGradeClass}
+                  onChange={(e) => {
+                    if (!lockGradeClass) {
+                      onChange("gradeClass", e.target.value);
+                    }
+                  }}
+                  readOnly={lockGradeClass}
+                  disabled={disabled}
                   placeholder="e.g. 10th Grade"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm disabled:cursor-not-allowed"
+                  className={`w-full pl-9 pr-8 py-2 bg-slate-50 border rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm ${
+                    lockGradeClass 
+                      ? 'border-amber-200/80 bg-amber-50/20 cursor-pointer select-none' 
+                      : 'border-slate-200'
+                  }`}
                 />
+                {lockGradeClass && (
+                  <div className="absolute right-2.5 top-2.5 text-amber-500 hover:text-amber-600" title="Locked: Premium required to change">
+                    <Crown className="w-4 h-4 fill-amber-500" />
+                  </div>
+                )}
               </div>
+              {lockGradeClass && (
+                <p className="text-[9px] text-slate-400 flex items-center gap-1 pt-0.5">
+                  <Crown className="w-2.5 h-2.5 text-amber-500" />
+                  Locked to profile grade. Upgrade to Premium to customize.
+                </p>
+              )}
             </div>
           </>
         ) : (
           <>
             {renderInput("Subject", "subject", BookType, "e.g. History")}
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
-              <div className="relative group">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
+                {lockGradeClass ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenUpgrade?.()}
+                    className="text-[9px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1 transition-all hover:scale-105 active:scale-95"
+                    title="Upgrade to change Class or Grade"
+                  >
+                    <Crown className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                    Upgrade to Change
+                  </button>
+                ) : (
+                  userProfile?.planType && userProfile.planType !== 'Free' && (
+                    <span className="text-[9px] font-semibold text-emerald-600 flex items-center gap-1">
+                      <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Premium Unlocked
+                    </span>
+                  )
+                )}
+              </div>
+              <div 
+                className={`relative group ${lockGradeClass ? 'cursor-pointer' : ''}`}
+                onClick={() => {
+                  if (lockGradeClass && onOpenUpgrade) {
+                    onOpenUpgrade();
+                  }
+                }}
+              >
                 <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   value={data.gradeClass}
-                  onChange={(e) => onChange("gradeClass", e.target.value)}
-                  disabled={disabled || lockGradeClass}
+                  onChange={(e) => {
+                    if (!lockGradeClass) {
+                      onChange("gradeClass", e.target.value);
+                    }
+                  }}
+                  readOnly={lockGradeClass}
+                  disabled={disabled}
                   placeholder="e.g. 10th Grade"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm disabled:cursor-not-allowed"
+                  className={`w-full pl-9 pr-8 py-2 bg-slate-50 border rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm ${
+                    lockGradeClass 
+                      ? 'border-amber-200/80 bg-amber-50/20 cursor-pointer select-none' 
+                      : 'border-slate-200'
+                  }`}
                 />
                 {lockGradeClass && (
-                  <div className="absolute right-3 top-2.5">
-                    <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                  <div className="absolute right-2.5 top-2.5 text-amber-500 hover:text-amber-600" title="Locked: Premium required to change">
+                    <Crown className="w-4 h-4 fill-amber-500" />
                   </div>
                 )}
               </div>
+              {lockGradeClass && (
+                <p className="text-[9px] text-slate-400 flex items-center gap-1 pt-0.5">
+                  <Crown className="w-2.5 h-2.5 text-amber-500" />
+                  Locked to profile grade. Upgrade to Premium to customize.
+                </p>
+              )}
             </div>
             {renderInput("Board", "board", School, "e.g. CBSE")}
             {renderInput("Language", "language", Languages, "e.g. English")}

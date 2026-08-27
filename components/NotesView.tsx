@@ -22,10 +22,12 @@ interface NotesViewProps {
   userId: string | null;
   onDeductCredit: (amount: number) => boolean;
   userProfile?: UserProfile;
+  onOpenUpgrade?: () => void;
 }
 
-const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfile }) => {
+const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfile, onOpenUpgrade }) => {
   const { triggerToast } = useNotifications();
+  const isPremium = Boolean(userProfile?.planType && userProfile.planType !== 'Free');
   const [activeTab, setActiveTab] = useState<'NOTES' | 'REMINDERS' | 'TIMETABLE'>('NOTES');
   const [viewMode, setViewMode] = useState<'FOLDERS' | 'LIST' | 'EDITOR' | 'AI_GENERATOR'>('FOLDERS');
   
@@ -50,6 +52,13 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   const [isListeningChapter, setIsListeningChapter] = useState(false);
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
   const chapterVoiceSessionRef = useRef<VoiceDictationSession | null>(null);
+
+  // Sync profile grade when non-premium
+  useEffect(() => {
+    if (!isPremium && userProfile?.grade) {
+      setClassGradeInput(userProfile.grade);
+    }
+  }, [userProfile?.grade, isPremium]);
   
   // Reminders/Timetable (Existing Logic Preserved)
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
@@ -909,26 +918,78 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
 
                       {/* Class / Grade */}
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                          <span>Class / Grade</span>
-                          {userProfile?.grade && (
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                            Class / Grade
+                          </label>
+                          {!isPremium ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onOpenUpgrade) {
+                                  onOpenUpgrade();
+                                } else {
+                                  triggerToast('Premium Required 👑', 'Changing Class or Grade in AI Notes requires a Premium account. Upgrade to customize!', 'Important Alerts');
+                                }
+                              }}
+                              className="text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-full flex items-center gap-1 transition-all hover:scale-105 active:scale-95 shadow-2xs"
+                              title="Upgrade to change Class or Grade"
+                            >
+                              <Crown className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                              Upgrade to Change
+                            </button>
+                          ) : (
                             <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                              <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Profile Set
+                              <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Premium Unlocked
                             </span>
                           )}
-                        </label>
-                        <div className="relative">
+                        </div>
+                        <div 
+                          className={`relative group ${!isPremium ? 'cursor-pointer' : ''}`}
+                          onClick={() => {
+                            if (!isPremium) {
+                              if (onOpenUpgrade) {
+                                onOpenUpgrade();
+                              } else {
+                                triggerToast('Premium Feature 👑', 'Changing Class or Grade in AI Notes requires a Premium account. Upgrade now to unlock custom grade selection!', 'Important Alerts');
+                              }
+                            }
+                          }}
+                        >
                           <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                           <input
                             type="text"
                             required
                             value={classGradeInput}
-                            onChange={(e) => setClassGradeInput(e.target.value)}
+                            onChange={(e) => {
+                              if (isPremium) {
+                                setClassGradeInput(e.target.value);
+                              }
+                            }}
+                            readOnly={!isPremium}
                             disabled={isGeneratingNotes}
                             placeholder="e.g. 10th Grade"
-                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 dark:text-white text-sm"
+                            className={`w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 dark:text-white text-sm ${
+                              !isPremium 
+                                ? 'border-amber-200/80 dark:border-amber-900/50 bg-amber-50/20 dark:bg-amber-950/10 cursor-pointer select-none' 
+                                : 'border-slate-200 dark:border-slate-700'
+                            }`}
                           />
+                          {!isPremium && (
+                            <div 
+                              className="absolute right-2.5 top-2.5 text-amber-500 hover:text-amber-600"
+                              title="Locked: Premium required to change"
+                            >
+                              <Crown className="w-4 h-4 fill-amber-500" />
+                            </div>
+                          )}
                         </div>
+                        {!isPremium && (
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 flex items-center gap-1 pt-0.5">
+                            <Crown className="w-2.5 h-2.5 text-amber-500" />
+                            Locked to profile grade. Upgrade to Premium to customize.
+                          </p>
+                        )}
                       </div>
 
                       {/* Board */}
