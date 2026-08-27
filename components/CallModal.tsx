@@ -25,6 +25,7 @@ import {
   ICE_SERVERS,
   GroupMeshManager,
 } from "../services/webrtcService";
+import { NotificationService } from "../services/notificationService";
 import {
   Phone,
   PhoneCall,
@@ -805,6 +806,12 @@ export const CallModal: React.FC<CallModalProps> = ({
   // ----------------------------------------------------
   const cleanupCall = () => {
     callAudio.stopAll();
+    if (liveDirectCall?.id) {
+      NotificationService.dismissCallNotification(liveDirectCall.id);
+    }
+    if (incomingDirectCall?.id) {
+      NotificationService.dismissCallNotification(incomingDirectCall.id);
+    }
     isInitializingMediaRef.current = false;
     if (peerConnRef.current) {
       peerConnRef.current.close();

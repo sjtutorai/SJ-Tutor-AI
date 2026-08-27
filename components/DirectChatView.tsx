@@ -548,21 +548,6 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
         type,
       });
 
-      sendNotification(
-        `Incoming ${type === "video" ? "Video" : "Audio"} Call 📞`,
-        `${currentName} is calling you on SJ Tutor AI. Tap to answer.`,
-        "Important Alerts",
-        activeFriendDetails.uid,
-        `/?action=accept_call&callId=${encodeURIComponent(callId)}`,
-        {
-          type: "call",
-          callId: callId,
-          callerName: currentName,
-          callerAvatar: currentPhoto,
-          callType: type,
-        }
-      );
-
       if (onStartDirectCall) {
         onStartDirectCall({
           id: callId,

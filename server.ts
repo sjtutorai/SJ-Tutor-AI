@@ -281,6 +281,23 @@ app.post("/api/calls/decline", async (req, res) => {
   }
 });
 
+// Call dismiss endpoint to clear active call notifications across devices
+app.post("/api/calls/dismiss", async (req, res) => {
+  try {
+    const { callId, receiverId, callerId } = req.body;
+    console.log(`[CALL DISMISS API] Call notification dismissed: ${callId} for receiver: ${receiverId}, caller: ${callerId}`);
+    if (receiverId) {
+      pushNotificationService.sendDismissCallPushNotification(receiverId, callId).catch(() => {});
+    }
+    if (callerId) {
+      pushNotificationService.sendDismissCallPushNotification(callerId, callId).catch(() => {});
+    }
+    res.json({ success: true, callId });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Audio Transcription Endpoint using Gemini AI
 app.post("/api/transcribe-audio", async (req, res) => {
   try {

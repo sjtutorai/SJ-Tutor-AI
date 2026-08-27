@@ -870,34 +870,23 @@ export async function initiateDirectCall(params: {
 
   await setDoc(callRef, callData);
 
-  // Send background call notification trigger to server/FCM
-  fetch("/api/calls/notify", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      callId,
-      callerId: params.callerId,
-      callerName: params.callerName,
-      callerAvatar: params.callerAvatar || "",
-      receiverId: params.receiverId,
-      receiverName: params.receiverName,
-      type: params.type,
-    }),
-  }).catch((err) => {
-    console.warn("Background call push trigger notice:", err);
-  });
-
-  // Record in-app notification entry for receiver's notification center
-  try {
-    const callTypeLabel = params.type === "video" ? "Video" : "Voice";
-    NotificationService.sendNotification(
-      `Incoming ${callTypeLabel} Call 📞`,
-      `${params.callerName} called you (${callTypeLabel} Call).`,
-      "Important Alerts",
-      params.receiverId
-    ).catch(() => {});
-  } catch (e) {
-    console.warn("Failed to create in-app call notification doc:", e);
+  // Send background high-priority call push notification strictly to receiver's devices
+  if (params.receiverId) {
+    fetch("/api/calls/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        callId,
+        callerId: params.callerId,
+        callerName: params.callerName,
+        callerAvatar: params.callerAvatar || "",
+        receiverId: params.receiverId,
+        receiverName: params.receiverName,
+        type: params.type,
+      }),
+    }).catch((err) => {
+      console.warn("Background call push trigger notice:", err);
+    });
   }
 
   return callId;
@@ -924,6 +913,11 @@ export async function answerDirectCall(callId: string, answer: RTCSessionDescrip
     },
   });
   NotificationService.dismissCallNotification(callId);
+  fetch("/api/calls/dismiss", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ callId }),
+  }).catch(() => {});
 }
 
 export async function declineDirectCall(callId: string, reason: "declined" | "busy" = "declined") {
@@ -933,6 +927,11 @@ export async function declineDirectCall(callId: string, reason: "declined" | "bu
     endedAt: Date.now(),
   });
   NotificationService.dismissCallNotification(callId);
+  fetch("/api/calls/dismiss", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ callId }),
+  }).catch(() => {});
 }
 
 export async function endDirectCall(callId: string, durationSeconds?: number) {
@@ -943,6 +942,11 @@ export async function endDirectCall(callId: string, durationSeconds?: number) {
     duration: durationSeconds || 0,
   });
   NotificationService.dismissCallNotification(callId);
+  fetch("/api/calls/dismiss", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ callId }),
+  }).catch(() => {});
 }
 
 export async function addDirectCallIceCandidate(callId: string, isCaller: boolean, candidate: RTCIceCandidate) {

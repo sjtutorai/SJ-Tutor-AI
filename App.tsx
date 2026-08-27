@@ -788,8 +788,8 @@ const App: React.FC = () => {
     }
 
     const unsub = subscribeToIncomingCalls(user.uid, (call) => {
-      // If ringing incoming call and user is not in an active direct call
-      if (call && (!activeDirectCall || activeDirectCall.id === call.id)) {
+      // If ringing incoming call directed to this receiver and user is not in an active direct call
+      if (call && call.callerId !== user.uid && (!activeDirectCall || activeDirectCall.id === call.id)) {
         setIncomingDirectCall(call);
 
         // Deliver native device system notification & vibration on call arrival

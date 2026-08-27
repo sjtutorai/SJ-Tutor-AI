@@ -18,14 +18,22 @@ messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Background message: ', payload);
   
   const rawData = payload.data || payload;
-  const isCall = rawData.type === 'call' || 
-                 rawData.callId || 
-                 (payload.notification?.title && payload.notification.title.toLowerCase().includes('call')) ||
-                 (payload.data?.title && payload.data.title.toLowerCase().includes('call'));
+
+  if (rawData.type === 'dismiss_call' || rawData.action === 'dismiss_call') {
+    const callIdToDismiss = rawData.callId;
+    if (callIdToDismiss) {
+      self.registration.getNotifications({ tag: `call_${callIdToDismiss}` }).then((notifs) => {
+        notifs.forEach((n) => n.close());
+      });
+    }
+    return;
+  }
+
+  const isCall = rawData.type === 'call' && Boolean(rawData.callId);
 
   const callId = rawData.callId || '';
   const callerName = rawData.callerName || 'A Student / Teacher';
-  const callType = rawData.callType || (payload.notification?.title && payload.notification.title.toLowerCase().includes('video') ? 'video' : 'audio');
+  const callType = rawData.callType || 'audio';
 
   let notificationTitle = payload.notification?.title || payload.data?.title || 'SJ Tutor AI';
   let notificationOptions = {};
@@ -89,14 +97,24 @@ self.addEventListener('push', (event) => {
   }
 
   const rawData = payload.data || payload;
-  const isCall = rawData.type === 'call' || 
-                 rawData.callId || 
-                 (payload.title && payload.title.toLowerCase().includes('call')) ||
-                 (payload.notification?.title && payload.notification.title.toLowerCase().includes('call'));
+
+  if (rawData.type === 'dismiss_call' || rawData.action === 'dismiss_call') {
+    const callIdToDismiss = rawData.callId;
+    if (callIdToDismiss) {
+      event.waitUntil(
+        self.registration.getNotifications({ tag: `call_${callIdToDismiss}` }).then((notifs) => {
+          notifs.forEach((n) => n.close());
+        })
+      );
+    }
+    return;
+  }
+
+  const isCall = rawData.type === 'call' && Boolean(rawData.callId);
 
   const callId = rawData.callId || '';
   const callerName = rawData.callerName || 'A Student / Teacher';
-  const callType = rawData.callType || (payload.title && payload.title.toLowerCase().includes('video') ? 'video' : 'audio');
+  const callType = rawData.callType || 'audio';
 
   let title = payload.title || payload.notification?.title || 'SJ Tutor AI';
   let body = payload.body || payload.notification?.body || 'You have a new update!';
@@ -174,6 +192,20 @@ self.addEventListener('push', (event) => {
       });
     })
   );
+});
+
+// Client-to-ServiceWorker Messaging Interface
+self.addEventListener('message', (event) => {
+  if (!event.data) return;
+
+  if (event.data.type === 'DISMISS_CALL_NOTIFICATION') {
+    const callId = event.data.callId;
+    if (callId) {
+      self.registration.getNotifications({ tag: `call_${callId}` }).then((notifications) => {
+        notifications.forEach((notif) => notif.close());
+      });
+    }
+  }
 });
 
 self.addEventListener('notificationclick', (event) => {

@@ -88,14 +88,26 @@ self.addEventListener('push', (event) => {
   }
 
   const rawData = payload.data || payload;
-  const isCall = rawData.type === 'call' || 
-                 rawData.callId || 
-                 (payload.title && payload.title.toLowerCase().includes('call')) ||
-                 (payload.notification?.title && payload.notification.title.toLowerCase().includes('call'));
+
+  // Handle dismiss push events immediately
+  if (rawData.type === 'dismiss_call' || rawData.action === 'dismiss_call') {
+    const callIdToDismiss = rawData.callId;
+    if (callIdToDismiss) {
+      event.waitUntil(
+        self.registration.getNotifications({ tag: `call_${callIdToDismiss}` }).then((notifs) => {
+          notifs.forEach((n) => n.close());
+        })
+      );
+    }
+    return;
+  }
+
+  // Only incoming call events have rawData.type === 'call' and a valid callId
+  const isCall = rawData.type === 'call' && Boolean(rawData.callId);
 
   const callId = rawData.callId || '';
   const callerName = rawData.callerName || 'A Student / Teacher';
-  const callType = rawData.callType || (payload.title && payload.title.toLowerCase().includes('video') ? 'video' : 'audio');
+  const callType = rawData.callType || 'audio';
 
   let title = payload.title || payload.notification?.title || 'SJ Tutor AI';
   let body = payload.body || payload.notification?.body || 'You have a new update!';

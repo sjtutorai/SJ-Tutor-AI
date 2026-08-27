@@ -245,6 +245,56 @@ class PushNotificationService {
     return { sentCount, failureCount };
   }
 
+  public async sendDismissCallPushNotification(
+    receiverId: string,
+    callId: string
+  ): Promise<{ sentCount: number; failureCount: number }> {
+    const userSubs = this.subscriptions.get(receiverId) || [];
+    if (userSubs.length === 0 || !callId) {
+      return { sentCount: 0, failureCount: 0 };
+    }
+
+    const payload = JSON.stringify({
+      data: {
+        type: "dismiss_call",
+        action: "dismiss_call",
+        callId,
+      },
+    });
+
+    let sentCount = 0;
+    let failureCount = 0;
+
+    const promises = userSubs.map(async (sub) => {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.keys.p256dh,
+              auth: sub.keys.auth,
+            },
+          },
+          payload,
+          {
+            TTL: 30,
+            urgency: "high",
+            topic: `dismiss-call-${callId}`,
+          }
+        );
+        sentCount++;
+      } catch (err: any) {
+        failureCount++;
+        if (err.statusCode === 404 || err.statusCode === 410) {
+          this.removeSubscription(sub.endpoint, receiverId);
+        }
+      }
+    });
+
+    await Promise.all(promises);
+    return { sentCount, failureCount };
+  }
+
   public async sendGeneralPushNotification(
     receiverId: string,
     notif: {
