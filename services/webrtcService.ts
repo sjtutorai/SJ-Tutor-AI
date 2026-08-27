@@ -1021,6 +1021,8 @@ export function subscribeToIncomingCalls(
       if (
         docData &&
         docData.status === "ringing" &&
+        docData.receiverId === currentUid &&
+        docData.callerId !== currentUid &&
         now - (docData.startedAt || 0) < 90000 // 90-second ringing grace window
       ) {
         if (!activeRingingCall || (docData.startedAt || 0) > (activeRingingCall.startedAt || 0)) {

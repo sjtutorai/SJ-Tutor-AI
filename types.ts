@@ -102,6 +102,7 @@ export interface UserProfile {
   securityQuestion?: string;
   securityAnswer?: string;
   securityQuestionSetAt?: number;
+  lastProfileUpdate?: number;
 }
 
 export type RingtoneStyle = 

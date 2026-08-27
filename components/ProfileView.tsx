@@ -16,16 +16,26 @@ import {
   Briefcase, 
   Layers, 
   BookOpen, 
-  ArrowRight 
+  ArrowRight,
+  Crown,
+  Lock,
+  Clock
 } from 'lucide-react';
 import { validateAndParsePhone, CountryPhone } from '../utils/phoneUtils';
-import { calculateProfileCompletion, generateRegistrationNumber, calculateGradeFromAge, getMissingProfileFields } from '../utils/profileUtils';
+import { 
+  calculateProfileCompletion, 
+  generateRegistrationNumber, 
+  calculateGradeFromAge, 
+  getMissingProfileFields,
+  calculateProfileUpdateCooldown 
+} from '../utils/profileUtils';
 
 interface ProfileViewProps {
   profile: UserProfile;
   email: string | null;
   onSave: (profile: UserProfile, redirect?: boolean) => void;
   isOnboarding?: boolean;
+  onOpenUpgrade?: () => void;
 }
 
 const STATE_DISTRICT_MAPPING: Record<string, string[]> = {
@@ -147,13 +157,18 @@ const COMMON_SCHOOL_TYPES = [
   'University Departmental School'
 ];
 
-const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnboarding = false }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnboarding = false, onOpenUpgrade }) => {
   const [isEditing, setIsEditing] = useState(isOnboarding);
   const [formData, setFormData] = useState<UserProfile>(profile);
   const [filteredSchools, setFilteredSchools] = useState<string[]>(COMMON_SCHOOL_TYPES);
   const [phoneInfo, setPhoneInfo] = useState<{ country?: CountryPhone, isValid: boolean, error?: string }>({ isValid: false });
+  const [showCooldownModal, setShowCooldownModal] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const cooldownInfo = calculateProfileUpdateCooldown(profile);
+  const isPremium = Boolean(profile.planType && profile.planType !== 'Free');
+  const canEdit = isOnboarding || cooldownInfo.canUpdate || isPremium;
 
   useEffect(() => {
     if (isOnboarding) {
@@ -257,7 +272,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
   };
 
   const handleSave = () => {
-    onSave({ ...formData, hasCompletedOnboarding: true }, true);
+    if (!canEdit) {
+      setShowCooldownModal(true);
+      return;
+    }
+    onSave({ ...formData, hasCompletedOnboarding: true, lastProfileUpdate: Date.now() }, true);
     if (!isOnboarding) {
       setIsEditing(false);
     }
@@ -279,6 +298,40 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Welcome to SJ Tutor AI!</h1>
           <p className="text-slate-500 max-w-lg mx-auto">Let&apos;s build your academic profile to personalize your AI tutor and study materials.</p>
+        </div>
+      )}
+
+      {/* Cooldown Alert Banner for Free Accounts */}
+      {!isOnboarding && !cooldownInfo.canUpdate && (
+        <div className="bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200/90 dark:border-amber-800/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in slide-in-from-top-4 duration-500 shadow-2xs">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/50 border border-amber-200 dark:border-amber-700/60 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="font-bold text-amber-900 dark:text-amber-200 text-sm">
+                  Profile Update Cooldown ({cooldownInfo.cooldownDays} Days)
+                </h4>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/70 dark:bg-amber-900/80 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                  {cooldownInfo.isLowCompletion ? '≤30% Incomplete Rule (3 Days)' : 'Free Tier (7 Days)'}
+                </span>
+              </div>
+              <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-1 leading-relaxed">
+                Free tier profiles can be updated once every {cooldownInfo.cooldownDays} days. Your next edit unlocks on{' '}
+                <span className="font-bold">{cooldownInfo.nextAvailableDate?.toLocaleDateString()}</span> (in ~{cooldownInfo.remainingDays} day{cooldownInfo.remainingDays > 1 ? 's' : ''}).
+              </p>
+            </div>
+          </div>
+          {onOpenUpgrade && (
+            <button 
+              onClick={onOpenUpgrade}
+              className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-600/20 hover:scale-105 active:scale-95"
+            >
+              <Crown className="w-4 h-4 fill-amber-300" />
+              Upgrade to Edit Anytime
+            </button>
+          )}
         </div>
       )}
 
@@ -318,7 +371,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
             </div>
           </div>
           <button 
-            onClick={() => setIsEditing(true)}
+            onClick={() => {
+              if (canEdit) {
+                setIsEditing(true);
+              } else {
+                setShowCooldownModal(true);
+              }
+            }}
             className="hidden sm:flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-primary-500/20"
           >
             Complete Now
@@ -414,6 +473,24 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                       : "Free Tier (100 Credits)"}
                  </span>
                </div>
+               <div className="flex justify-between text-sm mb-2">
+                 <span className="text-slate-500">Profile Edits</span>
+                 <span className={`font-semibold px-2 py-0.5 rounded text-xs flex items-center gap-1 ${
+                   isPremium 
+                     ? 'text-amber-700 bg-amber-50 border border-amber-200' 
+                     : cooldownInfo.canUpdate 
+                     ? 'text-emerald-700 bg-emerald-50' 
+                     : 'text-slate-600 bg-slate-100'
+                 }`}>
+                   {isPremium ? (
+                     <><Crown className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Unlimited</>
+                   ) : cooldownInfo.canUpdate ? (
+                     <><CheckCircle className="w-2.5 h-2.5 text-emerald-500" /> Available</>
+                   ) : (
+                     <><Clock className="w-2.5 h-2.5 text-amber-500" /> {cooldownInfo.remainingDays}d left</>
+                   )}
+                 </span>
+               </div>
                <div className="flex justify-between text-sm items-center mt-2.5 p-2 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 rounded-lg">
                  <span className="text-slate-500 font-medium">Credits</span>
                  <div className="flex items-center gap-1 font-extrabold text-emerald-600 dark:text-emerald-400 bg-white dark:bg-slate-900 border border-emerald-100 dark:border-emerald-950 px-2 py-0.5 rounded text-xs">
@@ -438,13 +515,35 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
             </div>
 
             {!isOnboarding && !isEditing ? (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="w-full py-2.5 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-900 transition-colors shadow-lg shadow-slate-900/10 flex items-center justify-center gap-2"
-              >
-                <Edit2 className="w-4 h-4" />
-                Edit Profile
-              </button>
+              canEdit ? (
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="w-full py-2.5 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-900 transition-colors shadow-lg shadow-slate-900/10 flex items-center justify-center gap-2"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Edit Profile
+                </button>
+              ) : (
+                <div className="w-full space-y-2">
+                  <button 
+                    onClick={() => setShowCooldownModal(true)}
+                    className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-xs"
+                    title="Profile updates on Free tier have a cooldown period"
+                  >
+                    <Lock className="w-4 h-4 text-amber-600" />
+                    Edit in {cooldownInfo.remainingDays} Day{cooldownInfo.remainingDays > 1 ? 's' : ''}
+                  </button>
+                  {onOpenUpgrade && (
+                    <button
+                      onClick={onOpenUpgrade}
+                      className="w-full py-1 text-[11px] font-bold text-amber-700 hover:text-amber-900 flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <Crown className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                      Upgrade to Edit Anytime
+                    </button>
+                  )}
+                </div>
+              )
             ) : isEditing && !isOnboarding && (
               <div className="w-full grid grid-cols-2 gap-3">
                  <button 
@@ -761,6 +860,46 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
 
         </div>
       </div>
+
+      {/* Cooldown Information & Upsell Modal */}
+      {showCooldownModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative animate-in zoom-in-95 space-y-5 text-center border border-slate-200">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-500 shadow-sm">
+              <Lock className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-extrabold text-slate-900">Profile Update Cooldown</h3>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Free tier accounts can update profile details once every <span className="font-bold text-slate-900">{cooldownInfo.cooldownDays} days</span> {cooldownInfo.isLowCompletion ? '(reduced to 3 days since profile is ≤30% complete)' : '(standard 7 days)'}.
+              </p>
+              <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-amber-900 font-medium">
+                Next update unlocks on <span className="font-bold">{cooldownInfo.nextAvailableDate?.toLocaleDateString()}</span> (in ~{cooldownInfo.remainingDays} day{cooldownInfo.remainingDays > 1 ? 's' : ''}).
+              </div>
+            </div>
+            <div className="pt-2 space-y-2.5">
+              {onOpenUpgrade && (
+                <button
+                  onClick={() => {
+                    setShowCooldownModal(false);
+                    onOpenUpgrade();
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Crown className="w-4 h-4 fill-amber-300" />
+                  Upgrade to Edit Whenever You Want
+                </button>
+              )}
+              <button
+                onClick={() => setShowCooldownModal(false)}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

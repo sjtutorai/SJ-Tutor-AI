@@ -105,3 +105,87 @@ export const calculateGradeFromAge = (dob: string): string => {
   
   return "";
 };
+
+export interface ProfileCooldownInfo {
+  canUpdate: boolean;
+  cooldownDays: number;
+  remainingDays: number;
+  remainingHours: number;
+  remainingMinutes: number;
+  nextAvailableDate: Date | null;
+  completionPercentage: number;
+  isLowCompletion: boolean;
+  isPremium: boolean;
+}
+
+export const calculateProfileUpdateCooldown = (profile: UserProfile): ProfileCooldownInfo => {
+  const isPremium = Boolean(profile.planType && profile.planType !== 'Free');
+  const completionPercentage = calculateProfileCompletion(profile);
+  
+  if (isPremium) {
+    return {
+      canUpdate: true,
+      cooldownDays: 0,
+      remainingDays: 0,
+      remainingHours: 0,
+      remainingMinutes: 0,
+      nextAvailableDate: null,
+      completionPercentage,
+      isLowCompletion: completionPercentage <= 30,
+      isPremium: true
+    };
+  }
+
+  // If never updated yet (or onboarding), allowed
+  if (!profile.lastProfileUpdate) {
+    return {
+      canUpdate: true,
+      cooldownDays: completionPercentage <= 30 ? 3 : 7,
+      remainingDays: 0,
+      remainingHours: 0,
+      remainingMinutes: 0,
+      nextAvailableDate: null,
+      completionPercentage,
+      isLowCompletion: completionPercentage <= 30,
+      isPremium: false
+    };
+  }
+
+  // If profile is <= 30% full, 3 days cooldown; otherwise 7 days cooldown
+  const isLowCompletion = completionPercentage <= 30;
+  const cooldownDays = isLowCompletion ? 3 : 7;
+  const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
+  const timeSinceLastUpdate = Date.now() - profile.lastProfileUpdate;
+  const remainingMs = cooldownMs - timeSinceLastUpdate;
+
+  if (remainingMs <= 0) {
+    return {
+      canUpdate: true,
+      cooldownDays,
+      remainingDays: 0,
+      remainingHours: 0,
+      remainingMinutes: 0,
+      nextAvailableDate: null,
+      completionPercentage,
+      isLowCompletion,
+      isPremium: false
+    };
+  }
+
+  const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+  const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
+  const remainingMinutes = Math.ceil(remainingMs / (60 * 1000));
+  const nextAvailableDate = new Date(profile.lastProfileUpdate + cooldownMs);
+
+  return {
+    canUpdate: false,
+    cooldownDays,
+    remainingDays,
+    remainingHours,
+    remainingMinutes,
+    nextAvailableDate,
+    completionPercentage,
+    isLowCompletion,
+    isPremium: false
+  };
+};

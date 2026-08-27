@@ -1,6 +1,5 @@
 import express from "express";
 import bcrypt from "bcryptjs";
-import axios from "axios";
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
@@ -33,7 +32,7 @@ router.post("/send-otp", async (req, res) => {
     const otp = generateOTP();
     const otpHash = await bcrypt.hash(otp, 10);
 
-    // Use memory store exclusively now
+    // Use memory store
     memoryStore.set(phone, {
       otpHash,
       expiresAt: Date.now() + 5 * 60 * 1000,
@@ -41,20 +40,10 @@ router.post("/send-otp", async (req, res) => {
       verified: false
     });
 
-    // Send SMS via Termii (NO Sender ID)
-    await axios.post("https://api.ng.termii.com/api/sms/send", {
-      to: phone.replace(/\+/g, ""), // Termii often expects digits only
-      from: "N-Alert",                 // default system sender
-      sms: `Your SJ Tutor AI OTP is ${otp}. Valid for 5 minutes.`,
-      type: "plain",
-      channel: "generic",
-      api_key: process.env.TERMII_API_KEY
-    });
-
-    res.json({ success: true, message: "OTP sent successfully" });
+    res.json({ success: true, message: "OTP generated successfully" });
   } catch (error: any) {
-    console.error("Error sending OTP:", error.response?.data || error.message);
-    res.status(500).json({ message: "Failed to send OTP" });
+    console.error("Error generating OTP:", error.message);
+    res.status(500).json({ message: "Failed to generate OTP" });
   }
 });
 

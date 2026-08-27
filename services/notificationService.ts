@@ -321,15 +321,24 @@ export class NotificationService {
     }
   }
 
+  private static activeLocalCallNotifs: Map<string, Notification> = new Map();
+
   /**
-   * Show full-screen style phone/WhatsApp call notification with Accept and Decline buttons
+   * Show full-screen style phone/WhatsApp call notification with Accept and Decline buttons.
+   * Strictly verifies incoming calls only: If the current user is the caller, no notification is sent.
    */
   static async showIncomingCallNotification(call: {
     id: string;
+    callerId?: string;
     callerName: string;
     callerAvatar?: string;
     type: 'audio' | 'video';
-  }) {
+  }, currentUserId?: string) {
+    // Strictly prevent notifications for outgoing calls initiated by this user
+    if (currentUserId && call.callerId && call.callerId === currentUserId) {
+      return;
+    }
+
     if (!('Notification' in window)) return;
 
     if (Notification.permission === 'default') {
@@ -365,6 +374,7 @@ export class NotificationService {
             data: {
               type: 'call',
               callId: call.id,
+              callerId: call.callerId || '',
               callerName: call.callerName,
               callerAvatar: call.callerAvatar,
               callType: call.type,
@@ -381,6 +391,7 @@ export class NotificationService {
               type: 'SHOW_CALL_NOTIFICATION',
               call: {
                 id: call.id,
+                callerId: call.callerId || '',
                 callerName: call.callerName,
                 callerAvatar: call.callerAvatar,
                 type: call.type
@@ -401,10 +412,15 @@ export class NotificationService {
           tag: `call_${call.id}`,
           requireInteraction: true,
         });
+        this.activeLocalCallNotifs.set(call.id, notif);
         notif.onclick = () => {
           window.focus();
           window.location.href = `/?action=accept_call&callId=${encodeURIComponent(call.id)}`;
           notif.close();
+          this.activeLocalCallNotifs.delete(call.id);
+        };
+        notif.onclose = () => {
+          this.activeLocalCallNotifs.delete(call.id);
         };
       } catch (e) {
         console.warn('Fallback notification notice:', e);
@@ -413,25 +429,48 @@ export class NotificationService {
   }
 
   /**
-   * Dismiss an active call notification when answered, declined, or ended
+   * Dismiss an active call notification when answered, declined, or ended.
+   * Automatically clears accept/decline action buttons and notification popups.
    */
   static async dismissCallNotification(callId: string) {
-    if (!('serviceWorker' in navigator)) return;
-    try {
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (reg && 'getNotifications' in reg) {
-        const activeNotifs = await reg.getNotifications({ tag: `call_${callId}` });
-        activeNotifs.forEach((n) => n.close());
+    if (!callId) return;
+
+    // 1. Close active window notification if present
+    if (this.activeLocalCallNotifs.has(callId)) {
+      const localNotif = this.activeLocalCallNotifs.get(callId);
+      try {
+        localNotif?.close();
+      } catch (err) {
+        console.warn('Error closing local notification:', err);
       }
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'DISMISS_CALL_NOTIFICATION',
-          callId
-        });
-      }
-    } catch (err) {
-      console.warn('Error dismissing call notification:', err);
+      this.activeLocalCallNotifs.delete(callId);
     }
+
+    // 2. Clear Service Worker notifications
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg && 'getNotifications' in reg) {
+          const activeNotifs = await reg.getNotifications({ tag: `call_${callId}` });
+          activeNotifs.forEach((n) => n.close());
+        }
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'DISMISS_CALL_NOTIFICATION',
+            callId
+          });
+        }
+      } catch (err) {
+        console.warn('Error dismissing service worker call notification:', err);
+      }
+    }
+
+    // 3. Broadcast dismiss request to server to clear across background devices
+    fetch('/api/calls/dismiss', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ callId }),
+    }).catch(() => {});
   }
 
   /**

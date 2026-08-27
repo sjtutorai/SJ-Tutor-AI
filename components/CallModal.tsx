@@ -394,6 +394,7 @@ export const CallModal: React.FC<CallModalProps> = ({
           callAudio.playEndedChime();
           triggerToast?.("Call Declined", "The user is unavailable or declined the call.", "Important Alerts");
         }
+        NotificationService.dismissCallNotification(activeDirectCall.id);
         cleanupCall();
         onCloseDirectCall();
       } else {
@@ -405,6 +406,25 @@ export const CallModal: React.FC<CallModalProps> = ({
       unsubscribe();
     };
   }, [activeDirectCall?.id]);
+
+  // ----------------------------------------------------
+  // Incoming Call Live Sync (Auto-dismiss when caller ends or cancels)
+  // ----------------------------------------------------
+  useEffect(() => {
+    if (!incomingDirectCall?.id) return;
+
+    const unsubscribe = subscribeToDirectCall(incomingDirectCall.id, (updated) => {
+      if (!updated || updated.status === "ended" || updated.status === "declined" || updated.status === "busy") {
+        callAudio.stopAll();
+        NotificationService.dismissCallNotification(incomingDirectCall.id);
+        onCloseDirectCall();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [incomingDirectCall?.id]);
 
   // ----------------------------------------------------
   // Group Call Live Sync
@@ -848,6 +868,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   const handleAcceptIncomingCall = async (type: CallType) => {
     if (!incomingDirectCall) return;
     callAudio.stopAll();
+    NotificationService.dismissCallNotification(incomingDirectCall.id);
 
     try {
       const stream = await getLocalUserMedia(type, cameraFacing);
@@ -970,6 +991,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   const handleDeclineIncomingCall = async () => {
     if (!incomingDirectCall) return;
     callAudio.stopAll();
+    NotificationService.dismissCallNotification(incomingDirectCall.id);
     await declineDirectCall(incomingDirectCall.id, "declined");
     onCloseDirectCall();
   };
@@ -977,6 +999,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   const handleEndDirectCall = async () => {
     if (!liveDirectCall) return;
     callAudio.playEndedChime();
+    NotificationService.dismissCallNotification(liveDirectCall.id);
     await endDirectCall(liveDirectCall.id, callDuration);
     cleanupCall();
     onCloseDirectCall();

@@ -789,15 +789,15 @@ const App: React.FC = () => {
 
     const unsub = subscribeToIncomingCalls(user.uid, (call) => {
       // If ringing incoming call directed to this receiver and user is not in an active direct call
-      if (call && call.callerId !== user.uid && (!activeDirectCall || activeDirectCall.id === call.id)) {
+      if (call && call.callerId !== user.uid && call.receiverId === user.uid && (!activeDirectCall || activeDirectCall.id === call.id)) {
         setIncomingDirectCall(call);
 
-        // Deliver native device system notification & vibration on call arrival
+        // Deliver native device system notification & vibration on call arrival (Incoming only)
         if (call.id !== alertedIncomingCallIdRef.current) {
           alertedIncomingCallIdRef.current = call.id;
 
           // Dispatch native phone/WhatsApp style notification with Accept & Decline buttons
-          NotificationService.showIncomingCallNotification(call);
+          NotificationService.showIncomingCallNotification(call, user.uid);
 
           if ("vibrate" in navigator) {
             try {
@@ -807,7 +807,7 @@ const App: React.FC = () => {
             }
           }
         }
-      } else if (!call) {
+      } else {
         if (alertedIncomingCallIdRef.current) {
           NotificationService.dismissCallNotification(alertedIncomingCallIdRef.current);
         }

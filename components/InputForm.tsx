@@ -128,6 +128,9 @@ const InputForm: React.FC<InputFormProps> = ({
   const [isListening, setIsListening] = useState(false);
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
   const isRewardMode = mode === AppMode.QUIZ && data.questionCount === 10 && data.difficulty === 'Hard';
+  const isPremium = Boolean(userProfile?.planType && userProfile.planType !== 'Free');
+  const lockBoard = !isPremium;
+  const isGradeLocked = lockGradeClass ?? !isPremium;
 
   const stateRef = useRef({
     mode,
@@ -440,7 +443,7 @@ const InputForm: React.FC<InputFormProps> = ({
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
-                {lockGradeClass ? (
+                {isGradeLocked ? (
                   <button
                     type="button"
                     onClick={() => onOpenUpgrade?.()}
@@ -451,7 +454,7 @@ const InputForm: React.FC<InputFormProps> = ({
                     Upgrade to Change
                   </button>
                 ) : (
-                  userProfile?.planType && userProfile.planType !== 'Free' && (
+                  isPremium && (
                     <span className="text-[9px] font-semibold text-emerald-600 flex items-center gap-1">
                       <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Premium Unlocked
                     </span>
@@ -459,9 +462,9 @@ const InputForm: React.FC<InputFormProps> = ({
                 )}
               </div>
               <div 
-                className={`relative group ${lockGradeClass ? 'cursor-pointer' : ''}`}
+                className={`relative group ${isGradeLocked ? 'cursor-pointer' : ''}`}
                 onClick={() => {
-                  if (lockGradeClass && onOpenUpgrade) {
+                  if (isGradeLocked && onOpenUpgrade) {
                     onOpenUpgrade();
                   }
                 }}
@@ -471,26 +474,26 @@ const InputForm: React.FC<InputFormProps> = ({
                   type="text"
                   value={data.gradeClass}
                   onChange={(e) => {
-                    if (!lockGradeClass) {
+                    if (!isGradeLocked) {
                       onChange("gradeClass", e.target.value);
                     }
                   }}
-                  readOnly={lockGradeClass}
+                  readOnly={isGradeLocked}
                   disabled={disabled}
                   placeholder="e.g. 10th Grade"
                   className={`w-full pl-9 pr-8 py-2 bg-slate-50 border rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm ${
-                    lockGradeClass 
+                    isGradeLocked 
                       ? 'border-amber-200/80 bg-amber-50/20 cursor-pointer select-none' 
                       : 'border-slate-200'
                   }`}
                 />
-                {lockGradeClass && (
+                {isGradeLocked && (
                   <div className="absolute right-2.5 top-2.5 text-amber-500 hover:text-amber-600" title="Locked: Premium required to change">
                     <Crown className="w-4 h-4 fill-amber-500" />
                   </div>
                 )}
               </div>
-              {lockGradeClass && (
+              {isGradeLocked && (
                 <p className="text-[9px] text-slate-400 flex items-center gap-1 pt-0.5">
                   <Crown className="w-2.5 h-2.5 text-amber-500" />
                   Locked to profile grade. Upgrade to Premium to customize.
@@ -504,7 +507,7 @@ const InputForm: React.FC<InputFormProps> = ({
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
-                {lockGradeClass ? (
+                {isGradeLocked ? (
                   <button
                     type="button"
                     onClick={() => onOpenUpgrade?.()}
@@ -515,7 +518,7 @@ const InputForm: React.FC<InputFormProps> = ({
                     Upgrade to Change
                   </button>
                 ) : (
-                  userProfile?.planType && userProfile.planType !== 'Free' && (
+                  isPremium && (
                     <span className="text-[9px] font-semibold text-emerald-600 flex items-center gap-1">
                       <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Premium Unlocked
                     </span>
@@ -523,9 +526,9 @@ const InputForm: React.FC<InputFormProps> = ({
                 )}
               </div>
               <div 
-                className={`relative group ${lockGradeClass ? 'cursor-pointer' : ''}`}
+                className={`relative group ${isGradeLocked ? 'cursor-pointer' : ''}`}
                 onClick={() => {
-                  if (lockGradeClass && onOpenUpgrade) {
+                  if (isGradeLocked && onOpenUpgrade) {
                     onOpenUpgrade();
                   }
                 }}
@@ -535,33 +538,93 @@ const InputForm: React.FC<InputFormProps> = ({
                   type="text"
                   value={data.gradeClass}
                   onChange={(e) => {
-                    if (!lockGradeClass) {
+                    if (!isGradeLocked) {
                       onChange("gradeClass", e.target.value);
                     }
                   }}
-                  readOnly={lockGradeClass}
+                  readOnly={isGradeLocked}
                   disabled={disabled}
                   placeholder="e.g. 10th Grade"
                   className={`w-full pl-9 pr-8 py-2 bg-slate-50 border rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm ${
-                    lockGradeClass 
+                    isGradeLocked 
                       ? 'border-amber-200/80 bg-amber-50/20 cursor-pointer select-none' 
                       : 'border-slate-200'
                   }`}
                 />
-                {lockGradeClass && (
+                {isGradeLocked && (
                   <div className="absolute right-2.5 top-2.5 text-amber-500 hover:text-amber-600" title="Locked: Premium required to change">
                     <Crown className="w-4 h-4 fill-amber-500" />
                   </div>
                 )}
               </div>
-              {lockGradeClass && (
+              {isGradeLocked && (
                 <p className="text-[9px] text-slate-400 flex items-center gap-1 pt-0.5">
                   <Crown className="w-2.5 h-2.5 text-amber-500" />
                   Locked to profile grade. Upgrade to Premium to customize.
                 </p>
               )}
             </div>
-            {renderInput("Board", "board", School, "e.g. CBSE")}
+
+            {/* Board Field - Restricted to Premium */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Board</label>
+                {lockBoard ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenUpgrade?.()}
+                    className="text-[9px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1 transition-all hover:scale-105 active:scale-95"
+                    title="Upgrade to change Educational Board"
+                  >
+                    <Crown className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                    Upgrade to Change
+                  </button>
+                ) : (
+                  <span className="text-[9px] font-semibold text-emerald-600 flex items-center gap-1">
+                    <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Premium Unlocked
+                  </span>
+                )}
+              </div>
+              <div 
+                className={`relative group ${lockBoard ? 'cursor-pointer' : ''}`}
+                onClick={() => {
+                  if (lockBoard && onOpenUpgrade) {
+                    onOpenUpgrade();
+                  }
+                }}
+              >
+                <School className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={data.board || (userProfile?.board || 'CBSE')}
+                  onChange={(e) => {
+                    if (!lockBoard) {
+                      onChange("board", e.target.value);
+                    }
+                  }}
+                  readOnly={lockBoard}
+                  disabled={disabled}
+                  placeholder="e.g. CBSE / ICSE"
+                  className={`w-full pl-9 pr-8 py-2 bg-slate-50 border rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm ${
+                    lockBoard 
+                      ? 'border-amber-200/80 bg-amber-50/20 cursor-pointer select-none' 
+                      : 'border-slate-200'
+                  }`}
+                />
+                {lockBoard && (
+                  <div className="absolute right-2.5 top-2.5 text-amber-500 hover:text-amber-600" title="Locked: Premium required to change">
+                    <Crown className="w-4 h-4 fill-amber-500" />
+                  </div>
+                )}
+              </div>
+              {lockBoard && (
+                <p className="text-[9px] text-slate-400 flex items-center gap-1 pt-0.5">
+                  <Crown className="w-2.5 h-2.5 text-amber-500" />
+                  Locked to profile board. Upgrade to Premium to customize.
+                </p>
+              )}
+            </div>
+
             {renderInput("Language", "language", Languages, "e.g. English")}
             <div className="space-y-1">
               <div className="flex justify-between items-center">
@@ -602,7 +665,24 @@ const InputForm: React.FC<InputFormProps> = ({
         {mode === AppMode.SUMMARY && (
           <>
             <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">No. of Characters</label>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">No. of Characters</label>
+                {!isPremium ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenUpgrade?.()}
+                    className="text-[9px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1 transition-all hover:scale-105 active:scale-95"
+                    title="Free accounts: Up to 10,000 characters. Upgrade for 10,000+"
+                  >
+                    <Crown className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                    Max 10,000 (Free) • 10,000+ Premium
+                  </button>
+                ) : (
+                  <span className="text-[9px] font-semibold text-emerald-600 flex items-center gap-1">
+                    <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Up to 20,000 Chars
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <FileText className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                 <input
@@ -610,16 +690,31 @@ const InputForm: React.FC<InputFormProps> = ({
                   value={data.maxCharacters || 5000}
                   onChange={(e) => {
                     const val = parseInt(e.target.value);
-                    onChange('maxCharacters', isNaN(val) ? 0 : val);
+                    if (!isNaN(val)) {
+                      if (!isPremium && val > 10000) {
+                        onChange('maxCharacters', 10000);
+                        onOpenUpgrade?.();
+                      } else {
+                        onChange('maxCharacters', val);
+                      }
+                    } else {
+                      onChange('maxCharacters', 0);
+                    }
                   }}
                   disabled={disabled}
                   min="500"
-                  max="20000"
+                  max={isPremium ? 20000 : 10000}
                   step="500"
                   placeholder="e.g. 5000"
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm"
                 />
               </div>
+              {!isPremium && (
+                <p className="text-[9px] text-slate-400 flex items-center gap-1 pt-0.5">
+                  <Crown className="w-2.5 h-2.5 text-amber-500" />
+                  Free accounts support up to 10,000 characters. Upgrade to Premium for 10,000+ extensive notes!
+                </p>
+              )}
             </div>
 
             <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
@@ -652,7 +747,24 @@ const InputForm: React.FC<InputFormProps> = ({
         {mode === AppMode.QUIZ && (
           <>
             <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">No. of Questions</label>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">No. of Questions</label>
+                {!isPremium ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenUpgrade?.()}
+                    className="text-[9px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1 transition-all hover:scale-105 active:scale-95"
+                    title="Free accounts: Up to 15 questions. Upgrade for 15+"
+                  >
+                    <Crown className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                    Max 15 (Free) • 15+ Premium
+                  </button>
+                ) : (
+                  <span className="text-[9px] font-semibold text-emerald-600 flex items-center gap-1">
+                    <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Up to 50 Questions
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <HelpCircle className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                 <input
@@ -660,15 +772,30 @@ const InputForm: React.FC<InputFormProps> = ({
                   value={data.questionCount || ''}
                   onChange={(e) => {
                     const val = parseInt(e.target.value);
-                    onChange('questionCount', isNaN(val) ? 0 : val);
+                    if (!isNaN(val)) {
+                      if (!isPremium && val > 15) {
+                        onChange('questionCount', 15);
+                        onOpenUpgrade?.();
+                      } else {
+                        onChange('questionCount', val);
+                      }
+                    } else {
+                      onChange('questionCount', 0);
+                    }
                   }}
                   disabled={disabled}
                   min="1"
-                  max="50"
+                  max={isPremium ? 50 : 15}
                   placeholder="e.g. 10"
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all disabled:opacity-60 text-slate-900 text-sm"
                 />
               </div>
+              {!isPremium && (
+                <p className="text-[9px] text-slate-400 flex items-center gap-1 pt-0.5">
+                  <Crown className="w-2.5 h-2.5 text-amber-500" />
+                  Free accounts can generate up to 15 questions. Upgrade to Premium for 15+ questions (up to 50)!
+                </p>
+              )}
             </div>
 
             <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
