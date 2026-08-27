@@ -2257,6 +2257,72 @@ const App: React.FC = () => {
       },
     ];
 
+    const dashboardContainerVariants = {
+      hidden: { opacity: 0 },
+      visible: {
+        opacity: 1,
+        transition: {
+          staggerChildren: 0.05,
+          delayChildren: 0.03,
+        },
+      },
+    };
+
+    const dashboardCardVariants = {
+      hidden: { opacity: 0, y: 14, scale: 0.97 },
+      visible: {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        transition: {
+          type: "spring",
+          damping: 24,
+          stiffness: 340,
+          mass: 0.7,
+        },
+      },
+    };
+
+    const sectionVariants = {
+      hidden: { opacity: 0, y: 16 },
+      visible: {
+        opacity: 1,
+        y: 0,
+        transition: {
+          type: "spring",
+          damping: 26,
+          stiffness: 300,
+          mass: 0.8,
+        },
+      },
+    };
+
+    const quickActionVariants = {
+      hidden: { opacity: 0, y: 10, scale: 0.96 },
+      visible: {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        transition: {
+          type: "spring",
+          damping: 22,
+          stiffness: 340,
+        },
+      },
+    };
+
+    const historyItemVariants = {
+      hidden: { opacity: 0, y: 10 },
+      visible: {
+        opacity: 1,
+        y: 0,
+        transition: {
+          duration: 0.28,
+          ease: [0.16, 1, 0.3, 1],
+        },
+      },
+    };
+
     if (dashboardView !== "OVERVIEW") {
       const baseFiltered = history.filter((h) => 
         h.type === dashboardView || 
@@ -2270,7 +2336,12 @@ const App: React.FC = () => {
         dashboardCards.find((c) => c.id === dashboardView)?.label || "History";
 
       return (
-        <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
+        <motion.div 
+          variants={dashboardContainerVariants}
+          initial="hidden"
+          animate="visible"
+          className="relative z-10"
+        >
           <button
             onClick={() => {
               setDashboardView("OVERVIEW");
@@ -2348,7 +2419,7 @@ const App: React.FC = () => {
           </div>
 
           {baseFiltered.length === 0 ? (
-            <div className="text-center py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 border-dashed animate-in zoom-in duration-500">
+            <motion.div variants={sectionVariants} className="text-center py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 border-dashed">
               <div className="w-16 h-16 bg-primary-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 dark:border-slate-600 p-1">
                 <Logo className="w-full h-full" iconOnly noBorder />
               </div>
@@ -2381,9 +2452,9 @@ const App: React.FC = () => {
                 <Plus className="w-4 h-4 mr-2" />
                 Create New {getSingularName(dashboardView as AppMode)}
               </button>
-            </div>
+            </motion.div>
           ) : filteredHistory.length === 0 ? (
-            <div className="text-center py-16 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 p-8 animate-in fade-in zoom-in-95 duration-300">
+            <motion.div variants={sectionVariants} className="text-center py-16 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 p-8">
               <Search className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
               <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">
                 No history entries match &quot;{historySearchQuery}&quot;
@@ -2394,14 +2465,15 @@ const App: React.FC = () => {
               >
                 Clear search filter
               </button>
-            </div>
+            </motion.div>
           ) : (
-            <div className="grid gap-4">
-              {filteredHistory.map((item, idx) => (
-                <div
+            <motion.div variants={dashboardContainerVariants} className="grid gap-4">
+              {filteredHistory.map((item) => (
+                <motion.div
                   key={item.id}
+                  variants={historyItemVariants}
+                  whileHover={{ y: -2, transition: { duration: 0.15 } }}
                   className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-5 rounded-xl border border-slate-200/60 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
-                  style={{ animationDelay: `${idx * 50}ms` }}
                   onClick={() => loadHistoryItem(item)}
                 >
                   <div className="flex items-start gap-3">
@@ -2471,11 +2543,11 @@ const App: React.FC = () => {
                       <Eye className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           )}
-        </div>
+        </motion.div>
       );
     }
 
@@ -2484,8 +2556,13 @@ const App: React.FC = () => {
     }
 
     return (
-      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <motion.div 
+        variants={dashboardContainerVariants}
+        initial="hidden"
+        animate="visible"
+        className="w-full h-full"
+      >
+        <motion.div variants={sectionVariants} className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
               Welcome back, {userProfile.displayName || "Scholar"}! 👋
@@ -2494,38 +2571,39 @@ const App: React.FC = () => {
               Ready to learn something new today?
             </p>
           </div>
-        </div>
+        </motion.div>
 
-        <TrialBannerCard 
-          userProfile={userProfile} 
-          uid={user?.uid} 
-          onOpenUpgrade={() => setShowPremiumModal(true)} 
-        />
+        <motion.div variants={sectionVariants}>
+          <TrialBannerCard 
+            userProfile={userProfile} 
+            uid={user?.uid} 
+            onOpenUpgrade={() => setShowPremiumModal(true)} 
+          />
+        </motion.div>
 
         {user && !userProfile.twoFactorPassword && !dismissed2faReminder && (
-          <SecurityPasswordReminderCard
-            onSetupClick={() => navigateToPrivacySettings(true)}
-            onDismiss={() => {
-              setDismissed2faReminder(true);
-              if (user) {
-                localStorage.setItem(`dismissed_2fa_reminder_${user.uid}`, "true");
-              }
-            }}
-          />
+          <motion.div variants={sectionVariants}>
+            <SecurityPasswordReminderCard
+              onSetupClick={() => navigateToPrivacySettings(true)}
+              onDismiss={() => {
+                setDismissed2faReminder(true);
+                if (user) {
+                  localStorage.setItem(`dismissed_2fa_reminder_${user.uid}`, "true");
+                }
+              }}
+            />
+          </motion.div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {dashboardCards.map((card, idx) => (
+        <motion.div 
+          variants={dashboardContainerVariants}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+        >
+          {dashboardCards.map((card) => (
             <motion.button
               key={card.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ 
-                duration: 0.45, 
-                delay: idx * 0.07, 
-                ease: [0.16, 1, 0.3, 1] 
-              }}
-              whileHover={{ y: -4, transition: { duration: 0.2 } }}
+              variants={dashboardCardVariants}
+              whileHover={{ y: -4, transition: { duration: 0.2, ease: "easeOut" } }}
               whileTap={{ scale: 0.98 }}
               onClick={() => {
                 if (card.id === AppMode.ID_CARD && !user) {
@@ -2576,47 +2654,59 @@ const App: React.FC = () => {
               </p>
             </motion.button>
           ))}
-        </div>
+        </motion.div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
+        <motion.div variants={sectionVariants} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
           <h3 className="font-bold text-slate-800 dark:text-white mb-4">
             Quick Actions
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <button
+          <motion.div variants={dashboardContainerVariants} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <motion.button
+              variants={quickActionVariants}
+              whileHover={{ y: -3, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => navigateToMode(AppMode.SUMMARY)}
               className="p-4 bg-white dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900"
             >
               <FileText className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               New Summary
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              variants={quickActionVariants}
+              whileHover={{ y: -3, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => navigateToMode(AppMode.HOMEWORK)}
               className="p-4 bg-white dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900"
             >
               <BookOpen className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
               Homework Solver
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              variants={quickActionVariants}
+              whileHover={{ y: -3, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => navigateToMode(AppMode.QUIZ)}
               className="p-4 bg-white dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900"
             >
               <BrainCircuit className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               New Quiz
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              variants={quickActionVariants}
+              whileHover={{ y: -3, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => navigateToMode(AppMode.TUTOR)}
               className="p-4 bg-white dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900"
             >
               <MessageCircle className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               Ask Tutor
-            </button>
-          </div>
-        </div>
+            </motion.button>
+          </motion.div>
+        </motion.div>
 
         {/* Recent Study History */}
         {history.length > 0 && (
-          <div className="mt-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
+          <motion.div variants={sectionVariants} className="mt-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Clock className="w-5 h-5 text-amber-500" />
@@ -2626,10 +2716,12 @@ const App: React.FC = () => {
                 {history.length} items
               </span>
             </div>
-            <div className="grid gap-3">
+            <motion.div variants={dashboardContainerVariants} className="grid gap-3">
               {history.slice(0, 5).map((item) => (
-                <div
+                <motion.div
                   key={item.id}
+                  variants={historyItemVariants}
+                  whileHover={{ x: 3, transition: { duration: 0.15 } }}
                   onClick={() => loadHistoryItem(item)}
                   className="bg-slate-50/50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:border-amber-200 dark:hover:border-amber-800 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
                 >
@@ -2684,12 +2776,12 @@ const App: React.FC = () => {
                       <ChevronRight className="w-4 h-4" />
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
     );
   };
 
