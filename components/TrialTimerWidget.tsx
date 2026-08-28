@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Zap, Crown, CheckCircle2, ChevronRight, X, Sparkles } from 'lucide-react';
+import { Zap, Crown, CheckCircle2, ChevronRight, X, Sparkles } from 'lucide-react';
 import { UserProfile } from '../types';
 
 const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000; // 10 days in milliseconds
@@ -96,15 +96,17 @@ export const TrialHeaderBadge: React.FC<TrialHeaderBadgeProps> = ({
     return () => clearInterval(interval);
   }, [userProfile, uid]);
 
+  const creditsDisplay = `${userProfile?.credits ?? 100} Credits`;
+
   if (trial.isPro) {
     return (
       <button 
         onClick={onOpenUpgrade}
         className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs rounded-full shadow-sm hover:scale-105 transition-transform"
-        title="Active Subscription Plan"
+        title="Available Study Credits • Click to Add More"
       >
-        <Crown className="w-3.5 h-3.5 fill-current" />
-        <span>{userProfile?.planType || 'Achiever'} Plan</span>
+        <Zap className="w-3.5 h-3.5 fill-current text-slate-950" />
+        <span className="font-mono font-extrabold">{creditsDisplay}</span>
       </button>
     );
   }
@@ -126,15 +128,11 @@ export const TrialHeaderBadge: React.FC<TrialHeaderBadgeProps> = ({
             ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 animate-pulse'
             : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
         }`}
-        title={trial.isExpired ? "Click to Upgrade Credits" : "10-Day Free Trial (Unlimited)"}
+        title={trial.isExpired ? "Click to Upgrade Credits" : `10-Day Free Trial (${trial.formattedTime} remaining) • Click for details`}
       >
-        {trial.isExpired ? (
-          <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-        ) : (
-          <Clock className="w-3.5 h-3.5 animate-spin-slow text-emerald-600 dark:text-emerald-400" />
-        )}
+        <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
         <span className="font-mono font-extrabold">
-          {trial.isExpired ? `${userProfile?.credits ?? 100} Credits` : `${trial.formattedTime} Trial`}
+          {creditsDisplay}
         </span>
       </button>
 

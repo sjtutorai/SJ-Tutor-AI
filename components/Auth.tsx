@@ -13,6 +13,7 @@ import { UserProfile } from '../types';
 import Logo from './Logo';
 import { SUPPORTED_LANGUAGES } from '../services/languageService';
 import { SettingsService } from '../services/settingsService';
+import { SecurityPinService } from '../services/securityPinService';
 
 interface AuthProps {
   onSignUpSuccess?: (data?: Partial<UserProfile>) => void;
@@ -57,6 +58,12 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
     try {
       const result = await signInWithPopup(auth, provider);
       const additionalUserInfo = getAdditionalUserInfo(result);
+      
+      // On fresh sign-in / re-login, reset verification so password prompt appears if 2FA is configured
+      if (result.user?.uid) {
+        SecurityPinService.clearTwoStepVerified(result.user.uid);
+        SecurityPinService.lockSession(result.user.uid);
+      }
       
       // Update global user settings with selected language if signed up
       SettingsService.updateSettings({
@@ -105,10 +112,18 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
 
     try {
       if (authMode === 'signin') {
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        if (userCredential.user?.uid) {
+          SecurityPinService.clearTwoStepVerified(userCredential.user.uid);
+          SecurityPinService.lockSession(userCredential.user.uid);
+        }
         onClose();
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        if (userCredential.user?.uid) {
+          SecurityPinService.clearTwoStepVerified(userCredential.user.uid);
+          SecurityPinService.lockSession(userCredential.user.uid);
+        }
         await updateProfile(userCredential.user, { displayName: displayName.trim() });
         
         // Update user settings language immediately

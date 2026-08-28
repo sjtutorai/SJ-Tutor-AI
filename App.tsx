@@ -274,7 +274,7 @@ const App: React.FC = () => {
   const [loggedInDevices, setLoggedInDevices] = useState<DeviceSession[]>([]);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
   const [isTwoStepVerified, setIsTwoStepVerified] = useState<boolean>(true);
-  const [isPinSessionUnlocked, setIsPinSessionUnlocked] = useState<boolean>(false);
+  const [isPinSessionUnlocked, setIsPinSessionUnlocked] = useState<boolean>(true);
   const [settingsInitialTab, setSettingsInitialTab] = useState<any>('account');
   const [settingsOpenPinTab, setSettingsOpenPinTab] = useState<'twostep' | 'pin' | undefined>(undefined);
   const [dismissed2faReminder, setDismissed2faReminder] = useState<boolean>(false);
@@ -1090,6 +1090,10 @@ const App: React.FC = () => {
         signInWithEmailLink(auth, email, window.location.href)
           .then(async (result) => {
             window.localStorage.removeItem('emailForSignIn');
+            if (result.user?.uid) {
+              SecurityPinService.clearTwoStepVerified(result.user.uid);
+              SecurityPinService.lockSession(result.user.uid);
+            }
             const additionalUserInfo = getAdditionalUserInfo(result);
             if (additionalUserInfo?.isNewUser) {
                const storedDisplayName = window.localStorage.getItem('displayNameForSignIn') || '';
@@ -3637,11 +3641,11 @@ const App: React.FC = () => {
             {user && (
               <button
                 onClick={() => setShowPremiumModal(true)}
-                title={!isExpanded ? "Upgrade Plan" : undefined}
+                title={!isExpanded ? (userProfile.planType && userProfile.planType !== 'Free' ? "Membership Plans" : "Upgrade Plan") : undefined}
                 className={`w-full flex items-center justify-center ${isExpanded ? "py-2 gap-1.5 text-xs font-bold" : "p-2"} bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg shadow-sm transition-all`}
               >
                 <Crown className="w-3.5 h-3.5 flex-shrink-0" />
-                {isExpanded && <span>Upgrade Plan</span>}
+                {isExpanded && <span>{userProfile.planType && userProfile.planType !== 'Free' ? "Membership Plan" : "Upgrade Plan"}</span>}
               </button>
             )}
           </div>

@@ -85,23 +85,27 @@ export const SecurityPinService = {
   },
 
   /**
-   * Checks if 2-Step Login verification was already passed in this login session.
+   * Checks if 2-Step Login verification was already passed for this logged-in account on this device.
+   * If already logged in and verified on this device, it returns true (no password prompt).
    */
   isTwoStepVerified: (uid?: string | null): boolean => {
     if (!uid) return true;
     try {
-      return sessionStorage.getItem(`${STORAGE_2STEP_PREFIX}${uid}`) === 'true';
+      const local = localStorage.getItem(`${STORAGE_2STEP_PREFIX}${uid}`);
+      const session = sessionStorage.getItem(`${STORAGE_2STEP_PREFIX}${uid}`);
+      return local === 'true' || session === 'true';
     } catch {
       return false;
     }
   },
 
   /**
-   * Marks 2-Step Login verification as passed for this login session.
+   * Marks 2-Step Login verification as passed and verified for this account on this device.
    */
   setTwoStepVerified: (uid?: string | null): void => {
     if (!uid) return;
     try {
+      localStorage.setItem(`${STORAGE_2STEP_PREFIX}${uid}`, 'true');
       sessionStorage.setItem(`${STORAGE_2STEP_PREFIX}${uid}`, 'true');
     } catch (e) {
       console.warn('Failed to set 2-step verified state:', e);
@@ -109,11 +113,12 @@ export const SecurityPinService = {
   },
 
   /**
-   * Clears 2-Step Login verification state.
+   * Clears 2-Step Login verification state (triggered on logout or fresh re-login).
    */
   clearTwoStepVerified: (uid?: string | null): void => {
     if (!uid) return;
     try {
+      localStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
       sessionStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
     } catch (e) {
       console.warn('Failed to clear 2-step verified state:', e);
@@ -121,29 +126,44 @@ export const SecurityPinService = {
   },
 
   /**
-   * Checks if the user's session is already unlocked in the active page lifecycle.
-   * Resets upon page refresh so the user is asked for their PIN again.
+   * Checks if the user's PIN lock is unlocked on this device.
+   * If already logged in and unlocked on this device, returns true so no password/PIN is asked on refresh.
    */
   isSessionUnlocked: (uid?: string | null): boolean => {
     if (!uid) return true;
-    return inMemoryUnlockedUids.has(uid);
+    try {
+      const isLocalUnlocked = localStorage.getItem(`sjtutor_pin_unlocked_${uid}`) === 'true';
+      return isLocalUnlocked || inMemoryUnlockedUids.has(uid);
+    } catch {
+      return inMemoryUnlockedUids.has(uid);
+    }
   },
 
   /**
-   * Marks the session as unlocked for the active page session.
+   * Marks the session as unlocked on this device.
    */
   setSessionUnlocked: (uid?: string | null): void => {
     if (!uid) return;
+    try {
+      localStorage.setItem(`sjtutor_pin_unlocked_${uid}`, 'true');
+    } catch (e) {
+      console.warn('Failed to persist pin unlocked state:', e);
+    }
     inMemoryUnlockedUids.add(uid);
   },
 
   /**
-   * Locks the session for the given user.
+   * Locks the session for the given user (on logout or manual test lock).
    */
   lockSession: (uid?: string | null): void => {
     if (!uid) {
       inMemoryUnlockedUids.clear();
       return;
+    }
+    try {
+      localStorage.removeItem(`sjtutor_pin_unlocked_${uid}`);
+    } catch (e) {
+      console.warn('Failed to remove pin unlocked state:', e);
     }
     inMemoryUnlockedUids.delete(uid);
   },

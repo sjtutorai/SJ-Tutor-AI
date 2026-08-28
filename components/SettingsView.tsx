@@ -1574,14 +1574,14 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                            <span className="font-bold text-amber-400 tracking-wider text-sm uppercase">Current Plan</span>
                         </div>
                         <h2 className="text-3xl font-bold mb-1">
-                           {isPro ? `${userProfile.planType} Plan` : isTrialActive ? '10-Day Free Trial' : 'Free Tier (100 Credits)'}
+                           {isPro ? `${userProfile.planType} Plan (Yearly)` : isTrialActive ? '10-Day Free Trial' : 'Free Tier (100 Credits)'}
                         </h2>
                         <p className="text-slate-400 text-sm mb-6">
                            {isPro 
-                             ? 'Unlimited access to all AI models and advanced learning tools.' 
+                             ? 'Unlimited access to all AI models and advanced learning tools under your Yearly Membership. You can change your plan anytime.' 
                              : isTrialActive 
                              ? 'Complete free unlimited access to all AI models for 10 days, followed by 100 Free Credits.' 
-                             : 'You have 100 Free Credits to study and generate notes. Upgrade for unlimited access.'}
+                             : 'You have 100 Free Credits to study and generate notes. Upgrade to a yearly plan for unlimited access.'}
                         </p>
                         
                         <div className="flex items-center justify-between bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/5">
@@ -1596,7 +1596,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                               onClick={onOpenPremium}
                               className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-lg text-xs font-black uppercase tracking-wider hover:bg-emerald-500/20 transition cursor-pointer"
                            >
-                              {isPro ? "Active Plan" : isTrialActive ? "Trial Active" : "Upgrade Plan"}
+                              {isPro ? "Change Plan" : isTrialActive ? "Trial Active" : "Upgrade Plan"}
                            </button>
                         </div>
                      </div>
@@ -1609,17 +1609,17 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                 <div className="text-left font-sans">
                    <h4 className="font-extrabold text-slate-800 dark:text-white flex items-center gap-2 text-sm">
                       <Crown className="w-5 h-5 text-amber-500 fill-amber-500 animate-bounce" />
-                      Upgrade to Premium
+                      Membership & Plans
                    </h4>
                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                      Enjoy unlimited AI tutor credits, exam prep packs, and real-time WebRTC study tools with our lifetime packages starting at ₹99.
+                      Enjoy unlimited AI tutor credits, exam prep packs, and real-time WebRTC study tools with our yearly packages starting at ₹99/year. Switch or change plans at any time.
                    </p>
                 </div>
                 <button
                    onClick={onOpenPremium}
                    className="px-4.5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-650 hover:to-orange-650 active:scale-95 text-slate-900 font-extrabold rounded-xl text-xs tracking-wider uppercase shadow-md hover:shadow-lg transition-all whitespace-nowrap animate-pulse"
                 >
-                   View Packages
+                   Change or View Plans
                 </button>
              </div>
 

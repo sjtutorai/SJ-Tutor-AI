@@ -33,8 +33,8 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
       name: 'Starter',
       price: 99,
       creditAmount: 500,
-      generations: '500 Generations',
-      features: ['500 AI Generations', 'Basic Support', 'Standard Speed', 'All Study Tools'],
+      generations: '500 Generations / year',
+      features: ['500 AI Generations / year', 'Basic Support', 'Standard Speed', 'All Study Tools', 'Yearly Package (1 Year Access)'],
       color: 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100',
       btnColor: 'bg-blue-600 hover:bg-blue-700'
     },
@@ -42,8 +42,8 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
       name: 'Scholar',
       price: 299,
       creditAmount: 2000,
-      generations: '2000 Generations',
-      features: ['2000 AI Generations', 'Priority Support', 'Fast Generation', 'Export to PDF', 'All Study Modes'],
+      generations: '2000 Generations / year',
+      features: ['2000 AI Generations / year', 'Priority Support', 'Fast Generation', 'Export to PDF', 'All Study Modes', 'Yearly Package (1 Year Access)'],
       color: 'bg-amber-50/70 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-100',
       btnColor: 'bg-amber-600 hover:bg-amber-700'
     },
@@ -51,8 +51,8 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
       name: 'Achiever',
       price: 499,
       creditAmount: 99999,
-      generations: 'Unlimited Generations',
-      features: ['Unlimited Generations', '24/7 Priority Support', 'Turbo Speed', 'All Future AI Features', 'Lifetime Access'],
+      generations: 'Unlimited Generations / year',
+      features: ['Unlimited Generations / year', '24/7 Priority Support', 'Turbo Speed', 'All Future AI Features', 'Yearly Package (1 Year Access)'],
       color: 'bg-purple-50/70 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700 text-purple-950 dark:text-purple-100',
       btnColor: 'bg-purple-600 hover:bg-purple-700'
     }
@@ -60,7 +60,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
 
   const currentPlan = plans[selectedPlan];
 
-  const upiPayString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${currentPlan.price}&cu=INR&tn=SJ%20Tutor%20AI%20${currentPlan.name}%20Plan`;
+  const upiPayString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${currentPlan.price}&cu=INR&tn=SJ%20Tutor%20AI%20${currentPlan.name}%20Yearly%20Plan`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiPayString)}`;
 
   const copyUpiToClipboard = () => {
@@ -77,8 +77,17 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
     }
   };
 
+  const isChangingPlan = Boolean(userProfile?.planType && userProfile.planType !== 'Free' && userProfile.planType !== currentPlan.name);
+  const isCurrentPlan = Boolean(userProfile?.planType && userProfile.planType === currentPlan.name);
+
+  const planActionText = isChangingPlan 
+    ? `Change Membership Plan from ${userProfile?.planType} to ${currentPlan.name} (Yearly Package)`
+    : isCurrentPlan
+    ? `Renew ${currentPlan.name} Plan (Yearly Package)`
+    : `Upgrade to ${currentPlan.name} Plan (Yearly Package)`;
+
   const whatsappMessage = encodeURIComponent(
-    `Hello SJ Tutor AI Team,\n\nI have completed the payment of ₹${currentPlan.price} for the ${currentPlan.name} Plan.\n\n👤 Name: ${userProfile?.displayName || 'Student'}\n📧 Email: ${userProfile?.email || 'N/A'}\n🆔 User ID: ${uid || 'N/A'}\n\nPlease find my payment screenshot attached for manual verification and activation.`
+    `Hello SJ Tutor AI Team,\n\nI want to ${planActionText} for ₹${currentPlan.price}/year.\n\n👤 Name: ${userProfile?.displayName || 'Student'}\n📧 Email: ${userProfile?.email || 'N/A'}\n🆔 User ID: ${uid || 'N/A'}\n📋 Current Plan: ${userProfile?.planType || 'Free Tier'}\n✨ Selected Plan: ${currentPlan.name} Plan (Yearly)\n💰 Amount: ₹${currentPlan.price}/year\n\nPlease find my payment screenshot attached for manual verification and membership activation.`
   );
 
   const whatsappUrl = `https://wa.me/918105423488?text=${whatsappMessage}`;
@@ -100,14 +109,35 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
           <div className="text-center md:text-left mb-6">
             <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
               <Crown className="w-6 h-6 text-amber-500" />
-              <h2 className="text-2xl font-black text-slate-800 dark:text-white">Upgrade Your Plan</h2>
+              <h2 className="text-2xl font-black text-slate-800 dark:text-white">
+                {userProfile?.planType && userProfile.planType !== 'Free' ? 'Change / Upgrade Plan' : 'Choose Membership Plan'}
+              </h2>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              Select your preferred plan and complete manual payment verification.
+              Select your preferred yearly package. You can change or renew your membership plan at any time.
             </p>
 
-            {/* Trial Status Callout */}
-            {!trial.isPro && (
+            {/* Trial Status or Active Plan Callout */}
+            {userProfile?.planType && userProfile.planType !== 'Free' ? (
+              <div className="mt-4 p-3.5 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border border-amber-500/30 rounded-2xl flex items-center justify-between text-left">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl">
+                    <Crown className="w-4 h-4 fill-current" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 block">
+                      Current Active Membership
+                    </span>
+                    <span className="text-xs font-black text-slate-900 dark:text-white">
+                      {userProfile.planType} Plan (Yearly)
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-2.5 py-1 rounded-full border border-amber-500/30">
+                  Active
+                </span>
+              </div>
+            ) : !trial.isPro && (
               <div className="mt-4 p-3 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl border border-indigo-500/30 shadow-sm flex items-center justify-between gap-3 text-left">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
@@ -136,6 +166,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
             {(Object.keys(plans) as Array<keyof typeof plans>).map((key) => {
               const plan = plans[key];
               const isSelected = selectedPlan === key;
+              const isUserCurrent = userProfile?.planType === plan.name;
               
               return (
                 <div 
@@ -148,12 +179,22 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
                   }`}
                 >
                   <div className="flex justify-between items-center mb-1.5">
-                    <h3 className="font-bold text-base flex items-center gap-2 text-slate-900 dark:text-white">
-                      {key === 'ACHIEVER' && <Sparkles className="w-4 h-4 text-purple-500 fill-purple-500" />}
-                      {plan.name}
-                    </h3>
                     <div className="flex items-center gap-2">
-                      <span className="text-xl font-black text-slate-900 dark:text-white">₹{plan.price}</span>
+                      <h3 className="font-bold text-base flex items-center gap-2 text-slate-900 dark:text-white">
+                        {key === 'ACHIEVER' && <Sparkles className="w-4 h-4 text-purple-500 fill-purple-500" />}
+                        {plan.name}
+                      </h3>
+                      {isUserCurrent && (
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                          Current Plan
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <span className="text-xl font-black text-slate-900 dark:text-white">₹{plan.price}</span>
+                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block -mt-1">/year</span>
+                      </div>
                       {isSelected ? (
                         <div className="bg-primary-600 text-white rounded-full p-1 shadow-xs">
                           <Check className="w-3.5 h-3.5" />
@@ -189,10 +230,10 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
                 </div>
                 <div>
                   <h4 className="font-bold text-sm text-slate-900 dark:text-white leading-tight">
-                    {currentPlan.name} Plan
+                    {currentPlan.name} Plan (Yearly)
                   </h4>
                   <span className="text-xs font-semibold text-primary-600 dark:text-primary-400">
-                    Amount: ₹{currentPlan.price}
+                    Amount: ₹{currentPlan.price} / year
                   </span>
                 </div>
               </div>
@@ -201,6 +242,13 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
                 <Shield className="w-3 h-3" /> Manual Verification
               </div>
             </div>
+
+            {isChangingPlan && (
+              <div className="mb-3 p-2.5 bg-primary-50 dark:bg-primary-950/40 border border-primary-200 dark:border-primary-800 rounded-xl text-[11px] text-primary-900 dark:text-primary-200 font-semibold flex items-center justify-between">
+                <span>Switching plan from: <strong>{userProfile?.planType}</strong></span>
+                <span className="font-bold text-primary-600 dark:text-primary-400">→ {currentPlan.name} (Yearly)</span>
+              </div>
+            )}
 
             {/* QR Code Box */}
             <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-md border border-slate-800 text-center">
