@@ -448,8 +448,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                    className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 text-slate-800 dark:text-white"
                  >
                    {SUPPORTED_LANGUAGES.map((lang) => (
-                     <option key={lang} value={lang}>
-                       {lang}
+                     <option key={lang.code} value={lang.name}>
+                       {lang.flag} {lang.name} ({lang.nativeName})
                      </option>
                    ))}
                  </select>

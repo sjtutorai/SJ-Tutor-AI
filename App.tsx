@@ -274,7 +274,7 @@ const App: React.FC = () => {
   const [loggedInDevices, setLoggedInDevices] = useState<DeviceSession[]>([]);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
   const [isTwoStepVerified, setIsTwoStepVerified] = useState<boolean>(true);
-  const [isPinSessionUnlocked, setIsPinSessionUnlocked] = useState<boolean>(true);
+  const [isPinSessionUnlocked, setIsPinSessionUnlocked] = useState<boolean>(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<any>('account');
   const [settingsOpenPinTab, setSettingsOpenPinTab] = useState<'twostep' | 'pin' | undefined>(undefined);
   const [dismissed2faReminder, setDismissed2faReminder] = useState<boolean>(false);

@@ -316,8 +316,8 @@ const Auth: React.FC<AuthProps> = ({ onSignUpSuccess, onClose, initialMode = 'si
                     className="w-full pl-11 pr-4 py-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-slate-900 font-medium appearance-none cursor-pointer"
                   >
                     {SUPPORTED_LANGUAGES.map((lang) => (
-                      <option key={lang} value={lang}>
-                        {lang}
+                      <option key={lang.code} value={lang.name}>
+                        {lang.flag} {lang.name} ({lang.nativeName})
                       </option>
                     ))}
                   </select>

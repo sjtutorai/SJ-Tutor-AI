@@ -126,44 +126,29 @@ export const SecurityPinService = {
   },
 
   /**
-   * Checks if the user's PIN lock is unlocked on this device.
-   * If already logged in and unlocked on this device, returns true so no password/PIN is asked on refresh.
+   * Checks if the user's PIN lock is unlocked in the current page session.
+   * Resets upon page refresh/revisit so the user enters their Security PIN when refreshing or visiting.
    */
   isSessionUnlocked: (uid?: string | null): boolean => {
     if (!uid) return true;
-    try {
-      const isLocalUnlocked = localStorage.getItem(`sjtutor_pin_unlocked_${uid}`) === 'true';
-      return isLocalUnlocked || inMemoryUnlockedUids.has(uid);
-    } catch {
-      return inMemoryUnlockedUids.has(uid);
-    }
+    return inMemoryUnlockedUids.has(uid);
   },
 
   /**
-   * Marks the session as unlocked on this device.
+   * Marks the session as unlocked for the active page session.
    */
   setSessionUnlocked: (uid?: string | null): void => {
     if (!uid) return;
-    try {
-      localStorage.setItem(`sjtutor_pin_unlocked_${uid}`, 'true');
-    } catch (e) {
-      console.warn('Failed to persist pin unlocked state:', e);
-    }
     inMemoryUnlockedUids.add(uid);
   },
 
   /**
-   * Locks the session for the given user (on logout or manual test lock).
+   * Locks the session for the given user (on logout or manual lock).
    */
   lockSession: (uid?: string | null): void => {
     if (!uid) {
       inMemoryUnlockedUids.clear();
       return;
-    }
-    try {
-      localStorage.removeItem(`sjtutor_pin_unlocked_${uid}`);
-    } catch (e) {
-      console.warn('Failed to remove pin unlocked state:', e);
     }
     inMemoryUnlockedUids.delete(uid);
   },
