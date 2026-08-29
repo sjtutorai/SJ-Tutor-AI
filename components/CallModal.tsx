@@ -4,6 +4,8 @@ import {
   DirectCall,
   GroupCall,
 } from "../types";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../firebaseConfig";
 import {
   callAudio,
   getLocalUserMedia,
@@ -954,12 +956,31 @@ export const CallModal: React.FC<CallModalProps> = ({
         }
       };
 
-      if (incomingDirectCall.offer && incomingDirectCall.offer.sdp) {
-        await pc.setRemoteDescription(new RTCSessionDescription(incomingDirectCall.offer as any));
+      let currentOffer = incomingDirectCall.offer;
+      let currentCallerCandidates = incomingDirectCall.callerCandidates || [];
+
+      // If offer is not yet in state, fetch the latest document from Firestore
+      if (!currentOffer || !currentOffer.sdp) {
+        try {
+          const callDocSnap = await getDoc(doc(db, "calls", incomingDirectCall.id));
+          if (callDocSnap.exists()) {
+            const data = callDocSnap.data() as DirectCall;
+            if (data.offer && data.offer.sdp) {
+              currentOffer = data.offer;
+              currentCallerCandidates = data.callerCandidates || currentCallerCandidates;
+            }
+          }
+        } catch (fetchErr) {
+          console.warn("Could not fetch latest offer on accept:", fetchErr);
+        }
+      }
+
+      if (currentOffer && currentOffer.sdp) {
+        await pc.setRemoteDescription(new RTCSessionDescription(currentOffer as any));
 
         // Add any early caller candidates
-        if (incomingDirectCall.callerCandidates && incomingDirectCall.callerCandidates.length > 0) {
-          for (const cand of incomingDirectCall.callerCandidates) {
+        if (currentCallerCandidates && currentCallerCandidates.length > 0) {
+          for (const cand of currentCallerCandidates) {
             const key = JSON.stringify(cand);
             if (!addedIceCandidatesRef.current.has(key)) {
               addedIceCandidatesRef.current.add(key);
@@ -975,6 +996,8 @@ export const CallModal: React.FC<CallModalProps> = ({
 
       const connectedCall: DirectCall = {
         ...incomingDirectCall,
+        offer: currentOffer,
+        callerCandidates: currentCallerCandidates,
         status: "connected",
       };
       setIncomingCallDismissed(true);

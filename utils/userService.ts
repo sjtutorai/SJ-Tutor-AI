@@ -131,8 +131,6 @@ export const getCurrentUserProfile = async (user: User) => {
       }
 
       return {
-        credits,
-        planType,
         ...data,
         planType,
         credits,

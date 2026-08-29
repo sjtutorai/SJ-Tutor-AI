@@ -3238,24 +3238,28 @@ const App: React.FC = () => {
                 setActiveDirectCall(call);
               }}
               onStartOrJoinGroupCall={(group, type) => {
+                const myUid = user ? user.uid : 'guest';
+                const myName = userProfile.displayName || 'Scholar User';
                 setActiveGroupCall({
                   id: group.id,
                   groupId: group.id,
                   groupName: group.name,
-                  hostId: user ? user.uid : 'guest',
-                  hostName: userProfile.displayName || 'Scholar User',
+                  hostUid: myUid,
+                  hostName: myName,
                   type,
                   startedAt: Date.now(),
                   status: 'active',
                   participants: {
-                    [user ? user.uid : 'guest']: {
-                      uid: user ? user.uid : 'guest',
-                      displayName: userProfile.displayName || 'Scholar User',
+                    [myUid]: {
+                      uid: myUid,
+                      displayName: myName,
                       photoURL: userProfile.photoURL || '',
                       joinedAt: Date.now(),
-                      isAudioMuted: false,
-                      isVideoMuted: type === 'audio',
+                      isMuted: false,
+                      isVideoOff: type === 'audio',
                       isScreenSharing: false,
+                      isHandRaised: false,
+                      role: 'host',
                     }
                   }
                 });

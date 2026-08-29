@@ -8,7 +8,6 @@ import {
   collection,
   query,
   where,
-  limit,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import {
@@ -949,10 +948,24 @@ export async function endDirectCall(callId: string, durationSeconds?: number) {
   }).catch(() => {});
 }
 
+// Helper to sanitize WebRTC ICE candidates for Firestore storage (strips undefined values)
+export function sanitizeIceCandidate(candidate: RTCIceCandidate | RTCIceCandidateInit): Record<string, any> {
+  const json: any = typeof (candidate as any).toJSON === "function" ? (candidate as any).toJSON() : candidate;
+  const sanitized: Record<string, any> = {
+    candidate: json.candidate || "",
+    sdpMid: json.sdpMid !== undefined && json.sdpMid !== null ? json.sdpMid : null,
+    sdpMLineIndex: json.sdpMLineIndex !== undefined && json.sdpMLineIndex !== null ? json.sdpMLineIndex : null,
+  };
+  if (json.usernameFragment) {
+    sanitized.usernameFragment = json.usernameFragment;
+  }
+  return sanitized;
+}
+
 export async function addDirectCallIceCandidate(callId: string, isCaller: boolean, candidate: RTCIceCandidate) {
   try {
     const callRef = doc(db, "calls", callId);
-    const candidateJson = candidate.toJSON();
+    const candidateJson = sanitizeIceCandidate(candidate);
 
     if (isCaller) {
       await updateDoc(callRef, {
@@ -1009,7 +1022,7 @@ export function subscribeToIncomingCalls(
   const q = query(
     callsCol,
     where("receiverId", "==", currentUid),
-    limit(10)
+    where("status", "==", "ringing")
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -1023,7 +1036,7 @@ export function subscribeToIncomingCalls(
         docData.status === "ringing" &&
         docData.receiverId === currentUid &&
         docData.callerId !== currentUid &&
-        now - (docData.startedAt || 0) < 90000 // 90-second ringing grace window
+        now - (docData.startedAt || 0) < 120000 // 2-minute ringing grace window
       ) {
         if (!activeRingingCall || (docData.startedAt || 0) > (activeRingingCall.startedAt || 0)) {
           activeRingingCall = docData;
@@ -1404,7 +1417,7 @@ export class GroupMeshManager {
           fromUid: this.currentUid,
           toUid: peerUid,
           type: "candidate",
-          candidate: event.candidate.toJSON(),
+          candidate: sanitizeIceCandidate(event.candidate),
           timestamp: Date.now(),
         });
       }
