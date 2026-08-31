@@ -80,7 +80,11 @@ export interface UserProfile {
   photoURL?: string;
   language?: string;
   learningGoal?: string;
-  learningStyle?: 'Visual' | 'Auditory' | 'Reading/Writing' | 'Kinesthetic';
+  learningGoals?: string[];
+  learningStyle?: string;
+  learningStyles?: string[];
+  sjTutorId?: string;
+  createdAt?: number;
   credits: number;
   planType?: 'Free' | 'Starter' | 'Scholar' | 'Achiever';
   phoneVerified?: boolean;

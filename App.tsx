@@ -1168,6 +1168,30 @@ const App: React.FC = () => {
              console.error("Error fetching/creating profile:", e);
            }
         } else {
+          // Check if there is an active ID Card / Registration session
+          const activeIdUid = localStorage.getItem('sjtutor_active_id_session');
+          if (activeIdUid) {
+            const cachedProfileRaw = localStorage.getItem(`profile_${activeIdUid}`);
+            if (cachedProfileRaw) {
+              try {
+                const cachedProfile = JSON.parse(cachedProfileRaw);
+                const mockUser: any = {
+                  uid: activeIdUid,
+                  displayName: cachedProfile.displayName || 'Scholar Member',
+                  email: cachedProfile.email || `${activeIdUid}@sjtutor.ai`,
+                  photoURL: cachedProfile.photoURL || '',
+                };
+                setUser(mockUser);
+                setUserProfile(cachedProfile);
+                setMode(AppMode.DASHBOARD);
+                setAuthLoading(false);
+                return;
+              } catch {
+                // Ignore parse error
+              }
+            }
+          }
+
           setUser(null);
           setUserProfile(initialProfileState);
           setMode(AppMode.DASHBOARD);
@@ -1339,13 +1363,8 @@ const App: React.FC = () => {
     }
 
     // 1. Two-Step Verification on Login Check
-    const isTwoStepRequired = !!userProfile.twoFactorPassword || (!!userProfile.twoFactorEnabled && !!userProfile.twoFactorPassword);
-    if (isTwoStepRequired) {
-      const alreadyTwoStepVerified = SecurityPinService.isTwoStepVerified(user.uid);
-      setIsTwoStepVerified(alreadyTwoStepVerified);
-    } else {
-      setIsTwoStepVerified(true);
-    }
+    const alreadyTwoStepVerified = SecurityPinService.isTwoStepVerified(user.uid);
+    setIsTwoStepVerified(alreadyTwoStepVerified);
 
     // 2. PIN Lock on Refresh / Revisit Check
     const isPinRequired = !!userProfile.pinLockEnabled || !!userProfile.securityPin || !!SettingsService.getSettings().privacy.pinLock || !!SettingsService.getSettings().privacy.pin;
@@ -1503,41 +1522,61 @@ const App: React.FC = () => {
   };
 
   const handleSignUpSuccess = async (signupData?: Partial<UserProfile>) => {
-    if (auth.currentUser) {
-      try {
-        const userProf = await getCurrentUserProfile(auth.currentUser);
-        const mergedProfile = {
-          ...initialProfileState,
-          ...userProf,
-          ...(signupData || {}),
-        };
-        setUserProfile(mergedProfile as any);
-
-        if (signupData?.language) {
-          SettingsService.updateSettings({
-            learning: {
-              ...SettingsService.getSettings().learning,
-              language: signupData.language,
-            }
-          });
-          setFormData((prev) => ({
-            ...prev,
-            language: signupData.language || prev.language,
-          }));
-          await saveProfileToFirestore(auth.currentUser.uid, {
-            language: signupData.language,
-          });
-        }
-
-        if (!userProf.hasCompletedOnboarding) {
-          setMode(AppMode.PROFILE);
-        } else {
-          setMode(AppMode.DASHBOARD);
-        }
-      } catch (e) {
-        console.error("Error fetching/creating profile on signup success:", e);
-      }
+    let activeUid = auth.currentUser?.uid || (signupData as any)?.uid;
+    if (!activeUid) {
+      activeUid = localStorage.getItem('sjtutor_active_id_session') || (signupData?.sjTutorId ? `id_${signupData.sjTutorId.replace(/[^a-zA-Z0-9_-]/g, '_')}` : '') || `id_${Date.now()}`;
     }
+
+    const mockUser: any = auth.currentUser || {
+      uid: activeUid,
+      displayName: signupData?.displayName || 'Scholar Member',
+      email: signupData?.email || `${activeUid}@sjtutor.ai`,
+      photoURL: signupData?.photoURL || '',
+    };
+    setUser(mockUser);
+
+    try {
+      const userProf = auth.currentUser ? await getCurrentUserProfile(auth.currentUser) : (signupData || {});
+      const finalSjTutorId = signupData?.sjTutorId || (userProf as any)?.sjTutorId || generateSjTutorId();
+      const mergedProfile = {
+        ...initialProfileState,
+        ...userProf,
+        ...(signupData || {}),
+        sjTutorId: finalSjTutorId,
+        registrationNumber: finalSjTutorId,
+        isRegisteredInFirestore: true,
+        hasCompletedOnboarding: true,
+      };
+      setUserProfile(mergedProfile as any);
+
+      if (activeUid) {
+        localStorage.setItem(`profile_${activeUid}`, JSON.stringify(mergedProfile));
+        localStorage.setItem('sjtutor_active_id_session', activeUid);
+        await saveProfileToFirestore(activeUid, mergedProfile);
+      }
+
+      if (signupData?.language) {
+        SettingsService.updateSettings({
+          learning: {
+            ...SettingsService.getSettings().learning,
+            language: signupData.language,
+          }
+        });
+        setFormData((prev) => ({
+          ...prev,
+          language: signupData.language || prev.language,
+        }));
+      }
+
+      // Prompt 2-Step Verification Password after Signing IN
+      SecurityPinService.clearTwoStepVerified(activeUid);
+      setIsTwoStepVerified(false);
+
+      setMode(AppMode.DASHBOARD);
+    } catch (e) {
+      console.error("Error fetching/creating profile on signup success:", e);
+    }
+
     setShowAuthModal(false);
   };
 
@@ -2103,17 +2142,19 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
+      localStorage.removeItem('sjtutor_active_id_session');
       if (user) {
         SecurityPinService.clearTwoStepVerified(user.uid);
         SecurityPinService.lockSession(user.uid);
         const currentDeviceId = getCurrentDeviceId();
         await DeviceService.logoutDevice(user.uid, currentDeviceId);
-      } else {
-        await signOut(auth);
       }
+      await signOut(auth);
     } catch (error) {
       console.error("Error signing out:", error);
     } finally {
+      setUser(null);
+      setUserProfile(initialProfileState);
       setIsTwoStepVerified(true);
       setIsPinSessionUnlocked(true);
       setMode(AppMode.DASHBOARD);
@@ -2123,17 +2164,19 @@ const App: React.FC = () => {
 
   const handleLogoutAllDevices = async () => {
     try {
+      localStorage.removeItem('sjtutor_active_id_session');
       if (user) {
         SecurityPinService.clearTwoStepVerified(user.uid);
         SecurityPinService.lockSession(user.uid);
         await DeviceService.logoutAllDevices(user.uid);
-      } else {
-        await signOut(auth);
       }
+      await signOut(auth);
       triggerToast("Logged Out Successfully", "You have been logged out from all devices.", "Important Alerts");
     } catch (error) {
       console.error("Error signing out all devices:", error);
     } finally {
+      setUser(null);
+      setUserProfile(initialProfileState);
       setIsTwoStepVerified(true);
       setIsPinSessionUnlocked(true);
       setMode(AppMode.DASHBOARD);
@@ -3167,6 +3210,7 @@ const App: React.FC = () => {
               email={user?.email || "Guest"}
               onSave={(p, r) => handleProfileSave(p, r)}
               isOnboarding={!userProfile.hasCompletedOnboarding}
+              onOpenUpgrade={() => setShowPremiumModal(true)}
             />
           </div>
         );
@@ -4020,7 +4064,7 @@ const App: React.FC = () => {
       )}
 
       {/* 1. Two-Step Verification on Login Modal */}
-      {user && !isTwoStepVerified && (!!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword) && (
+      {user && !isTwoStepVerified && (
         <TwoStepLoginModal
           userProfile={userProfile}
           uid={user.uid}

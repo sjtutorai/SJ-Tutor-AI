@@ -1146,6 +1146,13 @@ export const CallModal: React.FC<CallModalProps> = ({
           localVideoRef.current.play().catch(() => {});
         }
 
+        if (liveDirectCall) {
+          const isCaller = liveDirectCall.callerId === currentUser.uid;
+          updateDirectCallMedia(liveDirectCall.id, {
+            [isCaller ? "callerVideoOff" : "receiverVideoOff"]: false,
+          });
+        }
+
         if (liveGroupCall) {
           updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
             isVideoOff: false,
@@ -1194,6 +1201,13 @@ export const CallModal: React.FC<CallModalProps> = ({
               localVideoRef.current.play().catch(() => {});
             }
 
+            if (liveDirectCall) {
+              const isCaller = liveDirectCall.callerId === currentUser.uid;
+              updateDirectCallMedia(liveDirectCall.id, {
+                [isCaller ? "callerVideoOff" : "receiverVideoOff"]: false,
+              });
+            }
+
             if (liveGroupCall) {
               updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
                 isVideoOff: false,
@@ -1222,6 +1236,13 @@ export const CallModal: React.FC<CallModalProps> = ({
 
       if (groupMeshRef.current) {
         groupMeshRef.current.toggleVideo(true);
+      }
+
+      if (liveDirectCall) {
+        const isCaller = liveDirectCall.callerId === currentUser.uid;
+        updateDirectCallMedia(liveDirectCall.id, {
+          [isCaller ? "callerVideoOff" : "receiverVideoOff"]: true,
+        });
       }
 
       if (liveGroupCall) {
@@ -1431,6 +1452,7 @@ export const CallModal: React.FC<CallModalProps> = ({
     const otherPersonName = isCaller ? liveDirectCall.receiverName : liveDirectCall.callerName;
     const otherPersonAvatar = isCaller ? liveDirectCall.receiverAvatar : liveDirectCall.callerAvatar;
     const isOtherPersonMuted = isCaller ? Boolean(liveDirectCall.receiverMuted) : Boolean(liveDirectCall.callerMuted);
+    const isOtherPersonVideoOff = isCaller ? Boolean(liveDirectCall.receiverVideoOff) : Boolean(liveDirectCall.callerVideoOff);
     const shouldMuteRemoteAudio = isSpeakerMuted || isOtherPersonMuted;
     const isConnecting = liveDirectCall.status === "ringing";
 
@@ -1579,7 +1601,7 @@ export const CallModal: React.FC<CallModalProps> = ({
         {/* Center Stage Video / Audio View */}
         <div className="flex-1 relative flex items-center justify-center p-4">
           {/* Main Remote View */}
-          {remoteStream && remoteStream.getVideoTracks().length > 0 && remoteStream.getVideoTracks().some(t => t.enabled) ? (
+          {remoteStream && remoteStream.getVideoTracks().length > 0 && !isOtherPersonVideoOff ? (
             <div className="relative w-full h-full max-w-4xl flex items-center justify-center">
               <video
                 ref={(el) => {
@@ -1623,13 +1645,13 @@ export const CallModal: React.FC<CallModalProps> = ({
                 )}
               </h2>
               <p className="text-xs text-slate-400 mt-1 font-medium">
-                {isConnecting ? "Waiting for answer..." : isOtherPersonMuted ? "Remote participant microphone is muted" : "End-to-End Encrypted Live Study Call"}
+                {isConnecting ? "Waiting for answer..." : isOtherPersonMuted ? "Remote participant microphone is muted" : isOtherPersonVideoOff ? "Remote participant camera is off" : "End-to-End Encrypted Live Study Call"}
               </p>
             </div>
           )}
 
           {/* Local User PiP Thumbnail (in corner) */}
-          {localStream && localStream.getVideoTracks().length > 0 && (
+          {localStream && (localStream.getVideoTracks().length > 0 || !isVideoOff) && (
             <div className="absolute bottom-6 right-6 w-32 h-44 sm:w-44 sm:h-60 rounded-2xl overflow-hidden shadow-2xl border-2 border-slate-700 bg-slate-900 z-10">
               <video
                 ref={(el) => {
@@ -1645,14 +1667,15 @@ export const CallModal: React.FC<CallModalProps> = ({
                 className={`w-full h-full object-cover ${cameraFacing === "user" ? "scale-x-[-1]" : ""}`}
               />
               {isVideoOff && (
-                <div className="absolute inset-0 bg-slate-900 flex items-center justify-center text-slate-400 text-xs font-bold">
-                  Camera Off
+                <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center text-slate-400 text-xs font-bold gap-1 p-2 text-center">
+                  <VideoOff className="w-5 h-5 text-slate-500" />
+                  <span>Camera Off</span>
                 </div>
               )}
               {!isVideoOff && (
                 <button
                   onClick={handleFlipCamera}
-                  className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg text-xs cursor-pointer shadow"
+                  className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg text-xs cursor-pointer shadow z-20"
                   title="Switch Camera"
                 >
                   <Camera className="w-3.5 h-3.5" />

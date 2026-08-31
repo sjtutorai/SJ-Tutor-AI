@@ -145,13 +145,32 @@ export const syncHistoryWithFirestore = async (uid: string, localItems: HistoryI
     const firestoreItems = await getHistoryFromFirestore(uid);
     const firestoreIds = new Set(firestoreItems.map((item) => item.id));
 
-    const mergedItems = [...firestoreItems];
+    let tombstones: string[] = [];
+    try {
+      tombstones = JSON.parse(localStorage.getItem(`deleted_history_${uid}`) || "[]");
+    } catch {
+      console.warn("Failed to read tombstones from local storage");
+    }
+    const tombstoneSet = new Set(tombstones);
+
+    const mergedItems: HistoryItem[] = [];
     const itemsToSave: Promise<any>[] = [];
 
+    // Add firestore items unless they were marked as deleted locally
+    firestoreItems.forEach((item) => {
+      if (tombstoneSet.has(item.id)) {
+        itemsToSave.push(deleteHistoryItemFromFirestore(uid, item.id));
+      } else {
+        mergedItems.push(item);
+      }
+    });
+
     localItems.forEach((localItem) => {
-      if (!firestoreIds.has(localItem.id)) {
-        mergedItems.push(localItem);
-        itemsToSave.push(saveHistoryItemToFirestore(uid, localItem));
+      if (!firestoreIds.has(localItem.id) && !tombstoneSet.has(localItem.id)) {
+        if (!mergedItems.some(m => m.id === localItem.id)) {
+          mergedItems.push(localItem);
+          itemsToSave.push(saveHistoryItemToFirestore(uid, localItem));
+        }
       }
     });
 
@@ -399,9 +418,31 @@ export const getQuizLeaderboard = async (): Promise<LeaderboardEntry[]> => {
 
 export const deleteHistoryItemFromFirestore = async (uid: string, itemId: string): Promise<boolean> => {
   if (!uid || uid === "guest") return true;
+
+  try {
+    const tombstonesStr = localStorage.getItem(`deleted_history_${uid}`) || "[]";
+    const tombstones = JSON.parse(tombstonesStr);
+    if (!tombstones.includes(itemId)) {
+      tombstones.push(itemId);
+      localStorage.setItem(`deleted_history_${uid}`, JSON.stringify(tombstones));
+    }
+  } catch {
+    console.warn("Failed to add tombstone to local storage");
+  }
+
   try {
     const docRef = doc(db, "users", uid, "history", itemId);
     await deleteDoc(docRef);
+
+    try {
+      const tombstonesStr = localStorage.getItem(`deleted_history_${uid}`) || "[]";
+      const tombstones = JSON.parse(tombstonesStr);
+      const updatedTombstones = tombstones.filter((id: string) => id !== itemId);
+      localStorage.setItem(`deleted_history_${uid}`, JSON.stringify(updatedTombstones));
+    } catch {
+      console.warn("Failed to update tombstone in local storage");
+    }
+
     return true;
   } catch (error) {
     console.warn("Error deleting history item from Firestore:", error);
