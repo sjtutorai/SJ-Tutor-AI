@@ -11,6 +11,7 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   updateProfile,
+  signOut,
   User
 } from 'firebase/auth';
 import { 
@@ -38,7 +39,8 @@ import {
   EyeOff, 
   CheckCircle,
   Plus,
-  CreditCard
+  CreditCard,
+  UserPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
@@ -60,6 +62,7 @@ import {
 import { validateAndParsePhone, COUNTRY_PHONE_CODES } from '../utils/phoneUtils';
 import { SettingsService } from '../services/settingsService';
 import { SecurityPinService } from '../services/securityPinService';
+import { checkUserRegistrationStatus, getCurrentUserProfile } from '../utils/userService';
 
 interface OnboardingWizardProps {
   initialUser?: User | null;
@@ -124,6 +127,11 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>(initialMode);
   const [authSubView, setAuthSubView] = useState<'menu' | 'email' | 'id_login'>('menu');
+  const [notRegisteredNotice, setNotRegisteredNotice] = useState<{
+    email: string;
+    name?: string;
+    provider?: string;
+  } | null>(null);
 
   // Form states
   const [currentUser, setCurrentUser] = useState<User | null>(initialUser);
@@ -281,17 +289,78 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   const handleProviderSignIn = async (provider: any, providerName: string) => {
     setLoading(true);
     setError(null);
+    setNotRegisteredNotice(null);
     try {
       const result = await signInWithPopup(auth, provider);
-      if (result.user?.uid) {
-        SecurityPinService.clearTwoStepVerified(result.user.uid);
-        SecurityPinService.lockSession(result.user.uid);
+      if (!result.user) {
+        throw new Error("No user returned from authentication provider.");
       }
-      setCurrentUser(result.user);
-      if (result.user.displayName && !displayName) {
-        setDisplayName(result.user.displayName);
+
+      // Check whether this user/Google account is already registered in Firestore
+      const regStatus = await checkUserRegistrationStatus(result.user);
+
+      if (authMode === 'signin') {
+        // User clicked "Sign In / Log In"
+        if (!regStatus.isRegistered) {
+          // Account NOT registered in Firestore: ask user to register first
+          const unregisteredEmail = result.user.email || 'Your account';
+          const unregisteredName = result.user.displayName || '';
+
+          try {
+            await signOut(auth);
+          } catch (e) {
+            console.warn("Sign-out warning:", e);
+          }
+
+          if (unregisteredName) setDisplayName(unregisteredName);
+          if (unregisteredEmail) setEmail(unregisteredEmail);
+
+          setAuthMode('signup');
+          setNotRegisteredNotice({
+            email: unregisteredEmail,
+            name: unregisteredName,
+            provider: providerName,
+          });
+          setError(`The ${providerName} account (${unregisteredEmail}) is not registered in SJ Tutor AI yet. Please register your student profile first, then sign in.`);
+          setLoading(false);
+          return;
+        }
+
+        // Account IS registered in Firestore: complete sign in directly
+        if (result.user?.uid) {
+          SecurityPinService.clearTwoStepVerified(result.user.uid);
+          SecurityPinService.lockSession(result.user.uid);
+        }
+        const fullProf = regStatus.profile || await getCurrentUserProfile(result.user);
+        onComplete(fullProf);
+        return;
+      } else {
+        // User clicked "Sign Up / New (Register)"
+        if (regStatus.isRegistered) {
+          // Already registered, automatically log in
+          if (result.user?.uid) {
+            SecurityPinService.clearTwoStepVerified(result.user.uid);
+            SecurityPinService.lockSession(result.user.uid);
+          }
+          const fullProf = regStatus.profile || await getCurrentUserProfile(result.user);
+          onComplete(fullProf);
+          return;
+        }
+
+        // Unregistered new account: proceed with onboarding steps 2-5
+        if (result.user?.uid) {
+          SecurityPinService.clearTwoStepVerified(result.user.uid);
+          SecurityPinService.lockSession(result.user.uid);
+        }
+        setCurrentUser(result.user);
+        if (result.user.displayName && !displayName) {
+          setDisplayName(result.user.displayName);
+        }
+        if (result.user.email && !email) {
+          setEmail(result.user.email);
+        }
+        setCurrentStep(2);
       }
-      setCurrentStep(2);
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/account-exists-with-different-credential') {
@@ -320,16 +389,36 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
     setLoading(true);
     setError(null);
+    setNotRegisteredNotice(null);
 
     try {
       if (authMode === 'signin') {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const regStatus = await checkUserRegistrationStatus(userCredential.user);
+        
+        if (!regStatus.isRegistered) {
+          try {
+            await signOut(auth);
+          } catch (err) {
+            console.warn("Sign-out warning:", err);
+          }
+          setAuthMode('signup');
+          setNotRegisteredNotice({
+            email,
+            name: displayName || '',
+            provider: 'Email',
+          });
+          setError(`The email account (${email}) is not registered in SJ Tutor AI yet. Please register your account first, then sign in.`);
+          setLoading(false);
+          return;
+        }
+
         if (userCredential.user?.uid) {
           SecurityPinService.clearTwoStepVerified(userCredential.user.uid);
           SecurityPinService.lockSession(userCredential.user.uid);
         }
-        setCurrentUser(userCredential.user);
-        setCurrentStep(2);
+        const fullProf = regStatus.profile || await getCurrentUserProfile(userCredential.user);
+        onComplete(fullProf);
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         if (userCredential.user?.uid) {
@@ -343,9 +432,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        setError('Invalid email or password.');
+        setError('Invalid email or password. If you do not have an account yet, please click "Sign Up / New" to register.');
       } else if (err.code === 'auth/email-already-in-use') {
-        setError('An account already exists with this email.');
+        setError('An account already exists with this email. Please switch to "Sign In / Log In" to sign in.');
       } else if (err.code === 'auth/weak-password') {
         setError('Password must be at least 6 characters.');
       } else {
@@ -571,6 +660,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
                     onClick={() => {
                       setAuthMode('signup');
                       setError(null);
+                      setNotRegisteredNotice(null);
                       setAuthSubView('menu');
                     }}
                     className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
@@ -586,6 +676,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
                     onClick={() => {
                       setAuthMode('signin');
                       setError(null);
+                      setNotRegisteredNotice(null);
                       setAuthSubView('menu');
                     }}
                     className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
@@ -598,8 +689,33 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
                   </button>
                 </div>
 
+                {notRegisteredNotice && (
+                  <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700/60 rounded-2xl text-left space-y-2.5 max-w-md mx-auto shadow-xs animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-bold text-xs">
+                      <UserPlus className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>Registration Required First</span>
+                    </div>
+                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                      The account <strong className="font-semibold text-slate-900 dark:text-white">{notRegisteredNotice.email}</strong> is not registered yet with SJ Tutor AI. Please complete the one-time registration below to create your student account, and then you can sign in anytime.
+                    </p>
+                    <div className="pt-1 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthMode('signup');
+                          handleProviderSignIn(googleProvider, 'Google');
+                        }}
+                        className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>Register with Google Now</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {error && (
-                  <div className="p-3.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5">
+                  <div className="p-3.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5 max-w-md mx-auto">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>{error}</span>
                   </div>

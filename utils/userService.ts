@@ -1,5 +1,5 @@
 import { db } from "../firebaseConfig";
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import type { User } from "firebase/auth";
 import { removeUndefinedFields } from "./firebaseUtils";
 
@@ -25,6 +25,119 @@ export const getMembershipByEmail = (email?: string | null) => {
     };
   }
   return null;
+};
+
+/**
+ * Checks if a user is registered in Firestore.
+ * A user is considered registered if:
+ * 1. A document exists in the "users" collection for their UID, and has completed onboarding or has profile details.
+ * 2. Or if their email is already linked to a registered profile in Firestore.
+ * 3. Or if their email is one of the predefined administrative accounts (sjtutorai@gmail.com, etc.).
+ */
+export const checkUserRegistrationStatus = async (user: User | { uid: string; email?: string | null }): Promise<{
+  isRegistered: boolean;
+  profile?: any;
+}> => {
+  try {
+    const userEmail = user.email?.toLowerCase().trim() || "";
+
+    // 1. Predefined admin/scholar accounts are automatically recognized
+    const membership = getMembershipByEmail(userEmail);
+    if (membership) {
+      return {
+        isRegistered: true,
+        profile: {
+          uid: user.uid,
+          email: userEmail,
+          planType: membership.planType,
+          credits: membership.credits,
+          role: membership.role,
+          isRegisteredInFirestore: true,
+          hasCompletedOnboarding: true,
+        }
+      };
+    }
+
+    // 2. Direct UID check in "users" collection
+    if (user.uid) {
+      const userRef = doc(db, "users", user.uid);
+      const docSnap = await getDoc(userRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const hasCompleted = data.hasCompletedOnboarding === true || 
+                             data.isRegisteredInFirestore === true ||
+                             Boolean(data.registrationNumber || data.sjTutorId) ||
+                             Boolean(data.displayName && (data.grade || data.class || data.institution));
+        if (hasCompleted) {
+          return {
+            isRegistered: true,
+            profile: {
+              ...data,
+              uid: user.uid,
+              isRegisteredInFirestore: true,
+              hasCompletedOnboarding: true,
+            }
+          };
+        }
+      }
+    }
+
+    // 3. Query by email in "users" collection
+    if (userEmail) {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", userEmail));
+      const querySnap = await getDocs(q);
+      if (!querySnap.empty) {
+        const matchedDoc = querySnap.docs[0];
+        const data = matchedDoc.data();
+        const hasCompleted = data.hasCompletedOnboarding === true || 
+                             data.isRegisteredInFirestore === true ||
+                             Boolean(data.registrationNumber || data.sjTutorId) ||
+                             Boolean(data.displayName && (data.grade || data.class || data.institution));
+        if (hasCompleted) {
+          return {
+            isRegistered: true,
+            profile: {
+              ...data,
+              uid: matchedDoc.id,
+              isRegisteredInFirestore: true,
+              hasCompletedOnboarding: true,
+            }
+          };
+        }
+      }
+    }
+
+    // 4. Check cached profile in LocalStorage as offline fallback
+    if (user.uid) {
+      const cachedRaw = localStorage.getItem(`profile_${user.uid}`);
+      if (cachedRaw) {
+        try {
+          const parsed = JSON.parse(cachedRaw);
+          if (parsed && (parsed.hasCompletedOnboarding || parsed.isRegisteredInFirestore || parsed.sjTutorId)) {
+            return {
+              isRegistered: true,
+              profile: {
+                ...parsed,
+                uid: user.uid,
+                isRegisteredInFirestore: true,
+              }
+            };
+          }
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
+    return { isRegistered: false };
+  } catch (error) {
+    console.error("Error checking user registration in Firestore:", error);
+    if (user.email && getMembershipByEmail(user.email)) {
+      return { isRegistered: true };
+    }
+    return { isRegistered: false };
+  }
 };
 
 /**
@@ -62,7 +175,8 @@ export const createUserProfile = async (user: User, initialData?: Partial<any>) 
       language: initialData?.language || "English",
       role: membership?.role || "student",
       phoneNumber: user.phoneNumber || initialData?.phoneNumber || "",
-      hasCompletedOnboarding: membership ? true : false,
+      hasCompletedOnboarding: true,
+      isRegisteredInFirestore: true,
       streak: initialStreak,
       currentStreak: initialStreak,
       highestStreak: initialStreak,
@@ -106,7 +220,7 @@ export const updateUserProfile = async (uid: string, data: Partial<any>) => {
 };
 
 /**
- * Gets the current user profile from Firestore, creating it if it doesn't exist.
+ * Gets the current user profile from Firestore.
  * Also updates lastLoginAt and basic profile info on every login.
  * @param user The Firebase Auth user object
  */
@@ -163,11 +277,29 @@ export const getCurrentUserProfile = async (user: User) => {
         hasCompletedOnboarding: membership ? true : (data.hasCompletedOnboarding ?? true),
       };
     } else {
-      // Create new profile
-      const newProfile = await createUserProfile(user);
+      if (membership) {
+        // Admin or pre-authorized account
+        const newProfile = await createUserProfile(user);
+        return {
+          ...newProfile,
+          isRegisteredInFirestore: true,
+          hasCompletedOnboarding: true,
+        };
+      }
+
+      // Return unregistered profile object without writing incomplete document
       return {
-        ...newProfile,
+        uid: user.uid,
+        name: user.displayName || "",
+        displayName: user.displayName || "",
+        email: user.email || "",
+        photoURL: user.photoURL || "",
+        provider: user.providerData[0]?.providerId || "password",
+        credits: 100,
+        planType: "Free",
+        hasCompletedOnboarding: false,
         isRegisteredInFirestore: false,
+        role: "student",
       };
     }
   } catch (error) {
@@ -182,6 +314,7 @@ export const getCurrentUserProfile = async (user: User) => {
       credits: membership ? membership.credits : 100,
       planType: membership ? membership.planType : "Free",
       hasCompletedOnboarding: membership ? true : false,
+      isRegisteredInFirestore: false,
       role: membership?.role || "student",
     };
   }
