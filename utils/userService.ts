@@ -36,6 +36,19 @@ export const createUserProfile = async (user: User, initialData?: Partial<any>) 
   try {
     const membership = getMembershipByEmail(user.email);
     const userRef = doc(db, "users", user.uid);
+    let initialStreak = initialData?.streak || initialData?.currentStreak || 0;
+    try {
+      const guestStreakRaw = localStorage.getItem('sjtutor_streak_guest');
+      if (guestStreakRaw) {
+        const parsedGuest = JSON.parse(guestStreakRaw);
+        if (parsedGuest && typeof parsedGuest.currentStreak === 'number') {
+          initialStreak = Math.max(initialStreak, parsedGuest.currentStreak, parsedGuest.highestStreak || 0);
+        }
+      }
+    } catch (e) {
+      console.debug('No saved guest streak found during profile creation:', e);
+    }
+
     const newProfile = {
       uid: user.uid,
       name: user.displayName || initialData?.displayName || "",
@@ -50,7 +63,9 @@ export const createUserProfile = async (user: User, initialData?: Partial<any>) 
       role: membership?.role || "student",
       phoneNumber: user.phoneNumber || initialData?.phoneNumber || "",
       hasCompletedOnboarding: membership ? true : false,
-      streak: 0,
+      streak: initialStreak,
+      currentStreak: initialStreak,
+      highestStreak: initialStreak,
       totalStudyTime: 0,
       points: 0,
       credits: membership ? membership.credits : 100,
