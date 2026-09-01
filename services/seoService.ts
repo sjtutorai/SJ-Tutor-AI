@@ -1,6 +1,6 @@
 /**
  * SJ Tutor AI - SEO Service & Dynamic Metadata Engine
- * Ensures canonical consistency (https://sjtutorai.vercel.app), dynamic title/meta synchronization,
+ * Ensures canonical consistency (https://sjtutor.ai), dynamic title/meta synchronization,
  * Open Graph, Twitter cards, and Schema.org JSON-LD structured data.
  */
 
@@ -15,12 +15,12 @@ export interface SEOConfig {
   noindex?: boolean;
 }
 
-export const CANONICAL_BASE_URL = 'https://sjtutorai.vercel.app';
-export const DEFAULT_LOGO_URL = 'https://sjtutorai.vercel.app/logo.png';
-export const DEFAULT_OG_IMAGE = 'https://sjtutorai.vercel.app/og-image.png';
-export const DEFAULT_FAVICON_URL = 'https://sjtutorai.vercel.app/favicon-48x48.png';
-export const DEFAULT_TITLE = 'SJ Tutor AI - Your AI Study Buddy';
-export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion for students.';
+export const CANONICAL_BASE_URL = 'https://sjtutor.ai';
+export const DEFAULT_LOGO_URL = 'https://sjtutor.ai/logo.png';
+export const DEFAULT_OG_IMAGE = 'https://sjtutor.ai/logo.png';
+export const DEFAULT_FAVICON_URL = 'https://sjtutor.ai/logo.png';
+export const DEFAULT_TITLE = 'SJ Tutor AI - All-in-One AI Study Companion';
+export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion that generates summaries, practice quizzes, homework solutions, and provides real-time scan-to-solve AI tutoring.';
 
 function ensureMetaTag(nameOrProperty: string, value: string, isProperty = false) {
   const selector = isProperty 
@@ -96,14 +96,10 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
         "name": "SJ Tutor AI",
         "alternateName": ["SJ Tutor", "SJTutorAI"],
         "url": `${CANONICAL_BASE_URL}/`,
-        "logo": {
-          "@type": "ImageObject",
-          "url": DEFAULT_LOGO_URL,
-          "contentUrl": DEFAULT_LOGO_URL,
-          "width": 512,
-          "height": 512,
-          "caption": "SJ Tutor AI Logo"
-        },
+        "logo": DEFAULT_LOGO_URL,
+          "sameAs": [
+            "https://sjtutor.ai/"
+          ],
         "image": DEFAULT_LOGO_URL,
         "description": "SJ Tutor AI is an all-in-one AI study companion for students."
       },
@@ -126,6 +122,19 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
         "publisher": {
           "@id": `${CANONICAL_BASE_URL}/#organization`
         }
+      },
+      {
+        "@type": "WebPage",
+        "@id": `${canonicalUrl}#webpage`,
+        "url": canonicalUrl,
+        "name": title || "SJ Tutor AI - All-in-One AI Study Companion",
+        "isPartOf": {
+          "@id": `${CANONICAL_BASE_URL}/#website`
+        },
+        "about": {
+          "@id": `${CANONICAL_BASE_URL}/#organization`
+        },
+        "description": description || DEFAULT_DESCRIPTION
       },
       {
         "@type": "EducationalApplication",

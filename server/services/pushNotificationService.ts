@@ -192,8 +192,8 @@ class PushNotificationService {
       notification: {
         title: `📞 Incoming ${callTypeLabel} Call`,
         body: `${callData.callerName || "A Scholar"} is calling you on SJ Tutor AI. Tap Accept to connect.`,
-        icon: callData.callerAvatar || "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg",
-        badge: "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg",
+        icon: callData.callerAvatar || "https://sjtutor.ai/logo.png",
+        badge: "https://sjtutor.ai/logo.png",
         tag: `call_${callData.callId}`,
       },
       data: {
@@ -201,7 +201,7 @@ class PushNotificationService {
         callId: callData.callId,
         callerId: callData.callerId || "",
         callerName: callData.callerName,
-        callerAvatar: callData.callerAvatar || "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg",
+        callerAvatar: callData.callerAvatar || "https://sjtutor.ai/logo.png",
         callType: callData.type,
         url: `/?action=accept_call&callId=${encodeURIComponent(callData.callId)}`,
         category: "Important Alerts",

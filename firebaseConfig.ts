@@ -15,11 +15,11 @@ import firebaseConfig from './firebase-applet-config.json';
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Authentication and Firestore with auto-detect long polling & persistence
+// Initialize Firebase Authentication and Firestore with forced long polling & persistence for iframe/proxy compatibility
 let firestoreInstance;
 try {
   firestoreInstance = initializeFirestore(app, {
-    experimentalAutoDetectLongPolling: true,
+    experimentalForceLongPolling: true,
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager()
     })
@@ -27,7 +27,7 @@ try {
 } catch {
   try {
     firestoreInstance = initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
       localCache: memoryLocalCache()
     }, firebaseConfig.firestoreDatabaseId);
   } catch {

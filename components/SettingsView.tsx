@@ -1010,7 +1010,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                          id: `test_${Date.now()}`,
                          callerName: "SJ Tutor AI Study Buddy",
                          type: "audio",
-                         callerAvatar: "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg"
+                         callerAvatar: "https://sjtutor.ai/logo.png"
                        });
                        callAudio.previewRingtone(settings.calls?.ringtone || 'Modern Chime', settings.calls?.ringtoneVolume);
                      }}

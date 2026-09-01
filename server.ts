@@ -79,7 +79,7 @@ Disallow: /notifications
 Disallow: /history
 Disallow: /auth
 
-Sitemap: https://sjtutorai.vercel.app/sitemap.xml`);
+Sitemap: https://sjtutor.ai/sitemap.xml`);
   }
 });
 
@@ -93,32 +93,32 @@ app.get("/sitemap.xml", (req, res) => {
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://sjtutorai.vercel.app/</loc>
+    <loc>https://sjtutor.ai/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.vercel.app/about</loc>
+    <loc>https://sjtutor.ai/about</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.vercel.app/features</loc>
+    <loc>https://sjtutor.ai/features</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.vercel.app/contact</loc>
+    <loc>https://sjtutor.ai/contact</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.vercel.app/privacy</loc>
+    <loc>https://sjtutor.ai/privacy</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.vercel.app/terms</loc>
+    <loc>https://sjtutor.ai/terms</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -405,7 +405,7 @@ async function startServer() {
         <meta name="twitter:card" content="summary_large_image">
         <meta name="twitter:title" content="${title}">
         <meta name="twitter:description" content="${desc}">
-        <link rel="canonical" href="https://sjtutorai.vercel.app/quiz/${classSlug}/${subjectSlug}/${chapterSlug}">
+        <link rel="canonical" href="https://sjtutor.ai/quiz/${classSlug}/${subjectSlug}/${chapterSlug}">
       `;
 
       if (process.env.NODE_ENV !== "production") {
@@ -413,7 +413,7 @@ async function startServer() {
       } else {
          const indexPath = path.resolve(resolvedDirname, "dist", "index.html");
          let html = await fs.promises.readFile(indexPath, 'utf-8');
-         html = html.replace('<title>SJ Tutor AI - Your AI Study Buddy</title>', metaTags);
+         html = html.replace('<title>SJ Tutor AI - All-in-One AI Study Companion</title>', metaTags);
          res.send(html);
       }
     } catch (e) {

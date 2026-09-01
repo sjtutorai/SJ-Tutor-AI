@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+const fs = require('fs');
+
+const code = `import React, { useState, useEffect } from 'react';
 import { 
   Bell, Sparkles, Flame, Brain, Trophy, AlertTriangle, 
   Check, Trash2, Info, Smartphone, SlidersHorizontal,
-  
+  ShieldAlert, Send, Calendar, Clock, RotateCcw, AlertCircle, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNotifications, NotificationCategory } from './NotificationContext';
-
-
+import { collection, query, orderBy, onSnapshot, limit, doc, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 const CATEGORY_STYLES: Record<NotificationCategory, {
   icon: React.ReactNode;
@@ -155,11 +157,11 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
                     <button
                       key={cat}
                       onClick={() => setActiveFilter(cat)}
-                      className={`px-4 py-2 rounded-full whitespace-nowrap text-xs font-semibold transition-all border ${
+                      className={\`px-4 py-2 rounded-full whitespace-nowrap text-xs font-semibold transition-all border \${
                         activeFilter === cat 
                           ? 'bg-primary-600 border-primary-600 text-white shadow-md shadow-primary-500/15' 
                           : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
-                      }`}
+                      }\`}
                     >
                       {cat === 'All' ? 'All Alerts' : cat}
                     </button>
@@ -213,7 +215,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
                       return (
                         <motion.div
                           key={notif.id}
-                          layoutId={`notif-${notif.id}`}
+                          layoutId={\`notif-\${notif.id}\`}
                           initial={{ opacity: 0, scale: 0.95, y: 10 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95, y: -10 }}
@@ -226,9 +228,9 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
                               }
                             }
                           }}
-                          className={`group relative overflow-hidden rounded-2xl border ${styles.border} ${styles.bg} p-5 transition-all duration-300 hover:shadow-md cursor-pointer flex gap-4 ${
+                          className={\`group relative overflow-hidden rounded-2xl border \${styles.border} \${styles.bg} p-5 transition-all duration-300 hover:shadow-md cursor-pointer flex gap-4 \${
                             notif.read ? 'opacity-85 filter contrast-90' : 'shadow-sm shadow-primary-500/5'
-                          }`}
+                          }\`}
                         >
                           {/* Left Dot for unread */}
                           {!notif.read && (
@@ -236,14 +238,14 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
                           )}
 
                           {/* Icon */}
-                          <div className={`p-2.5 w-11 h-11 rounded-xl shadow-inner flex items-center justify-center shrink-0 ${styles.iconBg} ${styles.text}`}>
+                          <div className={\`p-2.5 w-11 h-11 rounded-xl shadow-inner flex items-center justify-center shrink-0 \${styles.iconBg} \${styles.text}\`}>
                             {styles.icon}
                           </div>
 
                           {/* Content */}
                           <div className="flex-1 min-w-0 pr-6">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
-                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${styles.iconBg} ${styles.text} self-start`}>
+                              <span className={\`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full \${styles.iconBg} \${styles.text} self-start\`}>
                                 {notif.category}
                               </span>
                               <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
@@ -252,7 +254,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
                               </span>
                             </div>
 
-                            <h3 className={`text-base font-bold text-slate-800 dark:text-white mb-1 ${!notif.read ? 'font-black text-slate-900' : 'font-medium'}`}>
+                            <h3 className={\`text-base font-bold text-slate-800 dark:text-white mb-1 \${!notif.read ? 'font-black text-slate-900' : 'font-medium'}\`}>
                               {safeNotificationText(notif.title, 'Notification')}
                             </h3>
                             <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed pr-2">
@@ -318,7 +320,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-500 dark:text-slate-400">Notification permission:</span>
-                    <span className={`font-bold capitalize ${permissionStatus === 'granted' ? 'text-emerald-500' : 'text-slate-500'}`}>
+                    <span className={\`font-bold capitalize \${permissionStatus === 'granted' ? 'text-emerald-500' : 'text-slate-500'}\`}>
                       {permissionStatus}
                     </span>
                   </div>
@@ -339,3 +341,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
 };
 
 export default NotificationsView;
+`;
+
+fs.writeFileSync('components/NotificationsView.tsx', code);
+console.log('NotificationsView.tsx reverted to clean state');

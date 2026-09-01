@@ -12,7 +12,7 @@ interface LogoProps {
 
 const FALLBACK_SOURCES = [
   SJTUTOR_AVATAR, // "/logo.png"
-  SJTUTOR_AVATAR_IBB, // "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg"
+  SJTUTOR_AVATAR_IBB, // "https://sjtutor.ai/logo.png"
   "/favicon-512x512.png",
   "/favicon.png",
   SJTUTOR_AVATAR_REMOTE
