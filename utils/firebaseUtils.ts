@@ -3,10 +3,25 @@ import { db } from "../firebaseConfig";
 import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember, Friendship, DirectChat, DirectMessage, UserTimerState, StudySessionRecord } from "../types";
 
 
+// Helper to clean undefined properties before passing objects to Firestore
+export const removeUndefinedFields = <T>(obj: T): T => {
+  if (obj === null || obj === undefined || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map((item) => removeUndefinedFields(item)) as unknown as T;
+  const clean: any = {};
+  Object.keys(obj).forEach((key) => {
+    const val = (obj as any)[key];
+    if (val !== undefined) {
+      clean[key] = removeUndefinedFields(val);
+    }
+  });
+  return clean as T;
+};
+
 export const saveProfileToFirestore = async (uid: string, profile: Partial<UserProfile>) => {
   try {
     const userDocRef = doc(db, "users", uid);
-    await setDoc(userDocRef, profile, { merge: true });
+    const cleanProfile = removeUndefinedFields(profile);
+    await setDoc(userDocRef, cleanProfile, { merge: true });
     return true;
   } catch (error: any) {
     const isOffline = !navigator.onLine || (error && error.message && error.message.includes("offline"));
@@ -476,20 +491,6 @@ export const getNotesFromFirestore = async (uid: string): Promise<any[]> => {
     console.error("Error getting notes from Firestore:", error);
     return [];
   }
-};
-
-// Helper to clean undefined properties before passing objects to Firestore
-export const removeUndefinedFields = <T>(obj: T): T => {
-  if (obj === null || obj === undefined || typeof obj !== "object") return obj;
-  if (Array.isArray(obj)) return obj.map((item) => removeUndefinedFields(item)) as unknown as T;
-  const clean: any = {};
-  Object.keys(obj).forEach((key) => {
-    const val = (obj as any)[key];
-    if (val !== undefined) {
-      clean[key] = removeUndefinedFields(val);
-    }
-  });
-  return clean as T;
 };
 
 // =====================================

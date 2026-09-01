@@ -19,6 +19,7 @@ import { RingtoneStyle } from '../types';
 import { SecurityPinSetupModal } from './SecurityPinSetupModal';
 import { SecurityPinService } from '../services/securityPinService';
 import { SUPPORTED_LANGUAGES } from '../services/languageService';
+import { GRADES_LIST } from '../data/academicData';
 
 interface SettingsViewProps {
   userProfile: UserProfile;
@@ -421,12 +422,15 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                </div>
                <div className="space-y-2">
                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Grade / Class</label>
-                 <input 
-                   type="text" 
-                   value={settings.learning.grade}
+                 <select 
+                   value={settings.learning.grade || userProfile.grade || '10th Grade'}
                    onChange={(e) => handleSettingChange('learning', 'grade', e.target.value)}
-                   className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500"
-                 />
+                   className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 text-slate-800 dark:text-white"
+                 >
+                   {GRADES_LIST.map((g) => (
+                     <option key={g} value={g}>{g}</option>
+                   ))}
+                 </select>
                </div>
                <div className="space-y-2">
                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Content Difficulty</label>

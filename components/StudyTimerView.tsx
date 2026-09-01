@@ -648,40 +648,47 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
             </div>
           ) : (
             /* Running / Paused View with Circular Progress */
-            <div className="relative w-72 h-72 flex items-center justify-center mb-10">
-              <svg className="w-full h-full transform -rotate-90 drop-shadow-md">
+            <div className="relative w-72 h-72 sm:w-80 sm:h-80 md:w-88 md:h-88 flex items-center justify-center mb-8 sm:mb-10 mx-auto select-none">
+              <svg className="w-full h-full transform -rotate-90 drop-shadow-md" viewBox="0 0 320 320">
+                {/* Background Ring */}
                 <circle
-                  cx="144"
-                  cy="144"
-                  r="134"
+                  cx="160"
+                  cy="160"
+                  r="138"
                   stroke="currentColor"
-                  strokeWidth="8"
+                  strokeWidth="10"
                   fill="transparent"
-                  className="text-slate-100 dark:text-slate-700"
+                  className="text-slate-100 dark:text-slate-800"
                 />
+                {/* Active Progress Circle */}
                 <circle
-                  cx="144"
-                  cy="144"
-                  r="134"
-                  stroke="currentColor"
-                  strokeWidth="8"
+                  cx="160"
+                  cy="160"
+                  r="138"
+                  stroke="var(--color-primary-500, #D4AF37)"
+                  strokeWidth="10"
                   fill="transparent"
-                  strokeDasharray={2 * Math.PI * 134}
-                  strokeDashoffset={2 * Math.PI * 134 * (1 - progressPercent / 100)}
+                  strokeDasharray={2 * Math.PI * 138}
+                  strokeDashoffset={2 * Math.PI * 138 * (1 - Math.max(0, Math.min(100, progressPercent)) / 100)}
                   className="text-primary-500 transition-all duration-300 ease-linear"
                   strokeLinecap="round"
                 />
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-5xl font-extrabold text-slate-800 dark:text-white font-mono tracking-tighter tabular-nums drop-shadow-sm">
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center pointer-events-none">
+                <span className="text-3xl sm:text-4xl md:text-5xl font-black font-mono tracking-tight tabular-nums text-slate-800 dark:text-white drop-shadow-sm max-w-[85%] whitespace-nowrap overflow-hidden">
                   {dH} : {dM} : {dS}
                 </span>
-                <div className="flex items-center gap-2 mt-3 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-2 mt-3 bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-sm px-3.5 py-1 rounded-full border border-slate-200/80 dark:border-slate-700/80 shadow-sm">
                   <div className={`w-2 h-2 rounded-full ${timerState === 'RUNNING' ? 'bg-primary-500 animate-pulse' : 'bg-amber-500'}`} />
-                  <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                     {timerState === 'RUNNING' ? 'Focusing' : 'Paused'}
                   </span>
                 </div>
+                {activeSubject && (
+                  <span className="text-xs font-semibold text-primary-600 dark:text-primary-400 mt-2 truncate max-w-[190px]">
+                    {activeSubject}
+                  </span>
+                )}
               </div>
             </div>
           )}

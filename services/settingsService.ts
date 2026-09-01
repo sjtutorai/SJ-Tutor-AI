@@ -1,5 +1,10 @@
 
 import { UserSettings, DEFAULT_SETTINGS } from '../types';
+import { auth, db } from '../firebaseConfig';
+import { doc, setDoc } from 'firebase/firestore';
+import { removeUndefinedFields } from '../utils/firebaseUtils';
+
+let isSyncingFromRemote = false;
 
 const STORAGE_KEY = 'sjtutor_user_settings';
 
@@ -32,11 +37,26 @@ export const SettingsService = {
   },
 
   /**
-   * Saves settings to local storage.
+   * Saves settings to local storage and syncs to Firestore.
    */
   saveSettings: (settings: UserSettings): void => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      
+      const currentUid = auth.currentUser?.uid || localStorage.getItem('sjtutor_active_id_session');
+      if (currentUid && !isSyncingFromRemote) {
+        const cleanSettings = removeUndefinedFields(settings);
+        const userSettingsRef = doc(db, "userSettings", currentUid);
+        setDoc(userSettingsRef, cleanSettings, { merge: true }).catch(err => {
+          console.error("Failed to sync settings to Firestore userSettings collection", err);
+        });
+
+        // Also update users collection for backup
+        const userDocRef = doc(db, "users", currentUid);
+        setDoc(userDocRef, { settings: cleanSettings }, { merge: true }).catch(err => {
+          console.warn("Failed to sync settings to users doc", err);
+        });
+      }
     } catch (e) {
       console.error("Failed to save settings", e);
     }
@@ -63,6 +83,34 @@ export const SettingsService = {
       window.dispatchEvent(new Event('settings-changed'));
     } catch (e) {
       console.error("Failed to update settings", e);
+    }
+  },
+
+  /**
+   * Applies settings from Firestore without triggering an infinite upload loop.
+   */
+  applyRemoteSettings: (remoteSettings: any): void => {
+    try {
+      isSyncingFromRemote = true;
+      const current = SettingsService.getSettings();
+      const updated = {
+        ...current,
+        ...remoteSettings,
+        learning: { ...current.learning, ...(remoteSettings.learning || {}) },
+        aiTutor: { ...current.aiTutor, ...(remoteSettings.aiTutor || {}) },
+        chat: { ...current.chat, ...(remoteSettings.chat || {}) },
+        notifications: { ...current.notifications, ...(remoteSettings.notifications || {}) },
+        appearance: { ...current.appearance, ...(remoteSettings.appearance || {}) },
+        privacy: { ...current.privacy, ...(remoteSettings.privacy || {}) },
+        calls: { ...current.calls, ...(remoteSettings.calls || {}) },
+      };
+      
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      window.dispatchEvent(new Event('settings-changed'));
+    } catch (e) {
+      console.error("Failed to apply remote settings", e);
+    } finally {
+      isSyncingFromRemote = false;
     }
   },
 

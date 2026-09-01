@@ -1,20 +1,12 @@
 const fs = require('fs');
-let code = fs.readFileSync('components/NotificationsView.tsx', 'utf-8');
 
-// Remove useEffect
-code = code.replace(/import React, \{ useState, useEffect \} from 'react';/, "import React, { useState } from 'react';");
+let content = fs.readFileSync('App.tsx', 'utf8');
 
-// Remove unused lucide icons
-code = code.replace(/ShieldAlert, Send, Calendar, Clock, RotateCcw, AlertCircle, RefreshCw/, "");
+// Fix the import
+content = content.replace(/import \{ doc, getDoc \} from "firebase\/firestore";/, 'import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";');
 
-// Remove unused firestore imports
-code = code.replace(/import \{ collection, query, orderBy, onSnapshot, limit, doc, deleteDoc \} from 'firebase\/firestore';/, "");
+// Fix the require inside the effect
+content = content.replace(/const \{ doc, onSnapshot, setDoc \} = require\('firebase\/firestore'\);\n      const \{ db \} = require\('\.\/firebaseConfig'\);/g, '');
 
-// Remove db import
-code = code.replace(/import \{ db \} from '\.\.\/firebaseConfig';/, "");
-
-// Fix dangling commas if any in lucide-react import
-code = code.replace(/,\n\} from 'lucide-react';/, "\n} from 'lucide-react';");
-
-fs.writeFileSync('components/NotificationsView.tsx', code);
-console.log('Fixed imports');
+fs.writeFileSync('App.tsx', content);
+console.log("Updated App.tsx");

@@ -1,6 +1,7 @@
 import { db } from "../firebaseConfig";
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import type { User } from "firebase/auth";
+import { removeUndefinedFields } from "./firebaseUtils";
 
 /**
  * Helper to get predefined membership & credits by email
@@ -42,10 +43,12 @@ export const createUserProfile = async (user: User, initialData?: Partial<any>) 
       email: user.email || "",
       photoURL: user.photoURL || initialData?.photoURL || "",
       provider: user.providerData[0]?.providerId || "password",
-      class: "",
+      class: initialData?.grade || initialData?.class || "",
+      grade: initialData?.grade || initialData?.class || "",
+      dob: initialData?.dob || "",
       language: initialData?.language || "English",
       role: membership?.role || "student",
-      phoneNumber: user.phoneNumber || "",
+      phoneNumber: user.phoneNumber || initialData?.phoneNumber || "",
       hasCompletedOnboarding: membership ? true : false,
       streak: 0,
       totalStudyTime: 0,
@@ -59,8 +62,9 @@ export const createUserProfile = async (user: User, initialData?: Partial<any>) 
       isActive: true,
       ...initialData,
     };
-    await setDoc(userRef, newProfile);
-    return newProfile;
+    const cleanProfile = removeUndefinedFields(newProfile);
+    await setDoc(userRef, cleanProfile);
+    return cleanProfile;
   } catch (error) {
     console.error("Error creating user profile in Firestore:", error);
     throw error;
@@ -75,10 +79,11 @@ export const createUserProfile = async (user: User, initialData?: Partial<any>) 
 export const updateUserProfile = async (uid: string, data: Partial<any>) => {
   try {
     const userRef = doc(db, "users", uid);
-    await updateDoc(userRef, {
+    const cleanData = removeUndefinedFields({
       ...data,
       updatedAt: serverTimestamp()
     });
+    await updateDoc(userRef, cleanData);
   } catch (error) {
     console.error("Error updating user profile in Firestore:", error);
     throw error;
@@ -125,13 +130,16 @@ export const getCurrentUserProfile = async (user: User) => {
         if (!data.trialStartDate) {
           updatePayload.trialStartDate = trialStartDate;
         }
-        await updateDoc(userRef, updatePayload);
+        await updateDoc(userRef, removeUndefinedFields(updatePayload));
       } catch (updateError) {
         console.error("Error updating user login info in Firestore:", updateError);
       }
 
       return {
         ...data,
+        grade: data.grade || data.class || "",
+        class: data.class || data.grade || "",
+        dob: data.dob || "",
         planType,
         credits,
         trialStartDate,

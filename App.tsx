@@ -69,7 +69,7 @@ import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { SEOService } from "./services/seoService";
 import { db, auth } from "./firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { StudyGroup } from "./types";
 import { getCurrentUserProfile, getMembershipByEmail } from "./utils/userService";
 import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, } from "firebase/auth";
@@ -1060,6 +1060,33 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Auto-fill grade from profile when switching modes and synchronize with Settings
+  useEffect(() => {
+    const handleSettingsSync = () => {
+      const currentSettings = SettingsService.getSettings();
+      const settingsGrade = currentSettings.learning?.grade;
+      if (settingsGrade && settingsGrade !== userProfile.grade) {
+        setUserProfile((prev) => {
+          const updated = {
+            ...prev,
+            grade: settingsGrade,
+            class: settingsGrade,
+          };
+          const activeUid = user?.uid || auth.currentUser?.uid || localStorage.getItem('sjtutor_active_id_session');
+          if (activeUid) {
+            localStorage.setItem(`profile_${activeUid}`, JSON.stringify(updated));
+          }
+          return updated;
+        });
+      }
+    };
+
+    window.addEventListener("settings-changed", handleSettingsSync);
+    return () => {
+      window.removeEventListener("settings-changed", handleSettingsSync);
+    };
+  }, [user, userProfile.grade]);
+
   // Auto-fill grade from profile when switching modes
   useEffect(() => {
     if (
@@ -1115,6 +1142,27 @@ const App: React.FC = () => {
       }
     }
   }, []);
+
+  // Remote Settings Listener
+  useEffect(() => {
+    let unsubscribeSettings;
+    if (user) {
+      
+      const userSettingsRef = doc(db, "userSettings", user.uid);
+      
+      unsubscribeSettings = onSnapshot(userSettingsRef, (snap) => {
+        if (snap.exists()) {
+          SettingsService.applyRemoteSettings(snap.data());
+        } else {
+          const currentSettings = SettingsService.getSettings();
+          setDoc(userSettingsRef, currentSettings, { merge: true }).catch(e => console.error("Error creating initial remote settings", e));
+        }
+      });
+    }
+    return () => {
+      if (unsubscribeSettings) unsubscribeSettings();
+    };
+  }, [user]);
 
   // Auth Listener
   useEffect(() => {
@@ -1500,18 +1548,30 @@ const App: React.FC = () => {
     newProfile: UserProfile,
     redirectDashboard = false,
   ) => {
-    setUserProfile(newProfile);
-    if (newProfile.grade) {
+    const unifiedGrade = newProfile.grade || newProfile.class || "";
+    const sanitizedProfile: UserProfile = {
+      ...newProfile,
+      grade: unifiedGrade,
+      class: unifiedGrade,
+      dob: newProfile.dob || "",
+      isRegisteredInFirestore: true,
+      lastProfileUpdate: Date.now(),
+    };
+    setUserProfile(sanitizedProfile);
+    
+    if (unifiedGrade) {
       SettingsService.updateSettings({
         learning: {
           ...SettingsService.getSettings().learning,
-          grade: newProfile.grade
+          grade: unifiedGrade
         }
       });
     }
-    if (user) {
-      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
-      await saveProfileToFirestore(user.uid, newProfile);
+
+    const activeUid = user?.uid || auth.currentUser?.uid || localStorage.getItem('sjtutor_active_id_session');
+    if (activeUid) {
+      localStorage.setItem(`profile_${activeUid}`, JSON.stringify(sanitizedProfile));
+      await saveProfileToFirestore(activeUid, sanitizedProfile);
     }
     
     // Automatically redirect to Dashboard after completing onboarding
