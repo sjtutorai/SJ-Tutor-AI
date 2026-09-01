@@ -16,9 +16,9 @@ export interface SEOConfig {
 }
 
 export const CANONICAL_BASE_URL = 'https://sjtutor.ai';
-export const DEFAULT_LOGO_URL = 'https://sjtutor.ai/logo.png';
-export const DEFAULT_OG_IMAGE = 'https://sjtutor.ai/logo.png';
-export const DEFAULT_FAVICON_URL = 'https://sjtutor.ai/logo.png';
+export const DEFAULT_LOGO_URL = 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg';
+export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg';
+export const DEFAULT_FAVICON_URL = 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg';
 export const DEFAULT_TITLE = 'SJ Tutor AI - All-in-One AI Study Companion';
 export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion that generates summaries, practice quizzes, homework solutions, and provides real-time scan-to-solve AI tutoring.';
 
@@ -94,12 +94,20 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
         "@type": "Organization",
         "@id": `${CANONICAL_BASE_URL}/#organization`,
         "name": "SJ Tutor AI",
-        "alternateName": ["SJ Tutor", "SJTutorAI"],
+        "alternateName": ["SJ Tutor", "SJTutorAI", "SJ Tutor AI Study Companion"],
         "url": `${CANONICAL_BASE_URL}/`,
-        "logo": DEFAULT_LOGO_URL,
-          "sameAs": [
-            "https://sjtutor.ai/"
-          ],
+        "logo": {
+          "@type": "ImageObject",
+          "@id": `${CANONICAL_BASE_URL}/#logo`,
+          "url": DEFAULT_LOGO_URL,
+          "contentUrl": DEFAULT_LOGO_URL,
+          "caption": "SJ Tutor AI Official Logo",
+          "width": 1024,
+          "height": 1024
+        },
+        "sameAs": [
+          "https://sjtutor.ai/"
+        ],
         "image": DEFAULT_LOGO_URL,
         "description": "SJ Tutor AI is an all-in-one AI study companion for students."
       },

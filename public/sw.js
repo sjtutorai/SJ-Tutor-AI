@@ -121,8 +121,8 @@ self.addEventListener('push', (event) => {
     body = `${callerName} is calling you on SJ Tutor AI. Tap Accept to connect.`;
     options = {
       body: body,
-      icon: rawData.callerAvatar || 'https://sjtutor.ai/logo.png',
-      badge: 'https://sjtutor.ai/logo.png',
+      icon: rawData.callerAvatar || 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
       tag: `call_${callId}`,
       renotify: true,
       requireInteraction: true, // Keeps call notification persistent on screen until answered or declined like a phone call
@@ -145,8 +145,8 @@ self.addEventListener('push', (event) => {
   } else {
     options = {
       body: body,
-      icon: 'https://sjtutor.ai/logo.png',
-      badge: 'https://sjtutor.ai/logo.png',
+      icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
       vibrate: [100, 50, 100],
       data: {
         url: self.location.origin,
@@ -254,8 +254,8 @@ self.addEventListener('message', (event) => {
     const title = `📞 Incoming ${callType} Call`;
     const options = {
       body: `${call.callerName || 'Scholar'} is calling you on SJ Tutor AI. Tap to answer.`,
-      icon: call.callerAvatar || 'https://sjtutor.ai/logo.png',
-      badge: 'https://sjtutor.ai/logo.png',
+      icon: call.callerAvatar || 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
       tag: `call_${call.id}`,
       renotify: true,
       requireInteraction: true,

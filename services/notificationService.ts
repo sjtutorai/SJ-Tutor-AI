@@ -301,21 +301,21 @@ export class NotificationService {
         if (registration) {
           registration.showNotification(title, {
             body,
-            icon: 'https://sjtutor.ai/logo.png',
-            badge: 'https://sjtutor.ai/logo.png',
+            icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+            badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
             vibrate: [200, 100, 200],
             data: { category, url: window.location.origin }
           } as NotificationOptions & { vibrate?: number[] });
         } else {
           new Notification(title, {
             body,
-            icon: 'https://sjtutor.ai/logo.png'
+            icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg'
           });
         }
       } catch {
         new Notification(title, {
           body,
-          icon: 'https://sjtutor.ai/logo.png'
+          icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg'
         });
       }
     }
@@ -353,7 +353,7 @@ export class NotificationService {
       const callTypeLabel = call.type === 'video' ? 'Video' : 'Voice';
       const title = `📞 Incoming ${callTypeLabel} Call`;
       const body = `${call.callerName || 'Scholar'} is calling you on SJ Tutor AI. Tap Accept to connect.`;
-      const avatar = call.callerAvatar || 'https://sjtutor.ai/logo.png';
+      const avatar = call.callerAvatar || 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg';
 
       try {
         let registration = await navigator.serviceWorker?.getRegistration();
@@ -366,7 +366,7 @@ export class NotificationService {
           await registration.showNotification(title, {
             body,
             icon: avatar,
-            badge: 'https://sjtutor.ai/logo.png',
+            badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
             tag: `call_${call.id}`,
             renotify: true,
             requireInteraction: true, // Keep notification pinned like a real incoming phone call
