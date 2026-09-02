@@ -339,8 +339,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         if (regStatus.isRegistered) {
           // Already registered, automatically log in
           if (result.user?.uid) {
-            SecurityPinService.clearTwoStepVerified(result.user.uid);
-            SecurityPinService.lockSession(result.user.uid);
+            SecurityPinService.setTwoStepVerified(result.user.uid);
+            SecurityPinService.setSessionUnlocked(result.user.uid);
           }
           const fullProf = regStatus.profile || await getCurrentUserProfile(result.user);
           onComplete(fullProf);
@@ -349,8 +349,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
 
         // Unregistered new account: proceed with onboarding steps 2-5
         if (result.user?.uid) {
-          SecurityPinService.clearTwoStepVerified(result.user.uid);
-          SecurityPinService.lockSession(result.user.uid);
+          SecurityPinService.setTwoStepVerified(result.user.uid);
+          SecurityPinService.setSessionUnlocked(result.user.uid);
         }
         setCurrentUser(result.user);
         if (result.user.displayName && !displayName) {
@@ -422,8 +422,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         if (userCredential.user?.uid) {
-          SecurityPinService.clearTwoStepVerified(userCredential.user.uid);
-          SecurityPinService.lockSession(userCredential.user.uid);
+          SecurityPinService.setTwoStepVerified(userCredential.user.uid);
+          SecurityPinService.setSessionUnlocked(userCredential.user.uid);
         }
         await updateProfile(userCredential.user, { displayName: displayName.trim() });
         setCurrentUser(userCredential.user);

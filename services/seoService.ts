@@ -15,12 +15,153 @@ export interface SEOConfig {
   noindex?: boolean;
 }
 
+export interface SitemapImageEntry {
+  loc: string;
+  title?: string;
+  caption?: string;
+  geo_location?: string;
+  license?: string;
+}
+
+export interface SitemapUrlEntry {
+  path: string;
+  changefreq?: 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never';
+  priority?: number;
+  lastmod?: string;
+  images?: SitemapImageEntry[];
+}
+
 export const CANONICAL_BASE_URL = 'https://sjtutor.ai';
 export const DEFAULT_LOGO_URL = 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg';
 export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg';
 export const DEFAULT_FAVICON_URL = 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg';
 export const DEFAULT_TITLE = 'SJ Tutor AI - All-in-One AI Study Companion';
 export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion that generates summaries, practice quizzes, homework solutions, and provides real-time scan-to-solve AI tutoring.';
+
+export const DEFAULT_PUBLIC_SITEMAP_ROUTES: SitemapUrlEntry[] = [
+  {
+    path: '/',
+    changefreq: 'daily',
+    priority: 1.0,
+    images: [
+      {
+        loc: DEFAULT_LOGO_URL,
+        title: 'SJ Tutor AI Logo - All-in-One AI Study Companion',
+        caption: 'Official brand logo for SJ Tutor AI - All-in-One AI Study Companion'
+      }
+    ]
+  },
+  {
+    path: '/about',
+    changefreq: 'weekly',
+    priority: 0.8,
+    images: [
+      {
+        loc: DEFAULT_LOGO_URL,
+        title: 'SJ Tutor AI Brand Identity - About Us',
+        caption: 'SJ Tutor AI logo and team mission'
+      }
+    ]
+  },
+  {
+    path: '/features',
+    changefreq: 'weekly',
+    priority: 0.8,
+    images: [
+      {
+        loc: DEFAULT_LOGO_URL,
+        title: 'SJ Tutor AI Study Tools & Features',
+        caption: 'AI tutoring, quiz generator, summary and homework solver tools'
+      }
+    ]
+  },
+  {
+    path: '/contact',
+    changefreq: 'monthly',
+    priority: 0.7,
+    images: [
+      {
+        loc: DEFAULT_LOGO_URL,
+        title: 'Contact SJ Tutor AI Support',
+        caption: 'SJ Tutor AI contact and developer inquiries'
+      }
+    ]
+  },
+  {
+    path: '/privacy',
+    changefreq: 'monthly',
+    priority: 0.5,
+    images: [
+      {
+        loc: DEFAULT_LOGO_URL,
+        title: 'SJ Tutor AI Privacy Policy',
+        caption: 'SJ Tutor AI student data protection and privacy policy'
+      }
+    ]
+  },
+  {
+    path: '/terms',
+    changefreq: 'monthly',
+    priority: 0.5,
+    images: [
+      {
+        loc: DEFAULT_LOGO_URL,
+        title: 'SJ Tutor AI Terms of Service',
+        caption: 'SJ Tutor AI student agreement and terms of use'
+      }
+    ]
+  }
+];
+
+/**
+ * Generates an XML sitemap conforming to Google's standard sitemap and Google Image Sitemap 1.1 specs,
+ * explicitly referencing the logo URL for every indexable public endpoint to assist Google Search Console in indexing brand identity.
+ */
+export function generateSitemapXml(
+  entries: SitemapUrlEntry[] = DEFAULT_PUBLIC_SITEMAP_ROUTES,
+  baseUrl: string = CANONICAL_BASE_URL,
+  logoUrl: string = DEFAULT_LOGO_URL
+): string {
+  const today = new Date().toISOString().split('T')[0];
+
+  const xmlUrls = entries.map(entry => {
+    const fullUrl = `${baseUrl.replace(/\/$/, '')}${entry.path.startsWith('/') ? entry.path : '/' + entry.path}`;
+    const changefreq = entry.changefreq || 'weekly';
+    const priority = (entry.priority !== undefined ? entry.priority : 0.7).toFixed(1);
+    const lastmod = entry.lastmod || today;
+
+    // Use custom images or fallback to the brand logo URL
+    const images = (entry.images && entry.images.length > 0)
+      ? entry.images
+      : [{
+          loc: logoUrl,
+          title: 'SJ Tutor AI Logo - All-in-One AI Study Companion',
+          caption: 'SJ Tutor AI official logo and brand identity asset'
+        }];
+
+    const imagesXml = images.map(img => {
+      const locTag = `      <image:loc>${img.loc}</image:loc>`;
+      const titleTag = img.title ? `\n      <image:title><![CDATA[${img.title}]]></image:title>` : '';
+      const captionTag = img.caption ? `\n      <image:caption><![CDATA[${img.caption}]]></image:caption>` : '';
+      return `    <image:image>\n${locTag}${titleTag}${captionTag}\n    </image:image>`;
+    }).join('\n');
+
+    return `  <url>
+    <loc>${fullUrl}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>${changefreq}</changefreq>
+    <priority>${priority}</priority>
+${imagesXml}
+  </url>`;
+  }).join('\n\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+${xmlUrls}
+</urlset>
+`;
+}
 
 function ensureMetaTag(nameOrProperty: string, value: string, isProperty = false) {
   const selector = isProperty 
@@ -343,5 +484,38 @@ export const SEOService = {
           canonicalPath: clean,
         };
     }
+  },
+
+  /**
+   * Generates a fully compliant XML sitemap with explicit Google Image Sitemap tags pointing to the brand logo URL.
+   */
+  generateSitemapXml: (
+    entries: SitemapUrlEntry[] = DEFAULT_PUBLIC_SITEMAP_ROUTES,
+    baseUrl: string = CANONICAL_BASE_URL,
+    logoUrl: string = DEFAULT_LOGO_URL
+  ): string => {
+    return generateSitemapXml(entries, baseUrl, logoUrl);
+  },
+
+  /**
+   * Returns the default public routes configured with brand logo image associations for sitemap generation.
+   */
+  getDefaultSitemapRoutes: (): SitemapUrlEntry[] => {
+    return [...DEFAULT_PUBLIC_SITEMAP_ROUTES];
+  },
+
+  /**
+   * Helper utility to trigger in-browser download of the sitemap.xml file.
+   */
+  downloadSitemapXml: (fileName = 'sitemap.xml'): void => {
+    if (typeof window === 'undefined') return;
+    const xmlContent = generateSitemapXml();
+    const blob = new Blob([xmlContent], { type: 'application/xml;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 };

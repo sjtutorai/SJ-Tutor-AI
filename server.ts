@@ -91,36 +91,73 @@ app.get("/sitemap.xml", (req, res) => {
   } else {
     res.setHeader("Content-Type", "application/xml");
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>https://sjtutor.ai/</loc>
+    <lastmod>2026-09-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
+      <image:title><![CDATA[SJ Tutor AI Logo - All-in-One AI Study Companion]]></image:title>
+      <image:caption><![CDATA[Official brand logo for SJ Tutor AI - All-in-One AI Study Companion]]></image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://sjtutor.ai/about</loc>
+    <lastmod>2026-09-02</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
+      <image:title><![CDATA[SJ Tutor AI Brand Identity - About Us]]></image:title>
+      <image:caption><![CDATA[SJ Tutor AI logo and team mission]]></image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://sjtutor.ai/features</loc>
+    <lastmod>2026-09-02</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
+      <image:title><![CDATA[SJ Tutor AI Study Tools & Features]]></image:title>
+      <image:caption><![CDATA[AI tutoring, quiz generator, summary and homework solver tools]]></image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://sjtutor.ai/contact</loc>
+    <lastmod>2026-09-02</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+    <image:image>
+      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
+      <image:title><![CDATA[Contact SJ Tutor AI Support]]></image:title>
+      <image:caption><![CDATA[SJ Tutor AI contact and developer inquiries]]></image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://sjtutor.ai/privacy</loc>
+    <lastmod>2026-09-02</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
+    <image:image>
+      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
+      <image:title><![CDATA[SJ Tutor AI Privacy Policy]]></image:title>
+      <image:caption><![CDATA[SJ Tutor AI student data protection and privacy policy]]></image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://sjtutor.ai/terms</loc>
+    <lastmod>2026-09-02</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
+    <image:image>
+      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
+      <image:title><![CDATA[SJ Tutor AI Terms of Service]]></image:title>
+      <image:caption><![CDATA[SJ Tutor AI student agreement and terms of use]]></image:caption>
+    </image:image>
   </url>
 </urlset>`);
   }

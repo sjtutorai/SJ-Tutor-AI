@@ -1628,9 +1628,11 @@ const App: React.FC = () => {
         }));
       }
 
-      // Prompt 2-Step Verification Password after Signing IN
-      SecurityPinService.clearTwoStepVerified(activeUid);
-      setIsTwoStepVerified(false);
+      // Mark 2-Step Verification and PIN session as verified/unlocked upon completing signup
+      SecurityPinService.setTwoStepVerified(activeUid);
+      setIsTwoStepVerified(true);
+      SecurityPinService.setSessionUnlocked(activeUid);
+      setIsPinSessionUnlocked(true);
 
       setMode(AppMode.DASHBOARD);
     } catch (e) {
@@ -4123,8 +4125,8 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* 1. Two-Step Verification on Login Modal */}
-      {user && !isTwoStepVerified && (
+      {/* 1. Two-Step Verification on Login Modal - only when 2FA is explicitly configured */}
+      {user && (!!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword) && !isTwoStepVerified && (
         <TwoStepLoginModal
           userProfile={userProfile}
           uid={user.uid}

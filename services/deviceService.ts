@@ -284,7 +284,7 @@ export class DeviceService {
   }
 
   /**
-   * Listen for remote revocation or deletion of the current device.
+   * Listen for remote revocation of the current device.
    */
   static listenForRevocation(
     userId: string, 
@@ -295,18 +295,10 @@ export class DeviceService {
     const currentDeviceId = getCurrentDeviceId();
     const currentDeviceRef = doc(db, "users", userId, "devices", currentDeviceId);
 
-    let docEverExisted = false;
-
     return onSnapshot(currentDeviceRef, (snap) => {
       if (snap.exists()) {
-        docEverExisted = true;
         const data = snap.data() as DeviceSession;
         if (data && data.status === 'revoked') {
-          onRevoked();
-        }
-      } else {
-        // If it was registered and active, and is now deleted from another device/action:
-        if (docEverExisted) {
           onRevoked();
         }
       }
