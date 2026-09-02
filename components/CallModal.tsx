@@ -279,6 +279,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
   const [isMinimized, setIsMinimized] = useState(false);
   const [layoutMode, setLayoutMode] = useState<"grid" | "spotlight">("grid");
+  const [directLayoutMode, setDirectLayoutMode] = useState<"split" | "pip">("split");
   const [showInCallChat, setShowInCallChat] = useState(false);
   const [quickNote, setQuickNote] = useState("");
   const [sharedNotes, setSharedNotes] = useState<string[]>([]);
@@ -688,30 +689,35 @@ export const CallModal: React.FC<CallModalProps> = ({
         }
 
         setRemoteStream((prevStream) => {
-          let updatedStream: MediaStream;
+          let updatedTracks: MediaStreamTrack[] = [];
           if (event.streams && event.streams[0]) {
-            updatedStream = event.streams[0];
-          } else if (prevStream) {
-            const existing = prevStream.getTracks().find((t) => t.id === event.track.id);
-            if (!existing) {
-              prevStream.addTrack(event.track);
-            }
-            updatedStream = new MediaStream(prevStream.getTracks());
+            updatedTracks = event.streams[0].getTracks();
           } else {
-            updatedStream = new MediaStream([event.track]);
+            const existing = prevStream ? prevStream.getTracks().filter((t) => t.id !== event.track.id) : [];
+            updatedTracks = [...existing, event.track];
           }
+          const updatedStream = new MediaStream(updatedTracks);
+
+          const isOtherPersonMuted = liveDirectCall
+            ? (liveDirectCall.callerId === currentUser.uid
+                ? Boolean(liveDirectCall.receiverMuted)
+                : Boolean(liveDirectCall.callerMuted))
+            : false;
+          const shouldMute = isSpeakerMuted || isOtherPersonMuted;
 
           if (remoteAudioRef.current) {
             remoteAudioRef.current.srcObject = updatedStream;
-            remoteAudioRef.current.muted = isSpeakerMuted;
-            remoteAudioRef.current
-              .play()
-              .then(() => setIsAudioAutoplayBlocked(false))
-              .catch(() => setIsAudioAutoplayBlocked(true));
+            remoteAudioRef.current.muted = shouldMute;
+            if (!shouldMute) {
+              remoteAudioRef.current
+                .play()
+                .then(() => setIsAudioAutoplayBlocked(false))
+                .catch(() => setIsAudioAutoplayBlocked(true));
+            }
           }
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = updatedStream;
-            remoteVideoRef.current.muted = isSpeakerMuted;
+            remoteVideoRef.current.muted = shouldMute;
             remoteVideoRef.current.play().catch(() => {});
           }
 
@@ -918,30 +924,33 @@ export const CallModal: React.FC<CallModalProps> = ({
         }
 
         setRemoteStream((prevStream) => {
-          let updatedStream: MediaStream;
+          let updatedTracks: MediaStreamTrack[] = [];
           if (event.streams && event.streams[0]) {
-            updatedStream = event.streams[0];
-          } else if (prevStream) {
-            const existing = prevStream.getTracks().find((t) => t.id === event.track.id);
-            if (!existing) {
-              prevStream.addTrack(event.track);
-            }
-            updatedStream = new MediaStream(prevStream.getTracks());
+            updatedTracks = event.streams[0].getTracks();
           } else {
-            updatedStream = new MediaStream([event.track]);
+            const existing = prevStream ? prevStream.getTracks().filter((t) => t.id !== event.track.id) : [];
+            updatedTracks = [...existing, event.track];
           }
+          const updatedStream = new MediaStream(updatedTracks);
+
+          const isOtherPersonMuted = incomingDirectCall.callerId === currentUser.uid
+            ? Boolean(incomingDirectCall.receiverMuted)
+            : Boolean(incomingDirectCall.callerMuted);
+          const shouldMute = isSpeakerMuted || isOtherPersonMuted;
 
           if (remoteAudioRef.current) {
             remoteAudioRef.current.srcObject = updatedStream;
-            remoteAudioRef.current.muted = isSpeakerMuted;
-            remoteAudioRef.current
-              .play()
-              .then(() => setIsAudioAutoplayBlocked(false))
-              .catch(() => setIsAudioAutoplayBlocked(true));
+            remoteAudioRef.current.muted = shouldMute;
+            if (!shouldMute) {
+              remoteAudioRef.current
+                .play()
+                .then(() => setIsAudioAutoplayBlocked(false))
+                .catch(() => setIsAudioAutoplayBlocked(true));
+            }
           }
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = updatedStream;
-            remoteVideoRef.current.muted = isSpeakerMuted;
+            remoteVideoRef.current.muted = shouldMute;
             remoteVideoRef.current.play().catch(() => {});
           }
 
@@ -989,7 +998,10 @@ export const CallModal: React.FC<CallModalProps> = ({
           }
         }
 
-        const answer = await pc.createAnswer();
+        const answer = await pc.createAnswer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true,
+        });
         await pc.setLocalDescription(answer);
         await answerDirectCall(incomingDirectCall.id, answer);
       }
@@ -1582,12 +1594,22 @@ export const CallModal: React.FC<CallModalProps> = ({
               </h3>
               <p className="text-xs font-mono text-emerald-400 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                {isConnecting ? "Ringing..." : formatSeconds(callDuration)} • {liveDirectCall.type === "video" ? "HD Video" : "Studio Audio"}
+                {isConnecting ? "Ringing..." : formatSeconds(callDuration)} • {liveDirectCall.type === "video" ? "Dual HD Video Call" : "Studio Audio Call"}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Split / Spotlight View Layout Toggle */}
+            <button
+              onClick={() => setDirectLayoutMode(prev => prev === "split" ? "pip" : "split")}
+              className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-2xl backdrop-blur-md transition cursor-pointer text-xs font-semibold flex items-center gap-1.5 border border-white/10"
+              title={directLayoutMode === "split" ? "Switch to Focus / PiP Mode" : "Switch to Dual Split View"}
+            >
+              <Grid className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">{directLayoutMode === "split" ? "Dual View" : "Focus View"}</span>
+            </button>
+
             <button
               onClick={() => setIsMinimized(true)}
               className="p-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl backdrop-blur-md transition cursor-pointer"
@@ -1598,89 +1620,251 @@ export const CallModal: React.FC<CallModalProps> = ({
           </div>
         </div>
 
-        {/* Center Stage Video / Audio View */}
-        <div className="flex-1 relative flex items-center justify-center p-4">
-          {/* Main Remote View */}
-          {remoteStream && remoteStream.getVideoTracks().length > 0 && !isOtherPersonVideoOff ? (
-            <div className="relative w-full h-full max-w-4xl flex items-center justify-center">
-              <video
-                ref={(el) => {
-                  remoteVideoRef.current = el;
-                  if (el && remoteStream) {
-                    if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
-                    el.play().catch(() => {});
-                  }
-                }}
-                autoPlay
-                playsInline
-                muted={true}
-                onLoadedMetadata={(e) => {
-                  (e.target as HTMLVideoElement).play().catch(() => {});
-                }}
-                className="w-full h-full object-contain rounded-3xl shadow-2xl"
-              />
+        {/* Center Stage Video / Audio View (Dual Camera Support) */}
+        <div className="flex-1 relative p-4 flex items-center justify-center overflow-hidden">
+          {directLayoutMode === "split" ? (
+            /* ==================================================== */
+            /* 1. DUAL VIEW / SIDE-BY-SIDE SPLIT SCREEN (Both Faces) */
+            /* ==================================================== */
+            <div className="w-full h-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-4 items-center justify-center">
+              {/* Remote Peer Screen (Friend) */}
+              <div className="relative w-full h-full min-h-[260px] md:min-h-[380px] bg-slate-900 rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl flex items-center justify-center">
+                {remoteStream && remoteStream.getVideoTracks().length > 0 && !isOtherPersonVideoOff ? (
+                  <video
+                    ref={(el) => {
+                      remoteVideoRef.current = el;
+                      if (el && remoteStream) {
+                        if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
+                        el.muted = shouldMuteRemoteAudio;
+                        el.play().catch(() => {});
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    muted={shouldMuteRemoteAudio}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-center relative p-6">
+                    {!shouldMuteRemoteAudio && remoteAudioLevel > 10 && (
+                      <div
+                        className="absolute inset-0 -m-6 rounded-full border-2 border-emerald-500/40 animate-ping pointer-events-none"
+                        style={{ animationDuration: "1.4s" }}
+                      />
+                    )}
+                    <div className="relative w-28 h-28 sm:w-36 sm:h-36 mx-auto rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-white font-extrabold text-4xl sm:text-5xl flex items-center justify-center shadow-2xl border-4 border-slate-800 overflow-hidden">
+                      {otherPersonAvatar ? (
+                        <img src={otherPersonAvatar} alt={otherPersonName || 'User'} className="w-full h-full object-cover" />
+                      ) : (
+                        (otherPersonName?.charAt(0) || 'U').toUpperCase()
+                      )}
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-white mt-3">{otherPersonName}</h3>
+                    <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800/80 rounded-full text-slate-300 text-xs font-semibold">
+                      <VideoOff className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Camera Off</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Friend Name Tag & Audio Status */}
+                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                  <div className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl text-white text-xs font-bold flex items-center gap-2 border border-white/10">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>{otherPersonName}</span>
+                    {remoteStream && remoteStream.getVideoTracks().length > 0 && !isOtherPersonVideoOff ? (
+                      <span className="text-[10px] text-emerald-400 font-mono font-normal">● Live Camera</span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-mono font-normal">● Audio Only</span>
+                    )}
+                  </div>
+                  {isOtherPersonMuted ? (
+                    <span className="bg-rose-500/90 text-white p-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow">
+                      <MicOff className="w-3.5 h-3.5" />
+                    </span>
+                  ) : (
+                    <div className="bg-black/60 backdrop-blur-md px-2.5 py-1.5 rounded-xl text-emerald-400 text-xs font-bold flex items-center gap-1 border border-white/10">
+                      <Mic className="w-3.5 h-3.5" />
+                      <div className="w-8 h-2 bg-slate-700 rounded-full overflow-hidden flex items-center">
+                        <div
+                          className="h-full bg-emerald-400 transition-all duration-75"
+                          style={{ width: `${Math.min(100, remoteAudioLevel * 2)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Local User Screen (You) */}
+              <div className="relative w-full h-full min-h-[260px] md:min-h-[380px] bg-slate-900 rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl flex items-center justify-center">
+                {localStream && localStream.getVideoTracks().length > 0 && !isVideoOff ? (
+                  <video
+                    ref={(el) => {
+                      localVideoRef.current = el;
+                      if (el && localStream) {
+                        if (el.srcObject !== localStream) el.srcObject = localStream;
+                        el.play().catch(() => {});
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover ${cameraFacing === "user" ? "scale-x-[-1]" : ""}`}
+                  />
+                ) : (
+                  <div className="text-center relative p-6">
+                    {!isMuted && localAudioLevel > 10 && (
+                      <div
+                        className="absolute inset-0 -m-6 rounded-full border-2 border-indigo-500/40 animate-ping pointer-events-none"
+                        style={{ animationDuration: "1.4s" }}
+                      />
+                    )}
+                    <div className="relative w-28 h-28 sm:w-36 sm:h-36 mx-auto rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 text-white font-extrabold text-4xl sm:text-5xl flex items-center justify-center shadow-2xl border-4 border-slate-800 overflow-hidden">
+                      {currentUser.photoURL ? (
+                        <img src={currentUser.photoURL} alt={currentUser.displayName || 'You'} className="w-full h-full object-cover" />
+                      ) : (
+                        (currentUser.displayName?.charAt(0) || 'Y').toUpperCase()
+                      )}
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold text-white mt-3">You</h3>
+                    <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800/80 rounded-full text-slate-300 text-xs font-semibold">
+                      <VideoOff className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Your Camera is Off</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Local Camera Flip button if camera on */}
+                {!isVideoOff && (
+                  <button
+                    onClick={handleFlipCamera}
+                    className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs cursor-pointer shadow z-20 border border-white/10 transition"
+                    title="Flip Camera (Front / Back)"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                )}
+
+                {/* You Name Tag & Audio Status */}
+                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                  <div className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl text-white text-xs font-bold flex items-center gap-2 border border-white/10">
+                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+                    <span>You ({currentUser.displayName})</span>
+                    {!isVideoOff ? (
+                      <span className="text-[10px] text-indigo-400 font-mono font-normal">● Camera Live</span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-mono font-normal">● Camera Off</span>
+                    )}
+                  </div>
+                  {isMuted ? (
+                    <span className="bg-rose-500/90 text-white p-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow">
+                      <MicOff className="w-3.5 h-3.5" />
+                    </span>
+                  ) : (
+                    <div className="bg-black/60 backdrop-blur-md px-2.5 py-1.5 rounded-xl text-indigo-400 text-xs font-bold flex items-center gap-1 border border-white/10">
+                      <Mic className="w-3.5 h-3.5" />
+                      <div className="w-8 h-2 bg-slate-700 rounded-full overflow-hidden flex items-center">
+                        <div
+                          className="h-full bg-indigo-400 transition-all duration-75"
+                          style={{ width: `${Math.min(100, localAudioLevel * 2)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="text-center relative">
-              {/* Outer Ambient Audio Ripples */}
-              {!shouldMuteRemoteAudio && remoteAudioLevel > 10 && (
-                <div
-                  className="absolute inset-0 -m-8 rounded-full border-2 border-emerald-500/40 animate-ping pointer-events-none"
-                  style={{ animationDuration: "1.5s" }}
-                />
-              )}
-              <div className="relative w-36 h-36 sm:w-44 sm:h-44 mx-auto rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-white font-extrabold text-5xl sm:text-6xl flex items-center justify-center shadow-2xl border-4 border-slate-800 overflow-hidden">
-                {otherPersonAvatar ? (
-                  <img src={otherPersonAvatar} alt={otherPersonName || 'User'} className="w-full h-full object-cover" />
-                ) : (
-                  (otherPersonName?.charAt(0) || 'U').toUpperCase()
-                )}
-              </div>
-              <h2 className="text-xl sm:text-2xl font-bold text-white mt-4 flex items-center justify-center gap-2">
-                {otherPersonName}
-                {isOtherPersonMuted && (
-                  <span className="p-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30" title="User is muted">
-                    <MicOff className="w-4 h-4" />
-                  </span>
-                )}
-              </h2>
-              <p className="text-xs text-slate-400 mt-1 font-medium">
-                {isConnecting ? "Waiting for answer..." : isOtherPersonMuted ? "Remote participant microphone is muted" : isOtherPersonVideoOff ? "Remote participant camera is off" : "End-to-End Encrypted Live Study Call"}
-              </p>
-            </div>
-          )}
-
-          {/* Local User PiP Thumbnail (in corner) */}
-          {localStream && (localStream.getVideoTracks().length > 0 || !isVideoOff) && (
-            <div className="absolute bottom-6 right-6 w-32 h-44 sm:w-44 sm:h-60 rounded-2xl overflow-hidden shadow-2xl border-2 border-slate-700 bg-slate-900 z-10">
-              <video
-                ref={(el) => {
-                  localVideoRef.current = el;
-                  if (el && localStream) {
-                    if (el.srcObject !== localStream) el.srcObject = localStream;
-                    el.play().catch(() => {});
-                  }
-                }}
-                autoPlay
-                playsInline
-                muted
-                className={`w-full h-full object-cover ${cameraFacing === "user" ? "scale-x-[-1]" : ""}`}
-              />
-              {isVideoOff && (
-                <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center text-slate-400 text-xs font-bold gap-1 p-2 text-center">
-                  <VideoOff className="w-5 h-5 text-slate-500" />
-                  <span>Camera Off</span>
+            /* ==================================================== */
+            /* 2. FOCUS / SPOTLIGHT VIEW (PiP Overlay)              */
+            /* ==================================================== */
+            <div className="relative w-full h-full max-w-5xl flex items-center justify-center">
+              {/* Main Remote View */}
+              {remoteStream && remoteStream.getVideoTracks().length > 0 && !isOtherPersonVideoOff ? (
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <video
+                    ref={(el) => {
+                      remoteVideoRef.current = el;
+                      if (el && remoteStream) {
+                        if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
+                        el.muted = shouldMuteRemoteAudio;
+                        el.play().catch(() => {});
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    muted={shouldMuteRemoteAudio}
+                    onLoadedMetadata={(e) => {
+                      (e.target as HTMLVideoElement).play().catch(() => {});
+                    }}
+                    className="w-full h-full object-contain rounded-3xl shadow-2xl"
+                  />
+                </div>
+              ) : (
+                <div className="text-center relative">
+                  {!shouldMuteRemoteAudio && remoteAudioLevel > 10 && (
+                    <div
+                      className="absolute inset-0 -m-8 rounded-full border-2 border-emerald-500/40 animate-ping pointer-events-none"
+                      style={{ animationDuration: "1.5s" }}
+                    />
+                  )}
+                  <div className="relative w-36 h-36 sm:w-44 sm:h-44 mx-auto rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-white font-extrabold text-5xl sm:text-6xl flex items-center justify-center shadow-2xl border-4 border-slate-800 overflow-hidden">
+                    {otherPersonAvatar ? (
+                      <img src={otherPersonAvatar} alt={otherPersonName || 'User'} className="w-full h-full object-cover" />
+                    ) : (
+                      (otherPersonName?.charAt(0) || 'U').toUpperCase()
+                    )}
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white mt-4 flex items-center justify-center gap-2">
+                    {otherPersonName}
+                    {isOtherPersonMuted && (
+                      <span className="p-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30" title="User is muted">
+                        <MicOff className="w-4 h-4" />
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1 font-medium">
+                    {isConnecting ? "Waiting for answer..." : isOtherPersonMuted ? "Remote participant microphone is muted" : isOtherPersonVideoOff ? "Remote participant camera is off" : "End-to-End Encrypted Live Study Call"}
+                  </p>
                 </div>
               )}
-              {!isVideoOff && (
-                <button
-                  onClick={handleFlipCamera}
-                  className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg text-xs cursor-pointer shadow z-20"
-                  title="Switch Camera"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                </button>
-              )}
+
+              {/* Local User PiP Thumbnail (in corner) */}
+              <div className="absolute bottom-4 right-4 w-32 h-44 sm:w-44 sm:h-60 rounded-2xl overflow-hidden shadow-2xl border-2 border-slate-700 bg-slate-900 z-10">
+                {localStream && localStream.getVideoTracks().length > 0 && !isVideoOff ? (
+                  <video
+                    ref={(el) => {
+                      localVideoRef.current = el;
+                      if (el && localStream) {
+                        if (el.srcObject !== localStream) el.srcObject = localStream;
+                        el.play().catch(() => {});
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover ${cameraFacing === "user" ? "scale-x-[-1]" : ""}`}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center text-slate-400 text-xs font-bold gap-1 p-2 text-center">
+                    <VideoOff className="w-5 h-5 text-slate-500" />
+                    <span>Your Camera Off</span>
+                  </div>
+                )}
+                {!isVideoOff && (
+                  <button
+                    onClick={handleFlipCamera}
+                    className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg text-xs cursor-pointer shadow z-20"
+                    title="Switch Camera"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/70 rounded text-[10px] font-bold text-white">
+                  You
+                </div>
+              </div>
             </div>
           )}
         </div>
