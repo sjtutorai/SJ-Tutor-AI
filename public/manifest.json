@@ -4,6 +4,12 @@
   "description": "An all-in-one AI study companion for students.",
   "icons": [
     {
+      "src": "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg",
+      "sizes": "1024x1024",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
       "src": "/favicon-16x16.png",
       "sizes": "16x16",
       "type": "image/png"

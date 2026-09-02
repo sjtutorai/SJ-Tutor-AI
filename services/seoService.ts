@@ -52,6 +52,11 @@ function ensureCanonicalLink(href: string) {
 
 function ensureFaviconLinks() {
   const favicons = [
+    { rel: 'icon', type: 'image/jpeg', href: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg' },
+    { rel: 'shortcut icon', type: 'image/jpeg', href: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg' },
+    { rel: 'apple-touch-icon', href: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg' },
+    { rel: 'apple-touch-icon-precomposed', href: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg' },
+    { rel: 'image_src', href: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg' },
     { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
     { rel: 'shortcut icon', type: 'image/x-icon', href: '/favicon.ico' },
     { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
