@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Target, Zap, Mail, Phone, Lightbulb, Award, Sparkles, X, CheckCircle2 } from 'lucide-react';
+import { Target, Zap, Mail, Phone, Lightbulb, Award, Sparkles, X, CheckCircle2, Shield } from 'lucide-react';
 import Logo from './Logo';
 
 interface AboutModalProps {
@@ -104,6 +104,12 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, onNavigateToLe
                       <span>Pioneered personalized student study plans and progress tracking systems.</span>
                     </p>
                   </div>
+                  <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="font-mono text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <Mail className="w-3 h-3" /> sadanandj2011@gmail.com
+                    </span>
+                    <span>India</span>
+                  </div>
                 </div>
               </div>
 
@@ -116,10 +122,10 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, onNavigateToLe
                     </div>
                     <div>
                       <div className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider mb-1">
-                        <Award className="w-3 h-3" /> Innovator &amp; Co-Inventor
+                        <Award className="w-3 h-3" /> Co-Developer &amp; Systems Engineer
                       </div>
                       <h4 className="text-lg font-black text-slate-900 dark:text-white">Samanyu S Patil</h4>
-                      <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">Co-Developer &amp; Systems Engineer</p>
+                      <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">Systems Engineer &amp; Co-Inventor</p>
                     </div>
                   </div>
                   <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed pt-2 border-t border-slate-100 dark:border-slate-700/60">
@@ -136,8 +142,27 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, onNavigateToLe
                       <span>Created Student ID Card verification system &amp; digital credential tools.</span>
                     </p>
                   </div>
+                  <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="font-mono text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                      <Mail className="w-3 h-3" /> sjtutorai@gmail.com
+                    </span>
+                    <span>India</span>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {/* Public Developer Verification Link */}
+            <div className="mt-4 p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-600 dark:text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-amber-500" />
+                Public developer credentials verified for web indexes and academic research.
+              </span>
+              <span className="font-mono text-primary-600 dark:text-primary-400 flex items-center gap-2">
+                <a href="/humans.txt" target="_blank" rel="noopener noreferrer" className="hover:underline">humans.txt</a>
+                <span>•</span>
+                <a href="/developers.json" target="_blank" rel="noopener noreferrer" className="hover:underline">developers.json</a>
+              </span>
             </div>
           </div>
 

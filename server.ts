@@ -163,7 +163,36 @@ app.get("/sitemap.xml", (req, res) => {
   }
 });
 
+// Multi-Key Rotation Pool for Gemini API (Supports GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3)
+function getAvailableServerGeminiKeys(): string[] {
+  const rawKeys = [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_3,
+    process.env.GEMINI_API_KEY_1,
+    process.env.API_KEY,
+  ];
+  return Array.from(
+    new Set(
+      rawKeys
+        .filter((k): k is string => typeof k === 'string' && k.trim().length > 0 && !k.startsWith('YOUR_'))
+        .map(k => k.trim())
+    )
+  );
+}
+
+let serverKeyIndex = 0;
+
 // API routes
+app.get("/api/health", (req, res) => {
+  const keys = getAvailableServerGeminiKeys();
+  res.json({
+    status: "ok",
+    geminiKeyCount: keys.length,
+    activeModel: "models/gemini-3.6-flash"
+  });
+});
+
 app.use("/api/auth", authRoutes);
 
 app.post("/api/generate-image", async (req, res, next) => {
@@ -175,41 +204,49 @@ app.post("/api/generate-image", async (req, res, next) => {
     const cleanPrompt = prompt.trim();
     let imageUrl = "";
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-    if (apiKey) {
-      try {
-        const { GoogleGenAI } = await import("@google/genai");
-        const ai = new GoogleGenAI({ 
-          apiKey,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
+    const keys = getAvailableServerGeminiKeys();
+    if (keys.length > 0) {
+      // Try keys in rotating order with failover
+      const startIndex = serverKeyIndex % keys.length;
+      serverKeyIndex = (serverKeyIndex + 1) % keys.length;
+
+      for (let attempt = 0; attempt < keys.length; attempt++) {
+        const activeKey = keys[(startIndex + attempt) % keys.length];
+        try {
+          const { GoogleGenAI } = await import("@google/genai");
+          const ai = new GoogleGenAI({ 
+            apiKey: activeKey,
+            httpOptions: {
+              headers: {
+                'User-Agent': 'aistudio-build',
+              }
+            }
+          });
+
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.1-flash-lite-image',
+            contents: {
+              parts: [{ text: `High quality digital background wallpaper: ${cleanPrompt}. Clean composition, wallpaper format, aesthetic lighting.` }]
+            },
+            config: {
+              imageConfig: {
+                aspectRatio: aspectRatio as any || "16:9",
+              }
+            }
+          });
+
+          const parts = response.candidates?.[0]?.content?.parts || [];
+          for (const part of parts) {
+            if (part.inlineData && part.inlineData.data) {
+              const mimeType = part.inlineData.mimeType || 'image/png';
+              imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+              break;
             }
           }
-        });
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.1-flash-lite-image',
-          contents: {
-            parts: [{ text: `High quality digital background wallpaper: ${cleanPrompt}. Clean composition, wallpaper format, aesthetic lighting.` }]
-          },
-          config: {
-            imageConfig: {
-              aspectRatio: aspectRatio as any || "16:9",
-            }
-          }
-        });
-
-        const parts = response.candidates?.[0]?.content?.parts || [];
-        for (const part of parts) {
-          if (part.inlineData && part.inlineData.data) {
-            const mimeType = part.inlineData.mimeType || 'image/png';
-            imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
-            break;
-          }
+          if (imageUrl) break;
+        } catch (geminiErr: any) {
+          console.warn(`[Server] Image generation attempt ${attempt + 1}/${keys.length} with key failed:`, geminiErr.message);
         }
-      } catch (geminiErr: any) {
-        console.warn("Gemini Image generation fallback to generative synthesis:", geminiErr.message);
       }
     }
 
@@ -353,50 +390,98 @@ app.post("/api/transcribe-audio", async (req, res) => {
       }
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-    
-    if (!apiKey) {
+    const keys = getAvailableServerGeminiKeys();
+    if (keys.length === 0) {
       return res.status(500).json({ error: "GEMINI_API_KEY is not configured on server" });
     }
 
-    try {
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-
-      const prompt = `Transcribe all spoken words in this audio recording accurately and faithfully. 
+    const prompt = `Transcribe all spoken words in this audio recording accurately and faithfully. 
 Preserve the speaker's language (primarily ${language} or any spoken language in the audio).
 Return ONLY the raw transcription text with proper capitalization and punctuation. 
 Do NOT include any timestamps, markdown labels, explanations, or quotes. 
 If the audio is completely silent or contains no discernible speech, return an empty string.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [
-          {
-            inlineData: {
-              mimeType: finalMimeType || 'audio/webm',
-              data: cleanBase64,
-            }
-          },
-          {
-            text: prompt
-          }
-        ]
-      });
+    const { GoogleGenAI } = await import("@google/genai");
 
-      const transcript = response.text?.trim() || "";
-      return res.json({ success: true, transcript });
-    } catch (geminiAudioErr: any) {
-      console.error("[Audio Transcription Error]:", geminiAudioErr.message);
-      return res.status(500).json({ success: false, error: geminiAudioErr.message || "Failed to transcribe audio" });
+    const startIndex = serverKeyIndex % keys.length;
+    serverKeyIndex = (serverKeyIndex + 1) % keys.length;
+
+    let lastError: any = null;
+
+    for (let attempt = 0; attempt < keys.length; attempt++) {
+      const activeKey = keys[(startIndex + attempt) % keys.length];
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: activeKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
+
+        // Use Interactions API with models/gemini-3.6-flash
+        try {
+          const interaction = await ai.interactions.create({
+            model: 'models/gemini-3.6-flash',
+            input: [
+              {
+                type: "audio",
+                data: cleanBase64,
+                mime_type: finalMimeType || 'audio/webm',
+              },
+              {
+                type: "text",
+                text: prompt
+              }
+            ]
+          });
+
+          let transcript = "";
+          if (typeof interaction.output_text === 'string') {
+            transcript = interaction.output_text.trim();
+          } else if (Array.isArray(interaction.steps)) {
+            for (let i = interaction.steps.length - 1; i >= 0; i--) {
+              const step = interaction.steps[i];
+              if (step.type === 'model_output' && Array.isArray(step.content)) {
+                const textObj = step.content.find((c: any) => c.type === 'text' && c.text);
+                if (textObj?.text) {
+                  transcript = textObj.text.trim();
+                  break;
+                }
+              }
+            }
+          }
+
+          return res.json({ success: true, transcript });
+        } catch (interactionErr: any) {
+          console.warn("[Server] Audio transcription Interactions API fallback to generateContent:", interactionErr.message);
+        }
+
+        const response = await ai.models.generateContent({
+          model: 'models/gemini-3.6-flash',
+          contents: [
+            {
+              inlineData: {
+                mimeType: finalMimeType || 'audio/webm',
+                data: cleanBase64,
+              }
+            },
+            {
+              text: prompt
+            }
+          ]
+        });
+
+        const transcript = response.text?.trim() || "";
+        return res.json({ success: true, transcript });
+      } catch (geminiAudioErr: any) {
+        lastError = geminiAudioErr;
+        console.warn(`[Audio Transcription] Attempt ${attempt + 1}/${keys.length} with key failed:`, geminiAudioErr.message);
+      }
     }
+
+    return res.status(500).json({ success: false, error: lastError?.message || "Failed to transcribe audio" });
   } catch (error: any) {
     console.error("[Audio Transcription API Error]:", error);
     res.status(500).json({ success: false, error: error.message || "Failed to transcribe audio" });

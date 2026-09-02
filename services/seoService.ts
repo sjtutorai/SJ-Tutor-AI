@@ -237,11 +237,67 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
     "@context": "https://schema.org",
     "@graph": [
       {
+        "@type": "Person",
+        "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`,
+        "name": "Sadanand Jyoti",
+        "jobTitle": "Lead Innovator, Founder & System Architect",
+        "description": "Founder and lead visionary architect behind SJ Tutor AI intelligent learning frameworks, adaptive tutoring models, and student study workflows.",
+        "worksFor": {
+          "@id": `${CANONICAL_BASE_URL}/#organization`
+        },
+        "sameAs": [
+          `${CANONICAL_BASE_URL}/about`,
+          "https://sjtutorai.vercel.app/#about"
+        ],
+        "email": "mailto:sadanandj2011@gmail.com"
+      },
+      {
+        "@type": "Person",
+        "@id": `${CANONICAL_BASE_URL}/#developer-samanyu-patil`,
+        "name": "Samanyu S Patil",
+        "jobTitle": "Co-Developer & Systems Engineer",
+        "description": "Co-developer and systems engineer pioneering smart algorithms, study aids, and student success tools at SJ Tutor AI.",
+        "worksFor": {
+          "@id": `${CANONICAL_BASE_URL}/#organization`
+        },
+        "sameAs": [
+          `${CANONICAL_BASE_URL}/about`,
+          "https://sjtutorai.vercel.app/#about"
+        ]
+      },
+      {
         "@type": "Organization",
         "@id": `${CANONICAL_BASE_URL}/#organization`,
         "name": "SJ Tutor AI",
         "alternateName": ["SJ Tutor", "SJTutorAI", "SJ Tutor AI Study Companion"],
         "url": `${CANONICAL_BASE_URL}/`,
+        "founder": {
+          "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`
+        },
+        "founders": [
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`
+          },
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-samanyu-patil`
+          }
+        ],
+        "creator": [
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`
+          },
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-samanyu-patil`
+          }
+        ],
+        "employee": [
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`
+          },
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-samanyu-patil`
+          }
+        ],
         "logo": {
           "@type": "ImageObject",
           "@id": `${CANONICAL_BASE_URL}/#logo`,
@@ -252,16 +308,43 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
           "height": 1024
         },
         "sameAs": [
-          "https://sjtutor.ai/"
+          "https://sjtutor.ai/",
+          "https://sjtutorai.vercel.app/"
         ],
         "image": DEFAULT_LOGO_URL,
-        "description": "SJ Tutor AI is an all-in-one AI study companion for students."
+        "description": "SJ Tutor AI is an all-in-one AI study companion for students, founded and engineered by Sadanand Jyoti and Samanyu S Patil.",
+        "contactPoint": [
+          {
+            "@type": "ContactPoint",
+            "email": "sadanandj2011@gmail.com",
+            "telephone": "+91-8105423488",
+            "contactType": "developer support",
+            "availableLanguage": ["English", "Hindi", "Kannada"]
+          },
+          {
+            "@type": "ContactPoint",
+            "email": "sjtutorai@gmail.com",
+            "contactType": "general inquiries",
+            "availableLanguage": ["English"]
+          }
+        ]
       },
       {
         "@type": "EducationalOrganization",
         "@id": `${CANONICAL_BASE_URL}/#educational-organization`,
         "name": "SJ Tutor AI",
         "url": `${CANONICAL_BASE_URL}/`,
+        "founder": {
+          "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`
+        },
+        "creator": [
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`
+          },
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-samanyu-patil`
+          }
+        ],
         "logo": DEFAULT_LOGO_URL,
         "image": DEFAULT_LOGO_URL,
         "description": "An all-in-one AI study companion that empowers students with interactive AI tutoring, instant quizzes, and homework solving."
@@ -273,6 +356,22 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
         "name": "SJ Tutor AI",
         "alternateName": "SJ Tutor",
         "description": DEFAULT_DESCRIPTION,
+        "author": [
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`
+          },
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-samanyu-patil`
+          }
+        ],
+        "creator": [
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`
+          },
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-samanyu-patil`
+          }
+        ],
         "publisher": {
           "@id": `${CANONICAL_BASE_URL}/#organization`
         }
@@ -288,6 +387,14 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
         "about": {
           "@id": `${CANONICAL_BASE_URL}/#organization`
         },
+        "author": [
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`
+          },
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-samanyu-patil`
+          }
+        ],
         "description": description || DEFAULT_DESCRIPTION
       },
       {
@@ -300,6 +407,22 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
         "image": DEFAULT_LOGO_URL,
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "All",
+        "author": [
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`
+          },
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-samanyu-patil`
+          }
+        ],
+        "creator": [
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-sadanand-jyoti`
+          },
+          {
+            "@id": `${CANONICAL_BASE_URL}/#developer-samanyu-patil`
+          }
+        ],
         "publisher": {
           "@id": `${CANONICAL_BASE_URL}/#organization`
         }
@@ -338,6 +461,11 @@ export const SEOService = {
 
       // 2. Standard Meta
       ensureMetaTag('description', description);
+      ensureMetaTag('author', 'Sadanand Jyoti & Samanyu S Patil');
+      ensureMetaTag('developer', 'Sadanand Jyoti (Founder & Lead Developer), Samanyu S Patil (Co-Developer & Systems Engineer)');
+      ensureMetaTag('founder', 'Sadanand Jyoti');
+      ensureMetaTag('creator', 'Sadanand Jyoti, Samanyu S Patil');
+      ensureMetaTag('copyright', 'SJ Tutor AI - Sadanand Jyoti & Samanyu S Patil');
       if (config.keywords && config.keywords.length > 0) {
         ensureMetaTag('keywords', config.keywords.join(', '));
       }

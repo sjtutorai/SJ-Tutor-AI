@@ -356,6 +356,7 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
             <a href="#how" className="hover:text-blue-400 transition-colors">How It Works</a>
             <a href="#demo" className="hover:text-blue-400 transition-colors">Simulator Demo</a>
             <a href="#subjects" className="hover:text-blue-400 transition-colors">Subjects</a>
+            <a href="#developers" className="hover:text-blue-400 transition-colors">Developers</a>
             <a href="#about" className="hover:text-blue-400 transition-colors">About Us</a>
             <a href="#pricing" className="hover:text-blue-400 transition-colors">Pricing Plans</a>
           </div>
@@ -1197,52 +1198,94 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
               </p>
             </div>
 
-            {/* Innovators & Inventors Spotlight */}
-            <div className="bg-gradient-to-r from-amber-500/10 via-blue-500/10 to-purple-500/10 border border-amber-500/20 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-2xl backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
-                  <Lightbulb className="w-5 h-5" />
+            {/* Innovators, Inventors & Public Developer Information */}
+            <div id="developers" className="scroll-mt-24 bg-gradient-to-r from-amber-500/10 via-blue-500/10 to-purple-500/10 border border-amber-500/20 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-2xl backdrop-blur-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                    <Lightbulb className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                      Public Developer &amp; Founder Information
+                      <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+                    </h3>
+                    <p className="text-xs text-slate-400 font-medium">Official verified creators &amp; system engineers behind SJ Tutor AI</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    Innovators &amp; Inventors
-                    <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-                  </h3>
-                  <p className="text-xs text-slate-400 font-medium">The creative minds pioneering SJ Tutor AI</p>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 text-xs font-bold rounded-full">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Publicly Verified
+                  </span>
                 </div>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-6">
                 {/* Sadanand Jyoti */}
-                <div className="bg-[#0F172A]/80 border border-slate-800 p-6 rounded-2xl flex items-start gap-4 hover:border-amber-500/40 transition-all group">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-black text-lg flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
-                    SJ
-                  </div>
-                  <div className="space-y-1 text-left">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider border border-amber-500/30">
-                      <Award className="w-3 h-3" /> Lead Innovator &amp; Founder
+                <div className="bg-[#0F172A]/90 border border-slate-800 p-6 rounded-2xl flex flex-col justify-between hover:border-amber-500/40 transition-all group shadow-md">
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-black text-xl flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
+                        SJ
+                      </div>
+                      <div className="space-y-1 text-left">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider border border-amber-500/30">
+                          <Award className="w-3 h-3" /> Founder &amp; Lead Architect
+                        </div>
+                        <h4 className="text-lg font-bold text-white">Sadanand Jyoti</h4>
+                        <p className="text-xs font-medium text-amber-400">Full-Stack AI System Architect &amp; Creator</p>
+                      </div>
                     </div>
-                    <h4 className="text-lg font-bold text-white">Sadanand Jyoti</h4>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Visionary architect behind SJ Tutor AI&apos;s intelligent learning frameworks, adaptive tutoring models, and personalized student study workflows.
+                    <p className="text-xs text-slate-300 leading-relaxed text-left">
+                      Visionary creator behind SJ Tutor AI&apos;s adaptive tutoring engines, intelligent learning frameworks, real-time collaboration protocols, and student study workflows.
                     </p>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1 text-amber-300 font-mono">
+                      <Mail className="w-3.5 h-3.5" /> sadanandj2011@gmail.com
+                    </span>
+                    <span className="text-slate-500">Karnataka, India</span>
                   </div>
                 </div>
 
                 {/* Samanyu S Patil */}
-                <div className="bg-[#0F172A]/80 border border-slate-800 p-6 rounded-2xl flex items-start gap-4 hover:border-blue-500/40 transition-all group">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 text-white font-black text-lg flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
-                    SP
-                  </div>
-                  <div className="space-y-1 text-left">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider border border-blue-500/30">
-                      <Award className="w-3 h-3" /> Innovator &amp; Co-Inventor
+                <div className="bg-[#0F172A]/90 border border-slate-800 p-6 rounded-2xl flex flex-col justify-between hover:border-blue-500/40 transition-all group shadow-md">
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-500 text-white font-black text-xl flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
+                        SP
+                      </div>
+                      <div className="space-y-1 text-left">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider border border-blue-500/30">
+                          <Award className="w-3 h-3" /> Co-Developer &amp; Systems Engineer
+                        </div>
+                        <h4 className="text-lg font-bold text-white">Samanyu S Patil</h4>
+                        <p className="text-xs font-medium text-blue-400">Systems Engineer &amp; Co-Inventor</p>
+                      </div>
                     </div>
-                    <h4 className="text-lg font-bold text-white">Samanyu S Patil</h4>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Co-inventor pioneering smart learning algorithms, automated study aids, and interactive student success tools.
+                    <p className="text-xs text-slate-300 leading-relaxed text-left">
+                      Co-developer pioneering smart learning algorithms, automated study aids, real-time audio/video modules, and interactive student success tools.
                     </p>
                   </div>
+                  <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1 text-blue-300 font-mono">
+                      <Mail className="w-3.5 h-3.5" /> sjtutorai@gmail.com
+                    </span>
+                    <span className="text-slate-500">Karnataka, India</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Machine-readable Verification Notice */}
+              <div className="mt-6 p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 text-left">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span>Public identity verified for search crawlers, AI indexes, and institutional audits.</span>
+                </div>
+                <div className="flex items-center gap-4 font-mono text-[11px] text-cyan-400">
+                  <a href="/humans.txt" target="_blank" rel="noopener noreferrer" className="hover:underline">humans.txt</a>
+                  <span>•</span>
+                  <a href="/developers.json" target="_blank" rel="noopener noreferrer" className="hover:underline">developers.json</a>
                 </div>
               </div>
             </div>
@@ -1619,14 +1662,14 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
               </ul>
             </div>
 
-            {/* Company / Vision */}
+            {/* Company / Vision & Public Developer Info */}
             <div className="space-y-4 text-left">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Company</h4>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Company &amp; Team</h4>
               <ul className="space-y-2.5 text-xs text-slate-400">
+                <li><a href="#developers" className="hover:text-blue-300 transition-colors">Developers &amp; Founders</a></li>
                 <li><a href="#about" className="hover:text-blue-300 transition-colors">About Us</a></li>
-                <li><span className="text-slate-500">Press Kit</span></li>
-                <li><span className="text-slate-500">Inquiry Team</span></li>
-                <li><span className="text-slate-500">We are Hiring!</span></li>
+                <li><a href="/humans.txt" target="_blank" rel="noopener noreferrer" className="hover:text-blue-300 transition-colors">Developer Registry (humans.txt)</a></li>
+                <li><a href="/developers.json" target="_blank" rel="noopener noreferrer" className="hover:text-blue-300 transition-colors">Public Identity API (JSON)</a></li>
               </ul>
             </div>
 
