@@ -23,6 +23,7 @@ import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
 import LoadingState from "./components/LoadingState";
 import SplashScreen from "./components/SplashScreen";
+import LandingPage from "./components/LandingPage";
 import DashboardSkeleton from "./components/DashboardSkeleton";
 import NotesView from "./components/NotesView";
 import GroupsView from "./components/GroupsView";
@@ -35,7 +36,6 @@ import AboutView from "./components/AboutView";
 import AboutModal from "./components/AboutModal";
 import ShortcutsModal from "./components/ShortcutsModal";
 import IdCardView from "./components/IdCardView";
-import LandingPage from "./components/LandingPage";
 import StudyTimerView from "./components/StudyTimerView";
 import PrivacyPolicyView from "./components/PrivacyPolicyView";
 import TermsOfServiceView from "./components/TermsOfServiceView";
@@ -3460,64 +3460,24 @@ const App: React.FC = () => {
   }
 
   if (!user) {
-    // If we have shared content loaded or viewing public pages, show it in a public layout
-    const hasSharedContent = summaryContent || homeworkContent || quizData;
-    const isPublicPage =
-      mode === AppMode.ABOUT ||
-      mode === AppMode.PRIVACY ||
-      mode === AppMode.TERMS;
-
-    if (hasSharedContent || isPublicPage) {
+    // If not viewing a specific sub-feature or shared link or legal page, show the complete LandingPage directly
+    if (!isViewingShared && mode === AppMode.DASHBOARD && dashboardView === "OVERVIEW") {
       return (
-        <div className="min-h-screen app-custom-bg font-sans text-slate-900 dark:text-slate-100">
-          <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-500 shadow-sm flex-shrink-0 bg-white dark:bg-slate-800">
-                <Logo className="w-full h-full" iconOnly noBorder />
-              </div>
-              <h1 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
-                SJ Tutor AI
-              </h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => openAuthModal('signin')}
-                className="px-3 py-1.5 text-slate-600 dark:text-slate-300 text-xs font-bold hover:text-slate-950 dark:hover:text-white transition-colors"
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => openAuthModal('signup')}
-                className="px-4 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                Sign Up
-              </button>
-            </div>
-          </header>
-          <main className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
-            {isViewingShared && sharedContent ? (
-              <SharedLockScreen
-                type={sharedContent.type === AppMode.SUMMARY ? 'Summary' : sharedContent.type === AppMode.QUIZ ? 'Interactive Quiz' : 'Homework Solution'}
-                title={sharedContent.title}
-                subtitle={sharedContent.subtitle || 'AI Generated Study Guide'}
-                teaser={
-                  typeof sharedContent.content === 'string'
-                    ? sharedContent.content.substring(0, 160) + '...'
-                    : Array.isArray(sharedContent.content)
-                    ? `This interactive practice quiz contains ${sharedContent.content.length} tailored challenges on ${sharedContent.title}.`
-                    : 'Personalized interactive study prep.'
-                }
-                onAuthenticate={() => openAuthModal('signup')}
-              />
-            ) : (
-              renderContent()
-            )}
-          </main>
+        <div className="min-h-screen bg-slate-950 font-sans text-slate-100 selection:bg-amber-500 selection:text-slate-950">
+          <LandingPage
+            onGetStarted={(targetMode) => openAuthModal(targetMode || 'signup')}
+            countryCode={detectedCountry}
+            onNavigateToLegal={(legalMode) => {
+              if (legalMode === 'PRIVACY') setMode(AppMode.PRIVACY);
+              else if (legalMode === 'TERMS') setMode(AppMode.TERMS);
+            }}
+          />
           {showAuthModal && (
             <Auth
               onClose={() => setShowAuthModal(false)}
               onSignUpSuccess={handleSignUpSuccess}
               onCountryDetected={setDetectedCountry}
+              initialCountry={detectedCountry}
               initialMode={authModalMode}
             />
           )}
@@ -3526,15 +3486,56 @@ const App: React.FC = () => {
     }
 
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
-        <LandingPage
-          onGetStarted={(mode) => openAuthModal(mode)}
-          countryCode={detectedCountry}
-          onNavigateToLegal={(legalMode) => {
-            setMode(legalMode as any);
-            window.history.pushState({}, '', legalMode === 'PRIVACY' ? '/privacy' : '/terms');
-          }}
-        />
+      <div className="min-h-screen app-custom-bg font-sans text-slate-900 dark:text-slate-100 selection:bg-primary-100 selection:text-primary-900 transition-colors duration-300">
+        <header className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 h-16 flex items-center justify-between px-6 sm:px-8 sticky top-0 z-30">
+          <div 
+            className="flex items-center gap-3 cursor-pointer select-none" 
+            onClick={() => { 
+              setMode(AppMode.DASHBOARD); 
+              setDashboardView("OVERVIEW"); 
+            }}
+          >
+            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-sm flex-shrink-0 bg-white dark:bg-slate-800">
+              <Logo className="w-full h-full" iconOnly noBorder />
+            </div>
+            <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+              SJ Tutor AI
+            </h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => openAuthModal('signin')}
+              className="px-4 py-2 text-slate-700 dark:text-slate-200 text-sm font-bold hover:text-slate-950 dark:hover:text-white transition-colors"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => openAuthModal('signup')}
+              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl shadow-sm hover:shadow-md transition-all"
+            >
+              Sign Up
+            </button>
+          </div>
+        </header>
+        <main className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+          {isViewingShared && sharedContent ? (
+            <SharedLockScreen
+              type={sharedContent.type === AppMode.SUMMARY ? 'Summary' : sharedContent.type === AppMode.QUIZ ? 'Interactive Quiz' : 'Homework Solution'}
+              title={sharedContent.title}
+              subtitle={sharedContent.subtitle || 'AI Generated Study Guide'}
+              teaser={
+                typeof sharedContent.content === 'string'
+                  ? sharedContent.content.substring(0, 160) + '...'
+                  : Array.isArray(sharedContent.content)
+                  ? `This interactive practice quiz contains ${sharedContent.content.length} tailored challenges on ${sharedContent.title}.`
+                  : 'Personalized interactive study prep.'
+              }
+              onAuthenticate={() => openAuthModal('signup')}
+            />
+          ) : (
+            renderContent()
+          )}
+        </main>
         {showAuthModal && (
           <Auth
             onClose={() => setShowAuthModal(false)}

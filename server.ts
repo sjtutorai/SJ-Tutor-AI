@@ -354,43 +354,80 @@ app.post("/api/transcribe-audio", async (req, res) => {
     }
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-    if (!apiKey) {
-      return res.status(500).json({ error: "GEMINI_API_KEY not configured on server" });
-    }
+    const groqKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || '';
+    
+    if (apiKey) {
+      try {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({
+          apiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
 
-    const { GoogleGenAI } = await import("@google/genai");
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
-
-    const prompt = `Transcribe all spoken words in this audio recording accurately and faithfully. 
+        const prompt = `Transcribe all spoken words in this audio recording accurately and faithfully. 
 Preserve the speaker's language (primarily ${language} or any spoken language in the audio).
 Return ONLY the raw transcription text with proper capitalization and punctuation. 
 Do NOT include any timestamps, markdown labels, explanations, or quotes. 
 If the audio is completely silent or contains no discernible speech, return an empty string.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
-      contents: [
-        {
-          inlineData: {
-            mimeType: finalMimeType || 'audio/webm',
-            data: cleanBase64,
-          }
-        },
-        {
-          text: prompt
-        }
-      ]
-    });
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.7-flash',
+          contents: [
+            {
+              inlineData: {
+                mimeType: finalMimeType || 'audio/webm',
+                data: cleanBase64,
+              }
+            },
+            {
+              text: prompt
+            }
+          ]
+        });
 
-    const transcript = response.text?.trim() || "";
-    res.json({ success: true, transcript });
+        const transcript = response.text?.trim() || "";
+        return res.json({ success: true, transcript });
+      } catch (geminiAudioErr: any) {
+        console.warn("[Audio Transcription] Gemini failed, trying Groq fallback:", geminiAudioErr.message);
+      }
+    }
+
+    // Groq Whisper API Fallback
+    if (groqKey) {
+      try {
+        const audioBuffer = Buffer.from(cleanBase64, 'base64');
+        const formData = new FormData();
+        const blob = new Blob([audioBuffer], { type: finalMimeType || 'audio/webm' });
+        formData.append('file', blob, 'audio.webm');
+        formData.append('model', 'whisper-large-v3-turbo');
+        formData.append('response_format', 'json');
+
+        const groqResp = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${groqKey}`,
+          },
+          body: formData,
+        });
+
+        if (groqResp.ok) {
+          const groqData = await groqResp.json();
+          return res.json({ success: true, transcript: groqData.text || "" });
+        }
+      } catch (groqAudioErr: any) {
+        console.warn("[Audio Transcription] Groq whisper fallback error:", groqAudioErr.message);
+      }
+    }
+
+    if (!apiKey && !groqKey) {
+      return res.status(500).json({ error: "Neither GEMINI_API_KEY nor GROQ_API_KEY is configured on server" });
+    }
+
+    res.json({ success: true, transcript: "" });
   } catch (error: any) {
     console.error("[Audio Transcription API Error]:", error);
     res.status(500).json({ success: false, error: error.message || "Failed to transcribe audio" });
