@@ -1053,10 +1053,10 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Check API Key
+  // Check Gemini API Key
   useEffect(() => {
-    if (!process.env.API_KEY) {
-      console.warn("API_KEY is missing in environment variables!");
+    if (!process.env.GEMINI_API_KEY && !process.env.API_KEY) {
+      console.warn("GEMINI_API_KEY is missing in environment variables!");
     }
   }, []);
 
@@ -2004,9 +2004,9 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!process.env.API_KEY) {
+    if (!process.env.GEMINI_API_KEY && !process.env.API_KEY) {
       setError(
-        "Configuration Error: API_KEY is missing. Please check your environment variables.",
+        "Configuration Error: GEMINI_API_KEY is missing. Please check your environment variables.",
       );
       return;
     }
