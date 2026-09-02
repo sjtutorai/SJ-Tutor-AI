@@ -20,7 +20,12 @@ export const removeUndefinedFields = <T>(obj: T): T => {
 export const saveProfileToFirestore = async (uid: string, profile: Partial<UserProfile>) => {
   try {
     const userDocRef = doc(db, "users", uid);
-    const cleanProfile = removeUndefinedFields(profile);
+    const resolvedDob = profile.dob || profile.dateOfBirth || (profile as any)?.birthDate;
+    const enrichedProfile: Partial<UserProfile> = {
+      ...profile,
+      ...(resolvedDob !== undefined ? { dob: resolvedDob, dateOfBirth: resolvedDob } : {}),
+    };
+    const cleanProfile = removeUndefinedFields(enrichedProfile);
     await setDoc(userDocRef, cleanProfile, { merge: true });
     return true;
   } catch (error: any) {
@@ -40,8 +45,11 @@ export const getProfileFromFirestore = async (uid: string): Promise<UserProfile 
     const docSnap = await getDoc(userDocRef);
     if (docSnap.exists()) {
       const data = docSnap.data() as UserProfile;
+      const resolvedDob = data.dob || data.dateOfBirth || (data as any).birthDate || "";
       return {
         ...data,
+        dob: resolvedDob,
+        dateOfBirth: resolvedDob,
         isRegisteredInFirestore: true,
         hasCompletedOnboarding: data.hasCompletedOnboarding ?? true,
       };

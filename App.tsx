@@ -1554,11 +1554,13 @@ const App: React.FC = () => {
     redirectDashboard = false,
   ) => {
     const unifiedGrade = newProfile.grade || newProfile.class || "";
+    const resolvedDob = newProfile.dob || newProfile.dateOfBirth || (newProfile as any)?.birthDate || "";
     const sanitizedProfile: UserProfile = {
       ...newProfile,
       grade: unifiedGrade,
       class: unifiedGrade,
-      dob: newProfile.dob || "",
+      dob: resolvedDob,
+      dateOfBirth: resolvedDob,
       isRegisteredInFirestore: true,
       lastProfileUpdate: Date.now(),
     };
@@ -1603,10 +1605,13 @@ const App: React.FC = () => {
     try {
       const userProf = auth.currentUser ? await getCurrentUserProfile(auth.currentUser) : (signupData || {});
       const finalSjTutorId = signupData?.sjTutorId || (userProf as any)?.sjTutorId || generateSjTutorId();
+      const resolvedDob = signupData?.dob || signupData?.dateOfBirth || (userProf as any)?.dob || (userProf as any)?.dateOfBirth || "";
       const mergedProfile = {
         ...initialProfileState,
         ...userProf,
         ...(signupData || {}),
+        dob: resolvedDob,
+        dateOfBirth: resolvedDob,
         sjTutorId: finalSjTutorId,
         registrationNumber: finalSjTutorId,
         isRegisteredInFirestore: true,

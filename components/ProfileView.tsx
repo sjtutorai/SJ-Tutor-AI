@@ -39,6 +39,7 @@ import {
   LEARNING_STYLES_LIST 
 } from '../data/academicData';
 import { auth } from '../firebaseConfig';
+import { saveProfileToFirestore } from '../utils/firebaseUtils';
 
 interface ProfileViewProps {
   profile: UserProfile;
@@ -59,16 +60,23 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<ProfileTab>('personal');
   const [isEditing, setIsEditing] = useState(isOnboarding);
-  const [formData, setFormData] = useState<UserProfile>(profile);
+  const initialResolvedDob = profile.dob || profile.dateOfBirth || (profile as any)?.birthDate || '';
+  const [formData, setFormData] = useState<UserProfile>({
+    ...profile,
+    dob: initialResolvedDob,
+    dateOfBirth: initialResolvedDob,
+  });
   const [showCooldownModal, setShowCooldownModal] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [showSchoolDropdown, setShowSchoolDropdown] = useState(false);
   const [schoolSearchQuery, setSchoolSearchQuery] = useState(profile.institution || '');
   const [saveSuccessMsg, setSaveSuccessMsg] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const schoolDropdownRef = useRef<HTMLDivElement>(null);
+  const autoSaveTimerRef = useRef<any>(null);
 
   const cooldownInfo = calculateProfileUpdateCooldown(profile);
   const isPremium = Boolean(profile.planType && profile.planType !== 'Free');
@@ -80,9 +88,52 @@ const ProfileView: React.FC<ProfileViewProps> = ({
     if (isOnboarding) {
       setIsEditing(true);
     }
-    setFormData(profile);
+    const resolvedDob = profile.dob || profile.dateOfBirth || (profile as any)?.birthDate || '';
+    setFormData({
+      ...profile,
+      dob: resolvedDob,
+      dateOfBirth: resolvedDob,
+    });
     setSchoolSearchQuery(profile.institution || '');
   }, [isOnboarding, profile]);
+
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, []);
+
+  const triggerAutoSave = (updated: UserProfile) => {
+    const activeUid = auth.currentUser?.uid || localStorage.getItem('sjtutor_active_id_session');
+    if (!activeUid) return;
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    setAutoSaveStatus('saving');
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        const resolvedDob = updated.dob || updated.dateOfBirth || '';
+        const payload: UserProfile = {
+          ...updated,
+          dob: resolvedDob,
+          dateOfBirth: resolvedDob,
+          lastProfileUpdate: Date.now(),
+          isRegisteredInFirestore: true,
+        };
+        localStorage.setItem(`profile_${activeUid}`, JSON.stringify(payload));
+        await saveProfileToFirestore(activeUid, payload);
+        setAutoSaveStatus('saved');
+        setTimeout(() => setAutoSaveStatus('idle'), 2500);
+      } catch (err) {
+        console.warn('Auto-save profile warning:', err);
+        setAutoSaveStatus('idle');
+      }
+    }, 800);
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -95,22 +146,42 @@ const ProfileView: React.FC<ProfileViewProps> = ({
   }, []);
 
   const handleInputChange = (field: keyof UserProfile, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        [field]: value
+      };
+      if (field === 'dob') {
+        next.dateOfBirth = value;
+      } else if (field === 'dateOfBirth') {
+        next.dob = value;
+      }
+      triggerAutoSave(next);
+      return next;
+    });
     if (validationErrors[field]) {
       setValidationErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
   const handleDobChange = (val: string) => {
-    handleInputChange('dob', val);
-    if (val) {
-      const estimatedGrade = calculateGradeFromAge(val);
-      if (estimatedGrade && GRADES_LIST.includes(estimatedGrade)) {
-        handleInputChange('grade', estimatedGrade);
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        dob: val,
+        dateOfBirth: val,
+      };
+      if (val) {
+        const estimatedGrade = calculateGradeFromAge(val);
+        if (estimatedGrade && GRADES_LIST.includes(estimatedGrade)) {
+          next.grade = estimatedGrade;
+        }
       }
+      triggerAutoSave(next);
+      return next;
+    });
+    if (validationErrors.dob) {
+      setValidationErrors(prev => ({ ...prev, dob: '' }));
     }
   };
 
@@ -314,22 +385,36 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                 <span>Edit Profile</span>
               </button>
             ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  className="flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Save Changes</span>
-                </button>
+              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                {autoSaveStatus === 'saving' && (
+                  <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Auto-saving to cloud...
+                  </span>
+                )}
+                {autoSaveStatus === 'saved' && (
+                  <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 animate-in fade-in">
+                    <CheckCircle className="w-3 h-3 text-emerald-500" />
+                    Auto-saved
+                  </span>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="flex items-center justify-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Save Changes</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

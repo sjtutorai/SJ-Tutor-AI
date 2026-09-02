@@ -90,6 +90,7 @@ export interface UserProfile {
   phoneVerified?: boolean;
   registrationNumber?: string;
   dob?: string;
+  dateOfBirth?: string;
   state?: string;
   district?: string;
   claimedOffers?: number[];

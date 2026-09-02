@@ -40,9 +40,75 @@ export const checkUserRegistrationStatus = async (user: User | { uid: string; em
 }> => {
   try {
     const userEmail = user.email?.toLowerCase().trim() || "";
-
-    // 1. Predefined admin/scholar accounts are automatically recognized
     const membership = getMembershipByEmail(userEmail);
+
+    // 1. Direct UID check in "users" collection
+    if (user.uid) {
+      const userRef = doc(db, "users", user.uid);
+      const docSnap = await getDoc(userRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const hasCompleted = data.hasCompletedOnboarding === true || 
+                             data.isRegisteredInFirestore === true ||
+                             Boolean(data.registrationNumber || data.sjTutorId) ||
+                             Boolean(data.displayName && (data.grade || data.class || data.institution)) ||
+                             Boolean(membership);
+        if (hasCompleted || membership) {
+          const resolvedDob = data.dob || data.dateOfBirth || data.birthDate || "";
+          return {
+            isRegistered: true,
+            profile: {
+              ...data,
+              dob: resolvedDob,
+              dateOfBirth: resolvedDob,
+              uid: user.uid,
+              email: userEmail || data.email || "",
+              planType: membership ? membership.planType : (data.planType || "Free"),
+              credits: membership ? Math.max(membership.credits, data.credits || membership.credits) : (data.credits ?? 100),
+              role: membership ? membership.role : (data.role || "student"),
+              isRegisteredInFirestore: true,
+              hasCompletedOnboarding: true,
+            }
+          };
+        }
+      }
+    }
+
+    // 2. Query by email in "users" collection
+    if (userEmail) {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", userEmail));
+      const querySnap = await getDocs(q);
+      if (!querySnap.empty) {
+        const matchedDoc = querySnap.docs[0];
+        const data = matchedDoc.data();
+        const hasCompleted = data.hasCompletedOnboarding === true || 
+                             data.isRegisteredInFirestore === true ||
+                             Boolean(data.registrationNumber || data.sjTutorId) ||
+                             Boolean(data.displayName && (data.grade || data.class || data.institution)) ||
+                             Boolean(membership);
+        if (hasCompleted || membership) {
+          const resolvedDob = data.dob || data.dateOfBirth || data.birthDate || "";
+          return {
+            isRegistered: true,
+            profile: {
+              ...data,
+              dob: resolvedDob,
+              dateOfBirth: resolvedDob,
+              uid: matchedDoc.id,
+              email: userEmail || data.email || "",
+              planType: membership ? membership.planType : (data.planType || "Free"),
+              credits: membership ? Math.max(membership.credits, data.credits || membership.credits) : (data.credits ?? 100),
+              role: membership ? membership.role : (data.role || "student"),
+              isRegisteredInFirestore: true,
+              hasCompletedOnboarding: true,
+            }
+          };
+        }
+      }
+    }
+
+    // 3. Predefined admin/scholar accounts without prior Firestore document
     if (membership) {
       return {
         isRegistered: true,
@@ -56,56 +122,6 @@ export const checkUserRegistrationStatus = async (user: User | { uid: string; em
           hasCompletedOnboarding: true,
         }
       };
-    }
-
-    // 2. Direct UID check in "users" collection
-    if (user.uid) {
-      const userRef = doc(db, "users", user.uid);
-      const docSnap = await getDoc(userRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const hasCompleted = data.hasCompletedOnboarding === true || 
-                             data.isRegisteredInFirestore === true ||
-                             Boolean(data.registrationNumber || data.sjTutorId) ||
-                             Boolean(data.displayName && (data.grade || data.class || data.institution));
-        if (hasCompleted) {
-          return {
-            isRegistered: true,
-            profile: {
-              ...data,
-              uid: user.uid,
-              isRegisteredInFirestore: true,
-              hasCompletedOnboarding: true,
-            }
-          };
-        }
-      }
-    }
-
-    // 3. Query by email in "users" collection
-    if (userEmail) {
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, where("email", "==", userEmail));
-      const querySnap = await getDocs(q);
-      if (!querySnap.empty) {
-        const matchedDoc = querySnap.docs[0];
-        const data = matchedDoc.data();
-        const hasCompleted = data.hasCompletedOnboarding === true || 
-                             data.isRegisteredInFirestore === true ||
-                             Boolean(data.registrationNumber || data.sjTutorId) ||
-                             Boolean(data.displayName && (data.grade || data.class || data.institution));
-        if (hasCompleted) {
-          return {
-            isRegistered: true,
-            profile: {
-              ...data,
-              uid: matchedDoc.id,
-              isRegisteredInFirestore: true,
-              hasCompletedOnboarding: true,
-            }
-          };
-        }
-      }
     }
 
     // 4. Check cached profile in LocalStorage as offline fallback
@@ -162,6 +178,7 @@ export const createUserProfile = async (user: User, initialData?: Partial<any>) 
       console.debug('No saved guest streak found during profile creation:', e);
     }
 
+    const resolvedDob = initialData?.dob || initialData?.dateOfBirth || (initialData as any)?.birthDate || "";
     const newProfile = {
       uid: user.uid,
       name: user.displayName || initialData?.displayName || "",
@@ -171,7 +188,8 @@ export const createUserProfile = async (user: User, initialData?: Partial<any>) 
       provider: user.providerData[0]?.providerId || "password",
       class: initialData?.grade || initialData?.class || "",
       grade: initialData?.grade || initialData?.class || "",
-      dob: initialData?.dob || "",
+      dob: resolvedDob,
+      dateOfBirth: resolvedDob,
       language: initialData?.language || "English",
       role: membership?.role || "student",
       phoneNumber: user.phoneNumber || initialData?.phoneNumber || "",
@@ -264,11 +282,13 @@ export const getCurrentUserProfile = async (user: User) => {
         console.error("Error updating user login info in Firestore:", updateError);
       }
 
+      const resolvedDob = data.dob || data.dateOfBirth || data.birthDate || "";
       return {
         ...data,
         grade: data.grade || data.class || "",
         class: data.class || data.grade || "",
-        dob: data.dob || "",
+        dob: resolvedDob,
+        dateOfBirth: resolvedDob,
         planType,
         credits,
         trialStartDate,
