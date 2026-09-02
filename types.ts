@@ -275,7 +275,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   },
 };
 
-export const SJTUTOR_AVATAR = "/logo.png";
+export const SJTUTOR_AVATAR = "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg";
 export const SJTUTOR_AVATAR_REMOTE = "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg";
 export const SJTUTOR_AVATAR_IBB = "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg";
 
