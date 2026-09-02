@@ -1,13 +1,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate, HomeworkFile, DifficultyLevel } from "../types";
 import { SettingsService } from "./settingsService";
-import { GroqService, GroqMessage } from "./groqService";
 
-// Helper to initialize AI client.
+// Helper to initialize AI client using official Gemini API keys.
 const getAI = () => {
   const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("API_KEY_MISSING: Please set the API_KEY environment variable.");
+    throw new Error("GEMINI_API_KEY_MISSING: Please configure your GEMINI_API_KEY environment variable.");
   }
   return new GoogleGenAI({ apiKey });
 };
@@ -46,7 +45,7 @@ export const GeminiService = {
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: promptText,
         config: {
           systemInstruction: sysInstruction
@@ -54,14 +53,7 @@ export const GeminiService = {
       });
       return response.text || "";
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Primary Gemini API failed or unavailable, falling back to Groq:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        const messages: GroqMessage[] = [
-          { role: 'system', content: sysInstruction },
-          { role: 'user', content: promptText }
-        ];
-        return await GroqService.chatCompletion({ messages });
-      }
+      console.error("[GeminiService] Note processing failed:", geminiError?.message || geminiError);
       throw geminiError;
     }
   },
@@ -91,19 +83,12 @@ export const GeminiService = {
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
       });
       return response.text || "";
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Gemini note template generation failed, falling back to Groq:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        const messages: GroqMessage[] = [
-          { role: 'system', content: `You are an expert academic curriculum designer creating study note templates in ${language}.` },
-          { role: 'user', content: prompt }
-        ];
-        return await GroqService.chatCompletion({ messages });
-      }
+      console.error("[GeminiService] Gemini note template generation failed:", geminiError?.message || geminiError);
       throw geminiError;
     }
   },
@@ -187,7 +172,7 @@ Generate notes based on:
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           systemInstruction,
@@ -195,14 +180,7 @@ Generate notes based on:
       });
       return response.text || "";
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Gemini notes generation failed, falling back to Groq:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        const messages: GroqMessage[] = [
-          { role: 'system', content: systemInstruction },
-          { role: 'user', content: prompt }
-        ];
-        return await GroqService.chatCompletion({ messages });
-      }
+      console.error("[GeminiService] Gemini notes generation failed:", geminiError?.message || geminiError);
       throw geminiError;
     }
   },
@@ -242,7 +220,7 @@ Generate notes based on:
     try {
       const ai = getAI();
       const response = await ai.models.generateContentStream({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           systemInstruction: sysInstruction,
@@ -250,14 +228,7 @@ Generate notes based on:
       });
       return response;
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Gemini summary stream failed, falling back to Groq:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        const messages: GroqMessage[] = [
-          { role: 'system', content: sysInstruction },
-          { role: 'user', content: prompt }
-        ];
-        return GroqService.chatCompletionStream({ messages });
-      }
+      console.error("[GeminiService] Gemini summary stream failed:", geminiError?.message || geminiError);
       throw geminiError;
     }
   },
@@ -305,7 +276,7 @@ Generate notes based on:
       });
 
       const response = await ai.models.generateContentStream({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: {
           parts: contents
         },
@@ -315,14 +286,7 @@ Generate notes based on:
       });
       return response;
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Gemini homework solver failed, falling back to Groq:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        const messages: GroqMessage[] = [
-          { role: 'system', content: sysInstruction },
-          { role: 'user', content: prompt }
-        ];
-        return GroqService.chatCompletionStream({ messages });
-      }
+      console.error("[GeminiService] Gemini homework solver failed:", geminiError?.message || geminiError);
       throw geminiError;
     }
   },
@@ -352,7 +316,7 @@ Generate notes based on:
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -377,21 +341,7 @@ Generate notes based on:
         return parsed;
       }
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Gemini quiz generation failed, falling back to Groq:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        const messages: GroqMessage[] = [
-          { role: 'system', content: `You are an expert exam creator. You output strictly valid JSON in the form: { "questions": [ { "question": string, "options": string[], "correctAnswerIndex": number, "explanation": string } ] }` },
-          { role: 'user', content: prompt }
-        ];
-        const groqJson = await GroqService.chatCompletion({ messages, jsonMode: true });
-        if (groqJson) {
-          const parsed = JSON.parse(groqJson.trim());
-          const questionsList = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.quiz || Object.values(parsed)[0]);
-          if (Array.isArray(questionsList)) {
-            return questionsList as QuizQuestion[];
-          }
-        }
-      }
+      console.error("[GeminiService] Gemini quiz generation failed:", geminiError?.message || geminiError);
       throw geminiError;
     }
     throw new Error("Failed to generate quiz data");
@@ -407,7 +357,7 @@ Generate notes based on:
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -439,19 +389,7 @@ Generate notes based on:
 
       if (response.text) return JSON.parse(response.text.trim());
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Gemini timetable generation failed, falling back to Groq:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        const messages: GroqMessage[] = [
-          { role: 'system', content: `You are an expert academic counselor. Output strictly valid JSON formatted as { "timetable": [ { "day": string, "date": string, "slots": [ { "time": string, "activity": string, "subject": string } ] } ] }` },
-          { role: 'user', content: prompt }
-        ];
-        const groqJson = await GroqService.chatCompletion({ messages, jsonMode: true });
-        if (groqJson) {
-          const parsed = JSON.parse(groqJson.trim());
-          const list = Array.isArray(parsed) ? parsed : (parsed.timetable || Object.values(parsed)[0]);
-          if (Array.isArray(list)) return list as TimetableEntry[];
-        }
-      }
+      console.error("[GeminiService] Gemini timetable generation failed:", geminiError?.message || geminiError);
       throw geminiError;
     }
     throw new Error("Failed to generate timetable");
@@ -466,7 +404,7 @@ Generate notes based on:
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -497,19 +435,7 @@ Generate notes based on:
       });
       if (response.text) return JSON.parse(response.text.trim());
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Gemini update timetable failed, falling back to Groq:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        const messages: GroqMessage[] = [
-          { role: 'system', content: `You are an expert academic planner. Output strictly valid JSON formatted as { "timetable": [ { "day": string, "date": string, "slots": [ { "time": string, "activity": string, "subject": string } ] } ] }` },
-          { role: 'user', content: prompt }
-        ];
-        const groqJson = await GroqService.chatCompletion({ messages, jsonMode: true });
-        if (groqJson) {
-          const parsed = JSON.parse(groqJson.trim());
-          const list = Array.isArray(parsed) ? parsed : (parsed.timetable || Object.values(parsed)[0]);
-          if (Array.isArray(list)) return list as TimetableEntry[];
-        }
-      }
+      console.error("[GeminiService] Gemini update timetable failed:", geminiError?.message || geminiError);
       throw geminiError;
     }
     throw new Error("Failed to update timetable");
@@ -519,7 +445,7 @@ Generate notes based on:
     const ai = getAI();
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-2.5-flash',
       config: { systemInstruction: systemInstruction }
     });
   },
@@ -546,25 +472,14 @@ Generate notes based on:
       });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: [...formattedHistory, { role: 'user', parts: currentParts }],
         config: { systemInstruction }
       });
 
       return response.text || "";
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Gemini chat failed, falling back to Groq:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        const messages: GroqMessage[] = [
-          { role: 'system', content: systemInstruction },
-          ...history.map(m => ({
-            role: (m.role === 'model' ? 'assistant' : 'user') as any,
-            content: m.text || ''
-          })),
-          { role: 'user', content: text }
-        ];
-        return await GroqService.chatCompletion({ messages });
-      }
+      console.error("[GeminiService] Gemini chat failed:", geminiError?.message || geminiError);
       throw geminiError;
     }
   },
@@ -644,24 +559,13 @@ Your mission:
     try {
       const ai = getAI();
       const response = await ai.models.generateContentStream({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         contents: [...formattedHistory, { role: 'user', parts: currentParts }],
         config: { systemInstruction }
       });
       return response;
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Gemini chat stream failed, falling back to Groq:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        const groqMessages: GroqMessage[] = [
-          { role: 'system', content: systemInstruction },
-          ...history.map(m => ({
-            role: (m.role === 'model' ? 'assistant' : 'user') as any,
-            content: m.text || ''
-          })),
-          { role: 'user', content: finalPrompt }
-        ];
-        return GroqService.chatCompletionStream({ messages: groqMessages });
-      }
+      console.error("[GeminiService] Gemini chat stream failed:", geminiError?.message || geminiError);
       throw geminiError;
     }
   },
@@ -676,7 +580,7 @@ Your mission:
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         contents: {
           parts: [
             { inlineData: { mimeType, data: cleanData } },
@@ -697,11 +601,7 @@ Your mission:
       });
       if (response.text) return JSON.parse(response.text.trim());
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Gemini payment validation failed, checking fallback:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        // Groq text completion fallback assuming standard submission
-        return { isValid: true, reason: "Payment screenshot submitted and verified via fallback processor." };
-      }
+      console.error("[GeminiService] Gemini payment validation failed:", geminiError?.message || geminiError);
       throw geminiError;
     }
     throw new Error("Failed to analyze image");
@@ -718,21 +618,13 @@ Your mission:
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: { systemInstruction }
       });
       return response.text || "I'm here to help with your group study! What question do you have?";
     } catch (geminiError: any) {
-      console.warn("[GeminiService] Group tutor response failed on Gemini, falling back to Groq:", geminiError?.message || geminiError);
-      if (GroqService.isAvailable()) {
-        const messages: GroqMessage[] = [
-          { role: 'system', content: systemInstruction },
-          { role: 'user', content: prompt }
-        ];
-        const res = await GroqService.chatCompletion({ messages });
-        return res || "I'm here to help with your group study! What question do you have?";
-      }
+      console.error("[GeminiService] Group tutor response failed:", geminiError?.message || geminiError);
       return "I'm currently unable to connect to the AI model. Please check back in a moment!";
     }
   },

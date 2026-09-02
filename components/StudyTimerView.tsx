@@ -26,6 +26,7 @@ const APPS_TO_BLOCK = [
 ];
 
 const PRESETS = [
+  { label: '1m Sprint', h: '00', m: '01', s: '00', desc: 'Fast test' },
   { label: '15m Sprint', h: '00', m: '15', s: '00', desc: 'Quick revision' },
   { label: '25m Pomodoro', h: '00', m: '25', s: '00', desc: 'Standard focus' },
   { label: '45m Deep Work', h: '00', m: '45', s: '00', desc: 'Intensive study' },
@@ -131,6 +132,88 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
 
   const activeSubject = customSubject.trim() || selectedSubject;
 
+  // Local state persistence helper
+  const persistLocalTimerState = (state: {
+    timerState: TimerStateType;
+    timeLeftMs: number;
+    initialTimeMs: number;
+    expectedEndTime: number | null;
+    isFocusModeActive: boolean;
+    selectedApps: string[];
+    inputH: string;
+    inputM: string;
+    inputS: string;
+    selectedSubject: string;
+    customSubject: string;
+  }) => {
+    try {
+      localStorage.setItem('sjtutor_timer_state_cache', JSON.stringify({
+        ...state,
+        savedAt: Date.now()
+      }));
+    } catch (e) {
+      console.debug('Failed to cache timer state locally:', e);
+    }
+  };
+
+  // Restore cached timer state on initial mount
+  useEffect(() => {
+    try {
+      const cachedStr = localStorage.getItem('sjtutor_timer_state_cache');
+      if (cachedStr) {
+        const cached = JSON.parse(cachedStr);
+        if (cached.inputH) setInputH(cached.inputH);
+        if (cached.inputM) setInputM(cached.inputM);
+        if (cached.inputS) setInputS(cached.inputS);
+        if (cached.selectedSubject) setSelectedSubject(cached.selectedSubject);
+        if (cached.customSubject) setCustomSubject(cached.customSubject);
+        if (cached.selectedApps) setSelectedApps(cached.selectedApps);
+
+        if (cached.timerState === 'RUNNING' && cached.expectedEndTime) {
+          const now = Date.now();
+          const remaining = Math.max(0, cached.expectedEndTime - now);
+          const resolvedInitial = cached.initialTimeMs || remaining;
+
+          if (remaining > 0) {
+            expectedEndTimeRef.current = cached.expectedEndTime;
+            setInitialTimeMs(resolvedInitial);
+            setTimeLeftMs(remaining);
+            setTimerState('RUNNING');
+            setIsFocusModeActive(Boolean(cached.isFocusModeActive));
+          } else {
+            setInitialTimeMs(resolvedInitial);
+            setTimeLeftMs(0);
+            setTimerState('IDLE');
+          }
+        } else if (cached.timerState === 'PAUSED' && cached.timeLeftMs) {
+          setInitialTimeMs(cached.initialTimeMs || cached.timeLeftMs);
+          setTimeLeftMs(cached.timeLeftMs);
+          setTimerState('PAUSED');
+          setIsFocusModeActive(Boolean(cached.isFocusModeActive));
+        }
+      }
+    } catch (e) {
+      console.debug('Error loading cached timer state:', e);
+    }
+  }, []);
+
+  // Persist timer state whenever key properties change
+  useEffect(() => {
+    persistLocalTimerState({
+      timerState,
+      timeLeftMs,
+      initialTimeMs,
+      expectedEndTime: expectedEndTimeRef.current,
+      isFocusModeActive,
+      selectedApps,
+      inputH,
+      inputM,
+      inputS,
+      selectedSubject,
+      customSubject,
+    });
+  }, [timerState, timeLeftMs, initialTimeMs, isFocusModeActive, selectedApps, inputH, inputM, inputS, selectedSubject, customSubject]);
+
   // Real-time synchronization across devices
   useEffect(() => {
     if (!userId || userId === 'guest') {
@@ -156,14 +239,23 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
         expectedEndTimeRef.current = expectedEnd;
         setTimerState('RUNNING');
         setTimeLeftMs(remaining);
-        setInitialTimeMs(remoteTimer.initialTimeMs || remaining);
+
+        // Preserve original initial duration so completion percentage remains accurate
+        setInitialTimeMs(prev => {
+          if (remoteTimer.initialTimeMs && remoteTimer.initialTimeMs > 0) {
+            return remoteTimer.initialTimeMs;
+          }
+          if (prev > 0) return prev;
+          return remaining;
+        });
+
         setIsFocusModeActive(Boolean(remoteTimer.isFocusModeActive));
         if (remoteTimer.selectedApps) setSelectedApps(remoteTimer.selectedApps);
       } else if (remoteTimer.timerState === 'PAUSED') {
         expectedEndTimeRef.current = null;
         setTimerState('PAUSED');
         setTimeLeftMs(remoteTimer.timeLeftMs);
-        setInitialTimeMs(remoteTimer.initialTimeMs);
+        setInitialTimeMs(prev => (remoteTimer.initialTimeMs && remoteTimer.initialTimeMs > 0 ? remoteTimer.initialTimeMs : (prev > 0 ? prev : remoteTimer.timeLeftMs)));
         setIsFocusModeActive(Boolean(remoteTimer.isFocusModeActive));
         if (remoteTimer.selectedApps) setSelectedApps(remoteTimer.selectedApps);
       } else if (remoteTimer.timerState === 'IDLE') {
@@ -213,7 +305,7 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       if (intervalId) clearInterval(intervalId);
     };
-  }, [timerState]);
+  }, [timerState, initialTimeMs]);
 
   // Handle visibility changes for web focus simulation
   useEffect(() => {

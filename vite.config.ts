@@ -15,7 +15,6 @@ export default defineConfig(({ mode }) => {
       // JSON.stringify is essential to wrap the value in quotes for the browser bundle
       'process.env.API_KEY': JSON.stringify(process.env.API_KEY || process.env.GEMINI_API_KEY || env.API_KEY || env.GEMINI_API_KEY || ''),
       'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY || process.env.API_KEY || env.GEMINI_API_KEY || env.API_KEY || ''),
-      'process.env.GROQ_API_KEY': JSON.stringify(process.env.GROQ_API_KEY || env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || env.VITE_GROQ_API_KEY || ''),
     },
     server: {
       port: 3000,
