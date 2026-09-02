@@ -1411,8 +1411,13 @@ const App: React.FC = () => {
     }
 
     // 1. Two-Step Verification on Login Check
-    const alreadyTwoStepVerified = SecurityPinService.isTwoStepVerified(user.uid);
-    setIsTwoStepVerified(alreadyTwoStepVerified);
+    const is2FAActive = !!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword || !!SettingsService.getSettings().privacy.twoFactor || !!SettingsService.getSettings().privacy.twoFactorPassword;
+    if (is2FAActive) {
+      const alreadyTwoStepVerified = SecurityPinService.isTwoStepVerified(user.uid);
+      setIsTwoStepVerified(alreadyTwoStepVerified);
+    } else {
+      setIsTwoStepVerified(true);
+    }
 
     // 2. PIN Lock on Refresh / Revisit Check
     const isPinRequired = !!userProfile.pinLockEnabled || !!userProfile.securityPin || !!SettingsService.getSettings().privacy.pinLock || !!SettingsService.getSettings().privacy.pin;
@@ -1628,11 +1633,25 @@ const App: React.FC = () => {
         }));
       }
 
-      // Mark 2-Step Verification and PIN session as verified/unlocked upon completing signup
-      SecurityPinService.setTwoStepVerified(activeUid);
-      setIsTwoStepVerified(true);
-      SecurityPinService.setSessionUnlocked(activeUid);
-      setIsPinSessionUnlocked(true);
+      // Check if 2-Step Verification or PIN Lock is configured for this account
+      const has2FA = !!mergedProfile.twoFactorEnabled || !!mergedProfile.twoFactorPassword || !!SettingsService.getSettings().privacy.twoFactor || !!SettingsService.getSettings().privacy.twoFactorPassword;
+      const hasPin = !!mergedProfile.pinLockEnabled || !!mergedProfile.securityPin || !!SettingsService.getSettings().privacy.pinLock || !!SettingsService.getSettings().privacy.pin;
+
+      if (has2FA) {
+        SecurityPinService.clearTwoStepVerified(activeUid);
+        setIsTwoStepVerified(false);
+      } else {
+        SecurityPinService.setTwoStepVerified(activeUid);
+        setIsTwoStepVerified(true);
+      }
+
+      if (hasPin) {
+        SecurityPinService.lockSession(activeUid);
+        setIsPinSessionUnlocked(false);
+      } else {
+        SecurityPinService.setSessionUnlocked(activeUid);
+        setIsPinSessionUnlocked(true);
+      }
 
       setMode(AppMode.DASHBOARD);
     } catch (e) {
@@ -4127,7 +4146,7 @@ const App: React.FC = () => {
       )}
 
       {/* 1. Two-Step Verification on Login Modal - only when 2FA is explicitly configured */}
-      {user && (!!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword) && !isTwoStepVerified && (
+      {user && (!!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword || !!SettingsService.getSettings().privacy.twoFactor || !!SettingsService.getSettings().privacy.twoFactorPassword) && !isTwoStepVerified && (
         <TwoStepLoginModal
           userProfile={userProfile}
           uid={user.uid}

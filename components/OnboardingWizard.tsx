@@ -339,8 +339,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         if (regStatus.isRegistered) {
           // Already registered, automatically log in
           if (result.user?.uid) {
-            SecurityPinService.setTwoStepVerified(result.user.uid);
-            SecurityPinService.setSessionUnlocked(result.user.uid);
+            SecurityPinService.clearTwoStepVerified(result.user.uid);
+            SecurityPinService.lockSession(result.user.uid);
           }
           const fullProf = regStatus.profile || await getCurrentUserProfile(result.user);
           onComplete(fullProf);
@@ -452,6 +452,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
       SecurityPinService.setSessionUnlocked(uid);
     } else {
       SecurityPinService.clearTwoStepVerified(uid);
+      SecurityPinService.lockSession(uid);
     }
 
     // Populate state fields

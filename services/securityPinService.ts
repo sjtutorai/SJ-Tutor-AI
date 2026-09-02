@@ -85,27 +85,25 @@ export const SecurityPinService = {
   },
 
   /**
-   * Checks if 2-Step Login verification was already passed for this logged-in account on this device.
-   * If already logged in and verified on this device, it returns true (no password prompt).
+   * Checks if 2-Step Login verification was already passed for this logged-in account in the current session.
+   * Prompts whenever a fresh login occurs or after logout.
    */
   isTwoStepVerified: (uid?: string | null): boolean => {
     if (!uid) return true;
     try {
-      const local = localStorage.getItem(`${STORAGE_2STEP_PREFIX}${uid}`);
       const session = sessionStorage.getItem(`${STORAGE_2STEP_PREFIX}${uid}`);
-      return local === 'true' || session === 'true';
+      return session === 'true';
     } catch {
       return false;
     }
   },
 
   /**
-   * Marks 2-Step Login verification as passed and verified for this account on this device.
+   * Marks 2-Step Login verification as passed for the active session.
    */
   setTwoStepVerified: (uid?: string | null): void => {
     if (!uid) return;
     try {
-      localStorage.setItem(`${STORAGE_2STEP_PREFIX}${uid}`, 'true');
       sessionStorage.setItem(`${STORAGE_2STEP_PREFIX}${uid}`, 'true');
     } catch (e) {
       console.warn('Failed to set 2-step verified state:', e);
@@ -118,8 +116,8 @@ export const SecurityPinService = {
   clearTwoStepVerified: (uid?: string | null): void => {
     if (!uid) return;
     try {
-      localStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
       sessionStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
+      localStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
     } catch (e) {
       console.warn('Failed to clear 2-step verified state:', e);
     }

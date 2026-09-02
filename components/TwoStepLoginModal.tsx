@@ -50,9 +50,10 @@ export const TwoStepLoginModal: React.FC<TwoStepLoginModalProps> = ({
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const storedSecret = userProfile.twoFactorPassword || userProfile.securityPin || '';
-  const configuredQuestion = userProfile.securityQuestion || SettingsService.getSettings().privacy.securityQuestion || '';
-  const configuredAnswer = userProfile.securityAnswer || SettingsService.getSettings().privacy.securityAnswer || '';
+  const privacySettings = SettingsService.getSettings().privacy;
+  const storedSecret = userProfile.twoFactorPassword || privacySettings.twoFactorPassword || userProfile.securityPin || privacySettings.pin || '';
+  const configuredQuestion = userProfile.securityQuestion || privacySettings.securityQuestion || '';
+  const configuredAnswer = userProfile.securityAnswer || privacySettings.securityAnswer || '';
 
   useEffect(() => {
     inputRef.current?.focus();
