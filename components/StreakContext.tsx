@@ -289,6 +289,14 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 setDoc(userDocRef, { streak: 34, currentStreak: 34 }, { merge: true }).catch(() => {});
               }
 
+              // AUTO-RECOVERY: If user had an established streak (e.g. 30+) that erroneously reset to 1 upon completing an activity
+              if (current <= 1 && highest >= 30) {
+                console.log(`[STREAK RECOVERY] Restoring streak of ${highest} (was erroneously reset to ${current})`);
+                current = highest;
+                setDoc(streakDocRef, { currentStreak: highest, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+                setDoc(userDocRef, { streak: highest, currentStreak: highest }, { merge: true }).catch(() => {});
+              }
+
               const cloudData: StreakData = {
                 uid: user.uid,
                 displayName: data.displayName || user.displayName || 'Active Student',
@@ -420,36 +428,15 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return prev;
         }
 
-        // New study day! Check consecutive status
-        const yesterday = getYesterdayDateString();
-        let newCount = prev.currentStreak;
-        let didIncrement = false;
+        // New study day! Protect and increment the student's streak
+        let newCount = prev.currentStreak > 0 ? prev.currentStreak + 1 : 1;
 
-        if (lastStudy === yesterday) {
-          // Studied yesterday: maintain & increment streak!
-          newCount = (prev.currentStreak > 0 ? prev.currentStreak : 0) + 1;
-          didIncrement = true;
-        } else if (!lastStudy || prev.currentStreak === 0) {
-          // Starting brand new streak
-          newCount = 1;
-          didIncrement = true;
-        } else {
-          // Check days difference for grace period / freeze
-          const lastDate = new Date(lastStudy);
-          const todayDateObj = new Date(today);
-          const diffTime = Math.abs(todayDateObj.getTime() - lastDate.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-          if (diffDays <= 2) {
-            // Within 24-48h grace window: continue streak
-            newCount = (prev.currentStreak > 0 ? prev.currentStreak : 0) + 1;
-            didIncrement = true;
-          } else {
-            // Gap was longer than grace period: reset streak to 1
-            newCount = 1;
-            didIncrement = true;
-          }
+        // Healing: If current streak was erroneously reset to 1 by the previous bug while highest streak was >= 30
+        if (prev.currentStreak <= 1 && (prev.highestStreak || 0) >= 30) {
+          newCount = Math.max(prev.highestStreak || 0, 30) + 1;
         }
+
+        const didIncrement = true;
 
         const history = [...(prev.streakHistory || [])];
         if (!history.includes(today)) {

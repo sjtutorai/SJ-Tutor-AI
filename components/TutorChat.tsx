@@ -223,6 +223,7 @@ interface TutorChatProps {
   activeSessionId?: string | null;
   onSelectSession?: (id: string | null) => void;
   onCreateQuiz?: () => void;
+  onDeleteSession?: (sessionId: string) => Promise<void> | void;
 }
 
 // Extends standard ChatMessage with premium features
@@ -244,7 +245,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     fullHistory, 
     activeSessionId, 
     onSelectSession,
-    onCreateQuiz
+    onCreateQuiz,
+    onDeleteSession
   } = props;
 
   const { subject, grade, sampleQuestions } = React.useMemo(() => {
@@ -2164,29 +2166,51 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                 recentSessions.map((session) => {
                   const isActive = session.id === activeSessionId;
                   return (
-                    <button
-                      key={session.id}
-                      onClick={() => {
-                        if (onSelectSession) onSelectSession(session.id);
-                        setIsSessionsOpen(false);
-                      }}
-                      className={`w-full text-left p-3 rounded-xl border transition-all duration-200 flex flex-col gap-1 relative overflow-hidden cursor-pointer ${
-                        isActive
-                          ? 'bg-primary-50/70 border-primary-300 dark:bg-primary-950/20 dark:border-primary-900'
-                          : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-750 hover:bg-slate-50 dark:hover:bg-slate-850/50'
-                      }`}
-                    >
-                      {isActive && (
-                        <div className="absolute top-0 left-0 bottom-0 w-1 bg-primary-500" />
+                    <div key={session.id} className="relative group">
+                      <button
+                        onClick={() => {
+                          if (onSelectSession) onSelectSession(session.id);
+                          setIsSessionsOpen(false);
+                        }}
+                        className={`w-full text-left p-3 pr-9 rounded-xl border transition-all duration-200 flex flex-col gap-1 relative overflow-hidden cursor-pointer ${
+                          isActive
+                            ? 'bg-primary-50/70 border-primary-300 dark:bg-primary-950/20 dark:border-primary-900'
+                            : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-750 hover:bg-slate-50 dark:hover:bg-slate-850/50'
+                        }`}
+                      >
+                        {isActive && (
+                          <div className="absolute top-0 left-0 bottom-0 w-1 bg-primary-500" />
+                        )}
+                        <span className={`text-xs font-bold leading-tight line-clamp-1 ${isActive ? 'text-primary-700 dark:text-primary-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                          {session.title || "Untitled Lesson"}
+                        </span>
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                          <span className="line-clamp-1">{session.subtitle || "AI Tutor Session"}</span>
+                          <span className="whitespace-nowrap ml-1">{new Date(session.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                        </div>
+                      </button>
+
+                      {onDeleteSession && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (session.id === currentSessionIdRef.current || session.id === activeSessionId) {
+                              try {
+                                localStorage.removeItem('sjtutor_active_chat_state');
+                              } catch (e) {
+                                console.debug("Failed to clear local chat state:", e);
+                              }
+                              handleStartNewSession();
+                            }
+                            onDeleteSession(session.id);
+                          }}
+                          className="absolute right-2 top-3 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition opacity-80 sm:opacity-0 group-hover:opacity-100 cursor-pointer z-10"
+                          title="Delete Session"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       )}
-                      <span className={`text-xs font-bold leading-tight line-clamp-1 ${isActive ? 'text-primary-700 dark:text-primary-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                        {session.title || "Untitled Lesson"}
-                      </span>
-                      <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                        <span className="line-clamp-1">{session.subtitle || "AI Tutor Session"}</span>
-                        <span className="whitespace-nowrap ml-1">{new Date(session.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-                      </div>
-                    </button>
+                    </div>
                   );
                 })
               ) : (

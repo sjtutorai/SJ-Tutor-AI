@@ -22,6 +22,25 @@ export const DEFAULT_FAVICON_URL = 'https://sjtutorai.vercel.app/favicon-48x48.p
 export const DEFAULT_TITLE = 'SJ Tutor AI - Your AI Study Buddy';
 export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion for students.';
 
+/**
+ * Canonical Favicon & Brand Asset Registry
+ */
+export const FAVICON_ASSETS = {
+  ico: '/favicon.ico',
+  png16: '/favicon-16x16.png',
+  png32: '/favicon-32x32.png',
+  png48: '/favicon-48x48.png',
+  png96: '/favicon-96x96.png',
+  png144: '/favicon-144x144.png',
+  png192: '/favicon-192x192.png',
+  png512: '/favicon-512x512.png',
+  appleTouchIcon: '/apple-touch-icon.png',
+  faviconPng: '/favicon.png',
+  faviconSvg: '/favicon.svg',
+  logoPng: '/logo.png',
+  ogImage: '/og-image.png',
+} as const;
+
 function ensureMetaTag(nameOrProperty: string, value: string, isProperty = false) {
   const selector = isProperty 
     ? `meta[property="${nameOrProperty}"]` 
@@ -52,16 +71,18 @@ function ensureCanonicalLink(href: string) {
 
 function ensureFaviconLinks() {
   const favicons = [
-    { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-    { rel: 'shortcut icon', type: 'image/x-icon', href: '/favicon.ico' },
-    { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-    { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
-    { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
-    { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon-48x48.png' },
-    { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/favicon-192x192.png' },
-    { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/favicon-512x512.png' },
-    { rel: 'icon', type: 'image/png', href: '/favicon.png' },
-    { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+    { rel: 'icon', type: 'image/x-icon', href: FAVICON_ASSETS.ico },
+    { rel: 'shortcut icon', type: 'image/x-icon', href: FAVICON_ASSETS.ico },
+    { rel: 'icon', type: 'image/svg+xml', href: FAVICON_ASSETS.faviconSvg },
+    { rel: 'icon', type: 'image/png', sizes: '16x16', href: FAVICON_ASSETS.png16 },
+    { rel: 'icon', type: 'image/png', sizes: '32x32', href: FAVICON_ASSETS.png32 },
+    { rel: 'icon', type: 'image/png', sizes: '48x48', href: FAVICON_ASSETS.png48 },
+    { rel: 'icon', type: 'image/png', sizes: '96x96', href: FAVICON_ASSETS.png96 },
+    { rel: 'icon', type: 'image/png', sizes: '144x144', href: FAVICON_ASSETS.png144 },
+    { rel: 'icon', type: 'image/png', sizes: '192x192', href: FAVICON_ASSETS.png192 },
+    { rel: 'icon', type: 'image/png', sizes: '512x512', href: FAVICON_ASSETS.png512 },
+    { rel: 'icon', type: 'image/png', href: FAVICON_ASSETS.faviconPng },
+    { rel: 'apple-touch-icon', sizes: '180x180', href: FAVICON_ASSETS.appleTouchIcon },
   ];
 
   favicons.forEach(({ rel, type, href, sizes }) => {

@@ -468,6 +468,38 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                   </div>
                 </div>
 
+                {/* Notice if streak was reset to 1 */}
+                {streak.currentStreak <= 1 && (streak.highestStreak >= 30 || streak.currentStreak === 1) && (
+                  <div className="mt-3 p-3 rounded-2xl bg-orange-500/20 border border-orange-500/50 flex items-center justify-between gap-3 text-xs">
+                    <div>
+                      <p className="font-bold text-orange-300">Streak Recovery Notice</p>
+                      <p className="text-slate-200 text-[11px] leading-snug">Did your 30-day streak reset to 1 after an activity?</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          await adjustStreak(30);
+                          setAdjustSuccessMsg(true);
+                          setTimeout(() => setAdjustSuccessMsg(false), 3000);
+                        }}
+                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-black rounded-xl text-xs whitespace-nowrap transition-all shadow-md active:scale-95 border border-amber-500/30"
+                      >
+                        Set 30
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await adjustStreak(31);
+                          setAdjustSuccessMsg(true);
+                          setTimeout(() => setAdjustSuccessMsg(false), 3000);
+                        }}
+                        className="px-3 py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-black rounded-xl text-xs whitespace-nowrap transition-all shadow-md active:scale-95"
+                      >
+                        Restore to 31 Days
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Notice if streak was bumped to 35 on device switch */}
                 {streak.currentStreak === 35 && (
                   <div className="mt-3 p-3 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-between gap-3 text-xs">
@@ -669,8 +701,20 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                             />
                             <div className="flex gap-1.5">
                               <button
+                                onClick={() => setAdjustInputVal('30')}
+                                className="px-2 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-700 hover:bg-orange-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition-all"
+                              >
+                                Set 30
+                              </button>
+                              <button
+                                onClick={() => setAdjustInputVal('31')}
+                                className="px-2 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-700 hover:bg-orange-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition-all"
+                              >
+                                Set 31
+                              </button>
+                              <button
                                 onClick={() => setAdjustInputVal('34')}
-                                className="px-2.5 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-700 hover:bg-orange-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition-all"
+                                className="px-2 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-700 hover:bg-orange-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl transition-all"
                               >
                                 Set 34
                               </button>

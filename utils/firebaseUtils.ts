@@ -55,21 +55,55 @@ export const sanitizeForFirestore = <T>(data: T): T => {
 
 export const OFFLINE_RECENT_HISTORY_KEY = "sjtutor_offline_recent_history";
 
+export const getDeletedHistoryIds = (uid?: string | null): Set<string> => {
+  try {
+    const key = uid && uid !== "guest" ? `deleted_history_${uid}` : "deleted_history_guest";
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        return new Set<string>(arr);
+      }
+    }
+  } catch (e) {
+    console.warn("Could not read deleted history IDs:", e);
+  }
+  return new Set<string>();
+};
+
+export const recordDeletedHistoryId = (uid: string | null | undefined, itemId: string) => {
+  try {
+    const key = uid && uid !== "guest" ? `deleted_history_${uid}` : "deleted_history_guest";
+    const existing = getDeletedHistoryIds(uid);
+    existing.add(itemId);
+    localStorage.setItem(key, JSON.stringify(Array.from(existing)));
+  } catch (e) {
+    console.warn("Could not record deleted history ID:", e);
+  }
+};
+
 export const getOfflineRecentHistory = (uid?: string | null): HistoryItem[] => {
+  const deletedIds = getDeletedHistoryIds(uid);
   try {
     const specificKey = uid && uid !== "guest" ? `history_${uid}` : "history_guest";
     const userSpecific = localStorage.getItem(specificKey);
     if (userSpecific) {
       const parsed = JSON.parse(userSpecific);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
+        return parsed
+          .filter((i) => !deletedIds.has(i.id))
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, 10);
       }
     }
     const globalOffline = localStorage.getItem(OFFLINE_RECENT_HISTORY_KEY);
     if (globalOffline) {
       const parsed = JSON.parse(globalOffline);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
+        return parsed
+          .filter((i) => !deletedIds.has(i.id))
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, 10);
       }
     }
   } catch (e) {
@@ -80,10 +114,12 @@ export const getOfflineRecentHistory = (uid?: string | null): HistoryItem[] => {
 
 export const saveOfflineRecentHistory = (items: HistoryItem[], uid?: string | null) => {
   try {
-    const top10 = items.slice().sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
+    const deletedIds = getDeletedHistoryIds(uid);
+    const cleanItems = items.filter((i) => !deletedIds.has(i.id));
+    const top10 = cleanItems.slice().sort((a, b) => b.timestamp - a.timestamp).slice(0, 10);
     localStorage.setItem(OFFLINE_RECENT_HISTORY_KEY, JSON.stringify(top10));
     if (uid && uid !== "guest") {
-      localStorage.setItem(`history_${uid}`, JSON.stringify(items));
+      localStorage.setItem(`history_${uid}`, JSON.stringify(cleanItems));
     }
   } catch (e) {
     console.warn("Could not cache offline recent history:", e);
@@ -91,6 +127,12 @@ export const saveOfflineRecentHistory = (items: HistoryItem[], uid?: string | nu
 };
 
 export const saveHistoryItemToFirestore = async (uid: string, item: HistoryItem) => {
+  // Never save an item that has been explicitly deleted
+  const deletedIds = getDeletedHistoryIds(uid);
+  if (deletedIds.has(item.id)) {
+    return false;
+  }
+
   // Always ensure recent 10 history items are cached offline
   try {
     const currentCached = getOfflineRecentHistory(uid);
@@ -120,12 +162,16 @@ export const saveHistoryItemToFirestore = async (uid: string, item: HistoryItem)
 
 export const getHistoryFromFirestore = async (uid: string): Promise<HistoryItem[]> => {
   if (!uid || uid === "guest") return getOfflineRecentHistory(uid);
+  const deletedIds = getDeletedHistoryIds(uid);
   try {
     const colRef = collection(db, "users", uid, "history");
     const snapshot = await getDocs(colRef);
     const historyList: HistoryItem[] = [];
     snapshot.forEach((d) => {
-      historyList.push(d.data() as HistoryItem);
+      const item = d.data() as HistoryItem;
+      if (!deletedIds.has(item.id)) {
+        historyList.push(item);
+      }
     });
     const sorted = historyList.sort((a, b) => b.timestamp - a.timestamp);
     saveOfflineRecentHistory(sorted, uid);
@@ -137,19 +183,23 @@ export const getHistoryFromFirestore = async (uid: string): Promise<HistoryItem[
 };
 
 export const syncHistoryWithFirestore = async (uid: string, localItems: HistoryItem[]): Promise<HistoryItem[]> => {
+  const deletedIds = getDeletedHistoryIds(uid);
+  const filteredLocal = localItems.filter((item) => !deletedIds.has(item.id));
+
   if (!uid || uid === "guest") {
-    saveOfflineRecentHistory(localItems, uid);
-    return localItems;
+    saveOfflineRecentHistory(filteredLocal, uid);
+    return filteredLocal;
   }
   try {
-    const firestoreItems = await getHistoryFromFirestore(uid);
+    const rawFirestoreItems = await getHistoryFromFirestore(uid);
+    const firestoreItems = rawFirestoreItems.filter((item) => !deletedIds.has(item.id));
     const firestoreIds = new Set(firestoreItems.map((item) => item.id));
 
     const mergedItems = [...firestoreItems];
     const itemsToSave: Promise<any>[] = [];
 
-    localItems.forEach((localItem) => {
-      if (!firestoreIds.has(localItem.id)) {
+    filteredLocal.forEach((localItem) => {
+      if (!deletedIds.has(localItem.id) && !firestoreIds.has(localItem.id)) {
         mergedItems.push(localItem);
         itemsToSave.push(saveHistoryItemToFirestore(uid, localItem));
       }
@@ -164,8 +214,8 @@ export const syncHistoryWithFirestore = async (uid: string, localItems: HistoryI
     return sorted;
   } catch (error) {
     console.warn("History synchronization failed, falling back to local history:", error);
-    saveOfflineRecentHistory(localItems, uid);
-    return localItems;
+    saveOfflineRecentHistory(filteredLocal, uid);
+    return filteredLocal;
   }
 };
 
@@ -398,6 +448,38 @@ export const getQuizLeaderboard = async (): Promise<LeaderboardEntry[]> => {
 };
 
 export const deleteHistoryItemFromFirestore = async (uid: string, itemId: string): Promise<boolean> => {
+  // Always record in tombstone cache to prevent revival during sync or reload
+  recordDeletedHistoryId(uid, itemId);
+
+  // Clean from offline recent history
+  try {
+    const currentCached = getOfflineRecentHistory(uid);
+    const updatedOffline = currentCached.filter((i) => i.id !== itemId);
+    saveOfflineRecentHistory(updatedOffline, uid);
+
+    // Clean from user-specific local storage
+    const specificKey = uid && uid !== "guest" ? `history_${uid}` : "history_guest";
+    const userSpecificRaw = localStorage.getItem(specificKey);
+    if (userSpecificRaw) {
+      const parsed = JSON.parse(userSpecificRaw);
+      if (Array.isArray(parsed)) {
+        const filtered = parsed.filter((i: any) => i.id !== itemId);
+        localStorage.setItem(specificKey, JSON.stringify(filtered));
+      }
+    }
+
+    // Clean active tutor chat state if this item was the active session
+    const activeChatRaw = localStorage.getItem('sjtutor_active_chat_state');
+    if (activeChatRaw) {
+      const parsed = JSON.parse(activeChatRaw);
+      if (parsed?.sessionId === itemId) {
+        localStorage.removeItem('sjtutor_active_chat_state');
+      }
+    }
+  } catch (e) {
+    console.warn("Error cleaning local caches on delete:", e);
+  }
+
   if (!uid || uid === "guest") return true;
   try {
     const docRef = doc(db, "users", uid, "history", itemId);

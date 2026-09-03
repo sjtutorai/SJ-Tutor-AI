@@ -313,6 +313,18 @@ export const CallModal: React.FC<CallModalProps> = ({
         .then(() => setIsAudioAutoplayBlocked(false))
         .catch(() => {});
     }
+    // Also unlock any group audio streams
+    try {
+      document.querySelectorAll("audio").forEach((el) => {
+        if (!el.muted) {
+          el.play().catch((err) => {
+            console.debug("Audio stream play deferred:", err);
+          });
+        }
+      });
+    } catch (e) {
+      console.debug("Audio unlock element query error:", e);
+    }
     setIsAudioAutoplayBlocked(false);
   }, []);
 
@@ -338,6 +350,23 @@ export const CallModal: React.FC<CallModalProps> = ({
   const [liveDirectCall, setLiveDirectCall] = useState<DirectCall | null>(activeDirectCall);
   // Live real-time synced state for Group call
   const [liveGroupCall, setLiveGroupCall] = useState<GroupCall | null>(activeGroupCall);
+
+  // Dedicated state for showing "Call Declined" modal banner
+  const [declinedNotice, setDeclinedNotice] = useState<{
+    personName: string;
+    reason?: string;
+  } | null>(null);
+
+  // Auto-dismiss declined notice after 5 seconds
+  useEffect(() => {
+    if (declinedNotice) {
+      const timer = setTimeout(() => {
+        setDeclinedNotice(null);
+        onCloseDirectCall();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [declinedNotice, onCloseDirectCall]);
 
   // Reset incoming dismissed state when incomingDirectCall changes
   useEffect(() => {
@@ -390,13 +419,24 @@ export const CallModal: React.FC<CallModalProps> = ({
         if (updated?.status === "ended") {
           callAudio.playEndedChime();
           triggerToast?.("Call Ended", `Call with ${updated.callerId === currentUser.uid ? updated.receiverName : updated.callerName} ended.`, "Important Alerts");
-        } else if (updated?.status === "declined") {
+          NotificationService.dismissCallNotification(activeDirectCall.id);
+          cleanupCall();
+          onCloseDirectCall();
+        } else if (updated?.status === "declined" || updated?.status === "busy") {
+          callAudio.stopAll();
           callAudio.playEndedChime();
-          triggerToast?.("Call Declined", "The user is unavailable or declined the call.", "Important Alerts");
+          const targetName = activeDirectCall.callerId === currentUser.uid ? activeDirectCall.receiverName : activeDirectCall.callerName;
+          NotificationService.dismissCallNotification(activeDirectCall.id);
+          cleanupCall();
+          setDeclinedNotice({
+            personName: targetName,
+            reason: updated?.status === "busy" ? `${targetName} is currently busy on another call.` : `${targetName} has declined the call.`
+          });
+        } else {
+          NotificationService.dismissCallNotification(activeDirectCall.id);
+          cleanupCall();
+          onCloseDirectCall();
         }
-        NotificationService.dismissCallNotification(activeDirectCall.id);
-        cleanupCall();
-        onCloseDirectCall();
       } else {
         setLiveDirectCall(updated);
       }
@@ -1128,6 +1168,12 @@ export const CallModal: React.FC<CallModalProps> = ({
             isVideoOff: false,
           });
         }
+        if (liveDirectCall) {
+          const isCaller = liveDirectCall.callerId === currentUser.uid;
+          updateDirectCallMedia(liveDirectCall.id, {
+            [isCaller ? "callerVideoOff" : "receiverVideoOff"]: false,
+          });
+        }
       } else {
         // No active video track in localStream -> acquire fresh camera track
         try {
@@ -1176,6 +1222,12 @@ export const CallModal: React.FC<CallModalProps> = ({
                 isVideoOff: false,
               });
             }
+            if (liveDirectCall) {
+              const isCaller = liveDirectCall.callerId === currentUser.uid;
+              updateDirectCallMedia(liveDirectCall.id, {
+                [isCaller ? "callerVideoOff" : "receiverVideoOff"]: false,
+              });
+            }
           }
         } catch (err) {
           console.error("Failed to acquire video track on camera toggle:", err);
@@ -1204,6 +1256,12 @@ export const CallModal: React.FC<CallModalProps> = ({
       if (liveGroupCall) {
         updateGroupCallParticipantMedia(liveGroupCall.groupId, currentUser.uid, {
           isVideoOff: true,
+        });
+      }
+      if (liveDirectCall) {
+        const isCaller = liveDirectCall.callerId === currentUser.uid;
+        updateDirectCallMedia(liveDirectCall.id, {
+          [isCaller ? "callerVideoOff" : "receiverVideoOff"]: true,
         });
       }
     }
@@ -1312,6 +1370,13 @@ export const CallModal: React.FC<CallModalProps> = ({
             isVideoOff: false,
           });
         }
+
+        if (liveDirectCall) {
+          const isCaller = liveDirectCall.callerId === currentUser.uid;
+          updateDirectCallMedia(liveDirectCall.id, {
+            [isCaller ? "callerVideoOff" : "receiverVideoOff"]: false,
+          });
+        }
       }
     } catch (e) {
       console.warn("Failed to switch camera:", e);
@@ -1324,6 +1389,41 @@ export const CallModal: React.FC<CallModalProps> = ({
     const s = sec % 60;
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
+
+  // =========================================================================
+  // 0. CALL DECLINED / BUSY POPUP MODAL
+  // =========================================================================
+  if (declinedNotice) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 text-center relative overflow-hidden"
+        >
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-500 flex items-center justify-center border border-rose-200 dark:border-rose-800 shadow-inner">
+            <PhoneOff className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-extrabold text-slate-900 dark:text-white mb-2">
+            Call Unavailable
+          </h3>
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">
+            {declinedNotice.reason || `${declinedNotice.personName} declined the call.`}
+          </p>
+          <button
+            onClick={() => {
+              setDeclinedNotice(null);
+              onCloseDirectCall();
+            }}
+            className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-bold rounded-xl transition cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   // =========================================================================
   // 1. INCOMING CALL POPUP MODAL (Ringing)

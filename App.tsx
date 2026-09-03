@@ -2301,14 +2301,15 @@ const App: React.FC = () => {
                     setHistory(updatedHistory);
                     const currentUid = user ? user.uid : "guest";
                     localStorage.setItem(`history_${currentUid}`, JSON.stringify(updatedHistory));
-                    
-                    if (user) {
-                      // Delete each item from Firestore in parallel
-                      await Promise.all(itemsToDelete.map(id => deleteHistoryItemFromFirestore(user.uid, id))).catch(console.error);
+                    if (currentHistoryId && itemsToDelete.includes(currentHistoryId)) {
+                      setCurrentHistoryId(null);
                     }
+                    
+                    // Delete each item from Firestore, offline cache, and tombstone list
+                    await Promise.all(itemsToDelete.map(id => deleteHistoryItemFromFirestore(currentUid, id))).catch(console.error);
                     triggerToast("History Cleared 🗑️", `All ${categoryLabel.toLowerCase()} history was deleted.`, "Study & Quizzes");
                   }}
-                  className="flex items-center px-4 py-2 text-sm font-medium text-rose-600 bg-rose-50 dark:bg-rose-900/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors shrink-0"
+                  className="flex items-center px-4 py-2 text-sm font-medium text-rose-600 bg-rose-50 dark:bg-rose-900/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors shrink-0 cursor-pointer"
                   title={`Delete all ${categoryLabel.toLowerCase()}`}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
@@ -2457,12 +2458,13 @@ const App: React.FC = () => {
                         setHistory(updatedHistory);
                         const currentUid = user ? user.uid : "guest";
                         localStorage.setItem(`history_${currentUid}`, JSON.stringify(updatedHistory));
-                        if (user) {
-                          await deleteHistoryItemFromFirestore(user.uid, item.id);
+                        if (currentHistoryId === item.id) {
+                          setCurrentHistoryId(null);
                         }
+                        await deleteHistoryItemFromFirestore(currentUid, item.id);
                         triggerToast("Item Deleted 🗑️", `"${item.title}" was removed from history.`, "Study & Quizzes");
                       }}
-                      className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-80 sm:opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-50 hover:text-rose-600"
+                      className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center opacity-80 hover:opacity-100 transition-all hover:bg-rose-50 hover:text-rose-600 relative z-20 pointer-events-auto cursor-pointer"
                       title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -2670,12 +2672,13 @@ const App: React.FC = () => {
                         setHistory(updatedHistory);
                         const currentUid = user ? user.uid : "guest";
                         localStorage.setItem(`history_${currentUid}`, JSON.stringify(updatedHistory));
-                        if (user) {
-                          await deleteHistoryItemFromFirestore(user.uid, item.id);
+                        if (currentHistoryId === item.id) {
+                          setCurrentHistoryId(null);
                         }
+                        await deleteHistoryItemFromFirestore(currentUid, item.id);
                         triggerToast("Item Deleted 🗑️", `"${item.title}" was removed from history.`, "Study & Quizzes");
                       }}
-                      className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 rounded-lg transition opacity-80 sm:opacity-0 group-hover:opacity-100"
+                      className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-600 rounded-lg transition opacity-80 hover:opacity-100 relative z-20 pointer-events-auto cursor-pointer"
                       title="Delete study history item"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -3046,6 +3049,17 @@ const App: React.FC = () => {
               fullHistory={history}
               activeSessionId={currentHistoryId}
               onSelectSession={(id) => setCurrentHistoryId(id)}
+              onDeleteSession={async (sessionId) => {
+                const updatedHistory = history.filter(h => h.id !== sessionId);
+                setHistory(updatedHistory);
+                const currentUid = user ? user.uid : "guest";
+                localStorage.setItem(`history_${currentUid}`, JSON.stringify(updatedHistory));
+                if (currentHistoryId === sessionId) {
+                  setCurrentHistoryId(null);
+                }
+                await deleteHistoryItemFromFirestore(currentUid, sessionId);
+                triggerToast("Session Deleted 🗑️", "AI Tutor session was removed from your history.", "AI Tutor");
+              }}
               onCreateQuiz={() => setMode(AppMode.QUIZ)}
             />
           </div>
