@@ -7,15 +7,15 @@ export const calculateProfileCompletion = (profile: UserProfile): number => {
   if (profile.displayName && profile.displayName.length >= 2) completion += 10;
   if (profile.photoURL) completion += 10;
   if (profile.dob) completion += 10;
-  if (profile.institution && profile.institution.trim().length > 0) completion += 10;
+  if (profile.institution) completion += 10;
   if (profile.grade) completion += 10;
   if (profile.board) completion += 5;
   if (profile.state) completion += 5;
   if (profile.district) completion += 5;
   if (profile.bio && profile.bio.length >= 5) completion += 10;
   if (profile.phoneNumber) completion += 15;
-  if (profile.learningGoal || (profile.learningGoals && profile.learningGoals.length > 0)) completion += 5;
-  if (profile.learningStyle || (profile.learningStyles && profile.learningStyles.length > 0)) completion += 5;
+  if (profile.learningGoal) completion += 5;
+  if (profile.learningStyle) completion += 5;
   
   return Math.min(100, completion);
 };
@@ -26,33 +26,21 @@ export const getMissingProfileFields = (profile: UserProfile): string[] => {
   if (!profile.displayName || profile.displayName.length < 2) missing.push("Full Name");
   if (!profile.photoURL) missing.push("Profile Photo");
   if (!profile.dob) missing.push("Date of Birth");
-  if (!profile.institution || profile.institution.trim().length === 0) missing.push("School Selection");
+  if (!profile.institution) missing.push("School/Institution");
   if (!profile.grade) missing.push("Class/Grade");
   if (!profile.board) missing.push("Board");
   if (!profile.state) missing.push("State");
   if (!profile.district) missing.push("District");
   if (!profile.bio || profile.bio.length < 5) missing.push("About Me");
   if (!profile.phoneNumber) missing.push("Phone Number");
-  if (!profile.learningGoal && (!profile.learningGoals || profile.learningGoals.length === 0)) missing.push("Learning Goal");
-  if (!profile.learningStyle && (!profile.learningStyles || profile.learningStyles.length === 0)) missing.push("Learning Style");
+  if (!profile.learningGoal) missing.push("Learning Goal");
+  if (!profile.learningStyle) missing.push("Learning Style");
   
   return missing;
 };
 
-export const generateSjTutorId = (): string => {
-  const date = new Date();
-  const yy = String(date.getFullYear()).slice(-2);
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const period = `${yy}${mm}`; // e.g. 2608
-  
-  // 6 random digits
-  const randomNum = Math.floor(100000 + Math.random() * 900000);
-  return `SJTA-${period}-${randomNum}`;
-};
-
 export const generateRegistrationNumber = (profile: UserProfile): string => {
-  if (profile.sjTutorId) return profile.sjTutorId;
-  if (!profile.displayName) return generateSjTutorId();
+  if (!profile.displayName) return '';
   
   const names = profile.displayName.trim().split(/\s+/).filter(Boolean);
   const firstName = names[0] || '';

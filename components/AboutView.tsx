@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Target, Zap, Shield, Heart, Mail, Phone, Globe, Lock, Lightbulb, Award, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Target, Zap, Shield, Heart, Mail, Phone, Globe, Lock, Lightbulb, Award, Sparkles } from 'lucide-react';
 import Logo from './Logo';
 
 interface AboutViewProps {
@@ -34,86 +34,52 @@ const AboutView: React.FC<AboutViewProps> = ({ onNavigateToLegal }) => {
         </p>
       </div>
 
-      {/* Innovators, Inventors & Public Developer Information */}
+      {/* Innovators & Inventors Showcase Section */}
       <div className="bg-gradient-to-r from-amber-500/10 via-primary-500/10 to-blue-500/10 dark:from-amber-500/20 dark:via-primary-500/20 dark:to-blue-500/20 rounded-3xl p-8 border border-amber-500/20 dark:border-amber-500/30 shadow-sm relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <Lightbulb className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2">
-                Public Developer &amp; Founder Information
-                <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Official verified creators &amp; engineers behind SJ Tutor AI</p>
-            </div>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <Lightbulb className="w-5 h-5" />
           </div>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold rounded-full w-fit">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Publicly Listed &amp; Verified
-          </span>
+          <div>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+              Innovators &amp; Inventors
+              <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">The creative minds pioneering SJ Tutor AI</p>
+          </div>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-6">
           {/* Innovator 1 */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-black text-xl flex items-center justify-center shadow-md shrink-0">
-                SJ
-              </div>
-              <div>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider mb-1">
-                  <Award className="w-3 h-3" /> Founder &amp; Lead Architect
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Sadanand Jyoti</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  Visionary architect behind SJ Tutor AI&apos;s intelligent learning frameworks, adaptive tutoring models, and personalized student study workflows.
-                </p>
-              </div>
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm flex items-start gap-4 hover:shadow-md transition-all">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-black text-lg flex items-center justify-center shadow-md shrink-0">
+              SJ
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="flex items-center gap-1 font-mono text-amber-600 dark:text-amber-400">
-                <Mail className="w-3.5 h-3.5" /> sadanandj2011@gmail.com
-              </span>
-              <span>India</span>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider mb-1">
+                <Award className="w-3 h-3" /> Lead Innovator &amp; Founder
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Sadanand Jyoti</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                Visionary architect behind SJ Tutor AI&apos;s intelligent learning frameworks, adaptive tutoring models, and personalized student study workflows.
+              </p>
             </div>
           </div>
 
           {/* Innovator 2 */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-500 text-white font-black text-xl flex items-center justify-center shadow-md shrink-0">
-                SP
-              </div>
-              <div>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider mb-1">
-                  <Award className="w-3 h-3" /> Co-Developer &amp; Systems Engineer
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Samanyu S Patil</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  Co-developer pioneering smart learning algorithms, automated study aids, and interactive student success tools.
-                </p>
-              </div>
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-sm flex items-start gap-4 hover:shadow-md transition-all">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 text-white font-black text-lg flex items-center justify-center shadow-md shrink-0">
+              SP
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="flex items-center gap-1 font-mono text-blue-600 dark:text-blue-400">
-                <Mail className="w-3.5 h-3.5" /> sjtutorai@gmail.com
-              </span>
-              <span>India</span>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider mb-1">
+                <Award className="w-3 h-3" /> Innovator &amp; Co-Inventor
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Samanyu S Patil</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                Co-inventor pioneering smart learning algorithms, automated study aids, and interactive student success tools.
+              </p>
             </div>
-          </div>
-        </div>
-
-        {/* Machine readable transparency link */}
-        <div className="mt-6 p-4 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400">
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-primary-500 shrink-0" />
-            <span>Public developer credentials verified for web indexes and academic research.</span>
-          </div>
-          <div className="flex items-center gap-3 font-mono text-[11px] text-primary-600 dark:text-primary-400">
-            <a href="/humans.txt" target="_blank" rel="noopener noreferrer" className="hover:underline">humans.txt</a>
-            <span>•</span>
-            <a href="/developers.json" target="_blank" rel="noopener noreferrer" className="hover:underline">developers.json</a>
           </div>
         </div>
       </div>

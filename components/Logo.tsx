@@ -11,11 +11,11 @@ interface LogoProps {
 }
 
 const FALLBACK_SOURCES = [
-  SJTUTOR_AVATAR_REMOTE, // "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg"
-  SJTUTOR_AVATAR_IBB, // "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg"
   SJTUTOR_AVATAR, // "/logo.png"
+  SJTUTOR_AVATAR_IBB, // "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg"
   "/favicon-512x512.png",
-  "/favicon.png"
+  "/favicon.png",
+  SJTUTOR_AVATAR_REMOTE
 ];
 
 // Infallible High-Definition Vector SVG Logo Fallback (Gold ring, deep midnight blue, graduation cap & AI sparkle)

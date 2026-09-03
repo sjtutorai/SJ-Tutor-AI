@@ -8,6 +8,7 @@ import {
   collection,
   query,
   where,
+  limit,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import {
@@ -592,140 +593,86 @@ export const ICE_SERVERS: RTCConfiguration = {
   iceCandidatePoolSize: 10,
 };
 
-export function createSilentAudioTrack(): MediaStreamTrack | null {
+export async function getLocalUserMedia(type: CallType, facingMode: "user" | "environment" = "user"): Promise<MediaStream> {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error("Camera/Microphone access is not supported on this browser.");
+  }
+
+  // Multi-tier fallback strategy to guarantee microphone and camera reliably activate across all devices
+  // Tier 1: Advanced Studio Audio + HD Video if requested
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return null;
-    const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const dst = ctx.createMediaStreamDestination();
-    const gain = ctx.createGain();
-    gain.gain.value = 0; // completely silent
-    osc.connect(gain);
-    gain.connect(dst);
-    osc.start();
-    const [track] = dst.stream.getAudioTracks();
-    return track || null;
-  } catch (e) {
-    console.warn("Could not create Web Audio silent track fallback:", e);
-    return null;
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: type === "video" ? {
+        facingMode: { ideal: facingMode },
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
+      } : false,
+    });
+    stream.getTracks().forEach((t) => { t.enabled = true; });
+    return stream;
+  } catch (err1: any) {
+    console.warn("Tier 1 getUserMedia failed, trying Tier 2 standard constraints...", err1);
   }
-}
 
-export async function getLocalUserMedia(
-  type: CallType,
-  facingMode: "user" | "environment" = "user"
-): Promise<MediaStream> {
-  const tracks: MediaStreamTrack[] = [];
-  let audioAcquired = false;
+  // Tier 2: Standard Audio + Relaxed Video
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: type === "video" ? { facingMode } : false,
+    });
+    stream.getTracks().forEach((t) => { t.enabled = true; });
+    return stream;
+  } catch (err2: any) {
+    console.warn("Tier 2 getUserMedia failed, trying Tier 3 unconstrained video...", err2);
+  }
 
-  if (typeof navigator !== "undefined" && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    if (type === "video") {
-      // 1. Try unified audio + video HD request
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: { ideal: true },
-            noiseSuppression: { ideal: true },
-            autoGainControl: { ideal: true },
-          },
-          video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1280, max: 1920 },
-            height: { ideal: 720, max: 1080 },
-          },
-        });
-        stream.getTracks().forEach((track) => {
-          track.enabled = true;
-          tracks.push(track);
-          if (track.kind === "audio") audioAcquired = true;
-        });
-      } catch (errCombinedHD) {
-        console.warn("Unified HD audio/video request failed, trying standard audio/video:", errCombinedHD);
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: { facingMode: { ideal: facingMode } },
-          });
-          stream.getTracks().forEach((track) => {
-            track.enabled = true;
-            tracks.push(track);
-            if (track.kind === "audio") audioAcquired = true;
-          });
-        } catch (errCombinedBasic) {
-          console.warn("Combined audio/video failed, trying unconstrained video+audio or audio-only fallback:", errCombinedBasic);
-          // Try acquiring audio separately
-          try {
-            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-            const aTrack = audioStream.getAudioTracks()[0];
-            if (aTrack) {
-              aTrack.enabled = true;
-              tracks.push(aTrack);
-              audioAcquired = true;
-            }
-          } catch (eAudio) {
-            console.warn("Audio-only fallback also failed:", eAudio);
-          }
-
-          // Try acquiring video separately
-          try {
-            const videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-            const vTrack = videoStream.getVideoTracks()[0];
-            if (vTrack) {
-              vTrack.enabled = true;
-              tracks.push(vTrack);
-            }
-          } catch (eVideo) {
-            console.warn("Video-only fallback also failed:", eVideo);
-          }
-        }
-      }
-    } else {
-      // Audio-only call
-      try {
-        const audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: { ideal: true },
-            noiseSuppression: { ideal: true },
-            autoGainControl: { ideal: true },
-          },
-          video: false,
-        });
-        const aTrack = audioStream.getAudioTracks()[0];
-        if (aTrack) {
-          aTrack.enabled = true;
-          tracks.push(aTrack);
-          audioAcquired = true;
-        }
-      } catch (errAudioHD) {
-        console.warn("HD audio constraints failed, trying basic audio:", errAudioHD);
-        try {
-          const basicAudioStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: false,
-          });
-          const aTrack = basicAudioStream.getAudioTracks()[0];
-          if (aTrack) {
-            aTrack.enabled = true;
-            tracks.push(aTrack);
-            audioAcquired = true;
-          }
-        } catch (errAudioBasic) {
-          console.warn("Microphone hardware access unavailable or denied:", errAudioBasic);
-        }
-      }
+  // Tier 3: Unconstrained Video + Standard Audio
+  if (type === "video") {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
+      });
+      stream.getTracks().forEach((t) => { t.enabled = true; });
+      return stream;
+    } catch (err3: any) {
+      console.warn("Tier 3 unconstrained video failed, trying audio-only fallback...", err3);
     }
   }
 
-  // Fallback: If no audio track was acquired, create a silent WebAudio track so WebRTC signaling doesn't fail
-  if (!audioAcquired) {
-    const silentTrack = createSilentAudioTrack();
-    if (silentTrack) {
-      tracks.push(silentTrack);
+  // Tier 4: Audio-Only Fallback
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false,
+    });
+    stream.getTracks().forEach((t) => { t.enabled = true; });
+    return stream;
+  } catch (err4: any) {
+    console.warn("Audio-only getUserMedia failed, attempting silent audio fallback context...", err4);
+    // Tier 5: Dummy silent audio track so WebRTC signaling does not fail when no hardware mic is connected
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const dst = ctx.createMediaStreamDestination();
+      const gain = ctx.createGain();
+      gain.gain.value = 0; // completely silent
+      osc.connect(gain);
+      gain.connect(dst);
+      osc.start();
+      const dummyStream = dst.stream;
+      return dummyStream;
+    } catch (err5) {
+      console.error("All getUserMedia attempts failed:", err5);
+      throw err4;
     }
   }
-
-  return new MediaStream(tracks);
 }
 
 export async function getVideoMediaTrack(facingMode: "user" | "environment" = "user"): Promise<MediaStreamTrack | null> {
@@ -1002,24 +949,10 @@ export async function endDirectCall(callId: string, durationSeconds?: number) {
   }).catch(() => {});
 }
 
-// Helper to sanitize WebRTC ICE candidates for Firestore storage (strips undefined values)
-export function sanitizeIceCandidate(candidate: RTCIceCandidate | RTCIceCandidateInit): Record<string, any> {
-  const json: any = typeof (candidate as any).toJSON === "function" ? (candidate as any).toJSON() : candidate;
-  const sanitized: Record<string, any> = {
-    candidate: json.candidate || "",
-    sdpMid: json.sdpMid !== undefined && json.sdpMid !== null ? json.sdpMid : null,
-    sdpMLineIndex: json.sdpMLineIndex !== undefined && json.sdpMLineIndex !== null ? json.sdpMLineIndex : null,
-  };
-  if (json.usernameFragment) {
-    sanitized.usernameFragment = json.usernameFragment;
-  }
-  return sanitized;
-}
-
 export async function addDirectCallIceCandidate(callId: string, isCaller: boolean, candidate: RTCIceCandidate) {
   try {
     const callRef = doc(db, "calls", callId);
-    const candidateJson = sanitizeIceCandidate(candidate);
+    const candidateJson = candidate.toJSON();
 
     if (isCaller) {
       await updateDoc(callRef, {
@@ -1076,7 +1009,7 @@ export function subscribeToIncomingCalls(
   const q = query(
     callsCol,
     where("receiverId", "==", currentUid),
-    where("status", "==", "ringing")
+    limit(10)
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -1090,7 +1023,7 @@ export function subscribeToIncomingCalls(
         docData.status === "ringing" &&
         docData.receiverId === currentUid &&
         docData.callerId !== currentUid &&
-        now - (docData.startedAt || 0) < 120000 // 2-minute ringing grace window
+        now - (docData.startedAt || 0) < 90000 // 90-second ringing grace window
       ) {
         if (!activeRingingCall || (docData.startedAt || 0) > (activeRingingCall.startedAt || 0)) {
           activeRingingCall = docData;
@@ -1471,7 +1404,7 @@ export class GroupMeshManager {
           fromUid: this.currentUid,
           toUid: peerUid,
           type: "candidate",
-          candidate: sanitizeIceCandidate(event.candidate),
+          candidate: event.candidate.toJSON(),
           timestamp: Date.now(),
         });
       }

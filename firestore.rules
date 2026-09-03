@@ -61,12 +61,6 @@ service cloud.firestore {
       }
     }
 
-    // User Settings collection (Device sync & preferences)
-    match /userSettings/{userId} {
-      allow read: if true;
-      allow write: if (isOwner(userId) || isAdmin() || !isSignedIn()) && isValidId(userId);
-    }
-
     // Top-level notifications (Admin scheduled or broadcast)
     match /notifications/{notificationId} {
       allow read: if true;

@@ -50,10 +50,9 @@ export const TwoStepLoginModal: React.FC<TwoStepLoginModalProps> = ({
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const privacySettings = SettingsService.getSettings().privacy;
-  const storedSecret = userProfile.twoFactorPassword || privacySettings.twoFactorPassword || userProfile.securityPin || privacySettings.pin || '';
-  const configuredQuestion = userProfile.securityQuestion || privacySettings.securityQuestion || '';
-  const configuredAnswer = userProfile.securityAnswer || privacySettings.securityAnswer || '';
+  const storedSecret = userProfile.twoFactorPassword || userProfile.securityPin || '';
+  const configuredQuestion = userProfile.securityQuestion || SettingsService.getSettings().privacy.securityQuestion || '';
+  const configuredAnswer = userProfile.securityAnswer || SettingsService.getSettings().privacy.securityAnswer || '';
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -82,45 +81,6 @@ export const TwoStepLoginModal: React.FC<TwoStepLoginModalProps> = ({
       }
     } catch {
       setError('Verification error. Please try again.');
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  // Set 2-Step verification password if none existed yet
-  const handleSetInitialPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!password.trim() || password.trim().length < 4) {
-      setError('Password must be at least 4 characters long.');
-      return;
-    }
-
-    setIsVerifying(true);
-    setError(null);
-
-    try {
-      const hashed = await SecurityPinService.hashSecret(password.trim(), uid);
-      const updatedProfile: Partial<UserProfile> = {
-        twoFactorEnabled: true,
-        twoFactorPassword: hashed,
-      };
-
-      if (onUpdateProfile) {
-        await onUpdateProfile(updatedProfile);
-      }
-
-      SettingsService.updateSettings({
-        privacy: {
-          ...SettingsService.getSettings().privacy,
-          twoFactor: true,
-          twoFactorPassword: hashed,
-        },
-      });
-
-      SecurityPinService.setTwoStepVerified(uid);
-      onVerifySuccess();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to save 2-step password.');
     } finally {
       setIsVerifying(false);
     }
@@ -240,72 +200,28 @@ export const TwoStepLoginModal: React.FC<TwoStepLoginModalProps> = ({
         )}
 
         {!storedSecret ? (
-          <form onSubmit={handleSetInitialPassword} className="space-y-4">
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl text-emerald-800 dark:text-emerald-200 text-xs leading-relaxed">
-              <div className="flex items-center gap-1.5 font-bold text-emerald-950 dark:text-emerald-100 mb-1">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                Set Your 2-Step Verification Password
+          <div className="space-y-4">
+            <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl text-amber-800 dark:text-amber-200 text-xs leading-relaxed space-y-1.5">
+              <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-100">
+                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                No 2-Step Password Kept
               </div>
               <p>
-                Enter a 2-step verification password (min. 4 characters) to secure your account. You will use this password on all future logins.
+                Your account does not have a 2-Step Verification password configured yet. You can continue into your account and configure one in Settings &gt; Privacy &amp; Security.
               </p>
             </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Create 2-Step Password
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1"
-                >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  <span>{showPassword ? 'Hide' : 'Show'}</span>
-                </button>
-              </div>
-
-              <div className="relative">
-                <input
-                  ref={inputRef}
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter a new 2-step password (min 4 chars)"
-                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <button
-                type="submit"
-                disabled={isVerifying}
-                className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl font-bold text-sm shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isVerifying ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" /> Save Password &amp; Unlock
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  SecurityPinService.setTwoStepVerified(uid);
-                  onVerifySuccess();
-                }}
-                className="w-full py-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium transition"
-              >
-                Skip for now &amp; configure later
-              </button>
-            </div>
-          </form>
+            <button
+              type="button"
+              onClick={() => {
+                SecurityPinService.setTwoStepVerified(uid);
+                onVerifySuccess();
+              }}
+              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl font-bold text-sm shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2"
+            >
+              <ShieldCheck className="w-4 h-4" /> Continue to Dashboard
+            </button>
+          </div>
         ) : (
           <form onSubmit={handleVerify} className="space-y-4">
             <div>

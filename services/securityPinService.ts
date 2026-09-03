@@ -52,7 +52,6 @@ export const SecurityPinService = {
 
   /**
    * Checks if an entered secret (password or PIN) matches stored hash or plain string.
-   * Tests all potential salt candidates (active UID, profile UID, ID session, default salts) to ensure zero false rejections.
    */
   verifySecret: async (
     enteredSecret: string,
@@ -60,52 +59,18 @@ export const SecurityPinService = {
     salt: string = 'sjtutor_salt_v1'
   ): Promise<boolean> => {
     if (!enteredSecret || !storedSecretOrHash) return false;
-    const cleanEntered = enteredSecret.trim();
-    const cleanStored = storedSecretOrHash.trim();
-
-    // 1. Direct plain string match
-    if (cleanEntered === cleanStored) {
+    
+    if (enteredSecret.trim() === storedSecretOrHash.trim()) {
       return true;
     }
 
-    // Collect all plausible candidate salts across different auth methods
-    const candidateSalts = new Set<string>();
-    if (salt) candidateSalts.add(salt);
-    candidateSalts.add('sjtutor_salt_v1');
-    candidateSalts.add('sjtutor_user');
-    candidateSalts.add('sjtutor_security_q');
-    candidateSalts.add('guest');
-    candidateSalts.add('');
-
-    try {
-      if (typeof window !== 'undefined') {
-        const activeId = localStorage.getItem('sjtutor_active_id_session');
-        if (activeId) candidateSalts.add(activeId);
-        
-        const rawProf = localStorage.getItem('sjtutor_user_profile');
-        if (rawProf) {
-          const parsed = JSON.parse(rawProf);
-          if (parsed?.uid) candidateSalts.add(parsed.uid);
-          if (parsed?.email) candidateSalts.add(parsed.email);
-        }
-      }
-    } catch {
-      // ignore localstorage errors
+    const computed = await SecurityPinService.hashSecret(enteredSecret.trim(), salt);
+    if (computed === storedSecretOrHash.trim()) {
+      return true;
     }
 
-    // Test each candidate salt
-    for (const testSalt of candidateSalts) {
-      try {
-        const computed = await SecurityPinService.hashSecret(cleanEntered, testSalt);
-        if (computed === cleanStored) {
-          return true;
-        }
-      } catch {
-        // continue
-      }
-    }
-
-    return false;
+    const computedDefault = await SecurityPinService.hashSecret(enteredSecret.trim(), 'sjtutor_salt_v1');
+    return computedDefault === storedSecretOrHash.trim();
   },
 
   /**
@@ -120,21 +85,19 @@ export const SecurityPinService = {
   },
 
   /**
-   * Checks if 2-Step Login verification was already passed for this logged-in account in the current session.
-   * Prompts whenever a fresh login occurs or after logout.
+   * Checks if 2-Step Login verification was already passed in this login session.
    */
   isTwoStepVerified: (uid?: string | null): boolean => {
     if (!uid) return true;
     try {
-      const session = sessionStorage.getItem(`${STORAGE_2STEP_PREFIX}${uid}`);
-      return session === 'true';
+      return sessionStorage.getItem(`${STORAGE_2STEP_PREFIX}${uid}`) === 'true';
     } catch {
       return false;
     }
   },
 
   /**
-   * Marks 2-Step Login verification as passed for the active session.
+   * Marks 2-Step Login verification as passed for this login session.
    */
   setTwoStepVerified: (uid?: string | null): void => {
     if (!uid) return;
@@ -146,21 +109,20 @@ export const SecurityPinService = {
   },
 
   /**
-   * Clears 2-Step Login verification state (triggered on logout or fresh re-login).
+   * Clears 2-Step Login verification state.
    */
   clearTwoStepVerified: (uid?: string | null): void => {
     if (!uid) return;
     try {
       sessionStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
-      localStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
     } catch (e) {
       console.warn('Failed to clear 2-step verified state:', e);
     }
   },
 
   /**
-   * Checks if the user's PIN lock is unlocked in the current page session.
-   * Resets upon page refresh/revisit so the user enters their Security PIN when refreshing or visiting.
+   * Checks if the user's session is already unlocked in the active page lifecycle.
+   * Resets upon page refresh so the user is asked for their PIN again.
    */
   isSessionUnlocked: (uid?: string | null): boolean => {
     if (!uid) return true;
@@ -176,7 +138,7 @@ export const SecurityPinService = {
   },
 
   /**
-   * Locks the session for the given user (on logout or manual lock).
+   * Locks the session for the given user.
    */
   lockSession: (uid?: string | null): void => {
     if (!uid) {
@@ -308,41 +270,15 @@ export const SecurityPinService = {
       return true;
     }
 
-    const candidateSalts = new Set<string>();
-    if (salt) candidateSalts.add(salt);
-    candidateSalts.add('sjtutor_security_q');
-    candidateSalts.add('sjtutor_salt_v1');
-    candidateSalts.add('sjtutor_user');
-    candidateSalts.add('guest');
-    candidateSalts.add('');
-
-    try {
-      if (typeof window !== 'undefined') {
-        const activeId = localStorage.getItem('sjtutor_active_id_session');
-        if (activeId) candidateSalts.add(activeId);
-        
-        const rawProf = localStorage.getItem('sjtutor_user_profile');
-        if (rawProf) {
-          const parsed = JSON.parse(rawProf);
-          if (parsed?.uid) candidateSalts.add(parsed.uid);
-        }
-      }
-    } catch {
-      // ignore
+    // Hash match with user salt
+    const computed = await SecurityPinService.hashSecurityAnswer(enteredAnswer, salt);
+    if (computed === storedAnswerOrHash.trim()) {
+      return true;
     }
 
-    for (const testSalt of candidateSalts) {
-      try {
-        const computed = await SecurityPinService.hashSecurityAnswer(enteredAnswer, testSalt);
-        if (computed.toLowerCase() === normalizedStored) {
-          return true;
-        }
-      } catch {
-        // continue
-      }
-    }
-
-    return false;
+    // Hash match with default salt
+    const computedDefault = await SecurityPinService.hashSecurityAnswer(enteredAnswer, 'sjtutor_security_q');
+    return computedDefault === storedAnswerOrHash.trim();
   },
 
   /**

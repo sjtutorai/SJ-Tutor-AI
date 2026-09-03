@@ -79,7 +79,7 @@ Disallow: /notifications
 Disallow: /history
 Disallow: /auth
 
-Sitemap: https://sjtutor.ai/sitemap.xml`);
+Sitemap: https://sjtutorai.vercel.app/sitemap.xml`);
   }
 });
 
@@ -91,108 +91,42 @@ app.get("/sitemap.xml", (req, res) => {
   } else {
     res.setHeader("Content-Type", "application/xml");
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://sjtutor.ai/</loc>
-    <lastmod>2026-09-02</lastmod>
+    <loc>https://sjtutorai.vercel.app/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
-    <image:image>
-      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
-      <image:title><![CDATA[SJ Tutor AI Logo - All-in-One AI Study Companion]]></image:title>
-      <image:caption><![CDATA[Official brand logo for SJ Tutor AI - All-in-One AI Study Companion]]></image:caption>
-    </image:image>
   </url>
   <url>
-    <loc>https://sjtutor.ai/about</loc>
-    <lastmod>2026-09-02</lastmod>
+    <loc>https://sjtutorai.vercel.app/about</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
-    <image:image>
-      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
-      <image:title><![CDATA[SJ Tutor AI Brand Identity - About Us]]></image:title>
-      <image:caption><![CDATA[SJ Tutor AI logo and team mission]]></image:caption>
-    </image:image>
   </url>
   <url>
-    <loc>https://sjtutor.ai/features</loc>
-    <lastmod>2026-09-02</lastmod>
+    <loc>https://sjtutorai.vercel.app/features</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
-    <image:image>
-      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
-      <image:title><![CDATA[SJ Tutor AI Study Tools & Features]]></image:title>
-      <image:caption><![CDATA[AI tutoring, quiz generator, summary and homework solver tools]]></image:caption>
-    </image:image>
   </url>
   <url>
-    <loc>https://sjtutor.ai/contact</loc>
-    <lastmod>2026-09-02</lastmod>
+    <loc>https://sjtutorai.vercel.app/contact</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
-    <image:image>
-      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
-      <image:title><![CDATA[Contact SJ Tutor AI Support]]></image:title>
-      <image:caption><![CDATA[SJ Tutor AI contact and developer inquiries]]></image:caption>
-    </image:image>
   </url>
   <url>
-    <loc>https://sjtutor.ai/privacy</loc>
-    <lastmod>2026-09-02</lastmod>
+    <loc>https://sjtutorai.vercel.app/privacy</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
-    <image:image>
-      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
-      <image:title><![CDATA[SJ Tutor AI Privacy Policy]]></image:title>
-      <image:caption><![CDATA[SJ Tutor AI student data protection and privacy policy]]></image:caption>
-    </image:image>
   </url>
   <url>
-    <loc>https://sjtutor.ai/terms</loc>
-    <lastmod>2026-09-02</lastmod>
+    <loc>https://sjtutorai.vercel.app/terms</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
-    <image:image>
-      <image:loc>https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg</image:loc>
-      <image:title><![CDATA[SJ Tutor AI Terms of Service]]></image:title>
-      <image:caption><![CDATA[SJ Tutor AI student agreement and terms of use]]></image:caption>
-    </image:image>
   </url>
 </urlset>`);
   }
 });
 
-// Multi-Key Rotation Pool for Gemini API (Supports GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3)
-function getAvailableServerGeminiKeys(): string[] {
-  const rawKeys = [
-    process.env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY_2,
-    process.env.GEMINI_API_KEY_3,
-    process.env.GEMINI_API_KEY_1,
-    process.env.API_KEY,
-  ];
-  return Array.from(
-    new Set(
-      rawKeys
-        .filter((k): k is string => typeof k === 'string' && k.trim().length > 0 && !k.startsWith('YOUR_'))
-        .map(k => k.trim())
-    )
-  );
-}
-
-let serverKeyIndex = 0;
-
 // API routes
-app.get("/api/health", (req, res) => {
-  const keys = getAvailableServerGeminiKeys();
-  res.json({
-    status: "ok",
-    geminiKeyCount: keys.length,
-    activeModel: "models/gemini-3.6-flash"
-  });
-});
-
 app.use("/api/auth", authRoutes);
 
 app.post("/api/generate-image", async (req, res, next) => {
@@ -204,49 +138,41 @@ app.post("/api/generate-image", async (req, res, next) => {
     const cleanPrompt = prompt.trim();
     let imageUrl = "";
 
-    const keys = getAvailableServerGeminiKeys();
-    if (keys.length > 0) {
-      // Try keys in rotating order with failover
-      const startIndex = serverKeyIndex % keys.length;
-      serverKeyIndex = (serverKeyIndex + 1) % keys.length;
-
-      for (let attempt = 0; attempt < keys.length; attempt++) {
-        const activeKey = keys[(startIndex + attempt) % keys.length];
-        try {
-          const { GoogleGenAI } = await import("@google/genai");
-          const ai = new GoogleGenAI({ 
-            apiKey: activeKey,
-            httpOptions: {
-              headers: {
-                'User-Agent': 'aistudio-build',
-              }
-            }
-          });
-
-          const response = await ai.models.generateContent({
-            model: 'gemini-3.1-flash-lite-image',
-            contents: {
-              parts: [{ text: `High quality digital background wallpaper: ${cleanPrompt}. Clean composition, wallpaper format, aesthetic lighting.` }]
-            },
-            config: {
-              imageConfig: {
-                aspectRatio: aspectRatio as any || "16:9",
-              }
-            }
-          });
-
-          const parts = response.candidates?.[0]?.content?.parts || [];
-          for (const part of parts) {
-            if (part.inlineData && part.inlineData.data) {
-              const mimeType = part.inlineData.mimeType || 'image/png';
-              imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
-              break;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+    if (apiKey) {
+      try {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({ 
+          apiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
             }
           }
-          if (imageUrl) break;
-        } catch (geminiErr: any) {
-          console.warn(`[Server] Image generation attempt ${attempt + 1}/${keys.length} with key failed:`, geminiErr.message);
+        });
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-lite-image',
+          contents: {
+            parts: [{ text: `High quality digital background wallpaper: ${cleanPrompt}. Clean composition, wallpaper format, aesthetic lighting.` }]
+          },
+          config: {
+            imageConfig: {
+              aspectRatio: aspectRatio as any || "16:9",
+            }
+          }
+        });
+
+        const parts = response.candidates?.[0]?.content?.parts || [];
+        for (const part of parts) {
+          if (part.inlineData && part.inlineData.data) {
+            const mimeType = part.inlineData.mimeType || 'image/png';
+            imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+            break;
+          }
         }
+      } catch (geminiErr: any) {
+        console.warn("Gemini Image generation fallback to generative synthesis:", geminiErr.message);
       }
     }
 
@@ -390,10 +316,20 @@ app.post("/api/transcribe-audio", async (req, res) => {
       }
     }
 
-    const keys = getAvailableServerGeminiKeys();
-    if (keys.length === 0) {
-      return res.status(500).json({ error: "GEMINI_API_KEY is not configured on server" });
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+    if (!apiKey) {
+      return res.status(500).json({ error: "GEMINI_API_KEY not configured on server" });
     }
+
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
 
     const prompt = `Transcribe all spoken words in this audio recording accurately and faithfully. 
 Preserve the speaker's language (primarily ${language} or any spoken language in the audio).
@@ -401,87 +337,23 @@ Return ONLY the raw transcription text with proper capitalization and punctuatio
 Do NOT include any timestamps, markdown labels, explanations, or quotes. 
 If the audio is completely silent or contains no discernible speech, return an empty string.`;
 
-    const { GoogleGenAI } = await import("@google/genai");
-
-    const startIndex = serverKeyIndex % keys.length;
-    serverKeyIndex = (serverKeyIndex + 1) % keys.length;
-
-    let lastError: any = null;
-
-    for (let attempt = 0; attempt < keys.length; attempt++) {
-      const activeKey = keys[(startIndex + attempt) % keys.length];
-      try {
-        const ai = new GoogleGenAI({
-          apiKey: activeKey,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
-            }
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.7-flash',
+      contents: [
+        {
+          inlineData: {
+            mimeType: finalMimeType || 'audio/webm',
+            data: cleanBase64,
           }
-        });
-
-        // Use Interactions API with models/gemini-3.6-flash
-        try {
-          const interaction = await ai.interactions.create({
-            model: 'models/gemini-3.6-flash',
-            input: [
-              {
-                type: "audio",
-                data: cleanBase64,
-                mime_type: finalMimeType || 'audio/webm',
-              },
-              {
-                type: "text",
-                text: prompt
-              }
-            ]
-          });
-
-          let transcript = "";
-          if (typeof interaction.output_text === 'string') {
-            transcript = interaction.output_text.trim();
-          } else if (Array.isArray(interaction.steps)) {
-            for (let i = interaction.steps.length - 1; i >= 0; i--) {
-              const step = interaction.steps[i];
-              if (step.type === 'model_output' && Array.isArray(step.content)) {
-                const textObj = step.content.find((c: any) => c.type === 'text' && c.text);
-                if (textObj?.text) {
-                  transcript = textObj.text.trim();
-                  break;
-                }
-              }
-            }
-          }
-
-          return res.json({ success: true, transcript });
-        } catch (interactionErr: any) {
-          console.warn("[Server] Audio transcription Interactions API fallback to generateContent:", interactionErr.message);
+        },
+        {
+          text: prompt
         }
+      ]
+    });
 
-        const response = await ai.models.generateContent({
-          model: 'models/gemini-3.6-flash',
-          contents: [
-            {
-              inlineData: {
-                mimeType: finalMimeType || 'audio/webm',
-                data: cleanBase64,
-              }
-            },
-            {
-              text: prompt
-            }
-          ]
-        });
-
-        const transcript = response.text?.trim() || "";
-        return res.json({ success: true, transcript });
-      } catch (geminiAudioErr: any) {
-        lastError = geminiAudioErr;
-        console.warn(`[Audio Transcription] Attempt ${attempt + 1}/${keys.length} with key failed:`, geminiAudioErr.message);
-      }
-    }
-
-    return res.status(500).json({ success: false, error: lastError?.message || "Failed to transcribe audio" });
+    const transcript = response.text?.trim() || "";
+    res.json({ success: true, transcript });
   } catch (error: any) {
     console.error("[Audio Transcription API Error]:", error);
     res.status(500).json({ success: false, error: error.message || "Failed to transcribe audio" });
@@ -533,7 +405,7 @@ async function startServer() {
         <meta name="twitter:card" content="summary_large_image">
         <meta name="twitter:title" content="${title}">
         <meta name="twitter:description" content="${desc}">
-        <link rel="canonical" href="https://sjtutor.ai/quiz/${classSlug}/${subjectSlug}/${chapterSlug}">
+        <link rel="canonical" href="https://sjtutorai.vercel.app/quiz/${classSlug}/${subjectSlug}/${chapterSlug}">
       `;
 
       if (process.env.NODE_ENV !== "production") {
@@ -541,7 +413,7 @@ async function startServer() {
       } else {
          const indexPath = path.resolve(resolvedDirname, "dist", "index.html");
          let html = await fs.promises.readFile(indexPath, 'utf-8');
-         html = html.replace('<title>SJ Tutor AI - All-in-One AI Study Companion</title>', metaTags);
+         html = html.replace('<title>SJ Tutor AI - Your AI Study Buddy</title>', metaTags);
          res.send(html);
       }
     } catch (e) {

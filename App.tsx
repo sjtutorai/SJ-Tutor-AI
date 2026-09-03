@@ -23,7 +23,6 @@ import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
 import LoadingState from "./components/LoadingState";
 import SplashScreen from "./components/SplashScreen";
-import LandingPage from "./components/LandingPage";
 import DashboardSkeleton from "./components/DashboardSkeleton";
 import NotesView from "./components/NotesView";
 import GroupsView from "./components/GroupsView";
@@ -36,6 +35,7 @@ import AboutView from "./components/AboutView";
 import AboutModal from "./components/AboutModal";
 import ShortcutsModal from "./components/ShortcutsModal";
 import IdCardView from "./components/IdCardView";
+import LandingPage from "./components/LandingPage";
 import StudyTimerView from "./components/StudyTimerView";
 import PrivacyPolicyView from "./components/PrivacyPolicyView";
 import TermsOfServiceView from "./components/TermsOfServiceView";
@@ -69,7 +69,7 @@ import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { SEOService } from "./services/seoService";
 import { db, auth } from "./firebaseConfig";
-import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { StudyGroup } from "./types";
 import { getCurrentUserProfile, getMembershipByEmail } from "./utils/userService";
 import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, } from "firebase/auth";
@@ -1053,39 +1053,12 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Check Gemini API Key
+  // Check API Key
   useEffect(() => {
-    if (!process.env.GEMINI_API_KEY && !process.env.API_KEY) {
-      console.warn("GEMINI_API_KEY is missing in environment variables!");
+    if (!process.env.API_KEY) {
+      console.warn("API_KEY is missing in environment variables!");
     }
   }, []);
-
-  // Auto-fill grade from profile when switching modes and synchronize with Settings
-  useEffect(() => {
-    const handleSettingsSync = () => {
-      const currentSettings = SettingsService.getSettings();
-      const settingsGrade = currentSettings.learning?.grade;
-      if (settingsGrade && settingsGrade !== userProfile.grade) {
-        setUserProfile((prev) => {
-          const updated = {
-            ...prev,
-            grade: settingsGrade,
-            class: settingsGrade,
-          };
-          const activeUid = user?.uid || auth.currentUser?.uid || localStorage.getItem('sjtutor_active_id_session');
-          if (activeUid) {
-            localStorage.setItem(`profile_${activeUid}`, JSON.stringify(updated));
-          }
-          return updated;
-        });
-      }
-    };
-
-    window.addEventListener("settings-changed", handleSettingsSync);
-    return () => {
-      window.removeEventListener("settings-changed", handleSettingsSync);
-    };
-  }, [user, userProfile.grade]);
 
   // Auto-fill grade from profile when switching modes
   useEffect(() => {
@@ -1117,10 +1090,6 @@ const App: React.FC = () => {
         signInWithEmailLink(auth, email, window.location.href)
           .then(async (result) => {
             window.localStorage.removeItem('emailForSignIn');
-            if (result.user?.uid) {
-              SecurityPinService.clearTwoStepVerified(result.user.uid);
-              SecurityPinService.lockSession(result.user.uid);
-            }
             const additionalUserInfo = getAdditionalUserInfo(result);
             if (additionalUserInfo?.isNewUser) {
                const storedDisplayName = window.localStorage.getItem('displayNameForSignIn') || '';
@@ -1143,27 +1112,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Remote Settings Listener
-  useEffect(() => {
-    let unsubscribeSettings;
-    if (user) {
-      
-      const userSettingsRef = doc(db, "userSettings", user.uid);
-      
-      unsubscribeSettings = onSnapshot(userSettingsRef, (snap) => {
-        if (snap.exists()) {
-          SettingsService.applyRemoteSettings(snap.data());
-        } else {
-          const currentSettings = SettingsService.getSettings();
-          setDoc(userSettingsRef, currentSettings, { merge: true }).catch(e => console.error("Error creating initial remote settings", e));
-        }
-      });
-    }
-    return () => {
-      if (unsubscribeSettings) unsubscribeSettings();
-    };
-  }, [user]);
-
   // Auth Listener
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -1178,84 +1126,44 @@ const App: React.FC = () => {
       async (currentUser) => {
         clearTimeout(timeoutId);
         if (currentUser) {
-          setUser(currentUser);
-          try {
-            const userProf = await getCurrentUserProfile(currentUser);
-            const isRegisteredInDb = userProf.isRegisteredInFirestore || userProf.hasCompletedOnboarding;
-            
-            setUserProfile((prev) => {
-              const resolvedDob = userProf.dob || userProf.dateOfBirth || prev.dob || prev.dateOfBirth || "";
-              const merged: UserProfile = {
-                ...initialProfileState,
-                ...prev,
-                ...userProf,
-                dob: resolvedDob,
-                dateOfBirth: resolvedDob,
-                hasCompletedOnboarding: isRegisteredInDb ? true : (userProf.hasCompletedOnboarding ?? prev.hasCompletedOnboarding),
-                isRegisteredInFirestore: isRegisteredInDb ? true : (userProf.isRegisteredInFirestore ?? prev.isRegisteredInFirestore),
-              };
-              try {
-                localStorage.setItem(`profile_${currentUser.uid}`, JSON.stringify(merged));
-                localStorage.setItem('sjtutor_user_profile', JSON.stringify(merged));
-              } catch (storageErr) {
-                console.debug("Failed to cache profile in local storage:", storageErr);
-              }
-              return merged;
-            });
 
-            if (userProf.language) {
-              SettingsService.updateSettings({
-                learning: {
-                  ...SettingsService.getSettings().learning,
-                  language: userProf.language,
-                }
-              });
-              setFormData((prev) => ({
-                ...prev,
-                language: userProf.language || prev.language,
-                gradeClass: userProf.grade || userProf.class || prev.gradeClass,
-                board: userProf.board || prev.board,
-              }));
-            }
+           setUser(currentUser);
+           try {
+             const userProf = await getCurrentUserProfile(currentUser);
+             const isRegisteredInDb = userProf.isRegisteredInFirestore || userProf.hasCompletedOnboarding;
+             setUserProfile({
+               ...initialProfileState,
+               ...userProf,
+               hasCompletedOnboarding: isRegisteredInDb ? true : userProf.hasCompletedOnboarding,
+             } as any);
 
-            if (isRegisteredInDb) {
-              // User is already registered in Firestore - navigate to dashboard, hide welcome & profile prompts
-              setMode(AppMode.DASHBOARD);
-              setShowCompletionReminder(false);
-              setShowTutorial(false);
-            } else if (!userProf.hasCompletedOnboarding) {
-              setMode(AppMode.PROFILE);
-            } else {
-              setMode(AppMode.DASHBOARD);
-            }
-          } catch (e) {
-            console.error("Error fetching/creating profile:", e);
-          }
+             if (userProf.language) {
+               SettingsService.updateSettings({
+                 learning: {
+                   ...SettingsService.getSettings().learning,
+                   language: userProf.language,
+                 }
+               });
+               setFormData((prev) => ({
+                 ...prev,
+                 language: userProf.language || prev.language,
+               }));
+             }
+
+             if (isRegisteredInDb) {
+               // User is already registered in Firestore - navigate to dashboard, hide welcome & profile prompts
+               setMode(AppMode.DASHBOARD);
+               setShowCompletionReminder(false);
+               setShowTutorial(false);
+             } else if (!userProf.hasCompletedOnboarding) {
+               setMode(AppMode.PROFILE);
+             } else {
+               setMode(AppMode.DASHBOARD);
+             }
+           } catch (e) {
+             console.error("Error fetching/creating profile:", e);
+           }
         } else {
-          // Check if there is an active ID Card / Registration session
-          const activeIdUid = localStorage.getItem('sjtutor_active_id_session');
-          if (activeIdUid) {
-            const cachedProfileRaw = localStorage.getItem(`profile_${activeIdUid}`) || localStorage.getItem('sjtutor_user_profile');
-            if (cachedProfileRaw) {
-              try {
-                const cachedProfile = JSON.parse(cachedProfileRaw);
-                const mockUser: any = {
-                  uid: activeIdUid,
-                  displayName: cachedProfile.displayName || 'Scholar Member',
-                  email: cachedProfile.email || `${activeIdUid}@sjtutor.ai`,
-                  photoURL: cachedProfile.photoURL || '',
-                };
-                setUser(mockUser);
-                setUserProfile(cachedProfile);
-                setMode(AppMode.DASHBOARD);
-                setAuthLoading(false);
-                return;
-              } catch {
-                // Ignore parse error
-              }
-            }
-          }
-
           setUser(null);
           setUserProfile(initialProfileState);
           setMode(AppMode.DASHBOARD);
@@ -1277,30 +1185,29 @@ const App: React.FC = () => {
 
   // Real-time Active Devices & Session Revocation Synchronization
   useEffect(() => {
-    const activeUserId = user?.uid || (userProfile?.uid && userProfile.uid !== 'guest' ? userProfile.uid : null) || (typeof window !== 'undefined' ? localStorage.getItem('sjtutor_active_id_session') : null);
-    if (!activeUserId) {
+    if (!user) {
       setLoggedInDevices([]);
       return;
     }
 
     // 1. Register current device session
-    DeviceService.registerCurrentDevice(activeUserId);
+    DeviceService.registerCurrentDevice(user.uid);
 
     // 2. Subscribe to all active logged-in devices in real-time
-    const unsubscribeDevices = DeviceService.subscribeToUserDevices(activeUserId, (devicesList) => {
+    const unsubscribeDevices = DeviceService.subscribeToUserDevices(user.uid, (devicesList) => {
       setLoggedInDevices(devicesList);
     });
 
     // 3. Listen if this current device gets remotely logged out/revoked
-    const unsubscribeRevocation = DeviceService.listenForRevocation(activeUserId, async () => {
+    const unsubscribeRevocation = DeviceService.listenForRevocation(user.uid, async () => {
       triggerToast(
         "Session Terminated 🔒",
         "This device was logged out remotely from another device. You can log back in at any time.",
         "Important Alerts"
       );
-      if (activeUserId) {
-        SecurityPinService.clearTwoStepVerified(activeUserId);
-        SecurityPinService.lockSession(activeUserId);
+      if (user?.uid) {
+        SecurityPinService.clearTwoStepVerified(user.uid);
+        SecurityPinService.lockSession(user.uid);
       }
       DeviceService.cleanupLocalDeviceState();
       try {
@@ -1319,7 +1226,7 @@ const App: React.FC = () => {
       unsubscribeRevocation();
       DeviceService.stopHeartbeat();
     };
-  }, [user?.uid, userProfile?.uid]);
+  }, [user?.uid]);
 
   // Sync hasSeenTutorial state with localStorage
   useEffect(() => {
@@ -1346,7 +1253,7 @@ const App: React.FC = () => {
       }
 
       // SPEED OPTIMIZATION: Load locally stored profile from LocalStorage IMMEDIATELY
-      const savedProfile = localStorage.getItem(`profile_${user.uid}`) || localStorage.getItem('sjtutor_user_profile');
+      const savedProfile = localStorage.getItem(`profile_${user.uid}`);
       let cached: any = null;
       if (savedProfile) {
         try {
@@ -1357,46 +1264,26 @@ const App: React.FC = () => {
       }
 
       const membership = getMembershipByEmail(user.email);
+      const initialProfile = {
+        ...initialProfileState,
+        credits: membership ? membership.credits : 100,
+        planType: membership ? membership.planType : "Free",
+        ...cached,
+        ...(membership ? { planType: membership.planType, credits: membership.credits, hasCompletedOnboarding: true } : {}),
+        displayName: (cached && cached.displayName) || user.displayName || "",
+        photoURL: (cached && cached.photoURL) || user.photoURL || "",
+      };
 
-      // Merge profile safely without letting blank defaults overwrite real existing data
-      let currentResolvedProfile: UserProfile = initialProfileState;
-      setUserProfile((prev) => {
-        const resolvedDob = prev.dob || prev.dateOfBirth || cached?.dob || cached?.dateOfBirth || "";
-        const prevNonEmpty = Object.fromEntries(
-          Object.entries(prev).filter(([, v]) => v !== "" && v !== null && v !== undefined)
-        );
-        const cachedNonEmpty = cached ? Object.fromEntries(
-          Object.entries(cached).filter(([, v]) => v !== "" && v !== null && v !== undefined)
-        ) : {};
-
-        const merged: UserProfile = {
-          ...initialProfileState,
-          ...cachedNonEmpty,
-          ...prevNonEmpty,
-          dob: resolvedDob,
-          dateOfBirth: resolvedDob,
-          credits: membership ? membership.credits : (prev.credits || cached?.credits || 100),
-          planType: membership ? membership.planType : (prev.planType || cached?.planType || "Free"),
-          displayName: prev.displayName || cached?.displayName || user.displayName || "",
-          photoURL: prev.photoURL || cached?.photoURL || user.photoURL || "",
-          isRegisteredInFirestore: prev.isRegisteredInFirestore || cached?.isRegisteredInFirestore || false,
-          hasCompletedOnboarding: !!membership || prev.hasCompletedOnboarding || cached?.hasCompletedOnboarding || false,
-        };
-
-        try {
-          localStorage.setItem(`profile_${user.uid}`, JSON.stringify(merged));
-          localStorage.setItem('sjtutor_user_profile', JSON.stringify(merged));
-        } catch (cacheErr) {
-          console.debug("Failed to cache profile in local storage:", cacheErr);
-        }
-
-        currentResolvedProfile = merged;
-        return merged;
-      });
+      // Set user profile instantly to avoid blocking or lagging perceived speed!
+      setUserProfile((prev) => ({
+        ...initialProfile,
+        isRegisteredInFirestore: prev.isRegisteredInFirestore || cached?.isRegisteredInFirestore,
+        hasCompletedOnboarding: !!membership || prev.hasCompletedOnboarding || cached?.hasCompletedOnboarding,
+      }));
 
       // Check profile completion to trigger alerts/notifications (skip for users registered in Firestore)
       const isRegisteredInDb = userProfile.isRegisteredInFirestore || cached?.isRegisteredInFirestore || userProfile.hasCompletedOnboarding;
-      const cachedCompletion = calculateProfileCompletion(currentResolvedProfile);
+      const cachedCompletion = calculateProfileCompletion(initialProfile);
       const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
 
       if (!isRegisteredInDb && cachedCompletion < 100 && !isDismissedPrompt) {
@@ -1448,8 +1335,8 @@ const App: React.FC = () => {
     }
 
     // 1. Two-Step Verification on Login Check
-    const is2FAActive = !!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword || !!SettingsService.getSettings().privacy.twoFactor || !!SettingsService.getSettings().privacy.twoFactorPassword;
-    if (is2FAActive) {
+    const isTwoStepRequired = !!userProfile.twoFactorPassword || (!!userProfile.twoFactorEnabled && !!userProfile.twoFactorPassword);
+    if (isTwoStepRequired) {
       const alreadyTwoStepVerified = SecurityPinService.isTwoStepVerified(user.uid);
       setIsTwoStepVerified(alreadyTwoStepVerified);
     } else {
@@ -1590,33 +1477,18 @@ const App: React.FC = () => {
     newProfile: UserProfile,
     redirectDashboard = false,
   ) => {
-    const unifiedGrade = newProfile.grade || newProfile.class || "";
-    const resolvedDob = newProfile.dob || newProfile.dateOfBirth || (newProfile as any)?.birthDate || "";
-    const sanitizedProfile: UserProfile = {
-      ...newProfile,
-      grade: unifiedGrade,
-      class: unifiedGrade,
-      dob: resolvedDob,
-      dateOfBirth: resolvedDob,
-      isRegisteredInFirestore: true,
-      lastProfileUpdate: Date.now(),
-    };
-    setUserProfile(sanitizedProfile);
-    
-    if (unifiedGrade) {
+    setUserProfile(newProfile);
+    if (newProfile.grade) {
       SettingsService.updateSettings({
         learning: {
           ...SettingsService.getSettings().learning,
-          grade: unifiedGrade
+          grade: newProfile.grade
         }
       });
     }
-
-    const activeUid = user?.uid || auth.currentUser?.uid || localStorage.getItem('sjtutor_active_id_session');
-    if (activeUid) {
-      localStorage.setItem(`profile_${activeUid}`, JSON.stringify(sanitizedProfile));
-      localStorage.setItem('sjtutor_user_profile', JSON.stringify(sanitizedProfile));
-      await saveProfileToFirestore(activeUid, sanitizedProfile);
+    if (user) {
+      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
+      await saveProfileToFirestore(user.uid, newProfile);
     }
     
     // Automatically redirect to Dashboard after completing onboarding
@@ -1627,81 +1499,41 @@ const App: React.FC = () => {
   };
 
   const handleSignUpSuccess = async (signupData?: Partial<UserProfile>) => {
-    let activeUid = auth.currentUser?.uid || (signupData as any)?.uid;
-    if (!activeUid) {
-      activeUid = localStorage.getItem('sjtutor_active_id_session') || (signupData?.sjTutorId ? `id_${signupData.sjTutorId.replace(/[^a-zA-Z0-9_-]/g, '_')}` : '') || `id_${Date.now()}`;
-    }
+    if (auth.currentUser) {
+      try {
+        const userProf = await getCurrentUserProfile(auth.currentUser);
+        const mergedProfile = {
+          ...initialProfileState,
+          ...userProf,
+          ...(signupData || {}),
+        };
+        setUserProfile(mergedProfile as any);
 
-    const mockUser: any = auth.currentUser || {
-      uid: activeUid,
-      displayName: signupData?.displayName || 'Scholar Member',
-      email: signupData?.email || `${activeUid}@sjtutor.ai`,
-      photoURL: signupData?.photoURL || '',
-    };
-    setUser(mockUser);
-
-    try {
-      const userProf = auth.currentUser ? await getCurrentUserProfile(auth.currentUser) : (signupData || {});
-      const finalSjTutorId = (userProf as any)?.sjTutorId || (userProf as any)?.registrationNumber || signupData?.sjTutorId || signupData?.registrationNumber || generateSjTutorId();
-      const resolvedDob = (userProf as any)?.dob || (userProf as any)?.dateOfBirth || signupData?.dob || signupData?.dateOfBirth || "";
-      const mergedProfile = {
-        ...initialProfileState,
-        ...(signupData || {}),
-        ...userProf,
-        dob: resolvedDob,
-        dateOfBirth: resolvedDob,
-        sjTutorId: finalSjTutorId,
-        registrationNumber: finalSjTutorId,
-        isRegisteredInFirestore: true,
-        hasCompletedOnboarding: true,
-      };
-      setUserProfile(mergedProfile as any);
-
-      if (activeUid) {
-        localStorage.setItem(`profile_${activeUid}`, JSON.stringify(mergedProfile));
-        localStorage.setItem('sjtutor_user_profile', JSON.stringify(mergedProfile));
-        localStorage.setItem('sjtutor_active_id_session', activeUid);
-        await saveProfileToFirestore(activeUid, mergedProfile);
-      }
-
-      if (signupData?.language) {
-        SettingsService.updateSettings({
-          learning: {
-            ...SettingsService.getSettings().learning,
+        if (signupData?.language) {
+          SettingsService.updateSettings({
+            learning: {
+              ...SettingsService.getSettings().learning,
+              language: signupData.language,
+            }
+          });
+          setFormData((prev) => ({
+            ...prev,
+            language: signupData.language || prev.language,
+          }));
+          await saveProfileToFirestore(auth.currentUser.uid, {
             language: signupData.language,
-          }
-        });
-        setFormData((prev) => ({
-          ...prev,
-          language: signupData.language || prev.language,
-        }));
+          });
+        }
+
+        if (!userProf.hasCompletedOnboarding) {
+          setMode(AppMode.PROFILE);
+        } else {
+          setMode(AppMode.DASHBOARD);
+        }
+      } catch (e) {
+        console.error("Error fetching/creating profile on signup success:", e);
       }
-
-      // Check if 2-Step Verification or PIN Lock is configured for this account
-      const has2FA = !!mergedProfile.twoFactorEnabled || !!mergedProfile.twoFactorPassword || !!SettingsService.getSettings().privacy.twoFactor || !!SettingsService.getSettings().privacy.twoFactorPassword;
-      const hasPin = !!mergedProfile.pinLockEnabled || !!mergedProfile.securityPin || !!SettingsService.getSettings().privacy.pinLock || !!SettingsService.getSettings().privacy.pin;
-
-      if (has2FA) {
-        SecurityPinService.clearTwoStepVerified(activeUid);
-        setIsTwoStepVerified(false);
-      } else {
-        SecurityPinService.setTwoStepVerified(activeUid);
-        setIsTwoStepVerified(true);
-      }
-
-      if (hasPin) {
-        SecurityPinService.lockSession(activeUid);
-        setIsPinSessionUnlocked(false);
-      } else {
-        SecurityPinService.setSessionUnlocked(activeUid);
-        setIsPinSessionUnlocked(true);
-      }
-
-      setMode(AppMode.DASHBOARD);
-    } catch (e) {
-      console.error("Error fetching/creating profile on signup success:", e);
     }
-
     setShowAuthModal(false);
   };
 
@@ -1925,11 +1757,6 @@ const App: React.FC = () => {
       // Record active quiz completion sequence
       recordActivity().then((res) => {
         if (res.success && res.incremented) {
-          triggerToast(
-            "Streak Increased! 🔥",
-            "Congratulations! Your study streak has advanced without resets!",
-            "Daily Streak Reminders"
-          );
           if (res.milestoneReached) {
             setTimeout(() => {
               triggerToast(
@@ -2048,9 +1875,9 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!process.env.GEMINI_API_KEY && !process.env.API_KEY) {
+    if (!process.env.API_KEY) {
       setError(
-        "Configuration Error: GEMINI_API_KEY is missing. Please check your environment variables.",
+        "Configuration Error: API_KEY is missing. Please check your environment variables.",
       );
       return;
     }
@@ -2272,19 +2099,17 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      localStorage.removeItem('sjtutor_active_id_session');
       if (user) {
         SecurityPinService.clearTwoStepVerified(user.uid);
         SecurityPinService.lockSession(user.uid);
         const currentDeviceId = getCurrentDeviceId();
         await DeviceService.logoutDevice(user.uid, currentDeviceId);
+      } else {
+        await signOut(auth);
       }
-      await signOut(auth);
     } catch (error) {
       console.error("Error signing out:", error);
     } finally {
-      setUser(null);
-      setUserProfile(initialProfileState);
       setIsTwoStepVerified(true);
       setIsPinSessionUnlocked(true);
       setMode(AppMode.DASHBOARD);
@@ -2294,19 +2119,17 @@ const App: React.FC = () => {
 
   const handleLogoutAllDevices = async () => {
     try {
-      localStorage.removeItem('sjtutor_active_id_session');
       if (user) {
         SecurityPinService.clearTwoStepVerified(user.uid);
         SecurityPinService.lockSession(user.uid);
         await DeviceService.logoutAllDevices(user.uid);
+      } else {
+        await signOut(auth);
       }
-      await signOut(auth);
       triggerToast("Logged Out Successfully", "You have been logged out from all devices.", "Important Alerts");
     } catch (error) {
       console.error("Error signing out all devices:", error);
     } finally {
-      setUser(null);
-      setUserProfile(initialProfileState);
       setIsTwoStepVerified(true);
       setIsPinSessionUnlocked(true);
       setMode(AppMode.DASHBOARD);
@@ -2434,72 +2257,6 @@ const App: React.FC = () => {
       },
     ];
 
-    const dashboardContainerVariants = {
-      hidden: { opacity: 0 },
-      visible: {
-        opacity: 1,
-        transition: {
-          staggerChildren: 0.05,
-          delayChildren: 0.03,
-        },
-      },
-    };
-
-    const dashboardCardVariants = {
-      hidden: { opacity: 0, y: 14, scale: 0.97 },
-      visible: {
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        transition: {
-          type: "spring",
-          damping: 24,
-          stiffness: 340,
-          mass: 0.7,
-        },
-      },
-    };
-
-    const sectionVariants = {
-      hidden: { opacity: 0, y: 16 },
-      visible: {
-        opacity: 1,
-        y: 0,
-        transition: {
-          type: "spring",
-          damping: 26,
-          stiffness: 300,
-          mass: 0.8,
-        },
-      },
-    };
-
-    const quickActionVariants = {
-      hidden: { opacity: 0, y: 10, scale: 0.96 },
-      visible: {
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        transition: {
-          type: "spring",
-          damping: 22,
-          stiffness: 340,
-        },
-      },
-    };
-
-    const historyItemVariants = {
-      hidden: { opacity: 0, y: 10 },
-      visible: {
-        opacity: 1,
-        y: 0,
-        transition: {
-          duration: 0.28,
-          ease: [0.16, 1, 0.3, 1],
-        },
-      },
-    };
-
     if (dashboardView !== "OVERVIEW") {
       const baseFiltered = history.filter((h) => 
         h.type === dashboardView || 
@@ -2513,12 +2270,7 @@ const App: React.FC = () => {
         dashboardCards.find((c) => c.id === dashboardView)?.label || "History";
 
       return (
-        <motion.div 
-          variants={dashboardContainerVariants}
-          initial="hidden"
-          animate="visible"
-          className="relative z-10"
-        >
+        <div className="relative z-10 animate-in fade-in slide-in-from-right-8 duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
           <button
             onClick={() => {
               setDashboardView("OVERVIEW");
@@ -2596,7 +2348,7 @@ const App: React.FC = () => {
           </div>
 
           {baseFiltered.length === 0 ? (
-            <motion.div variants={sectionVariants} className="text-center py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 border-dashed">
+            <div className="text-center py-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 border-dashed animate-in zoom-in duration-500">
               <div className="w-16 h-16 bg-primary-50 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary-100 dark:border-slate-600 p-1">
                 <Logo className="w-full h-full" iconOnly noBorder />
               </div>
@@ -2629,9 +2381,9 @@ const App: React.FC = () => {
                 <Plus className="w-4 h-4 mr-2" />
                 Create New {getSingularName(dashboardView as AppMode)}
               </button>
-            </motion.div>
+            </div>
           ) : filteredHistory.length === 0 ? (
-            <motion.div variants={sectionVariants} className="text-center py-16 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 p-8">
+            <div className="text-center py-16 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md rounded-xl border border-slate-200/60 dark:border-slate-700 p-8 animate-in fade-in zoom-in-95 duration-300">
               <Search className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
               <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">
                 No history entries match &quot;{historySearchQuery}&quot;
@@ -2642,15 +2394,14 @@ const App: React.FC = () => {
               >
                 Clear search filter
               </button>
-            </motion.div>
+            </div>
           ) : (
-            <motion.div variants={dashboardContainerVariants} className="grid gap-4">
-              {filteredHistory.map((item) => (
-                <motion.div
+            <div className="grid gap-4">
+              {filteredHistory.map((item, idx) => (
+                <div
                   key={item.id}
-                  variants={historyItemVariants}
-                  whileHover={{ y: -2, transition: { duration: 0.15 } }}
                   className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-5 rounded-xl border border-slate-200/60 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
+                  style={{ animationDelay: `${idx * 50}ms` }}
                   onClick={() => loadHistoryItem(item)}
                 >
                   <div className="flex items-start gap-3">
@@ -2720,11 +2471,11 @@ const App: React.FC = () => {
                       <Eye className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ))}
-            </motion.div>
+            </div>
           )}
-        </motion.div>
+        </div>
       );
     }
 
@@ -2733,13 +2484,8 @@ const App: React.FC = () => {
     }
 
     return (
-      <motion.div 
-        variants={dashboardContainerVariants}
-        initial="hidden"
-        animate="visible"
-        className="w-full h-full"
-      >
-        <motion.div variants={sectionVariants} className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
               Welcome back, {userProfile.displayName || "Scholar"}! 👋
@@ -2748,39 +2494,38 @@ const App: React.FC = () => {
               Ready to learn something new today?
             </p>
           </div>
-        </motion.div>
+        </div>
 
-        <motion.div variants={sectionVariants}>
-          <TrialBannerCard 
-            userProfile={userProfile} 
-            uid={user?.uid} 
-            onOpenUpgrade={() => setShowPremiumModal(true)} 
-          />
-        </motion.div>
+        <TrialBannerCard 
+          userProfile={userProfile} 
+          uid={user?.uid} 
+          onOpenUpgrade={() => setShowPremiumModal(true)} 
+        />
 
         {user && !userProfile.twoFactorPassword && !dismissed2faReminder && (
-          <motion.div variants={sectionVariants}>
-            <SecurityPasswordReminderCard
-              onSetupClick={() => navigateToPrivacySettings(true)}
-              onDismiss={() => {
-                setDismissed2faReminder(true);
-                if (user) {
-                  localStorage.setItem(`dismissed_2fa_reminder_${user.uid}`, "true");
-                }
-              }}
-            />
-          </motion.div>
+          <SecurityPasswordReminderCard
+            onSetupClick={() => navigateToPrivacySettings(true)}
+            onDismiss={() => {
+              setDismissed2faReminder(true);
+              if (user) {
+                localStorage.setItem(`dismissed_2fa_reminder_${user.uid}`, "true");
+              }
+            }}
+          />
         )}
 
-        <motion.div 
-          variants={dashboardContainerVariants}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
-        >
-          {dashboardCards.map((card) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {dashboardCards.map((card, idx) => (
             <motion.button
               key={card.id}
-              variants={dashboardCardVariants}
-              whileHover={{ y: -4, transition: { duration: 0.2, ease: "easeOut" } }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ 
+                duration: 0.45, 
+                delay: idx * 0.07, 
+                ease: [0.16, 1, 0.3, 1] 
+              }}
+              whileHover={{ y: -4, transition: { duration: 0.2 } }}
               whileTap={{ scale: 0.98 }}
               onClick={() => {
                 if (card.id === AppMode.ID_CARD && !user) {
@@ -2831,59 +2576,47 @@ const App: React.FC = () => {
               </p>
             </motion.button>
           ))}
-        </motion.div>
+        </div>
 
-        <motion.div variants={sectionVariants} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
           <h3 className="font-bold text-slate-800 dark:text-white mb-4">
             Quick Actions
           </h3>
-          <motion.div variants={dashboardContainerVariants} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <motion.button
-              variants={quickActionVariants}
-              whileHover={{ y: -3, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <button
               onClick={() => navigateToMode(AppMode.SUMMARY)}
               className="p-4 bg-white dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900"
             >
               <FileText className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               New Summary
-            </motion.button>
-            <motion.button
-              variants={quickActionVariants}
-              whileHover={{ y: -3, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            </button>
+            <button
               onClick={() => navigateToMode(AppMode.HOMEWORK)}
               className="p-4 bg-white dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900"
             >
               <BookOpen className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
               Homework Solver
-            </motion.button>
-            <motion.button
-              variants={quickActionVariants}
-              whileHover={{ y: -3, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            </button>
+            <button
               onClick={() => navigateToMode(AppMode.QUIZ)}
               className="p-4 bg-white dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900"
             >
               <BrainCircuit className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               New Quiz
-            </motion.button>
-            <motion.button
-              variants={quickActionVariants}
-              whileHover={{ y: -3, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            </button>
+            <button
               onClick={() => navigateToMode(AppMode.TUTOR)}
               className="p-4 bg-white dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900"
             >
               <MessageCircle className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               Ask Tutor
-            </motion.button>
-          </motion.div>
-        </motion.div>
+            </button>
+          </div>
+        </div>
 
         {/* Recent Study History */}
         {history.length > 0 && (
-          <motion.div variants={sectionVariants} className="mt-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+          <div className="mt-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Clock className="w-5 h-5 text-amber-500" />
@@ -2893,12 +2626,10 @@ const App: React.FC = () => {
                 {history.length} items
               </span>
             </div>
-            <motion.div variants={dashboardContainerVariants} className="grid gap-3">
+            <div className="grid gap-3">
               {history.slice(0, 5).map((item) => (
-                <motion.div
+                <div
                   key={item.id}
-                  variants={historyItemVariants}
-                  whileHover={{ x: 3, transition: { duration: 0.15 } }}
                   onClick={() => loadHistoryItem(item)}
                   className="bg-slate-50/50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:border-amber-200 dark:hover:border-amber-800 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
                 >
@@ -2953,12 +2684,12 @@ const App: React.FC = () => {
                       <ChevronRight className="w-4 h-4" />
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ))}
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </motion.div>
+      </div>
     );
   };
 
@@ -3340,7 +3071,6 @@ const App: React.FC = () => {
               email={user?.email || "Guest"}
               onSave={(p, r) => handleProfileSave(p, r)}
               isOnboarding={!userProfile.hasCompletedOnboarding}
-              onOpenUpgrade={() => setShowPremiumModal(true)}
             />
           </div>
         );
@@ -3412,28 +3142,24 @@ const App: React.FC = () => {
                 setActiveDirectCall(call);
               }}
               onStartOrJoinGroupCall={(group, type) => {
-                const myUid = user ? user.uid : 'guest';
-                const myName = userProfile.displayName || 'Scholar User';
                 setActiveGroupCall({
                   id: group.id,
                   groupId: group.id,
                   groupName: group.name,
-                  hostUid: myUid,
-                  hostName: myName,
+                  hostId: user ? user.uid : 'guest',
+                  hostName: userProfile.displayName || 'Scholar User',
                   type,
                   startedAt: Date.now(),
                   status: 'active',
                   participants: {
-                    [myUid]: {
-                      uid: myUid,
-                      displayName: myName,
+                    [user ? user.uid : 'guest']: {
+                      uid: user ? user.uid : 'guest',
+                      displayName: userProfile.displayName || 'Scholar User',
                       photoURL: userProfile.photoURL || '',
                       joinedAt: Date.now(),
-                      isMuted: false,
-                      isVideoOff: type === 'audio',
+                      isAudioMuted: false,
+                      isVideoMuted: type === 'audio',
                       isScreenSharing: false,
-                      isHandRaised: false,
-                      role: 'host',
                     }
                   }
                 });
@@ -3528,24 +3254,64 @@ const App: React.FC = () => {
   }
 
   if (!user) {
-    // If not viewing a specific sub-feature or shared link or legal page, show the complete LandingPage directly
-    if (!isViewingShared && mode === AppMode.DASHBOARD && dashboardView === "OVERVIEW") {
+    // If we have shared content loaded or viewing public pages, show it in a public layout
+    const hasSharedContent = summaryContent || homeworkContent || quizData;
+    const isPublicPage =
+      mode === AppMode.ABOUT ||
+      mode === AppMode.PRIVACY ||
+      mode === AppMode.TERMS;
+
+    if (hasSharedContent || isPublicPage) {
       return (
-        <div className="min-h-screen bg-slate-950 font-sans text-slate-100 selection:bg-amber-500 selection:text-slate-950">
-          <LandingPage
-            onGetStarted={(targetMode) => openAuthModal(targetMode || 'signup')}
-            countryCode={detectedCountry}
-            onNavigateToLegal={(legalMode) => {
-              if (legalMode === 'PRIVACY') setMode(AppMode.PRIVACY);
-              else if (legalMode === 'TERMS') setMode(AppMode.TERMS);
-            }}
-          />
+        <div className="min-h-screen app-custom-bg font-sans text-slate-900 dark:text-slate-100">
+          <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-14 flex items-center justify-between px-5 sticky top-0 z-30">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-primary-500 shadow-sm flex-shrink-0 bg-white dark:bg-slate-800">
+                <Logo className="w-full h-full" iconOnly noBorder />
+              </div>
+              <h1 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
+                SJ Tutor AI
+              </h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => openAuthModal('signin')}
+                className="px-3 py-1.5 text-slate-600 dark:text-slate-300 text-xs font-bold hover:text-slate-950 dark:hover:text-white transition-colors"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => openAuthModal('signup')}
+                className="px-4 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                Sign Up
+              </button>
+            </div>
+          </header>
+          <main className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
+            {isViewingShared && sharedContent ? (
+              <SharedLockScreen
+                type={sharedContent.type === AppMode.SUMMARY ? 'Summary' : sharedContent.type === AppMode.QUIZ ? 'Interactive Quiz' : 'Homework Solution'}
+                title={sharedContent.title}
+                subtitle={sharedContent.subtitle || 'AI Generated Study Guide'}
+                teaser={
+                  typeof sharedContent.content === 'string'
+                    ? sharedContent.content.substring(0, 160) + '...'
+                    : Array.isArray(sharedContent.content)
+                    ? `This interactive practice quiz contains ${sharedContent.content.length} tailored challenges on ${sharedContent.title}.`
+                    : 'Personalized interactive study prep.'
+                }
+                onAuthenticate={() => openAuthModal('signup')}
+              />
+            ) : (
+              renderContent()
+            )}
+          </main>
           {showAuthModal && (
             <Auth
               onClose={() => setShowAuthModal(false)}
               onSignUpSuccess={handleSignUpSuccess}
               onCountryDetected={setDetectedCountry}
-              initialCountry={detectedCountry}
               initialMode={authModalMode}
             />
           )}
@@ -3554,56 +3320,15 @@ const App: React.FC = () => {
     }
 
     return (
-      <div className="min-h-screen app-custom-bg font-sans text-slate-900 dark:text-slate-100 selection:bg-primary-100 selection:text-primary-900 transition-colors duration-300">
-        <header className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 h-16 flex items-center justify-between px-6 sm:px-8 sticky top-0 z-30">
-          <div 
-            className="flex items-center gap-3 cursor-pointer select-none" 
-            onClick={() => { 
-              setMode(AppMode.DASHBOARD); 
-              setDashboardView("OVERVIEW"); 
-            }}
-          >
-            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-sm flex-shrink-0 bg-white dark:bg-slate-800">
-              <Logo className="w-full h-full" iconOnly noBorder />
-            </div>
-            <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
-              SJ Tutor AI
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => openAuthModal('signin')}
-              className="px-4 py-2 text-slate-700 dark:text-slate-200 text-sm font-bold hover:text-slate-950 dark:hover:text-white transition-colors"
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => openAuthModal('signup')}
-              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl shadow-sm hover:shadow-md transition-all"
-            >
-              Sign Up
-            </button>
-          </div>
-        </header>
-        <main className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-          {isViewingShared && sharedContent ? (
-            <SharedLockScreen
-              type={sharedContent.type === AppMode.SUMMARY ? 'Summary' : sharedContent.type === AppMode.QUIZ ? 'Interactive Quiz' : 'Homework Solution'}
-              title={sharedContent.title}
-              subtitle={sharedContent.subtitle || 'AI Generated Study Guide'}
-              teaser={
-                typeof sharedContent.content === 'string'
-                  ? sharedContent.content.substring(0, 160) + '...'
-                  : Array.isArray(sharedContent.content)
-                  ? `This interactive practice quiz contains ${sharedContent.content.length} tailored challenges on ${sharedContent.title}.`
-                  : 'Personalized interactive study prep.'
-              }
-              onAuthenticate={() => openAuthModal('signup')}
-            />
-          ) : (
-            renderContent()
-          )}
-        </main>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+        <LandingPage
+          onGetStarted={(mode) => openAuthModal(mode)}
+          countryCode={detectedCountry}
+          onNavigateToLegal={(legalMode) => {
+            setMode(legalMode as any);
+            window.history.pushState({}, '', legalMode === 'PRIVACY' ? '/privacy' : '/terms');
+          }}
+        />
         {showAuthModal && (
           <Auth
             onClose={() => setShowAuthModal(false)}
@@ -3820,11 +3545,11 @@ const App: React.FC = () => {
             {user && (
               <button
                 onClick={() => setShowPremiumModal(true)}
-                title={!isExpanded ? (userProfile.planType && userProfile.planType !== 'Free' ? "Membership Plans" : "Upgrade Plan") : undefined}
+                title={!isExpanded ? "Upgrade Plan" : undefined}
                 className={`w-full flex items-center justify-center ${isExpanded ? "py-2 gap-1.5 text-xs font-bold" : "p-2"} bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg shadow-sm transition-all`}
               >
                 <Crown className="w-3.5 h-3.5 flex-shrink-0" />
-                {isExpanded && <span>{userProfile.planType && userProfile.planType !== 'Free' ? "Membership Plan" : "Upgrade Plan"}</span>}
+                {isExpanded && <span>Upgrade Plan</span>}
               </button>
             )}
           </div>
@@ -4194,8 +3919,8 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* 1. Two-Step Verification on Login Modal - only when 2FA is explicitly configured */}
-      {user && (!!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword || !!SettingsService.getSettings().privacy.twoFactor || !!SettingsService.getSettings().privacy.twoFactorPassword) && !isTwoStepVerified && (
+      {/* 1. Two-Step Verification on Login Modal */}
+      {user && !isTwoStepVerified && (!!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword) && (
         <TwoStepLoginModal
           userProfile={userProfile}
           uid={user.uid}

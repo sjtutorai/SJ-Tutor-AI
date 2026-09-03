@@ -36,7 +36,7 @@ export const GroupQRModal: React.FC<GroupQRModalProps> = ({
   const { triggerToast } = useNotifications();
 
   // Primary share link
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://sjtutor.ai';
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://sjtutorai.vercel.app';
   const groupInviteUrl = `${origin}/?groupId=${group.id}&inviter=${encodeURIComponent(currentUserName)}`;
 
   // Structured QR payload (can be decoded as URL or direct ID)
@@ -100,7 +100,7 @@ export const GroupQRModal: React.FC<GroupQRModalProps> = ({
         
         ctx.fillStyle = '#94a3b8';
         ctx.font = '28px sans-serif';
-        ctx.fillText('Join at sjtutor.ai', size / 2, 990);
+        ctx.fillText('Join at sjtutorai.vercel.app', size / 2, 990);
 
         const pngUrl = canvas.toDataURL('image/png');
         const downloadLink = document.createElement('a');

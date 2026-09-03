@@ -3,30 +3,10 @@ import { db } from "../firebaseConfig";
 import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember, Friendship, DirectChat, DirectMessage, UserTimerState, StudySessionRecord } from "../types";
 
 
-// Helper to clean undefined properties before passing objects to Firestore
-export const removeUndefinedFields = <T>(obj: T): T => {
-  if (obj === null || obj === undefined || typeof obj !== "object") return obj;
-  if (Array.isArray(obj)) return obj.map((item) => removeUndefinedFields(item)) as unknown as T;
-  const clean: any = {};
-  Object.keys(obj).forEach((key) => {
-    const val = (obj as any)[key];
-    if (val !== undefined) {
-      clean[key] = removeUndefinedFields(val);
-    }
-  });
-  return clean as T;
-};
-
 export const saveProfileToFirestore = async (uid: string, profile: Partial<UserProfile>) => {
   try {
     const userDocRef = doc(db, "users", uid);
-    const resolvedDob = profile.dob || profile.dateOfBirth || (profile as any)?.birthDate;
-    const enrichedProfile: Partial<UserProfile> = {
-      ...profile,
-      ...(resolvedDob !== undefined ? { dob: resolvedDob, dateOfBirth: resolvedDob } : {}),
-    };
-    const cleanProfile = removeUndefinedFields(enrichedProfile);
-    await setDoc(userDocRef, cleanProfile, { merge: true });
+    await setDoc(userDocRef, profile, { merge: true });
     return true;
   } catch (error: any) {
     const isOffline = !navigator.onLine || (error && error.message && error.message.includes("offline"));
@@ -45,11 +25,8 @@ export const getProfileFromFirestore = async (uid: string): Promise<UserProfile 
     const docSnap = await getDoc(userDocRef);
     if (docSnap.exists()) {
       const data = docSnap.data() as UserProfile;
-      const resolvedDob = data.dob || data.dateOfBirth || (data as any).birthDate || "";
       return {
         ...data,
-        dob: resolvedDob,
-        dateOfBirth: resolvedDob,
         isRegisteredInFirestore: true,
         hasCompletedOnboarding: data.hasCompletedOnboarding ?? true,
       };
@@ -168,32 +145,13 @@ export const syncHistoryWithFirestore = async (uid: string, localItems: HistoryI
     const firestoreItems = await getHistoryFromFirestore(uid);
     const firestoreIds = new Set(firestoreItems.map((item) => item.id));
 
-    let tombstones: string[] = [];
-    try {
-      tombstones = JSON.parse(localStorage.getItem(`deleted_history_${uid}`) || "[]");
-    } catch {
-      console.warn("Failed to read tombstones from local storage");
-    }
-    const tombstoneSet = new Set(tombstones);
-
-    const mergedItems: HistoryItem[] = [];
+    const mergedItems = [...firestoreItems];
     const itemsToSave: Promise<any>[] = [];
 
-    // Add firestore items unless they were marked as deleted locally
-    firestoreItems.forEach((item) => {
-      if (tombstoneSet.has(item.id)) {
-        itemsToSave.push(deleteHistoryItemFromFirestore(uid, item.id));
-      } else {
-        mergedItems.push(item);
-      }
-    });
-
     localItems.forEach((localItem) => {
-      if (!firestoreIds.has(localItem.id) && !tombstoneSet.has(localItem.id)) {
-        if (!mergedItems.some(m => m.id === localItem.id)) {
-          mergedItems.push(localItem);
-          itemsToSave.push(saveHistoryItemToFirestore(uid, localItem));
-        }
+      if (!firestoreIds.has(localItem.id)) {
+        mergedItems.push(localItem);
+        itemsToSave.push(saveHistoryItemToFirestore(uid, localItem));
       }
     });
 
@@ -441,31 +399,9 @@ export const getQuizLeaderboard = async (): Promise<LeaderboardEntry[]> => {
 
 export const deleteHistoryItemFromFirestore = async (uid: string, itemId: string): Promise<boolean> => {
   if (!uid || uid === "guest") return true;
-
-  try {
-    const tombstonesStr = localStorage.getItem(`deleted_history_${uid}`) || "[]";
-    const tombstones = JSON.parse(tombstonesStr);
-    if (!tombstones.includes(itemId)) {
-      tombstones.push(itemId);
-      localStorage.setItem(`deleted_history_${uid}`, JSON.stringify(tombstones));
-    }
-  } catch {
-    console.warn("Failed to add tombstone to local storage");
-  }
-
   try {
     const docRef = doc(db, "users", uid, "history", itemId);
     await deleteDoc(docRef);
-
-    try {
-      const tombstonesStr = localStorage.getItem(`deleted_history_${uid}`) || "[]";
-      const tombstones = JSON.parse(tombstonesStr);
-      const updatedTombstones = tombstones.filter((id: string) => id !== itemId);
-      localStorage.setItem(`deleted_history_${uid}`, JSON.stringify(updatedTombstones));
-    } catch {
-      console.warn("Failed to update tombstone in local storage");
-    }
-
     return true;
   } catch (error) {
     console.warn("Error deleting history item from Firestore:", error);
@@ -499,6 +435,20 @@ export const getNotesFromFirestore = async (uid: string): Promise<any[]> => {
     console.error("Error getting notes from Firestore:", error);
     return [];
   }
+};
+
+// Helper to clean undefined properties before passing objects to Firestore
+export const removeUndefinedFields = <T>(obj: T): T => {
+  if (obj === null || obj === undefined || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map((item) => removeUndefinedFields(item)) as unknown as T;
+  const clean: any = {};
+  Object.keys(obj).forEach((key) => {
+    const val = (obj as any)[key];
+    if (val !== undefined) {
+      clean[key] = removeUndefinedFields(val);
+    }
+  });
+  return clean as T;
 };
 
 // =====================================
