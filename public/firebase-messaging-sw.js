@@ -42,8 +42,8 @@ messaging.onBackgroundMessage((payload) => {
     notificationTitle = `📞 Incoming ${callType === 'video' ? 'Video' : 'Audio'} Call`;
     notificationOptions = {
       body: `${callerName} is calling you on SJ Tutor AI. Tap Accept to connect.`,
-      icon: rawData.callerAvatar || 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
-      badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      icon: rawData.callerAvatar || 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
+      badge: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
       tag: `call_${callId}`,
       renotify: true,
       requireInteraction: true,
@@ -66,8 +66,8 @@ messaging.onBackgroundMessage((payload) => {
   } else {
     notificationOptions = {
       body: payload.notification?.body || payload.data?.body || 'New message!',
-      icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
-      badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      icon: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
+      badge: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
       vibrate: [100, 50, 100],
       data: {
         url: self.location.origin,
@@ -128,8 +128,8 @@ self.addEventListener('push', (event) => {
     body = `${callerName} is calling you on SJ Tutor AI. Tap Accept to connect.`;
     options = {
       body: body,
-      icon: rawData.callerAvatar || 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
-      badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      icon: rawData.callerAvatar || 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
+      badge: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
       tag: `call_${callId}`,
       renotify: true,
       requireInteraction: true,
@@ -152,8 +152,8 @@ self.addEventListener('push', (event) => {
   } else {
     options = {
       body: body,
-      icon: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
-      badge: 'https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg',
+      icon: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
+      badge: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
       vibrate: [100, 50, 100],
       data: {
         url: self.location.origin,

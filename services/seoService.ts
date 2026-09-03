@@ -16,7 +16,7 @@ export interface SEOConfig {
 }
 
 export const CANONICAL_BASE_URL = 'https://sjtutorai.vercel.app';
-export const DEFAULT_LOGO_URL = 'https://sjtutorai.vercel.app/logo.png';
+export const DEFAULT_LOGO_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_OG_IMAGE = 'https://sjtutorai.vercel.app/og-image.png';
 export const DEFAULT_FAVICON_URL = 'https://sjtutorai.vercel.app/favicon-48x48.png';
 export const DEFAULT_TITLE = 'SJ Tutor AI - Your AI Study Buddy';

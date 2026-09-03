@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SJTUTOR_AVATAR, SJTUTOR_AVATAR_REMOTE, SJTUTOR_AVATAR_IBB } from '../types';
+import { SJTUTOR_AVATAR, SJTUTOR_AVATAR_REMOTE, SJTUTOR_AVATAR_IBB, SJTUTOR_LOGO_URL } from '../types';
 
 interface LogoProps {
   className?: string;
@@ -11,10 +11,9 @@ interface LogoProps {
 }
 
 const FALLBACK_SOURCES = [
-  SJTUTOR_AVATAR, // "/logo.png"
-  SJTUTOR_AVATAR_IBB, // "https://i.ibb.co/qFknfdny/IMG-20260810-WA0018.jpg"
-  "/favicon-512x512.png",
-  "/favicon.png",
+  SJTUTOR_LOGO_URL, // "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg"
+  SJTUTOR_AVATAR_IBB,
+  SJTUTOR_AVATAR,
   SJTUTOR_AVATAR_REMOTE
 ];
 
@@ -112,7 +111,7 @@ export default function Logo({
       {!hasAllFailed && currentSrc ? (
         <img 
           src={currentSrc} 
-          alt="SJ Tutor AI Logo" 
+          alt="SJ-Tutor-AI-Logo" 
           className="w-full h-full object-cover block select-none pointer-events-none"
           loading="eager"
           decoding="async"
