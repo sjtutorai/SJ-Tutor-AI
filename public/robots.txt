@@ -1,17 +1,23 @@
 User-agent: Googlebot
 Allow: /
-Allow: /logo.png
+Allow: /favicon*
+Allow: /logo*
+Allow: /SJ-Tutor-AI-Logo.jpg
 Allow: /og-image.png
 Allow: /manifest.json
 
 User-agent: Googlebot-Image
 Allow: /
-Allow: /logo.png
+Allow: /favicon*
+Allow: /logo*
+Allow: /SJ-Tutor-AI-Logo.jpg
 Allow: /og-image.png
 
 User-agent: *
 Allow: /
-Allow: /logo.png
+Allow: /favicon*
+Allow: /logo*
+Allow: /SJ-Tutor-AI-Logo.jpg
 Allow: /og-image.png
 Allow: /manifest.json
 

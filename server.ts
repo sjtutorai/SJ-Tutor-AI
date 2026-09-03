@@ -21,13 +21,15 @@ const PORT = 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
-// Redirect any legacy favicon requests directly to the direct logo URL
-app.get(['/favicon.ico', '/favicon.png', '/favicon-:size.png', '/apple-touch-icon.png'], (req, res) => {
-  res.redirect(301, 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg');
-});
-
-// Serve static public assets (logos, manifests, robots.txt, etc.)
-app.use(express.static(path.resolve(resolvedDirname, "public")));
+// Serve static public assets (favicons, logos, manifests, robots.txt, etc.)
+app.use(express.static(path.resolve(resolvedDirname, "public"), {
+  maxAge: '1d',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.ico')) {
+      res.setHeader('Content-Type', 'image/x-icon');
+    }
+  }
+}));
 
 // Request logging
 app.use((req, res, next) => {
@@ -45,18 +47,24 @@ app.get("/robots.txt", (req, res) => {
     res.setHeader("Content-Type", "text/plain");
     res.send(`User-agent: Googlebot
 Allow: /
-Allow: /logo.png
+Allow: /favicon*
+Allow: /logo*
+Allow: /SJ-Tutor-AI-Logo.jpg
 Allow: /og-image.png
 Allow: /manifest.json
 
 User-agent: Googlebot-Image
 Allow: /
-Allow: /logo.png
+Allow: /favicon*
+Allow: /logo*
+Allow: /SJ-Tutor-AI-Logo.jpg
 Allow: /og-image.png
 
 User-agent: *
 Allow: /
-Allow: /logo.png
+Allow: /favicon*
+Allow: /logo*
+Allow: /SJ-Tutor-AI-Logo.jpg
 Allow: /og-image.png
 Allow: /manifest.json
 

@@ -51,27 +51,25 @@ function ensureCanonicalLink(href: string) {
 }
 
 function ensureFaviconLinks() {
-  // Remove any legacy local favicon links
-  const legacyLinks = document.querySelectorAll('link[rel*="icon"]');
-  legacyLinks.forEach((el) => {
-    const href = el.getAttribute('href') || '';
-    if (href.startsWith('/favicon') || href.startsWith('/apple-touch-icon')) {
-      el.remove();
-    }
-  });
-
   const icons = [
+    { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+    { rel: 'shortcut icon', type: 'image/x-icon', href: '/favicon.ico' },
+    { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
+    { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
     { rel: 'icon', type: 'image/jpeg', href: DEFAULT_LOGO_URL },
-    { rel: 'shortcut icon', type: 'image/jpeg', href: DEFAULT_LOGO_URL },
     { rel: 'apple-touch-icon', href: DEFAULT_LOGO_URL },
+    { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
   ];
 
-  icons.forEach(({ rel, type, href }) => {
-    let el = document.querySelector(`link[rel="${rel}"][href="${href}"]`) as HTMLLinkElement | null;
+  icons.forEach(({ rel, type, href, sizes }) => {
+    let selector = `link[rel="${rel}"][href="${href}"]`;
+    if (sizes) selector += `[sizes="${sizes}"]`;
+    let el = document.querySelector(selector) as HTMLLinkElement | null;
     if (!el) {
       el = document.createElement('link');
       el.setAttribute('rel', rel);
       if (type) el.setAttribute('type', type);
+      if (sizes) el.setAttribute('sizes', sizes);
       el.setAttribute('href', href);
       document.head.appendChild(el);
     }
