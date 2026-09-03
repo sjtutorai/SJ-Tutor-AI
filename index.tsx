@@ -5,6 +5,34 @@ import App from './App';
 import { NotificationProvider } from './components/NotificationContext';
 import { StreakProvider } from './components/StreakContext';
 
+// Cleanly suppress benign WebSocket closed without opened / Vite HMR disconnection errors
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason;
+    const msg = typeof reason === 'string' ? reason : (reason?.message || '');
+    if (
+      msg.includes('WebSocket closed without opened') ||
+      msg.includes('failed to connect to websocket') ||
+      msg.includes('[vite]')
+    ) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  });
+
+  window.addEventListener('error', (event) => {
+    const msg = event.message || '';
+    if (
+      msg.includes('WebSocket closed without opened') ||
+      msg.includes('failed to connect to websocket') ||
+      msg.includes('[vite]')
+    ) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  });
+}
+
 interface ErrorBoundaryProps {
   children?: ReactNode;
 }

@@ -3,8 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { NoteItem, ReminderItem, TimetableEntry, NoteStatus, NoteTemplate, UserProfile, DifficultyLevel } from '../types';
 import { 
   Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, 
-  StickyNote, Bell, Edit3, Loader2, Folder, 
-  ChevronRight, Star, Tag, Book, Lightbulb, Languages,
+  StickyNote, Bell, Loader2, Folder, 
+  ChevronRight, Star, Tag, Book, Languages,
   CheckCircle2, Circle, Download, Mic, MicOff, Square, Radio,
   BookOpen, GraduationCap, School, User, BookType, BarChart, Zap, Crown, FileText, AlertCircle
 } from 'lucide-react';
@@ -502,32 +502,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     audioChunksRef.current = [];
   };
 
-  const handleAiAction = async (task: 'summarize' | 'simplify' | 'mcq' | 'translate') => {
-    if (!editingNote?.content) return;
-    
-    const cost = 0; // Free unlimited 10-day trial active
-    if (!onDeductCredit(cost)) {
-      triggerToast('Trial Notice', 'AI actions are currently free during your trial!', 'Important Alerts');
-      return;
-    }
-
-    setIsAiLoading(true);
-    try {
-      const result = await GeminiService.processNoteAI(editingNote.content, task);
-      if (result) {
-        setEditingNote({
-          ...editingNote,
-          content: `${editingNote.content}\n\n---\n### AI ${task.toUpperCase()}\n${result}`
-        });
-        triggerToast('AI Action Complete! 🧠', `Successfully applied ${task} to your notes.`, 'Important Alerts');
-      }
-    } catch {
-      triggerToast('AI Action Failed', 'AI request failed. Please try again.', 'Important Alerts');
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
   // UI Components
   const StatusIcon = ({ status }: { status: NoteStatus }) => {
     if (status === 'Mastered') return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
@@ -788,8 +762,8 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                   </div>
                 )}
 
-                {/* AI ACTION BAR */}
-                <div className="px-6 py-3 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 flex gap-2 overflow-x-auto custom-scrollbar">
+                {/* ACTION BAR */}
+                <div className="px-6 py-3 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2 overflow-x-auto custom-scrollbar">
                    {/* Voice Recording Quick Toggle in Action Bar */}
                    <button 
                      onClick={isRecording ? () => stopVoiceRecording(true) : startVoiceRecording} 
@@ -797,18 +771,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                    >
                       {isRecording ? <Square className="w-3.5 h-3.5 fill-white" /> : <Mic className="w-3.5 h-3.5" />}
                       {isRecording ? 'Finish Dictation' : 'Voice Dictate'}
-                   </button>
-                   <button onClick={() => handleAiAction('summarize')} className="flex-shrink-0 px-3 py-1.5 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded-full text-xs font-bold flex items-center gap-1.5 hover:bg-primary-100">
-                      <Sparkles className="w-3.5 h-3.5" /> Summarize
-                   </button>
-                   <button onClick={() => handleAiAction('simplify')} className="flex-shrink-0 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs font-bold flex items-center gap-1.5 hover:bg-blue-100">
-                      <Lightbulb className="w-3.5 h-3.5" /> Simplify
-                   </button>
-                   <button onClick={() => handleAiAction('mcq')} className="flex-shrink-0 px-3 py-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full text-xs font-bold flex items-center gap-1.5 hover:bg-purple-100">
-                      <Edit3 className="w-3.5 h-3.5" /> Get MCQs
-                   </button>
-                   <button onClick={() => handleAiAction('translate')} className="flex-shrink-0 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-xs font-bold flex items-center gap-1.5 hover:bg-amber-100">
-                      <Languages className="w-3.5 h-3.5" /> Hindi
                    </button>
                 </div>
 

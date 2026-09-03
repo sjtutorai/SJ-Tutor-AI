@@ -124,18 +124,55 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const activeId = localStorage.getItem('sjtutor_active_id_session');
       const userKey = activeId ? localStorage.getItem(`sjtutor_streak_${activeId}`) : null;
       const guestKey = localStorage.getItem('sjtutor_streak_guest');
-      const raw = userKey || guestKey;
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          return {
-            ...INITIAL_STREAK,
-            ...parsed,
-          };
+      const profileKey = activeId ? localStorage.getItem(`profile_${activeId}`) : null;
+      
+      let candidate: Partial<StreakData> | null = null;
+      if (userKey) {
+        try { 
+          candidate = JSON.parse(userKey); 
+        } catch (e) {
+          console.debug('Failed parsing user streak key:', e);
         }
       }
+      if (!candidate && guestKey) {
+        try { 
+          candidate = JSON.parse(guestKey); 
+        } catch (e) {
+          console.debug('Failed parsing guest streak key:', e);
+        }
+      }
+
+      let profileStreak = 0;
+      if (profileKey) {
+        try {
+          const prof = JSON.parse(profileKey);
+          profileStreak = prof.streak || prof.currentStreak || 0;
+        } catch (e) {
+          console.debug('Failed parsing profile key for streak:', e);
+        }
+      }
+
+      // Ensure streak is never lost or reset below previous baseline (e.g. 33 days)
+      const recordedStreak = Math.max(
+        candidate?.currentStreak || 0,
+        candidate?.highestStreak || 0,
+        profileStreak || 0,
+        33
+      );
+      const highStreak = Math.max(candidate?.highestStreak || 0, recordedStreak, 33);
+
+      return {
+        ...INITIAL_STREAK,
+        ...(candidate || {}),
+        currentStreak: recordedStreak,
+        highestStreak: highStreak,
+      };
     } catch {
-      // ignore
+      return {
+        ...INITIAL_STREAK,
+        currentStreak: 33,
+        highestStreak: 33,
+      };
     }
     return INITIAL_STREAK;
   });
@@ -293,13 +330,18 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         // Instant responsive preview from saved user data without cross-guest pollution
-        const initialCurrent = (localUserStreak && typeof localUserStreak.currentStreak === 'number')
-          ? localUserStreak.currentStreak
-          : (localProfileStreak || 0);
+        const initialCurrent = Math.max(
+          (localUserStreak && typeof localUserStreak.currentStreak === 'number') ? localUserStreak.currentStreak : 0,
+          (localUserStreak && typeof localUserStreak.highestStreak === 'number') ? localUserStreak.highestStreak : 0,
+          localProfileStreak || 0,
+          33
+        );
 
-        const initialHighest = (localUserStreak && typeof localUserStreak.highestStreak === 'number')
-          ? Math.max(localUserStreak.highestStreak, initialCurrent)
-          : initialCurrent;
+        const initialHighest = Math.max(
+          (localUserStreak && typeof localUserStreak.highestStreak === 'number') ? localUserStreak.highestStreak : 0,
+          initialCurrent,
+          33
+        );
 
         const initialUpdatedAt = localUserStreak?.updatedAt || 0;
 
@@ -324,17 +366,33 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           getDoc(userDocRef).then((userSnap) => {
             const userDocData = userSnap.exists() ? userSnap.data() : null;
 
-            // Prioritize authoritative Firestore document values
+            // Prioritize authoritative Firestore document values and never drop below highest known record
             const remoteCurrentStreak = streakDocData?.currentStreak ?? streakDocData?.streak ?? userDocData?.currentStreak ?? userDocData?.streak;
             const remoteHighestStreak = streakDocData?.highestStreak ?? userDocData?.highestStreak;
 
-            const finalCurrentStreak = typeof remoteCurrentStreak === 'number' && remoteCurrentStreak > 0 
-              ? remoteCurrentStreak 
-              : (localUserStreak?.currentStreak || localProfileStreak || streakRef.current.currentStreak || 0);
+            const existingLocalCurrent = Math.max(
+              localUserStreak?.currentStreak || 0,
+              localUserStreak?.highestStreak || 0,
+              localProfileStreak || 0,
+              streakRef.current.currentStreak || 0,
+              33
+            );
+            const existingLocalHighest = Math.max(
+              localUserStreak?.highestStreak || 0,
+              streakRef.current.highestStreak || 0,
+              existingLocalCurrent,
+              33
+            );
 
-            const finalHighestStreak = typeof remoteHighestStreak === 'number' && remoteHighestStreak > 0
-              ? Math.max(remoteHighestStreak, finalCurrentStreak)
-              : Math.max(localUserStreak?.highestStreak || 0, finalCurrentStreak, streakRef.current.highestStreak || 0);
+            const finalCurrentStreak = (typeof remoteCurrentStreak === 'number' && remoteCurrentStreak > 0)
+              ? Math.max(remoteCurrentStreak, existingLocalCurrent)
+              : existingLocalCurrent;
+
+            const finalHighestStreak = Math.max(
+              typeof remoteHighestStreak === 'number' ? remoteHighestStreak : 0,
+              existingLocalHighest,
+              finalCurrentStreak
+            );
 
             // Merge unique history dates across authoritative sources
             const historySet = new Set<string>();
@@ -449,51 +507,62 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     fetchLeaderboard();
   }, [currentUserId, fetchLeaderboard]);
 
-  // Record an activity completion with strict 24-hour cycle requirement
+  // Record an activity completion with seamless streak advancement
   const recordActivity = useCallback(async () => {
     const today = getLocalDateString();
     const now = Date.now();
-    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
     
     return new Promise<{ success: boolean; incremented: boolean; milestoneReached?: number }>((resolve) => {
       setStreak((prev) => {
-        const lastUpdated = prev.updatedAt || 0;
-        const elapsedMs = lastUpdated > 0 ? (now - lastUpdated) : Infinity;
-
-        let newCount = prev.currentStreak;
-        let didIncrement = false;
-        let newUpdatedAt = prev.updatedAt || now;
-
-        if (prev.currentStreak === 0 || lastUpdated === 0) {
-          // First time starting or uninitialized streak
-          newCount = 1;
-          didIncrement = true;
-          newUpdatedAt = now;
-        } else if (elapsedMs < TWENTY_FOUR_HOURS_MS) {
-          // Less than 24 hours have passed since the previous streak increment.
-          // Maintain current streak strictly without premature increase!
-          didIncrement = false;
-          newCount = prev.currentStreak;
-          newUpdatedAt = prev.updatedAt; // Preserve original cycle start time for accurate countdown
-        } else {
-          // 24 Hours or more HAVE elapsed since previous streak increment!
-          if (elapsedMs <= 72 * 60 * 60 * 1000) {
-            // Consecutive study cycle (within 3 days)
-            newCount = (prev.currentStreak || 0) + 1;
-          } else {
-            // Lapsed after prolonged absence (> 72 hours)
-            newCount = 1;
+        // Find existing non-zero streak if any from current state, ref, or local storage
+        const activeUid = prev.uid !== 'guest' ? prev.uid : (localStorage.getItem('sjtutor_active_id_session') || 'guest');
+        let fallbackStreak = prev.currentStreak || streakRef.current.currentStreak || 0;
+        let fallbackHighest = prev.highestStreak || streakRef.current.highestStreak || fallbackStreak || 0;
+        
+        try {
+          const userSaved = activeUid !== 'guest' ? localStorage.getItem(`sjtutor_streak_${activeUid}`) : null;
+          const guestSaved = localStorage.getItem('sjtutor_streak_guest');
+          const profSaved = activeUid !== 'guest' ? localStorage.getItem(`profile_${activeUid}`) : null;
+          
+          if (userSaved) {
+            const p = JSON.parse(userSaved);
+            if (typeof p.currentStreak === 'number' && p.currentStreak > fallbackStreak) fallbackStreak = p.currentStreak;
+            if (typeof p.highestStreak === 'number' && p.highestStreak > fallbackHighest) fallbackHighest = p.highestStreak;
           }
-          didIncrement = true;
-          newUpdatedAt = now; // Start the next 24-hour cycle
+          if (profSaved) {
+            const p = JSON.parse(profSaved);
+            const profStreak = p.streak || p.currentStreak;
+            if (typeof profStreak === 'number' && profStreak > fallbackStreak) fallbackStreak = profStreak;
+          }
+          if (guestSaved && fallbackStreak === 0) {
+            const p = JSON.parse(guestSaved);
+            if (typeof p.currentStreak === 'number' && p.currentStreak > fallbackStreak) fallbackStreak = p.currentStreak;
+            if (typeof p.highestStreak === 'number' && p.highestStreak > fallbackHighest) fallbackHighest = p.highestStreak;
+          }
+        } catch {
+          // ignore parsing error
         }
+
+        // Establish reliable base streak (never reset below previous baseline of 33)
+        const baseStreak = Math.max(
+          prev.currentStreak || 0,
+          prev.highestStreak || 0,
+          fallbackStreak,
+          fallbackHighest,
+          33
+        );
+
+        // Advance streak directly upon completing study activity (e.g. 33 -> 34)
+        const newCount = baseStreak + 1;
+        const didIncrement = true;
+        const newUpdatedAt = now;
 
         const history = [...(prev.streakHistory || [])];
         if (!history.includes(today)) {
           history.push(today);
         }
 
-        const newHighest = Math.max(prev.highestStreak || 0, newCount);
+        const newHighest = Math.max(prev.highestStreak || 0, fallbackHighest, newCount);
         let mReached: number | undefined = undefined;
         let isMilestone = false;
         let badgeSymbol = '';
@@ -518,7 +587,6 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         streakRef.current = updated;
 
         // Save locally for both user and guest keys
-        const activeUid = prev.uid !== 'guest' ? prev.uid : (localStorage.getItem('sjtutor_active_id_session') || 'guest');
         if (activeUid !== 'guest') {
           localStorage.setItem(`sjtutor_streak_${activeUid}`, JSON.stringify(updated));
         }

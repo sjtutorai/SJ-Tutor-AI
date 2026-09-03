@@ -1261,29 +1261,30 @@ const App: React.FC = () => {
 
   // Real-time Active Devices & Session Revocation Synchronization
   useEffect(() => {
-    if (!user) {
+    const activeUserId = user?.uid || (userProfile?.uid && userProfile.uid !== 'guest' ? userProfile.uid : null) || (typeof window !== 'undefined' ? localStorage.getItem('sjtutor_active_id_session') : null);
+    if (!activeUserId) {
       setLoggedInDevices([]);
       return;
     }
 
     // 1. Register current device session
-    DeviceService.registerCurrentDevice(user.uid);
+    DeviceService.registerCurrentDevice(activeUserId);
 
     // 2. Subscribe to all active logged-in devices in real-time
-    const unsubscribeDevices = DeviceService.subscribeToUserDevices(user.uid, (devicesList) => {
+    const unsubscribeDevices = DeviceService.subscribeToUserDevices(activeUserId, (devicesList) => {
       setLoggedInDevices(devicesList);
     });
 
     // 3. Listen if this current device gets remotely logged out/revoked
-    const unsubscribeRevocation = DeviceService.listenForRevocation(user.uid, async () => {
+    const unsubscribeRevocation = DeviceService.listenForRevocation(activeUserId, async () => {
       triggerToast(
         "Session Terminated 🔒",
         "This device was logged out remotely from another device. You can log back in at any time.",
         "Important Alerts"
       );
-      if (user?.uid) {
-        SecurityPinService.clearTwoStepVerified(user.uid);
-        SecurityPinService.lockSession(user.uid);
+      if (activeUserId) {
+        SecurityPinService.clearTwoStepVerified(activeUserId);
+        SecurityPinService.lockSession(activeUserId);
       }
       DeviceService.cleanupLocalDeviceState();
       try {
@@ -1302,7 +1303,7 @@ const App: React.FC = () => {
       unsubscribeRevocation();
       DeviceService.stopHeartbeat();
     };
-  }, [user?.uid]);
+  }, [user?.uid, userProfile?.uid]);
 
   // Sync hasSeenTutorial state with localStorage
   useEffect(() => {
@@ -1886,6 +1887,11 @@ const App: React.FC = () => {
       // Record active quiz completion sequence
       recordActivity().then((res) => {
         if (res.success && res.incremented) {
+          triggerToast(
+            "Streak Increased! 🔥",
+            "Congratulations! Your study streak has advanced without resets!",
+            "Daily Streak Reminders"
+          );
           if (res.milestoneReached) {
             setTimeout(() => {
               triggerToast(

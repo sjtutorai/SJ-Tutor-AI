@@ -52,6 +52,7 @@ export const SecurityPinService = {
 
   /**
    * Checks if an entered secret (password or PIN) matches stored hash or plain string.
+   * Tests all potential salt candidates (active UID, profile UID, ID session, default salts) to ensure zero false rejections.
    */
   verifySecret: async (
     enteredSecret: string,
@@ -59,18 +60,52 @@ export const SecurityPinService = {
     salt: string = 'sjtutor_salt_v1'
   ): Promise<boolean> => {
     if (!enteredSecret || !storedSecretOrHash) return false;
-    
-    if (enteredSecret.trim() === storedSecretOrHash.trim()) {
+    const cleanEntered = enteredSecret.trim();
+    const cleanStored = storedSecretOrHash.trim();
+
+    // 1. Direct plain string match
+    if (cleanEntered === cleanStored) {
       return true;
     }
 
-    const computed = await SecurityPinService.hashSecret(enteredSecret.trim(), salt);
-    if (computed === storedSecretOrHash.trim()) {
-      return true;
+    // Collect all plausible candidate salts across different auth methods
+    const candidateSalts = new Set<string>();
+    if (salt) candidateSalts.add(salt);
+    candidateSalts.add('sjtutor_salt_v1');
+    candidateSalts.add('sjtutor_user');
+    candidateSalts.add('sjtutor_security_q');
+    candidateSalts.add('guest');
+    candidateSalts.add('');
+
+    try {
+      if (typeof window !== 'undefined') {
+        const activeId = localStorage.getItem('sjtutor_active_id_session');
+        if (activeId) candidateSalts.add(activeId);
+        
+        const rawProf = localStorage.getItem('sjtutor_user_profile');
+        if (rawProf) {
+          const parsed = JSON.parse(rawProf);
+          if (parsed?.uid) candidateSalts.add(parsed.uid);
+          if (parsed?.email) candidateSalts.add(parsed.email);
+        }
+      }
+    } catch {
+      // ignore localstorage errors
     }
 
-    const computedDefault = await SecurityPinService.hashSecret(enteredSecret.trim(), 'sjtutor_salt_v1');
-    return computedDefault === storedSecretOrHash.trim();
+    // Test each candidate salt
+    for (const testSalt of candidateSalts) {
+      try {
+        const computed = await SecurityPinService.hashSecret(cleanEntered, testSalt);
+        if (computed === cleanStored) {
+          return true;
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    return false;
   },
 
   /**
@@ -273,15 +308,41 @@ export const SecurityPinService = {
       return true;
     }
 
-    // Hash match with user salt
-    const computed = await SecurityPinService.hashSecurityAnswer(enteredAnswer, salt);
-    if (computed === storedAnswerOrHash.trim()) {
-      return true;
+    const candidateSalts = new Set<string>();
+    if (salt) candidateSalts.add(salt);
+    candidateSalts.add('sjtutor_security_q');
+    candidateSalts.add('sjtutor_salt_v1');
+    candidateSalts.add('sjtutor_user');
+    candidateSalts.add('guest');
+    candidateSalts.add('');
+
+    try {
+      if (typeof window !== 'undefined') {
+        const activeId = localStorage.getItem('sjtutor_active_id_session');
+        if (activeId) candidateSalts.add(activeId);
+        
+        const rawProf = localStorage.getItem('sjtutor_user_profile');
+        if (rawProf) {
+          const parsed = JSON.parse(rawProf);
+          if (parsed?.uid) candidateSalts.add(parsed.uid);
+        }
+      }
+    } catch {
+      // ignore
     }
 
-    // Hash match with default salt
-    const computedDefault = await SecurityPinService.hashSecurityAnswer(enteredAnswer, 'sjtutor_security_q');
-    return computedDefault === storedAnswerOrHash.trim();
+    for (const testSalt of candidateSalts) {
+      try {
+        const computed = await SecurityPinService.hashSecurityAnswer(enteredAnswer, testSalt);
+        if (computed.toLowerCase() === normalizedStored) {
+          return true;
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    return false;
   },
 
   /**

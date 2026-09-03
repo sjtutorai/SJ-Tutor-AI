@@ -4,7 +4,6 @@ import {
   setDoc, 
   getDoc, 
   getDocs, 
-  deleteDoc, 
   onSnapshot, 
   updateDoc 
 } from "firebase/firestore";
@@ -294,12 +293,75 @@ export class DeviceService {
 
     const currentDeviceId = getCurrentDeviceId();
     const currentDeviceRef = doc(db, "users", userId, "devices", currentDeviceId);
+    const userDocRef = doc(db, "users", userId);
 
-    return onSnapshot(currentDeviceRef, (snap) => {
+    let isRevokedTriggered = false;
+    const triggerRevoke = () => {
+      if (!isRevokedTriggered) {
+        isRevokedTriggered = true;
+        onRevoked();
+      }
+    };
+
+    // 1. Cross-tab Broadcast Channel listener
+    let channel: BroadcastChannel | null = null;
+    try {
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        channel = new BroadcastChannel('sjtutor_device_events');
+        channel.onmessage = (event) => {
+          const data = event.data;
+          if (data?.userId === userId) {
+            if (data.type === 'LOGOUT_ALL') {
+              triggerRevoke();
+            } else if (data.type === 'LOGOUT_ALL_OTHERS') {
+              if (data.initiatorDeviceId !== currentDeviceId) {
+                triggerRevoke();
+              }
+            } else if (data.type === 'LOGOUT_DEVICE' && data.targetDeviceId === currentDeviceId) {
+              triggerRevoke();
+            }
+          }
+        };
+      }
+    } catch {
+      // ignore broadcast errors
+    }
+
+    // 2. Storage event listener for cross-tab sync in same browser
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'sjtutor_device_revocation_signal') {
+        try {
+          const val = JSON.parse(e.newValue || '{}');
+          if (val.userId === userId) {
+            if (val.targetDeviceId === 'all') {
+              triggerRevoke();
+            } else if (val.targetDeviceId === 'others' && val.initiatorDeviceId !== currentDeviceId) {
+              triggerRevoke();
+            } else if (val.targetDeviceId === currentDeviceId) {
+              triggerRevoke();
+            }
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorage);
+    }
+
+    // 3. Firestore device doc listener
+    let initialSnapshotSeen = false;
+    const unsubDevice = onSnapshot(currentDeviceRef, (snap) => {
       if (snap.exists()) {
+        initialSnapshotSeen = true;
         const data = snap.data() as DeviceSession;
         if (data && data.status === 'revoked') {
-          onRevoked();
+          triggerRevoke();
+        }
+      } else {
+        if (initialSnapshotSeen) {
+          triggerRevoke();
         }
       }
     }, (err) => {
@@ -308,6 +370,32 @@ export class DeviceService {
         console.warn("[DeviceService] Revocation check notice:", err);
       }
     });
+
+    // 4. Firestore user doc listener (for global revocation timestamp)
+    const storedLoginTime = parseInt(localStorage.getItem(DEVICE_LOGIN_TIME_KEY) || '0', 10) || Date.now();
+    const unsubUser = onSnapshot(userDocRef, (snap) => {
+      if (snap.exists()) {
+        const userData = snap.data();
+        if (userData?.lastGlobalRevocationAt && userData.lastGlobalRevocationAt > storedLoginTime) {
+          triggerRevoke();
+        }
+      }
+    }, () => {});
+
+    return () => {
+      unsubDevice();
+      unsubUser();
+      if (channel) {
+        try { 
+          channel.close(); 
+        } catch {
+          // ignore channel close errors
+        }
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', handleStorage);
+      }
+    };
   }
 
   /**
@@ -320,22 +408,49 @@ export class DeviceService {
     try {
       if (userId && targetDeviceId) {
         const deviceRef = doc(db, "users", userId, "devices", targetDeviceId);
-        // Set revoked first so remote listeners react instantly, then delete
-        await setDoc(deviceRef, { status: 'revoked' }, { merge: true }).catch(() => {});
-        await deleteDoc(deviceRef).catch(() => {});
+        await setDoc(deviceRef, { 
+          status: 'revoked',
+          lastActive: Date.now(),
+          revokedAt: Date.now()
+        }, { merge: true }).catch(() => {});
       }
     } catch (error) {
-      console.warn("[DeviceService] Notice deleting device document from Firestore:", error);
-    } finally {
-      if (isCurrent) {
-        localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
-        localStorage.removeItem(DEVICE_ID_KEY);
-        this.stopHeartbeat();
-        try {
-          await signOut(auth);
-        } catch (authErr) {
-          console.warn("[DeviceService] Signout warning:", authErr);
+      console.warn("[DeviceService] Notice updating device document in Firestore:", error);
+    }
+
+    // Broadcast revocation locally and cross-tab
+    try {
+      if (typeof window !== 'undefined') {
+        if ('BroadcastChannel' in window) {
+          const channel = new BroadcastChannel('sjtutor_device_events');
+          channel.postMessage({
+            type: 'LOGOUT_DEVICE',
+            userId,
+            targetDeviceId,
+            initiatorDeviceId: currentDeviceId,
+            timestamp: Date.now()
+          });
+          channel.close();
         }
+        localStorage.setItem('sjtutor_device_revocation_signal', JSON.stringify({
+          userId,
+          targetDeviceId,
+          initiatorDeviceId: currentDeviceId,
+          timestamp: Date.now()
+        }));
+      }
+    } catch {
+      // ignore broadcast errors
+    }
+
+    if (isCurrent) {
+      localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
+      localStorage.removeItem(DEVICE_ID_KEY);
+      this.stopHeartbeat();
+      try {
+        await signOut(auth);
+      } catch (authErr) {
+        console.warn("[DeviceService] Signout warning:", authErr);
       }
     }
 
@@ -347,36 +462,69 @@ export class DeviceService {
    * Completely terminates all sessions across all phones, tablets, and computers.
    */
   static async logoutAllDevices(userId: string): Promise<boolean> {
+    const currentDeviceId = getCurrentDeviceId();
     try {
       if (userId) {
+        // 1. Mark user doc with global revocation timestamp
+        const userRef = doc(db, "users", userId);
+        await setDoc(userRef, { 
+          lastGlobalRevocationAt: Date.now() 
+        }, { merge: true }).catch(() => {});
+
+        // 2. Mark all device docs as revoked
         const devicesColRef = collection(db, "users", userId, "devices");
         const snapshot = await getDocs(devicesColRef).catch(() => null);
 
         if (snapshot && !snapshot.empty) {
-          const deletePromises: Promise<any>[] = [];
+          const updatePromises: Promise<any>[] = [];
           snapshot.forEach((docSnap) => {
             const devRef = doc(db, "users", userId, "devices", docSnap.id);
-            // Mark revoked and delete
-            deletePromises.push(
-              setDoc(devRef, { status: 'revoked' }, { merge: true })
-                .then(() => deleteDoc(devRef))
-                .catch((err) => console.warn("Error deleting device doc:", err))
+            updatePromises.push(
+              setDoc(devRef, { 
+                status: 'revoked',
+                lastActive: Date.now(),
+                revokedAt: Date.now()
+              }, { merge: true }).catch((err) => console.warn("Error revoking device doc:", err))
             );
           });
-          await Promise.all(deletePromises);
+          await Promise.all(updatePromises);
         }
       }
     } catch (error) {
       console.error("[DeviceService] Error revoking all devices:", error);
-    } finally {
-      localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
-      localStorage.removeItem(DEVICE_ID_KEY);
-      this.stopHeartbeat();
-      try {
-        await signOut(auth);
-      } catch (authErr) {
-        console.warn("[DeviceService] Signout warning:", authErr);
+    }
+
+    // Broadcast event
+    try {
+      if (typeof window !== 'undefined') {
+        if ('BroadcastChannel' in window) {
+          const channel = new BroadcastChannel('sjtutor_device_events');
+          channel.postMessage({
+            type: 'LOGOUT_ALL',
+            userId,
+            initiatorDeviceId: currentDeviceId,
+            timestamp: Date.now()
+          });
+          channel.close();
+        }
+        localStorage.setItem('sjtutor_device_revocation_signal', JSON.stringify({
+          userId,
+          targetDeviceId: 'all',
+          initiatorDeviceId: currentDeviceId,
+          timestamp: Date.now()
+        }));
       }
+    } catch {
+      // ignore broadcast errors
+    }
+
+    localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
+    localStorage.removeItem(DEVICE_ID_KEY);
+    this.stopHeartbeat();
+    try {
+      await signOut(auth);
+    } catch (authErr) {
+      console.warn("[DeviceService] Signout warning:", authErr);
     }
 
     return true;
@@ -394,21 +542,48 @@ export class DeviceService {
       const snapshot = await getDocs(devicesColRef);
 
       let removedCount = 0;
-      const deletePromises: Promise<any>[] = [];
+      const updatePromises: Promise<any>[] = [];
 
       snapshot.forEach((docSnap) => {
         if (docSnap.id !== currentDeviceId) {
           removedCount++;
           const devRef = doc(db, "users", userId, "devices", docSnap.id);
-          deletePromises.push(
-            setDoc(devRef, { status: 'revoked' }, { merge: true })
-              .then(() => deleteDoc(devRef))
-              .catch((err) => console.warn("Error deleting other device doc:", err))
+          updatePromises.push(
+            setDoc(devRef, { 
+              status: 'revoked',
+              lastActive: Date.now(),
+              revokedAt: Date.now()
+            }, { merge: true }).catch((err) => console.warn("Error revoking other device doc:", err))
           );
         }
       });
 
-      await Promise.all(deletePromises);
+      await Promise.all(updatePromises);
+
+      // Broadcast event
+      try {
+        if (typeof window !== 'undefined') {
+          if ('BroadcastChannel' in window) {
+            const channel = new BroadcastChannel('sjtutor_device_events');
+            channel.postMessage({
+              type: 'LOGOUT_ALL_OTHERS',
+              userId,
+              initiatorDeviceId: currentDeviceId,
+              timestamp: Date.now()
+            });
+            channel.close();
+          }
+          localStorage.setItem('sjtutor_device_revocation_signal', JSON.stringify({
+            userId,
+            targetDeviceId: 'others',
+            initiatorDeviceId: currentDeviceId,
+            timestamp: Date.now()
+          }));
+        }
+      } catch {
+        // ignore broadcast errors
+      }
+
       return removedCount;
     } catch (error) {
       console.error("[DeviceService] Failed to logout other devices:", error);
