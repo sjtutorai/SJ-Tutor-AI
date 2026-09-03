@@ -1,12 +1,11 @@
 // Service Worker to handle Offline Sync, Push Notifications and FCM background messages
 
-const CACHE_NAME = 'sjtutor-offline-v1';
+const CACHE_NAME = 'sjtutor-offline-v2';
 const STATIC_ASSETS = [
   '/',
+  'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
   '/index.html',
-  '/manifest.json',
-  '/favicon.ico',
-  '/favicon.png'
+  '/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {

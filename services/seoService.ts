@@ -17,29 +17,10 @@ export interface SEOConfig {
 
 export const CANONICAL_BASE_URL = 'https://sjtutorai.vercel.app';
 export const DEFAULT_LOGO_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
-export const DEFAULT_OG_IMAGE = 'https://sjtutorai.vercel.app/og-image.png';
-export const DEFAULT_FAVICON_URL = 'https://sjtutorai.vercel.app/favicon-48x48.png';
+export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
+export const DEFAULT_FAVICON_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_TITLE = 'SJ Tutor AI - Your AI Study Buddy';
 export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion for students.';
-
-/**
- * Canonical Favicon & Brand Asset Registry
- */
-export const FAVICON_ASSETS = {
-  ico: '/favicon.ico',
-  png16: '/favicon-16x16.png',
-  png32: '/favicon-32x32.png',
-  png48: '/favicon-48x48.png',
-  png96: '/favicon-96x96.png',
-  png144: '/favicon-144x144.png',
-  png192: '/favicon-192x192.png',
-  png512: '/favicon-512x512.png',
-  appleTouchIcon: '/apple-touch-icon.png',
-  faviconPng: '/favicon.png',
-  faviconSvg: '/favicon.svg',
-  logoPng: '/logo.png',
-  ogImage: '/og-image.png',
-} as const;
 
 function ensureMetaTag(nameOrProperty: string, value: string, isProperty = false) {
   const selector = isProperty 
@@ -70,30 +51,27 @@ function ensureCanonicalLink(href: string) {
 }
 
 function ensureFaviconLinks() {
-  const favicons = [
-    { rel: 'icon', type: 'image/x-icon', href: FAVICON_ASSETS.ico },
-    { rel: 'shortcut icon', type: 'image/x-icon', href: FAVICON_ASSETS.ico },
-    { rel: 'icon', type: 'image/svg+xml', href: FAVICON_ASSETS.faviconSvg },
-    { rel: 'icon', type: 'image/png', sizes: '16x16', href: FAVICON_ASSETS.png16 },
-    { rel: 'icon', type: 'image/png', sizes: '32x32', href: FAVICON_ASSETS.png32 },
-    { rel: 'icon', type: 'image/png', sizes: '48x48', href: FAVICON_ASSETS.png48 },
-    { rel: 'icon', type: 'image/png', sizes: '96x96', href: FAVICON_ASSETS.png96 },
-    { rel: 'icon', type: 'image/png', sizes: '144x144', href: FAVICON_ASSETS.png144 },
-    { rel: 'icon', type: 'image/png', sizes: '192x192', href: FAVICON_ASSETS.png192 },
-    { rel: 'icon', type: 'image/png', sizes: '512x512', href: FAVICON_ASSETS.png512 },
-    { rel: 'icon', type: 'image/png', href: FAVICON_ASSETS.faviconPng },
-    { rel: 'apple-touch-icon', sizes: '180x180', href: FAVICON_ASSETS.appleTouchIcon },
+  // Remove any legacy local favicon links
+  const legacyLinks = document.querySelectorAll('link[rel*="icon"]');
+  legacyLinks.forEach((el) => {
+    const href = el.getAttribute('href') || '';
+    if (href.startsWith('/favicon') || href.startsWith('/apple-touch-icon')) {
+      el.remove();
+    }
+  });
+
+  const icons = [
+    { rel: 'icon', type: 'image/jpeg', href: DEFAULT_LOGO_URL },
+    { rel: 'shortcut icon', type: 'image/jpeg', href: DEFAULT_LOGO_URL },
+    { rel: 'apple-touch-icon', href: DEFAULT_LOGO_URL },
   ];
 
-  favicons.forEach(({ rel, type, href, sizes }) => {
-    let selector = `link[rel="${rel}"][href="${href}"]`;
-    if (sizes) selector += `[sizes="${sizes}"]`;
-    let el = document.querySelector(selector) as HTMLLinkElement | null;
+  icons.forEach(({ rel, type, href }) => {
+    let el = document.querySelector(`link[rel="${rel}"][href="${href}"]`) as HTMLLinkElement | null;
     if (!el) {
       el = document.createElement('link');
       el.setAttribute('rel', rel);
       if (type) el.setAttribute('type', type);
-      if (sizes) el.setAttribute('sizes', sizes);
       el.setAttribute('href', href);
       document.head.appendChild(el);
     }

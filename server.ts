@@ -21,7 +21,12 @@ const PORT = 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
-// Serve static public assets (favicons, logos, manifests, robots.txt, etc.)
+// Redirect any legacy favicon requests directly to the direct logo URL
+app.get(['/favicon.ico', '/favicon.png', '/favicon-:size.png', '/apple-touch-icon.png'], (req, res) => {
+  res.redirect(301, 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg');
+});
+
+// Serve static public assets (logos, manifests, robots.txt, etc.)
 app.use(express.static(path.resolve(resolvedDirname, "public")));
 
 // Request logging
@@ -41,29 +46,17 @@ app.get("/robots.txt", (req, res) => {
     res.send(`User-agent: Googlebot
 Allow: /
 Allow: /logo.png
-Allow: /favicon.ico
-Allow: /favicon.png
-Allow: /favicon-*.png
-Allow: /apple-touch-icon.png
 Allow: /og-image.png
 Allow: /manifest.json
 
 User-agent: Googlebot-Image
 Allow: /
 Allow: /logo.png
-Allow: /favicon.ico
-Allow: /favicon.png
-Allow: /favicon-*.png
-Allow: /apple-touch-icon.png
 Allow: /og-image.png
 
 User-agent: *
 Allow: /
 Allow: /logo.png
-Allow: /favicon.ico
-Allow: /favicon.png
-Allow: /favicon-*.png
-Allow: /apple-touch-icon.png
 Allow: /og-image.png
 Allow: /manifest.json
 
