@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, setDoc, getDocs, collection, query, orderBy, limit } from 'firebase/firestore';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { doc, getDoc, setDoc, getDocs, collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { UserProfile } from '../types';
 import confetti from 'canvas-confetti';
@@ -15,6 +15,7 @@ export interface StreakData {
   streakHistory: string[];
   claimedMilestones?: number[];
   updatedAt: number;
+  activeSecondsToday?: number;
 }
 
 export interface LeaderboardEntry {
@@ -25,11 +26,17 @@ export interface LeaderboardEntry {
   highestStreak: number;
 }
 
+export const REQUIRED_ACTIVE_SECONDS = 120; // 2 minutes of active presence in the app unlocks today's streak
+
 interface StreakContextType {
   streak: StreakData;
   leaderboard: LeaderboardEntry[];
   loading: boolean;
+  activeSecondsToday: number;
+  requiredActiveSeconds: number;
+  isTodayCompleted: boolean;
   recordActivity: (userProfile?: UserProfile, onProfileUpdate?: (profile: UserProfile) => void) => Promise<{ success: boolean; incremented: boolean; milestoneReached?: number }>;
+  adjustStreak: (newCount: number) => Promise<void>;
   claimMilestone: (milestone: number, userProfile: UserProfile, onProfileUpdate: (profile: UserProfile) => void) => Promise<boolean>;
   fetchLeaderboard: () => Promise<void>;
   triggerConfetti: () => void;
@@ -37,6 +44,7 @@ interface StreakContextType {
   setCelebration: (val: { show: boolean; days: number; isMilestone?: boolean; badge?: string } | null) => void;
   soundEnabled: boolean;
   setSoundEnabled: (val: boolean) => void;
+  syncWithCloud: () => Promise<void>;
 }
 
 const StreakContext = createContext<StreakContextType | undefined>(undefined);
@@ -73,8 +81,8 @@ export const playCelebrationSound = (soundEnabled: boolean) => {
       osc.frequency.setValueAtTime(freq, now + index * 0.07);
       
       gain.gain.setValueAtTime(0, now + index * 0.07);
-      gain.gain.linearRampToValueAtTime(0.12, now + index * 0.07 + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + index * 0.07 + 0.4);
+      gain.gain.linearRampToValueAtTime(0.18, now + index * 0.07 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.07 + 0.35);
       
       osc.connect(gain);
       gain.connect(audioCtx.destination);
@@ -82,17 +90,19 @@ export const playCelebrationSound = (soundEnabled: boolean) => {
       osc.start(now + index * 0.07);
       osc.stop(now + index * 0.07 + 0.4);
     });
-  } catch (e) {
-    console.warn("Web Audio API chime prevented or unsupported:", e);
+  } catch {
+    // Ignore audio permission or autoplay restrictions silently
   }
 };
 
 export const STREAK_MILESTONES = [
-  { days: 3, label: 'Beginner Learner', reward: 15, badge: '🌱' },
-  { days: 7, label: 'Consistent Learner', reward: 40, badge: '🔥' },
-  { days: 15, label: 'Dedicated Learner', reward: 100, badge: '⚡' },
-  { days: 30, label: 'Streak Master', reward: 250, badge: '👑' },
-  { days: 100, label: 'SJ Tutor AI Legend', reward: 1000, badge: '🏆' },
+  { days: 3, label: '3-Day Starter', bonusCredits: 25, badge: '🌱' },
+  { days: 7, label: '7-Day Consistent', bonusCredits: 75, badge: '🥉' },
+  { days: 14, label: '14-Day Dedicated', bonusCredits: 150, badge: '⚡' },
+  { days: 30, label: '30-Day Unstoppable', bonusCredits: 350, badge: '🥈' },
+  { days: 60, label: '60-Day Mastermind', bonusCredits: 750, badge: '💎' },
+  { days: 100, label: '100-Day Legend', bonusCredits: 1500, badge: '🥇' },
+  { days: 365, label: '365-Day Grand Scholar', bonusCredits: 5000, badge: '👑' },
 ];
 
 const INITIAL_STREAK: StreakData = {
@@ -120,6 +130,15 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => {
     return localStorage.getItem('sjtutor_streak_sound_enabled') !== 'false';
   });
+
+  // Track active seconds spent in the app today
+  const [activeSecondsToday, setActiveSecondsToday] = useState<number>(() => {
+    const today = getLocalDateString();
+    const saved = localStorage.getItem(`sjtutor_active_sec_${today}`);
+    return saved ? parseInt(saved, 10) || 0 : 0;
+  });
+
+  const autoUnlockedTodayRef = useRef(false);
 
   const setSoundEnabled = (val: boolean) => {
     setSoundEnabledState(val);
@@ -163,10 +182,10 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       );
       const snapshot = await getDocs(q);
       const entries: LeaderboardEntry[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
         entries.push({
-          uid: doc.id,
+          uid: docSnap.id,
           displayName: data.displayName || 'Learner',
           photoURL: data.photoURL || '',
           currentStreak: data.currentStreak || 0,
@@ -174,8 +193,7 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       });
 
-      // Fetch documents from users collection to merge any additional active accounts
-      const finalEntries = [...entries];
+      // Merge user documents if leaderboard is small
       if (entries.length < 5) {
         try {
           const userSnap = await getDocs(collection(db, 'users'));
@@ -183,12 +201,12 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             const userData = userDoc.data();
             const exists = entries.some(e => e.uid === userDoc.id);
             if (!exists) {
-              finalEntries.push({
+              entries.push({
                 uid: userDoc.id,
                 displayName: userData.displayName || 'Active Student',
                 photoURL: userData.photoURL || '',
-                currentStreak: 0,
-                highestStreak: 1,
+                currentStreak: userData.streak || 0,
+                highestStreak: userData.highestStreak || userData.streak || 1,
               });
             }
           });
@@ -198,26 +216,24 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       // Eliminate duplicates and sort by highest streak
-      const uniqueEntries = Array.from(new Map(finalEntries.map(e => [e.uid, e])).values());
-      uniqueEntries.sort((a, b) => b.highestStreak - a.highestStreak);
+      const uniqueEntries = Array.from(new Map(entries.map(e => [e.uid, e])).values());
+      uniqueEntries.sort((a, b) => (b.currentStreak || b.highestStreak) - (a.currentStreak || a.highestStreak));
 
       if (uniqueEntries.length > 0) {
         setLeaderboard(uniqueEntries);
       } else {
-        // Fallback leaderboard simulation for offline/guest
         setLeaderboard([
-          { uid: 's1', displayName: 'Aarav Sharma', currentStreak: 32, highestStreak: 35 },
+          { uid: 's1', displayName: 'Aarav Sharma', currentStreak: 34, highestStreak: 35 },
           { uid: 's2', displayName: 'Priya Patel', currentStreak: 18, highestStreak: 25 },
           { uid: 's3', displayName: 'David Kim', currentStreak: 14, highestStreak: 14 },
           { uid: 's4', displayName: 'Sofia Rossi', currentStreak: 8, highestStreak: 12 },
           { uid: 's5', displayName: 'Mohamed Ali', currentStreak: 5, highestStreak: 8 },
         ]);
       }
-    } catch (e) {
-      console.warn('Leaderboard fetch fallback active due to firestore permissions or offline:', e);
+    } catch {
       // Fallback
       setLeaderboard([
-        { uid: 's1', displayName: 'Aarav Sharma', currentStreak: 32, highestStreak: 35 },
+        { uid: 's1', displayName: 'Aarav Sharma', currentStreak: 34, highestStreak: 35 },
         { uid: 's2', displayName: 'Priya Patel', currentStreak: 18, highestStreak: 25 },
         { uid: 's3', displayName: 'David Kim', currentStreak: 14, highestStreak: 14 },
         { uid: 's4', displayName: 'Sofia Rossi', currentStreak: 8, highestStreak: 12 },
@@ -226,141 +242,213 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  // Sync auth-state and fetch/align profiles
+  // Multi-Device Real-Time Cloud Sync using Firestore onSnapshot
   useEffect(() => {
-    const unsub = auth.onAuthStateChanged(async (user) => {
+    let unsubscribeSnapshot: (() => void) | null = null;
+
+    const unsubAuth = auth.onAuthStateChanged(async (user) => {
       setLoading(true);
+
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+        unsubscribeSnapshot = null;
+      }
+
       if (user) {
         setCurrentUserId(user.uid);
-        
-        // 1. Instantly load from localStorage if available to be responsive
-        let localData: StreakData | null = null;
-        const localSaved = localStorage.getItem(`sjtutor_streak_${user.uid}`);
-        if (localSaved) {
-          try {
-            localData = JSON.parse(localSaved);
-            if (localData) {
-              setStreak(localData);
-            }
-          } catch (err) {
-            console.warn('Failed to parse local stored user streak:', err);
-          }
-        }
-
         const streakDocRef = doc(db, 'streaks', user.uid);
         const userDocRef = doc(db, 'users', user.uid);
 
-        try {
-          const [streakSnap, userSnap] = await Promise.all([
-            getDoc(streakDocRef).catch(() => null),
-            getDoc(userDocRef).catch(() => null)
-          ]);
+        // Subscribe in real-time to Firestore.
+        // This guarantees Device A and Device B are ALWAYS in 100% sync.
+        unsubscribeSnapshot = onSnapshot(
+          streakDocRef,
+          async (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              let current = typeof data.currentStreak === 'number' ? data.currentStreak : 0;
+              let highest = typeof data.highestStreak === 'number' ? data.highestStreak : current;
+              const lastStudy = data.lastStudyDate || data.lastActivityDate || null;
+              const history = Array.isArray(data.streakHistory) ? data.streakHistory : [];
+              const claimed = Array.isArray(data.claimedMilestones) ? data.claimedMilestones : [];
+              const updatedAt = typeof data.updatedAt === 'number' ? data.updatedAt : Date.now();
 
-          const streakDocData = streakSnap && streakSnap.exists() ? streakSnap.data() : null;
-          const userDocData = userSnap && userSnap.exists() ? userSnap.data() : null;
+              // ONE-TIME FIX FOR MULTI-DEVICE 35 BUG ON sjtutorai@gmail.com
+              // If user was affected by the auto-bump to 35 on device switch, restore to 34
+              const userEmail = user.email?.toLowerCase().trim();
+              if (
+                userEmail === 'sjtutorai@gmail.com' &&
+                current === 35 &&
+                !localStorage.getItem('sjtutor_streak_fixed_34_v1')
+              ) {
+                console.log('[STREAK FIX] Correcting inflated streak from 35 back to 34 for sjtutorai@gmail.com');
+                current = 34;
+                highest = Math.max(highest, 34);
+                localStorage.setItem('sjtutor_streak_fixed_34_v1', 'true');
+                setDoc(streakDocRef, { currentStreak: 34, updatedAt: Date.now() }, { merge: true }).catch(() => {});
+                setDoc(userDocRef, { streak: 34, currentStreak: 34 }, { merge: true }).catch(() => {});
+              }
 
-          const streakFromStreaks = streakDocData ? (streakDocData.currentStreak ?? streakDocData.streak ?? 0) : 0;
-          const streakFromUsers = userDocData ? (userDocData.streak ?? userDocData.currentStreak ?? 0) : 0;
-          const streakFromLocal = localData ? (localData.currentStreak ?? 0) : 0;
+              const cloudData: StreakData = {
+                uid: user.uid,
+                displayName: data.displayName || user.displayName || 'Active Student',
+                photoURL: data.photoURL || user.photoURL || '',
+                currentStreak: current,
+                highestStreak: highest,
+                lastActivityDate: lastStudy,
+                lastStudyDate: lastStudy,
+                streakHistory: history,
+                claimedMilestones: claimed,
+                updatedAt,
+              };
 
-          const highestFromStreaks = streakDocData?.highestStreak ?? 0;
-          const highestFromUsers = userDocData?.highestStreak ?? 0;
-          const highestFromLocal = localData?.highestStreak ?? 0;
+              setStreak(cloudData);
+              localStorage.setItem(`sjtutor_streak_${user.uid}`, JSON.stringify(cloudData));
+            } else {
+              // Doc doesn't exist in 'streaks' yet. Check 'users' doc.
+              try {
+                const userSnap = await getDoc(userDocRef);
+                const userData = userSnap.exists() ? userSnap.data() : null;
+                const userStreak = typeof userData?.streak === 'number' ? userData.streak : (typeof userData?.currentStreak === 'number' ? userData.currentStreak : 0);
+                const userHighest = typeof userData?.highestStreak === 'number' ? userData.highestStreak : userStreak;
 
-          const maxHighestStreak = Math.max(highestFromStreaks, highestFromUsers, highestFromLocal);
-          const maxCurrentStreak = Math.max(streakFromStreaks, streakFromUsers, streakFromLocal, maxHighestStreak);
+                const initialCloudData: StreakData = {
+                  uid: user.uid,
+                  displayName: user.displayName || userData?.displayName || 'Active Student',
+                  photoURL: user.photoURL || userData?.photoURL || '',
+                  currentStreak: userStreak,
+                  highestStreak: userHighest,
+                  lastActivityDate: userData?.lastStudyDate || null,
+                  lastStudyDate: userData?.lastStudyDate || null,
+                  streakHistory: [],
+                  claimedMilestones: [],
+                  updatedAt: Date.now(),
+                };
 
-          let lastStudy = streakDocData?.lastStudyDate || streakDocData?.lastActivityDate ||
-                          userDocData?.lastStudyDate || userDocData?.lastActivityDate ||
-                          localData?.lastStudyDate || localData?.lastActivityDate || null;
-
-          // If user has a streak > 0 but missing lastStudyDate, default to yesterday so streak is preserved
-          if (maxCurrentStreak > 0 && !lastStudy) {
-            lastStudy = getYesterdayDateString();
-          }
-
-          const parsedUpdatedAt = streakDocData?.updatedAt 
-            ? (typeof streakDocData.updatedAt === 'object' && streakDocData.updatedAt !== null && 'toMillis' in streakDocData.updatedAt 
-               ? (streakDocData.updatedAt as any)?.toMillis() || Date.now()
-               : Number(streakDocData.updatedAt)) 
-            : Date.now();
-
-          const updatedData: StreakData = {
-            uid: user.uid,
-            displayName: user.displayName || streakDocData?.displayName || userDocData?.displayName || 'Active Student',
-            photoURL: user.photoURL || streakDocData?.photoURL || userDocData?.photoURL || '',
-            currentStreak: maxCurrentStreak,
-            highestStreak: maxHighestStreak,
-            lastActivityDate: lastStudy,
-            lastStudyDate: lastStudy,
-            streakHistory: streakDocData?.streakHistory || localData?.streakHistory || [],
-            claimedMilestones: streakDocData?.claimedMilestones || localData?.claimedMilestones || [],
-            updatedAt: parsedUpdatedAt,
-          };
-
-          setStreak(updatedData);
-          localStorage.setItem(`sjtutor_streak_${user.uid}`, JSON.stringify(updatedData));
-
-          // Sync back to Firestore asynchronously so both docs stay in lockstep
-          setDoc(streakDocRef, updatedData, { merge: true }).catch(() => {});
-          setDoc(userDocRef, { streak: maxCurrentStreak, currentStreak: maxCurrentStreak, highestStreak: maxHighestStreak }, { merge: true }).catch(() => {});
-
-        } catch (e) {
-          console.warn('Network offline or error fetching user streak from DB (using local storage fallback):', e);
-          if (!localData) {
-            const fallbackLocal = localStorage.getItem(`sjtutor_streak_${user.uid}`);
-            if (fallbackLocal) {
-              setStreak(JSON.parse(fallbackLocal));
+                setStreak(initialCloudData);
+                await setDoc(streakDocRef, initialCloudData, { merge: true });
+              } catch (initErr) {
+                console.warn('Failed initializing streak doc:', initErr);
+              }
             }
+            setLoading(false);
+          },
+          (err) => {
+            console.warn('Real-time streak sync error (using cached local data):', err);
+            const cached = localStorage.getItem(`sjtutor_streak_${user.uid}`);
+            if (cached) {
+              try {
+                setStreak(JSON.parse(cached));
+              } catch (parseErr) {
+                console.warn('Failed to parse cached streak:', parseErr);
+              }
+            }
+            setLoading(false);
           }
-        }
+        );
       } else {
-        // Guest user fallback
+        // Guest user mode
         setCurrentUserId(null);
         const local = localStorage.getItem('sjtutor_streak_guest');
         if (local) {
-          const parsed = JSON.parse(local);
-          const lastStudy = parsed.lastStudyDate || parsed.lastActivityDate || null;
-          parsed.lastActivityDate = lastStudy;
-          parsed.lastStudyDate = lastStudy;
-          setStreak(parsed);
+          try {
+            setStreak(JSON.parse(local));
+          } catch {
+            setStreak(INITIAL_STREAK);
+          }
         } else {
           setStreak(INITIAL_STREAK);
         }
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsub();
+    return () => {
+      unsubAuth();
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+      }
+    };
   }, []);
 
   // Fetch leaderboard initially
   useEffect(() => {
     fetchLeaderboard();
-  }, [currentUserId, fetchLeaderboard]);
+  }, [fetchLeaderboard]);
+
+  // Is today already recorded as a completed study day?
+  const todayDate = getLocalDateString();
+  const isTodayCompleted = (streak.lastStudyDate === todayDate) || (streak.lastActivityDate === todayDate);
+
+  // Active presence tracking in the app:
+  // Tracks seconds spent active in the app today.
+  // Streak increases ONLY when the student actually spends time in the app studying or completes an activity!
+  useEffect(() => {
+    const today = getLocalDateString();
+
+    const interval = setInterval(() => {
+      // Only count time if document is visible and not hidden
+      if (!document.hidden) {
+        setActiveSecondsToday((prev) => {
+          const updated = prev + 1;
+          localStorage.setItem(`sjtutor_active_sec_${today}`, String(updated));
+          return updated;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Record an activity completion with accurate calendar day criteria
-  const recordActivity = useCallback(async () => {
+  const recordActivity = useCallback(async (
+    userProfile?: UserProfile,
+    onProfileUpdate?: (profile: UserProfile) => void
+  ) => {
     const today = getLocalDateString();
-    
+
     return new Promise<{ success: boolean; incremented: boolean; milestoneReached?: number }>((resolve) => {
       setStreak((prev) => {
         const lastStudy = prev.lastStudyDate || prev.lastActivityDate;
-        
+
+        // If activity was already recorded today, do NOT increment again on the same day!
+        if (lastStudy === today) {
+          resolve({
+            success: true,
+            incremented: false,
+          });
+          return prev;
+        }
+
+        // New study day! Check consecutive status
+        const yesterday = getYesterdayDateString();
         let newCount = prev.currentStreak;
         let didIncrement = false;
 
-        if (lastStudy === today) {
-          // Already recorded today! Ensure current streak is at least 1
-          didIncrement = false;
-          newCount = prev.currentStreak > 0 ? prev.currentStreak : 1;
-        } else {
-          // New activity day: ALWAYS continue from previous streak or highest streak!
-          const previousStreakValue = prev.currentStreak > 0 
-            ? prev.currentStreak 
-            : (prev.highestStreak > 0 ? prev.highestStreak : 0);
-          newCount = previousStreakValue + 1;
+        if (lastStudy === yesterday) {
+          // Studied yesterday: maintain & increment streak!
+          newCount = (prev.currentStreak > 0 ? prev.currentStreak : 0) + 1;
           didIncrement = true;
+        } else if (!lastStudy || prev.currentStreak === 0) {
+          // Starting brand new streak
+          newCount = 1;
+          didIncrement = true;
+        } else {
+          // Check days difference for grace period / freeze
+          const lastDate = new Date(lastStudy);
+          const todayDateObj = new Date(today);
+          const diffTime = Math.abs(todayDateObj.getTime() - lastDate.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          if (diffDays <= 2) {
+            // Within 24-48h grace window: continue streak
+            newCount = (prev.currentStreak > 0 ? prev.currentStreak : 0) + 1;
+            didIncrement = true;
+          } else {
+            // Gap was longer than grace period: reset streak to 1
+            newCount = 1;
+            didIncrement = true;
+          }
         }
 
         const history = [...(prev.streakHistory || [])];
@@ -387,23 +475,25 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           lastActivityDate: today,
           lastStudyDate: today,
           streakHistory: history,
-          updatedAt: didIncrement ? Date.now() : prev.updatedAt,
+          updatedAt: Date.now(),
         };
 
         // Save locally
         const storageKey = prev.uid === 'guest' ? 'sjtutor_streak_guest' : `sjtutor_streak_${prev.uid}`;
         localStorage.setItem(storageKey, JSON.stringify(updated));
 
-        // Push to Firestore asynchronously
+        // Push to Firestore as authoritative source of truth
         if (prev.uid !== 'guest') {
           const streakDocRef = doc(db, 'streaks', prev.uid);
           setDoc(streakDocRef, {
             ...updated,
             lastStudyDate: today,
+            lastActivityDate: today,
             currentStreak: newCount,
             highestStreak: newHighest,
+            updatedAt: Date.now(),
           }, { merge: true }).catch((err) => {
-            console.warn('Asynchronous streak Firestore sync deferred/failed:', err);
+            console.warn('Firestore streak sync error:', err);
           });
 
           const userDocRef = doc(db, 'users', prev.uid);
@@ -411,7 +501,17 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             streak: newCount,
             currentStreak: newCount,
             highestStreak: newHighest,
+            lastStudyDate: today,
           }, { merge: true }).catch(() => {});
+        }
+
+        if (userProfile && onProfileUpdate && didIncrement) {
+          onProfileUpdate({
+            ...userProfile,
+            streak: newCount,
+            currentStreak: newCount,
+            highestStreak: newHighest,
+          });
         }
 
         if (didIncrement) {
@@ -436,7 +536,90 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return updated;
       });
     });
-  }, [triggerConfetti, soundEnabled]);
+  }, [soundEnabled, triggerConfetti]);
+
+  // When active seconds reach the requirement (e.g. 2 minutes in the app),
+  // automatically unlock today's streak if not yet completed!
+  useEffect(() => {
+    if (activeSecondsToday >= REQUIRED_ACTIVE_SECONDS && !isTodayCompleted && !autoUnlockedTodayRef.current) {
+      autoUnlockedTodayRef.current = true;
+      console.log(`[STREAK] User has been present in app for ${activeSecondsToday}s today. Automatically unlocking streak!`);
+      recordActivity();
+    }
+  }, [activeSecondsToday, isTodayCompleted, recordActivity]);
+
+  // Adjust / Correct streak (allows user to fix any multi-device desync)
+  const adjustStreak = useCallback(async (newCount: number) => {
+    const validCount = Math.max(0, Math.floor(newCount));
+    const uid = currentUserId || (auth.currentUser ? auth.currentUser.uid : 'guest');
+    const newHighest = Math.max(streak.highestStreak || 0, validCount);
+
+    const updated: StreakData = {
+      ...streak,
+      currentStreak: validCount,
+      highestStreak: newHighest,
+      updatedAt: Date.now(),
+    };
+    setStreak(updated);
+
+    if (uid !== 'guest') {
+      localStorage.setItem(`sjtutor_streak_${uid}`, JSON.stringify(updated));
+      const streakDocRef = doc(db, 'streaks', uid);
+      const userDocRef = doc(db, 'users', uid);
+
+      await Promise.all([
+        setDoc(streakDocRef, {
+          currentStreak: validCount,
+          highestStreak: newHighest,
+          updatedAt: Date.now(),
+        }, { merge: true }),
+        setDoc(userDocRef, {
+          streak: validCount,
+          currentStreak: validCount,
+          highestStreak: newHighest,
+        }, { merge: true }),
+      ]).catch((err) => {
+        console.warn('Failed to adjust streak in Firestore:', err);
+      });
+    } else {
+      localStorage.setItem('sjtutor_streak_guest', JSON.stringify(updated));
+    }
+  }, [currentUserId, streak]);
+
+  // Force immediate cloud sync
+  const syncWithCloud = useCallback(async () => {
+    const uid = currentUserId || (auth.currentUser ? auth.currentUser.uid : null);
+    if (!uid) return;
+
+    try {
+      const streakDocRef = doc(db, 'streaks', uid);
+      const docSnap = await getDoc(streakDocRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const current = typeof data.currentStreak === 'number' ? data.currentStreak : 0;
+        const highest = typeof data.highestStreak === 'number' ? data.highestStreak : current;
+        const lastStudy = data.lastStudyDate || data.lastActivityDate || null;
+
+        const synced: StreakData = {
+          uid,
+          displayName: data.displayName || streak.displayName,
+          photoURL: data.photoURL || streak.photoURL,
+          currentStreak: current,
+          highestStreak: highest,
+          lastActivityDate: lastStudy,
+          lastStudyDate: lastStudy,
+          streakHistory: Array.isArray(data.streakHistory) ? data.streakHistory : streak.streakHistory,
+          claimedMilestones: Array.isArray(data.claimedMilestones) ? data.claimedMilestones : streak.claimedMilestones,
+          updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : Date.now(),
+        };
+
+        setStreak(synced);
+        localStorage.setItem(`sjtutor_streak_${uid}`, JSON.stringify(synced));
+      }
+    } catch (e) {
+      console.warn('Manual cloud sync failed:', e);
+    }
+  }, [currentUserId, streak]);
 
   // Claim specific milestone rewards
   const claimMilestone = useCallback(async (
@@ -452,7 +635,7 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return false;
     }
 
-    // Add exclusive academic emblem to user profile instead of credits
+    // Add exclusive academic emblem to user profile
     const currentEmblems = userProfile.emblems || [];
     const emblemToAdd = `${milestone.badge} ${milestone.label}`;
     const updatedEmblems = currentEmblems.includes(emblemToAdd) ? currentEmblems : [...currentEmblems, emblemToAdd];
@@ -503,7 +686,11 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       streak,
       leaderboard,
       loading,
+      activeSecondsToday,
+      requiredActiveSeconds: REQUIRED_ACTIVE_SECONDS,
+      isTodayCompleted,
       recordActivity,
+      adjustStreak,
       claimMilestone,
       fetchLeaderboard,
       triggerConfetti,
@@ -511,6 +698,7 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCelebration,
       soundEnabled,
       setSoundEnabled,
+      syncWithCloud,
     }}>
       {children}
     </StreakContext.Provider>
