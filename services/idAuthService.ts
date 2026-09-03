@@ -220,6 +220,7 @@ export const IdAuthService = {
         const data = existing.data;
         const membership = getMembershipByEmail(data.email || parsed.email);
         
+        const resolvedDob = data.dob || data.dateOfBirth || (data as any)?.birthDate || (parsed as any)?.dob || '';
         finalProfile = {
           displayName: data.displayName || data.name || parsed.name || 'Scholar Student',
           email: data.email || parsed.email || '',
@@ -228,6 +229,8 @@ export const IdAuthService = {
           institution: data.institution || parsed.institution || 'SJ Tutor AI',
           grade: data.grade || parsed.grade || '10th Grade',
           board: data.board || 'CBSE',
+          dob: resolvedDob,
+          dateOfBirth: resolvedDob,
           state: data.state || parsed.state || 'Delhi',
           district: data.district || parsed.district || 'New Delhi',
           bio: data.bio || `Student at ${data.institution || parsed.institution || 'SJ Tutor AI'}`,
@@ -390,6 +393,7 @@ export const IdAuthService = {
       }
 
       const membership = getMembershipByEmail(data.email);
+      const resolvedDob = data.dob || data.dateOfBirth || (data as any)?.birthDate || '';
       const finalProfile: UserProfile = {
         displayName: data.displayName || data.name || 'Scholar Student',
         email: data.email || '',
@@ -398,6 +402,8 @@ export const IdAuthService = {
         institution: data.institution || 'SJ Tutor AI',
         grade: data.grade || '10th Grade',
         board: data.board || 'CBSE',
+        dob: resolvedDob,
+        dateOfBirth: resolvedDob,
         state: data.state || 'Delhi',
         district: data.district || 'New Delhi',
         bio: data.bio || `Student at ${data.institution || 'SJ Tutor AI'}`,
@@ -422,6 +428,7 @@ export const IdAuthService = {
       SecurityPinService.setSessionUnlocked(uid);
 
       localStorage.setItem(`profile_${uid}`, JSON.stringify(finalProfile));
+      localStorage.setItem('sjtutor_user_profile', JSON.stringify(finalProfile));
       localStorage.setItem('sjtutor_active_id_session', uid);
 
       try {

@@ -1178,48 +1178,64 @@ const App: React.FC = () => {
       async (currentUser) => {
         clearTimeout(timeoutId);
         if (currentUser) {
+          setUser(currentUser);
+          try {
+            const userProf = await getCurrentUserProfile(currentUser);
+            const isRegisteredInDb = userProf.isRegisteredInFirestore || userProf.hasCompletedOnboarding;
+            
+            setUserProfile((prev) => {
+              const resolvedDob = userProf.dob || userProf.dateOfBirth || prev.dob || prev.dateOfBirth || "";
+              const merged: UserProfile = {
+                ...initialProfileState,
+                ...prev,
+                ...userProf,
+                dob: resolvedDob,
+                dateOfBirth: resolvedDob,
+                hasCompletedOnboarding: isRegisteredInDb ? true : (userProf.hasCompletedOnboarding ?? prev.hasCompletedOnboarding),
+                isRegisteredInFirestore: isRegisteredInDb ? true : (userProf.isRegisteredInFirestore ?? prev.isRegisteredInFirestore),
+              };
+              try {
+                localStorage.setItem(`profile_${currentUser.uid}`, JSON.stringify(merged));
+                localStorage.setItem('sjtutor_user_profile', JSON.stringify(merged));
+              } catch (storageErr) {
+                console.debug("Failed to cache profile in local storage:", storageErr);
+              }
+              return merged;
+            });
 
-           setUser(currentUser);
-           try {
-             const userProf = await getCurrentUserProfile(currentUser);
-             const isRegisteredInDb = userProf.isRegisteredInFirestore || userProf.hasCompletedOnboarding;
-             setUserProfile({
-               ...initialProfileState,
-               ...userProf,
-               hasCompletedOnboarding: isRegisteredInDb ? true : userProf.hasCompletedOnboarding,
-             } as any);
+            if (userProf.language) {
+              SettingsService.updateSettings({
+                learning: {
+                  ...SettingsService.getSettings().learning,
+                  language: userProf.language,
+                }
+              });
+              setFormData((prev) => ({
+                ...prev,
+                language: userProf.language || prev.language,
+                gradeClass: userProf.grade || userProf.class || prev.gradeClass,
+                board: userProf.board || prev.board,
+              }));
+            }
 
-             if (userProf.language) {
-               SettingsService.updateSettings({
-                 learning: {
-                   ...SettingsService.getSettings().learning,
-                   language: userProf.language,
-                 }
-               });
-               setFormData((prev) => ({
-                 ...prev,
-                 language: userProf.language || prev.language,
-               }));
-             }
-
-             if (isRegisteredInDb) {
-               // User is already registered in Firestore - navigate to dashboard, hide welcome & profile prompts
-               setMode(AppMode.DASHBOARD);
-               setShowCompletionReminder(false);
-               setShowTutorial(false);
-             } else if (!userProf.hasCompletedOnboarding) {
-               setMode(AppMode.PROFILE);
-             } else {
-               setMode(AppMode.DASHBOARD);
-             }
-           } catch (e) {
-             console.error("Error fetching/creating profile:", e);
-           }
+            if (isRegisteredInDb) {
+              // User is already registered in Firestore - navigate to dashboard, hide welcome & profile prompts
+              setMode(AppMode.DASHBOARD);
+              setShowCompletionReminder(false);
+              setShowTutorial(false);
+            } else if (!userProf.hasCompletedOnboarding) {
+              setMode(AppMode.PROFILE);
+            } else {
+              setMode(AppMode.DASHBOARD);
+            }
+          } catch (e) {
+            console.error("Error fetching/creating profile:", e);
+          }
         } else {
           // Check if there is an active ID Card / Registration session
           const activeIdUid = localStorage.getItem('sjtutor_active_id_session');
           if (activeIdUid) {
-            const cachedProfileRaw = localStorage.getItem(`profile_${activeIdUid}`);
+            const cachedProfileRaw = localStorage.getItem(`profile_${activeIdUid}`) || localStorage.getItem('sjtutor_user_profile');
             if (cachedProfileRaw) {
               try {
                 const cachedProfile = JSON.parse(cachedProfileRaw);
@@ -1330,7 +1346,7 @@ const App: React.FC = () => {
       }
 
       // SPEED OPTIMIZATION: Load locally stored profile from LocalStorage IMMEDIATELY
-      const savedProfile = localStorage.getItem(`profile_${user.uid}`);
+      const savedProfile = localStorage.getItem(`profile_${user.uid}`) || localStorage.getItem('sjtutor_user_profile');
       let cached: any = null;
       if (savedProfile) {
         try {
@@ -1341,26 +1357,46 @@ const App: React.FC = () => {
       }
 
       const membership = getMembershipByEmail(user.email);
-      const initialProfile = {
-        ...initialProfileState,
-        credits: membership ? membership.credits : 100,
-        planType: membership ? membership.planType : "Free",
-        ...cached,
-        ...(membership ? { planType: membership.planType, credits: membership.credits, hasCompletedOnboarding: true } : {}),
-        displayName: (cached && cached.displayName) || user.displayName || "",
-        photoURL: (cached && cached.photoURL) || user.photoURL || "",
-      };
 
-      // Set user profile instantly to avoid blocking or lagging perceived speed!
-      setUserProfile((prev) => ({
-        ...initialProfile,
-        isRegisteredInFirestore: prev.isRegisteredInFirestore || cached?.isRegisteredInFirestore,
-        hasCompletedOnboarding: !!membership || prev.hasCompletedOnboarding || cached?.hasCompletedOnboarding,
-      }));
+      // Merge profile safely without letting blank defaults overwrite real existing data
+      let currentResolvedProfile: UserProfile = initialProfileState;
+      setUserProfile((prev) => {
+        const resolvedDob = prev.dob || prev.dateOfBirth || cached?.dob || cached?.dateOfBirth || "";
+        const prevNonEmpty = Object.fromEntries(
+          Object.entries(prev).filter(([, v]) => v !== "" && v !== null && v !== undefined)
+        );
+        const cachedNonEmpty = cached ? Object.fromEntries(
+          Object.entries(cached).filter(([, v]) => v !== "" && v !== null && v !== undefined)
+        ) : {};
+
+        const merged: UserProfile = {
+          ...initialProfileState,
+          ...cachedNonEmpty,
+          ...prevNonEmpty,
+          dob: resolvedDob,
+          dateOfBirth: resolvedDob,
+          credits: membership ? membership.credits : (prev.credits || cached?.credits || 100),
+          planType: membership ? membership.planType : (prev.planType || cached?.planType || "Free"),
+          displayName: prev.displayName || cached?.displayName || user.displayName || "",
+          photoURL: prev.photoURL || cached?.photoURL || user.photoURL || "",
+          isRegisteredInFirestore: prev.isRegisteredInFirestore || cached?.isRegisteredInFirestore || false,
+          hasCompletedOnboarding: !!membership || prev.hasCompletedOnboarding || cached?.hasCompletedOnboarding || false,
+        };
+
+        try {
+          localStorage.setItem(`profile_${user.uid}`, JSON.stringify(merged));
+          localStorage.setItem('sjtutor_user_profile', JSON.stringify(merged));
+        } catch (cacheErr) {
+          console.debug("Failed to cache profile in local storage:", cacheErr);
+        }
+
+        currentResolvedProfile = merged;
+        return merged;
+      });
 
       // Check profile completion to trigger alerts/notifications (skip for users registered in Firestore)
       const isRegisteredInDb = userProfile.isRegisteredInFirestore || cached?.isRegisteredInFirestore || userProfile.hasCompletedOnboarding;
-      const cachedCompletion = calculateProfileCompletion(initialProfile);
+      const cachedCompletion = calculateProfileCompletion(currentResolvedProfile);
       const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
 
       if (!isRegisteredInDb && cachedCompletion < 100 && !isDismissedPrompt) {
@@ -1579,6 +1615,7 @@ const App: React.FC = () => {
     const activeUid = user?.uid || auth.currentUser?.uid || localStorage.getItem('sjtutor_active_id_session');
     if (activeUid) {
       localStorage.setItem(`profile_${activeUid}`, JSON.stringify(sanitizedProfile));
+      localStorage.setItem('sjtutor_user_profile', JSON.stringify(sanitizedProfile));
       await saveProfileToFirestore(activeUid, sanitizedProfile);
     }
     
@@ -1605,12 +1642,12 @@ const App: React.FC = () => {
 
     try {
       const userProf = auth.currentUser ? await getCurrentUserProfile(auth.currentUser) : (signupData || {});
-      const finalSjTutorId = signupData?.sjTutorId || (userProf as any)?.sjTutorId || generateSjTutorId();
-      const resolvedDob = signupData?.dob || signupData?.dateOfBirth || (userProf as any)?.dob || (userProf as any)?.dateOfBirth || "";
+      const finalSjTutorId = (userProf as any)?.sjTutorId || (userProf as any)?.registrationNumber || signupData?.sjTutorId || signupData?.registrationNumber || generateSjTutorId();
+      const resolvedDob = (userProf as any)?.dob || (userProf as any)?.dateOfBirth || signupData?.dob || signupData?.dateOfBirth || "";
       const mergedProfile = {
         ...initialProfileState,
-        ...userProf,
         ...(signupData || {}),
+        ...userProf,
         dob: resolvedDob,
         dateOfBirth: resolvedDob,
         sjTutorId: finalSjTutorId,
@@ -1622,6 +1659,7 @@ const App: React.FC = () => {
 
       if (activeUid) {
         localStorage.setItem(`profile_${activeUid}`, JSON.stringify(mergedProfile));
+        localStorage.setItem('sjtutor_user_profile', JSON.stringify(mergedProfile));
         localStorage.setItem('sjtutor_active_id_session', activeUid);
         await saveProfileToFirestore(activeUid, mergedProfile);
       }

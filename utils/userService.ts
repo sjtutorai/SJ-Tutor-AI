@@ -239,7 +239,8 @@ export const updateUserProfile = async (uid: string, data: Partial<any>) => {
 
 /**
  * Gets the current user profile from Firestore.
- * Also updates lastLoginAt and basic profile info on every login.
+ * Robustly checks by UID, falls back to email query or local cache,
+ * and preserves all personal details on login without overwriting them.
  * @param user The Firebase Auth user object
  */
 export const getCurrentUserProfile = async (user: User) => {
@@ -248,9 +249,41 @@ export const getCurrentUserProfile = async (user: User) => {
     const docSnap = await getDoc(userRef);
     const membership = getMembershipByEmail(user.email);
 
+    let data: any = null;
+
     if (docSnap.exists()) {
-      // Update existing profile
-      const data = docSnap.data();
+      data = docSnap.data();
+    } else if (user.email) {
+      // Fallback: Query by email in case document is registered with a different key (e.g., ID-based)
+      try {
+        const usersRef = collection(db, "users");
+        const q = query(usersRef, where("email", "==", user.email.toLowerCase().trim()));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          data = snap.docs[0].data();
+        }
+      } catch (qErr) {
+        console.warn("Could not query user by email in Firestore:", qErr);
+      }
+    }
+
+    // Secondary fallback: Check cached profile in localStorage if Firestore is slow or doc is offline
+    if (!data) {
+      try {
+        const cachedRaw = localStorage.getItem(`profile_${user.uid}`) || localStorage.getItem('sjtutor_user_profile');
+        if (cachedRaw) {
+          const parsed = JSON.parse(cachedRaw);
+          if (parsed && (parsed.displayName || parsed.grade || parsed.institution || parsed.phoneNumber || parsed.isRegisteredInFirestore)) {
+            data = parsed;
+          }
+        }
+      } catch (cacheErr) {
+        console.debug("Error reading cached profile:", cacheErr);
+      }
+    }
+
+    if (data) {
+      // Existing profile found
       const trialStartDate = data.trialStartDate || Date.now();
       const planType = membership 
         ? membership.planType 
@@ -259,14 +292,32 @@ export const getCurrentUserProfile = async (user: User) => {
         ? Math.max(membership.credits, data.credits || membership.credits) 
         : (data.credits ?? 100);
 
+      const resolvedDob = data.dob || data.dateOfBirth || data.birthDate || "";
+      const resolvedGrade = data.grade || data.class || data.gradeClass || "";
+      const resolvedBoard = data.board || "";
+      const resolvedInstitution = data.institution || data.school || "";
+      const resolvedPhone = data.phoneNumber || data.phone || "";
+      const resolvedDisplayName = data.displayName || data.name || user.displayName || "";
+      const resolvedPhotoURL = data.photoURL || user.photoURL || "";
+      const resolvedBio = data.bio || "";
+      const resolvedState = data.state || "";
+      const resolvedDistrict = data.district || "";
+      const resolvedLanguage = data.language || "English";
+      const resolvedGoal = data.learningGoal || "";
+      const resolvedGoals = data.learningGoals || (data.learningGoal ? [data.learningGoal] : []);
+      const resolvedStyle = data.learningStyle || "Visual";
+      const resolvedStyles = data.learningStyles || (data.learningStyle ? [data.learningStyle] : []);
+      const resolvedSjTutorId = data.sjTutorId || data.registrationNumber || "";
+      const resolvedRegNum = data.registrationNumber || data.sjTutorId || "";
+
       try {
         const updatePayload: Record<string, any> = {
           lastLoginAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          name: user.displayName || data.name || "",
-          displayName: user.displayName || data.displayName || data.name || "",
+          displayName: resolvedDisplayName,
           email: user.email || data.email || "",
-          photoURL: user.photoURL || data.photoURL || "",
+          photoURL: resolvedPhotoURL,
+          isRegisteredInFirestore: true,
         };
         if (membership) {
           updatePayload.planType = membership.planType;
@@ -277,18 +328,34 @@ export const getCurrentUserProfile = async (user: User) => {
         if (!data.trialStartDate) {
           updatePayload.trialStartDate = trialStartDate;
         }
-        await updateDoc(userRef, removeUndefinedFields(updatePayload));
+        await setDoc(userRef, removeUndefinedFields({ ...data, ...updatePayload }), { merge: true });
       } catch (updateError) {
         console.error("Error updating user login info in Firestore:", updateError);
       }
 
-      const resolvedDob = data.dob || data.dateOfBirth || data.birthDate || "";
-      return {
+      const fullProfile = {
         ...data,
-        grade: data.grade || data.class || "",
-        class: data.class || data.grade || "",
+        displayName: resolvedDisplayName,
+        name: resolvedDisplayName,
+        email: user.email || data.email || "",
+        photoURL: resolvedPhotoURL,
+        phoneNumber: resolvedPhone,
+        institution: resolvedInstitution,
+        grade: resolvedGrade,
+        class: resolvedGrade,
+        board: resolvedBoard,
         dob: resolvedDob,
         dateOfBirth: resolvedDob,
+        bio: resolvedBio,
+        state: resolvedState,
+        district: resolvedDistrict,
+        language: resolvedLanguage,
+        learningGoal: resolvedGoal,
+        learningGoals: resolvedGoals,
+        learningStyle: resolvedStyle,
+        learningStyles: resolvedStyles,
+        sjTutorId: resolvedSjTutorId,
+        registrationNumber: resolvedRegNum,
         planType,
         credits,
         trialStartDate,
@@ -296,6 +363,16 @@ export const getCurrentUserProfile = async (user: User) => {
         isRegisteredInFirestore: true,
         hasCompletedOnboarding: membership ? true : (data.hasCompletedOnboarding ?? true),
       };
+
+      // Ensure cache is updated
+      try {
+        localStorage.setItem(`profile_${user.uid}`, JSON.stringify(fullProfile));
+        localStorage.setItem('sjtutor_user_profile', JSON.stringify(fullProfile));
+      } catch (cacheErr) {
+        console.debug("Error updating cached profile:", cacheErr);
+      }
+
+      return fullProfile;
     } else {
       if (membership) {
         // Admin or pre-authorized account
@@ -325,17 +402,26 @@ export const getCurrentUserProfile = async (user: User) => {
   } catch (error) {
     console.error("Error getting user profile from Firestore:", error);
     const membership = getMembershipByEmail(user.email);
+    let cachedFallback: any = null;
+    try {
+      const cached = localStorage.getItem(`profile_${user.uid}`) || localStorage.getItem('sjtutor_user_profile');
+      if (cached) cachedFallback = JSON.parse(cached);
+    } catch (cacheErr) {
+      console.debug("Error reading fallback cached profile:", cacheErr);
+    }
+
     return {
+      ...(cachedFallback || {}),
       uid: user.uid,
-      name: user.displayName || "",
-      displayName: user.displayName || "",
-      email: user.email || "",
-      photoURL: user.photoURL || "",
-      credits: membership ? membership.credits : 100,
-      planType: membership ? membership.planType : "Free",
-      hasCompletedOnboarding: membership ? true : false,
-      isRegisteredInFirestore: false,
-      role: membership?.role || "student",
+      name: cachedFallback?.displayName || user.displayName || "",
+      displayName: cachedFallback?.displayName || user.displayName || "",
+      email: user.email || cachedFallback?.email || "",
+      photoURL: cachedFallback?.photoURL || user.photoURL || "",
+      credits: membership ? membership.credits : (cachedFallback?.credits ?? 100),
+      planType: membership ? membership.planType : (cachedFallback?.planType || "Free"),
+      hasCompletedOnboarding: membership ? true : Boolean(cachedFallback?.hasCompletedOnboarding),
+      isRegisteredInFirestore: Boolean(cachedFallback?.isRegisteredInFirestore),
+      role: membership?.role || cachedFallback?.role || "student",
     };
   }
 };
