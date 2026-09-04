@@ -71,6 +71,11 @@ export interface HistoryItem {
 }
 
 export interface UserProfile {
+  uid?: string;
+  email?: string;
+  emailVerified?: boolean;
+  sjTutorId?: string;
+  linkedProviders?: string[];
   displayName: string;
   phoneNumber: string;
   institution: string;
@@ -103,6 +108,32 @@ export interface UserProfile {
   securityAnswer?: string;
   securityQuestionSetAt?: number;
   lastProfileUpdate?: number;
+  createdAt?: number | any;
+  updatedAt?: number | any;
+}
+
+export type AuthProviderType = 'google' | 'apple' | 'yahoo' | 'github' | 'email_password' | 'sj_tutor_ai_id';
+
+export interface LinkedIdentity {
+  id?: string;
+  userId: string;
+  provider: AuthProviderType;
+  providerUserId: string;
+  providerEmail?: string;
+  verified: boolean;
+  createdAt: number;
+}
+
+export interface SjTutorIdAccount {
+  sjTutorId: string;
+  userId: string;
+  displayName: string;
+  email?: string;
+  passwordHash: string;
+  twoStepEnabled: boolean;
+  twoStepSecret?: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export type RingtoneStyle = 

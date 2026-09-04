@@ -313,9 +313,48 @@
         "participants": { "type": "object" }
       },
       "required": ["id", "groupId", "groupName", "hostUid", "hostName", "type", "status", "startedAt"]
+    },
+    "LinkedIdentity": {
+      "title": "LinkedIdentity",
+      "description": "Provider identity linked to an SJ Tutor AI user account",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "provider": { "type": "string" },
+        "providerUserId": { "type": "string" },
+        "providerEmail": { "type": "string" },
+        "verified": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "provider", "providerUserId", "verified", "createdAt"]
+    },
+    "SjTutorId": {
+      "title": "SjTutorId",
+      "description": "Unique native SJ Tutor AI identifier and security credentials",
+      "type": "object",
+      "properties": {
+        "sjTutorId": { "type": "string" },
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "twoStepEnabled": { "type": "boolean" },
+        "twoStepSecret": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["sjTutorId", "userId", "passwordHash", "twoStepEnabled", "createdAt"]
     }
   },
   "firestore": {
+    "/linked_identities/{identityId}": {
+      "schema": "LinkedIdentity",
+      "description": "Linked authentication identities (Google, Apple, Yahoo, GitHub, Email, SJ Tutor AI ID)"
+    },
+    "/sj_tutor_ids/{sjtutorId}": {
+      "schema": "SjTutorId",
+      "description": "Native SJ Tutor AI identifier credentials and 2-step verification data"
+    },
     "/calls/{callId}": {
       "schema": "DirectCall",
       "description": "1-on-1 direct audio and video call signaling and records"

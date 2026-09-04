@@ -87,6 +87,47 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   const hasDragged = useRef(false);
 
   // Real-time Countdown states
+  // 24-Hour Cycle Countdown and Timeline State
+  const [cycleCountdown, setCycleCountdown] = useState({
+    hours: '00',
+    mins: '00',
+    secs: '00',
+    display: '00h 00m 00s',
+    ms: 0
+  });
+  const [cycle24hProgress, setCycle24hProgress] = useState(0);
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      const now = new Date();
+      // End of local day (24-hour midnight cycle boundary)
+      const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+      const msRemaining = Math.max(0, nextMidnight.getTime() - now.getTime());
+      
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const msElapsed = now.getTime() - startOfDay.getTime();
+      const progressPct = Math.min(100, Math.max(0, (msElapsed / (24 * 60 * 60 * 1000)) * 100));
+
+      const totalSecs = Math.floor(msRemaining / 1000);
+      const hours = Math.floor(totalSecs / 3600);
+      const mins = Math.floor((totalSecs % 3600) / 60);
+      const secs = totalSecs % 60;
+
+      setCycleCountdown({
+        hours: String(hours).padStart(2, '0'),
+        mins: String(mins).padStart(2, '0'),
+        secs: String(secs).padStart(2, '0'),
+        display: `${String(hours).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`,
+        ms: msRemaining
+      });
+      setCycle24hProgress(progressPct);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Real-time Notification state
   const [showNotificationToast, setShowNotificationToast] = useState(false);
 
@@ -152,8 +193,6 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  if (!isReady) return null;
-
   // Pointer drag event handlers to allow keeping the toy anywhere
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -214,47 +253,6 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
       setIsOpen(true);
     }
   };
-
-  // 24-Hour Cycle Countdown and Timeline State
-  const [cycleCountdown, setCycleCountdown] = useState({
-    hours: '00',
-    mins: '00',
-    secs: '00',
-    display: '00h 00m 00s',
-    ms: 0
-  });
-  const [cycle24hProgress, setCycle24hProgress] = useState(0);
-
-  useEffect(() => {
-    const updateCountdown = () => {
-      const now = new Date();
-      // End of local day (24-hour midnight cycle boundary)
-      const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
-      const msRemaining = Math.max(0, nextMidnight.getTime() - now.getTime());
-      
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      const msElapsed = now.getTime() - startOfDay.getTime();
-      const progressPct = Math.min(100, Math.max(0, (msElapsed / (24 * 60 * 60 * 1000)) * 100));
-
-      const totalSecs = Math.floor(msRemaining / 1000);
-      const hours = Math.floor(totalSecs / 3600);
-      const mins = Math.floor((totalSecs % 3600) / 60);
-      const secs = totalSecs % 60;
-
-      setCycleCountdown({
-        hours: String(hours).padStart(2, '0'),
-        mins: String(mins).padStart(2, '0'),
-        secs: String(secs).padStart(2, '0'),
-        display: `${String(hours).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`,
-        ms: msRemaining
-      });
-      setCycle24hProgress(progressPct);
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const calculatedNextStreak = nextStreak || (streak.currentStreak > 0 ? streak.currentStreak + 1 : 1);
   const currentNextMilestone = nextMilestone || STREAK_MILESTONES.find(m => m.days > streak.currentStreak) || null;
@@ -330,6 +328,8 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   const pillOutlineCircumference = 2 * Math.PI * pillOutlineRadius;
   const activeCyclePct = isTodayCompleted ? 100 : cycle24hProgress;
   const pillOutlineOffset = pillOutlineCircumference - (activeCyclePct / 100) * pillOutlineCircumference;
+
+  if (!isReady) return null;
 
   return (
     <>

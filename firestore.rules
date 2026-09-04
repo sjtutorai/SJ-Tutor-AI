@@ -145,5 +145,17 @@ service cloud.firestore {
         isAdmin()
       );
     }
+
+    // Linked authentication identities
+    match /linked_identities/{identityId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Native SJ Tutor AI ID credentials
+    match /sj_tutor_ids/{sjtutorId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }
