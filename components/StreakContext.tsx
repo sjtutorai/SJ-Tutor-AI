@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, setDoc, getDocs, collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { UserProfile } from '../types';
@@ -141,14 +141,8 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const nextStreak = streak.currentStreak > 0 ? streak.currentStreak + 1 : 1;
   const nextMilestone = STREAK_MILESTONES.find(m => m.days > streak.currentStreak) || null;
 
-  // Track active seconds spent in the app today
-  const [activeSecondsToday, setActiveSecondsToday] = useState<number>(() => {
-    const today = getLocalDateString();
-    const saved = localStorage.getItem(`sjtutor_active_sec_${today}`);
-    return saved ? parseInt(saved, 10) || 0 : 0;
-  });
-
-  const autoUnlockedTodayRef = useRef(false);
+  // Preserved for interface compatibility
+  const activeSecondsToday = 0;
 
   const setSoundEnabled = (val: boolean) => {
     setSoundEnabledState(val);
@@ -276,36 +270,12 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           async (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
-              let current = typeof data.currentStreak === 'number' ? data.currentStreak : 0;
-              let highest = typeof data.highestStreak === 'number' ? data.highestStreak : current;
+              const current = typeof data.currentStreak === 'number' ? data.currentStreak : 0;
+              const highest = typeof data.highestStreak === 'number' ? data.highestStreak : current;
               const lastStudy = data.lastStudyDate || data.lastActivityDate || null;
               const history = Array.isArray(data.streakHistory) ? data.streakHistory : [];
               const claimed = Array.isArray(data.claimedMilestones) ? data.claimedMilestones : [];
               const updatedAt = typeof data.updatedAt === 'number' ? data.updatedAt : Date.now();
-
-              // ONE-TIME FIX FOR MULTI-DEVICE 35 BUG ON sjtutorai@gmail.com
-              // If user was affected by the auto-bump to 35 on device switch, restore to 34
-              const userEmail = user.email?.toLowerCase().trim();
-              if (
-                userEmail === 'sjtutorai@gmail.com' &&
-                current === 35 &&
-                !localStorage.getItem('sjtutor_streak_fixed_34_v1')
-              ) {
-                console.log('[STREAK FIX] Correcting inflated streak from 35 back to 34 for sjtutorai@gmail.com');
-                current = 34;
-                highest = Math.max(highest, 34);
-                localStorage.setItem('sjtutor_streak_fixed_34_v1', 'true');
-                setDoc(streakDocRef, { currentStreak: 34, updatedAt: Date.now() }, { merge: true }).catch(() => {});
-                setDoc(userDocRef, { streak: 34, currentStreak: 34 }, { merge: true }).catch(() => {});
-              }
-
-              // AUTO-RECOVERY: If user had an established streak (e.g. 30+) that erroneously reset to 1 upon completing an activity
-              if (current <= 1 && highest >= 30) {
-                console.log(`[STREAK RECOVERY] Restoring streak of ${highest} (was erroneously reset to ${current})`);
-                current = highest;
-                setDoc(streakDocRef, { currentStreak: highest, updatedAt: Date.now() }, { merge: true }).catch(() => {});
-                setDoc(userDocRef, { streak: highest, currentStreak: highest }, { merge: true }).catch(() => {});
-              }
 
               const cloudData: StreakData = {
                 uid: user.uid,
@@ -398,32 +368,13 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const todayDate = getLocalDateString();
   const isTodayCompleted = (streak.lastStudyDate === todayDate) || (streak.lastActivityDate === todayDate);
 
-  // Active presence tracking in the app:
-  // Tracks seconds spent active in the app today.
-  // Streak increases ONLY when the student actually spends time in the app studying or completes an activity!
-  useEffect(() => {
-    const today = getLocalDateString();
-
-    const interval = setInterval(() => {
-      // Only count time if document is visible and not hidden
-      if (!document.hidden) {
-        setActiveSecondsToday((prev) => {
-          const updated = prev + 1;
-          localStorage.setItem(`sjtutor_active_sec_${today}`, String(updated));
-          return updated;
-        });
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   // Record an activity completion with accurate calendar day criteria
   const recordActivity = useCallback(async (
     userProfile?: UserProfile,
     onProfileUpdate?: (profile: UserProfile) => void
   ) => {
     const today = getLocalDateString();
+    const yesterday = getYesterdayDateString();
 
     return new Promise<{ success: boolean; incremented: boolean; milestoneReached?: number }>((resolve) => {
       setStreak((prev) => {
@@ -438,12 +389,17 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return prev;
         }
 
-        // New study day! Protect and increment the student's streak
-        let newCount = prev.currentStreak > 0 ? prev.currentStreak + 1 : 1;
-
-        // Healing: If current streak was erroneously reset to 1 by the previous bug while highest streak was >= 30
-        if (prev.currentStreak <= 1 && (prev.highestStreak || 0) >= 30) {
-          newCount = Math.max(prev.highestStreak || 0, 30) + 1;
+        // Standard daily streak progression:
+        // - If yesterday was completed: streak increments by 1
+        // - If today is the first study day: streak is 1
+        // - If consecutive streak was broken (last study was before yesterday): streak starts at 1
+        let newCount = 1;
+        if (lastStudy === yesterday) {
+          newCount = (prev.currentStreak || 0) + 1;
+        } else if (!lastStudy) {
+          newCount = prev.currentStreak > 0 ? prev.currentStreak + 1 : 1;
+        } else {
+          newCount = 1;
         }
 
         const didIncrement = true;
@@ -534,16 +490,6 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
     });
   }, [soundEnabled, triggerConfetti]);
-
-  // When active seconds reach the requirement (e.g. 2 minutes in the app),
-  // automatically unlock today's streak if not yet completed!
-  useEffect(() => {
-    if (activeSecondsToday >= REQUIRED_ACTIVE_SECONDS && !isTodayCompleted && !autoUnlockedTodayRef.current) {
-      autoUnlockedTodayRef.current = true;
-      console.log(`[STREAK] User has been present in app for ${activeSecondsToday}s today. Automatically unlocking streak!`);
-      recordActivity();
-    }
-  }, [activeSecondsToday, isTodayCompleted, recordActivity]);
 
   // Adjust / Correct streak (allows user to fix any multi-device desync)
   const adjustStreak = useCallback(async (newCount: number) => {

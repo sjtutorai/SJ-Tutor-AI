@@ -14,12 +14,7 @@ import {
   BellRing,
   Cloud,
   RefreshCw,
-  Sliders,
-  Clock,
-  ShieldCheck,
-  Target,
-  Zap,
-  Hourglass
+  Sliders
 } from 'lucide-react';
 import { useStreak, STREAK_MILESTONES, getLocalDateString } from './StreakContext';
 import { UserProfile } from '../types';
@@ -36,8 +31,6 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   const { 
     streak, 
     leaderboard, 
-    activeSecondsToday,
-    requiredActiveSeconds,
     isTodayCompleted,
     adjustStreak,
     syncWithCloud,
@@ -85,70 +78,6 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, widgetX: 0, widgetY: 0, timestamp: 0 });
   const hasDragged = useRef(false);
-
-  // Real-time Countdown states
-  // 24-Hour Cycle Countdown and Timeline State
-  const [cycleCountdown, setCycleCountdown] = useState({
-    hours: '00',
-    mins: '00',
-    secs: '00',
-    display: '00h 00m 00s',
-    ms: 0
-  });
-  const [cycle24hProgress, setCycle24hProgress] = useState(0);
-
-  useEffect(() => {
-    const updateCountdown = () => {
-      const now = new Date();
-      // End of local day (24-hour midnight cycle boundary)
-      const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
-      const msRemaining = Math.max(0, nextMidnight.getTime() - now.getTime());
-      
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      const msElapsed = now.getTime() - startOfDay.getTime();
-      const progressPct = Math.min(100, Math.max(0, (msElapsed / (24 * 60 * 60 * 1000)) * 100));
-
-      const totalSecs = Math.floor(msRemaining / 1000);
-      const hours = Math.floor(totalSecs / 3600);
-      const mins = Math.floor((totalSecs % 3600) / 60);
-      const secs = totalSecs % 60;
-
-      setCycleCountdown({
-        hours: String(hours).padStart(2, '0'),
-        mins: String(mins).padStart(2, '0'),
-        secs: String(secs).padStart(2, '0'),
-        display: `${String(hours).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`,
-        ms: msRemaining
-      });
-      setCycle24hProgress(progressPct);
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Real-time Notification state
-  const [showNotificationToast, setShowNotificationToast] = useState(false);
-
-  // Monitor the 24h cycle notification
-  useEffect(() => {
-    const isReadyForNext = () => {
-      if (!streak.updatedAt || streak.currentStreak === 0) {
-        return false;
-      }
-      const targetTime = streak.updatedAt + 24 * 60 * 60 * 1000;
-      return targetTime <= Date.now();
-    };
-
-    setShowNotificationToast(isReadyForNext());
-
-    const timer = setInterval(() => {
-      setShowNotificationToast(isReadyForNext());
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [streak.updatedAt, streak.currentStreak]);
 
   // Keyboard accessibility handler for Esc key
   useEffect(() => {
@@ -323,12 +252,6 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     return list;
   };
 
-  // Draggable outer SVG circular math
-  const pillOutlineRadius = 26;
-  const pillOutlineCircumference = 2 * Math.PI * pillOutlineRadius;
-  const activeCyclePct = isTodayCompleted ? 100 : cycle24hProgress;
-  const pillOutlineOffset = pillOutlineCircumference - (activeCyclePct / 100) * pillOutlineCircumference;
-
   if (!isReady) return null;
 
   return (
@@ -359,7 +282,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
         whileHover={{ scale: 1.1, cursor: 'grab' }}
         whileTap={{ scale: 0.95, cursor: 'grabbing' }}
         className="touch-none select-none"
-        aria-label={`SJ Tutor Streak: ${streak.currentStreak} Days. Next Streak: Day ${calculatedNextStreak}. 24h Timer: ${cycleCountdown.display}`}
+        aria-label={`SJ Tutor Streak: ${streak.currentStreak} Days. Click to open Streak Hub!`}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
@@ -370,59 +293,25 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
       >
         <div
           onClick={handleClick}
-          title={`SJ Tutor 24h Streak: ${streak.currentStreak} Days | Next Streak: Day ${calculatedNextStreak} | 24h Window: ${cycleCountdown.display} left. Click to open Streak Hub!`}
-          className="group relative flex items-center justify-center w-16 h-16 rounded-full bg-slate-900 border border-slate-800 text-white shadow-[0_8px_30px_rgba(249,115,22,0.35)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)] transition"
+          title={`SJ Tutor Streak: ${streak.currentStreak} Days. Click to open Streak Hub!`}
+          className="group relative flex items-center justify-center w-14 h-14 rounded-full bg-slate-900 border border-amber-500/40 text-white shadow-[0_8px_30px_rgba(249,115,22,0.4)] transition hover:border-amber-400"
         >
-          {/* Circular SVG Progress Ring outlines the 24-hour cycle directly! */}
-          <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 64 64">
-            <circle 
-              cx="32" 
-              cy="32" 
-              r={pillOutlineRadius} 
-              fill="none" 
-              stroke="rgba(255, 255, 255, 0.08)" 
-              strokeWidth="3.5" 
-            />
-            <motion.circle 
-              cx="32" 
-              cy="32" 
-              r={pillOutlineRadius} 
-              fill="none" 
-              stroke="url(#pillProgressGrad)" 
-              strokeWidth="3.5" 
-              strokeDasharray={pillOutlineCircumference}
-              strokeDashoffset={pillOutlineOffset}
-              strokeLinecap="round"
-              className="transition-all duration-1000 ease-out"
-            />
-            <defs>
-              <linearGradient id="pillProgressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#f59e0b" />
-                <stop offset="50%" stopColor="#f97316" />
-                <stop offset="100%" stopColor="#ef4444" />
-              </linearGradient>
-            </defs>
-          </svg>
-
-          {/* Active indicator flame flare & Next Streak Preview */}
-          <div className="relative flex flex-col items-center justify-center pt-0.5 animate-pulse">
+          {/* Flame icon and streak count */}
+          <div className="relative flex flex-col items-center justify-center pt-0.5">
             <Flame className="w-5 h-5 text-orange-500 fill-orange-400 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]" />
-            <span className="text-[11px] font-black tracking-tighter text-amber-300 mt-0.5 leading-none">
-              🔥 {streak.currentStreak}d
-            </span>
-            <span className="text-[7.5px] font-black text-orange-200/90 tracking-tight leading-none mt-0.5 uppercase">
-              Next {calculatedNextStreak}d
+            <span className="text-xs font-black tracking-tighter text-amber-300 mt-0.5 leading-none">
+              {streak.currentStreak}d
             </span>
           </div>
 
-          {/* Status Dot: green if secured today, amber ping if pending */}
+          {/* Status Dot: green if completed today, amber ping if pending */}
           {!isTodayCompleted ? (
-            <span className="absolute top-0 right-0 flex h-3 w-3" title="Today's streak pending study session">
+            <span className="absolute top-0 right-0 flex h-3 w-3" title="Today's streak pending study activity">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500 shadow-sm"></span>
             </span>
           ) : (
-            <span className="absolute top-0 right-0 flex h-3 w-3" title="24h streak secured for today">
+            <span className="absolute top-0 right-0 flex h-3 w-3" title="Streak active for today">
               <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]"></span>
             </span>
           )}
@@ -468,7 +357,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                   <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[10px] font-bold text-emerald-300 shadow-sm">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                     <Cloud className="w-3 h-3" />
-                    <span>24h Cloud Synced</span>
+                    <span>Cloud Synced</span>
                   </div>
                 </div>
 
@@ -483,38 +372,38 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                       <div className="text-[11px] text-slate-300 font-semibold flex items-center gap-1.5 mt-0.5">
                         {isTodayCompleted ? (
                           <span className="text-emerald-300 flex items-center gap-1">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                            24h Shield Secured
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            Completed for today!
                           </span>
                         ) : (
                           <span className="text-amber-300 flex items-center gap-1">
-                            <Hourglass className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-                            Study 2m to lock Day {calculatedNextStreak}
+                            <Flame className="w-3.5 h-3.5 text-amber-400" />
+                            Complete a study activity today to keep your streak
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* NEXT STREAK TARGET BADGE */}
-                  <div className="flex items-center gap-2.5 px-3 py-2 rounded-2xl bg-white/10 dark:bg-slate-900/80 border border-amber-400/30 shadow-inner backdrop-blur-sm">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-red-500 flex items-center justify-center text-white font-black text-sm shadow-md">
-                      <Target className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-amber-300">Next Streak</span>
-                        <span className="px-2 py-0.5 rounded-full bg-amber-400/25 text-amber-200 font-black text-xs">
-                          🔥 Day {calculatedNextStreak}
-                        </span>
+                  {/* NEXT MILESTONE TARGET BADGE */}
+                  {currentNextMilestone && (
+                    <div className="flex items-center gap-2.5 px-3 py-2 rounded-2xl bg-white/10 dark:bg-slate-900/80 border border-amber-400/30 shadow-inner backdrop-blur-sm">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-red-500 flex items-center justify-center text-white font-black text-sm shadow-md">
+                        <span className="text-lg">{currentNextMilestone.badge}</span>
                       </div>
-                      <p className="text-[10px] text-slate-200 font-semibold mt-0.5">
-                        {isTodayCompleted 
-                          ? `Unlocks at midnight (${cycleCountdown.hours}h ${cycleCountdown.mins}m)`
-                          : `Complete today to earn Day ${calculatedNextStreak}!`}
-                      </p>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] uppercase tracking-wider font-extrabold text-amber-300">Next Milestone</span>
+                          <span className="px-2 py-0.5 rounded-full bg-amber-400/25 text-amber-200 font-black text-xs">
+                            Day {currentNextMilestone.days}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-200 font-semibold mt-0.5">
+                          {daysUntilNextMilestone > 0 ? `${daysUntilNextMilestone} days away` : 'Milestone achieved!'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* NEXT MILESTONE ROADMAP BAR */}
@@ -538,84 +427,6 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                       <span>Day {currentNextMilestone.days} Reward:</span>
                       <span className="text-amber-400 font-extrabold">+{currentNextMilestone.bonusCredits} Credits & Emblem</span>
                     </div>
-                  </div>
-                )}
-                
-                {/* Active Presence Time In App Today */}
-                <div className="mt-3 p-3 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs shadow-inner">
-                  <div className="flex items-center justify-between font-bold mb-1.5">
-                    <span className="flex items-center gap-1.5 text-amber-300">
-                      <Clock className="w-3.5 h-3.5 text-amber-400" />
-                      Time Present in App Today:
-                    </span>
-                    <span className="font-mono text-white text-[11px]">
-                      {Math.floor(activeSecondsToday / 60)}m {String(activeSecondsToday % 60).padStart(2, '0')}s / 2m
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-800/80 rounded-full h-2 overflow-hidden">
-                    <div 
-                      className={`h-full transition-all duration-500 ${isTodayCompleted ? 'bg-emerald-500' : 'bg-gradient-to-r from-amber-500 via-orange-500 to-red-500'}`}
-                      style={{ width: `${Math.min(100, (activeSecondsToday / requiredActiveSeconds) * 100)}%` }}
-                    />
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-[11px]">
-                    <span className={isTodayCompleted ? 'text-emerald-400 font-bold' : 'text-slate-300 font-medium'}>
-                      {isTodayCompleted 
-                        ? '✅ Today\'s streak secured! (Synced across all devices)' 
-                        : '🔥 Spend 2 minutes active in app or do a quiz to unlock today\'s streak.'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Notice if streak was reset to 1 */}
-                {streak.currentStreak <= 1 && (streak.highestStreak >= 30 || streak.currentStreak === 1) && (
-                  <div className="mt-3 p-3 rounded-2xl bg-orange-500/20 border border-orange-500/50 flex items-center justify-between gap-3 text-xs">
-                    <div>
-                      <p className="font-bold text-orange-300">Streak Recovery Notice</p>
-                      <p className="text-slate-200 text-[11px] leading-snug">Did your 30-day streak reset to 1 after an activity?</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={async () => {
-                          await adjustStreak(30);
-                          setAdjustSuccessMsg(true);
-                          setTimeout(() => setAdjustSuccessMsg(false), 3000);
-                        }}
-                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-black rounded-xl text-xs whitespace-nowrap transition-all shadow-md active:scale-95 border border-amber-500/30"
-                      >
-                        Set 30
-                      </button>
-                      <button
-                        onClick={async () => {
-                          await adjustStreak(31);
-                          setAdjustSuccessMsg(true);
-                          setTimeout(() => setAdjustSuccessMsg(false), 3000);
-                        }}
-                        className="px-3 py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-black rounded-xl text-xs whitespace-nowrap transition-all shadow-md active:scale-95"
-                      >
-                        Restore to 31 Days
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Notice if streak was bumped to 35 on device switch */}
-                {streak.currentStreak === 35 && (
-                  <div className="mt-3 p-3 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-between gap-3 text-xs">
-                    <div>
-                      <p className="font-bold text-amber-300">Sync Notice: Was your streak 34?</p>
-                      <p className="text-slate-300 text-[11px] leading-snug">Did another device automatically bump your streak to 35?</p>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        await adjustStreak(34);
-                        setAdjustSuccessMsg(true);
-                        setTimeout(() => setAdjustSuccessMsg(false), 3000);
-                      }}
-                      className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black rounded-xl text-xs whitespace-nowrap transition-all shadow-md active:scale-95"
-                    >
-                      Restore to 34 Days
-                    </button>
                   </div>
                 )}
               </div>
@@ -678,119 +489,6 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                 {/* TAB 1: HISTORY & STATS BENTO GRID */}
                 {activeTab === 'STREAK' && (
                   <div className="space-y-4">
-                    {/* THE 24-HOUR STREAK SYSTEM DISPLAY */}
-                    <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white p-4 rounded-2xl border border-amber-500/30 shadow-md space-y-3.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-xs">
-                            <Clock className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <h3 className="text-xs font-black uppercase tracking-wider text-amber-300">
-                              24-Hour Streak System
-                            </h3>
-                            <p className="text-[10px] text-slate-400 font-medium">Daily 24-Hour Continuous Cycle</p>
-                          </div>
-                        </div>
-
-                        <div className={`px-2.5 py-1 rounded-full text-[10px] font-black border flex items-center gap-1.5 ${
-                          isTodayCompleted 
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
-                            : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                        }`}>
-                          {isTodayCompleted ? (
-                            <>
-                              <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                              <span>24h Shield Active</span>
-                            </>
-                          ) : (
-                            <>
-                              <Hourglass className="w-3 h-3 text-amber-400 animate-spin" />
-                              <span>24h Window Open</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 24-Hour Live Digital Countdown Clock Display */}
-                      <div className="p-3.5 bg-slate-950/80 rounded-xl border border-slate-800 text-center">
-                        <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
-                          {isTodayCompleted 
-                            ? `Next 24-Hour Cycle & Day ${calculatedNextStreak} Begins In:` 
-                            : `Time Remaining in Current 24-Hour Window to Earn Day ${calculatedNextStreak}:`}
-                        </p>
-                        
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="flex flex-col items-center">
-                            <span className="w-14 py-2 bg-slate-900 border border-amber-500/40 rounded-xl font-mono text-2xl font-black text-amber-400 shadow-inner">
-                              {cycleCountdown.hours}
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">Hours</span>
-                          </div>
-                          <span className="text-xl font-black text-amber-500 pb-4">:</span>
-                          <div className="flex flex-col items-center">
-                            <span className="w-14 py-2 bg-slate-900 border border-amber-500/40 rounded-xl font-mono text-2xl font-black text-amber-400 shadow-inner">
-                              {cycleCountdown.mins}
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">Minutes</span>
-                          </div>
-                          <span className="text-xl font-black text-amber-500 pb-4">:</span>
-                          <div className="flex flex-col items-center">
-                            <span className="w-14 py-2 bg-slate-900 border border-amber-500/40 rounded-xl font-mono text-2xl font-black text-amber-400 shadow-inner">
-                              {cycleCountdown.secs}
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">Seconds</span>
-                          </div>
-                        </div>
-
-                        <p className="text-[11px] text-slate-300 font-medium mt-3 leading-snug">
-                          {isTodayCompleted ? (
-                            <span className="text-emerald-300">
-                              ✅ You have completed today&apos;s study session! Your streak is shielded. At 00:00 midnight local time, the next 24-hour cycle will open for <strong>Day {calculatedNextStreak}</strong>.
-                            </span>
-                          ) : (
-                            <span className="text-amber-200">
-                              ⚡ Complete at least 2 minutes of active study or submit 1 quiz before this timer reaches zero to secure <strong>Day {calculatedNextStreak}</strong>!
-                            </span>
-                          )}
-                        </p>
-                      </div>
-
-                      {/* 24-Hour Cycle Progress Bar */}
-                      <div className="space-y-1">
-                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold">
-                          <span>00:00 (Start)</span>
-                          <span className="text-amber-400 font-extrabold">{Math.floor(cycle24hProgress)}% of 24h Elapsed</span>
-                          <span>24:00 (Reset)</span>
-                        </div>
-                        <div className="w-full bg-slate-800/80 rounded-full h-2 overflow-hidden p-0.5">
-                          <div 
-                            className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 transition-all duration-1000"
-                            style={{ width: `${cycle24hProgress}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* 3 Pillars of the 24-Hour System */}
-                      <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-                        <div className="p-2 rounded-xl bg-slate-900/90 border border-slate-800">
-                          <Clock className="w-4 h-4 text-amber-400 mx-auto mb-1" />
-                          <p className="text-[10px] font-black text-white">24h Cycle</p>
-                          <p className="text-[9px] text-slate-400 mt-0.5 leading-tight">1 cycle per 24 hours (resets at 00:00 midnight)</p>
-                        </div>
-                        <div className="p-2 rounded-xl bg-slate-900/90 border border-slate-800">
-                          <Zap className="w-4 h-4 text-orange-400 mx-auto mb-1" />
-                          <p className="text-[10px] font-black text-white">2-Min Goal</p>
-                          <p className="text-[9px] text-slate-400 mt-0.5 leading-tight">120 active study secs or 1 AI quiz</p>
-                        </div>
-                        <div className="p-2 rounded-xl bg-slate-900/90 border border-slate-800">
-                          <ShieldCheck className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
-                          <p className="text-[10px] font-black text-white">Auto Shield</p>
-                          <p className="text-[9px] text-slate-400 mt-0.5 leading-tight">Synced in real-time to all devices</p>
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Stats Bento Grid With Next Streak & Milestones */}
                     <div className="grid grid-cols-2 gap-3.5">
                       {/* Next Streak Target Card */}
@@ -805,7 +503,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                           🔥 Day {calculatedNextStreak}
                         </p>
                         <p className="text-[10px] text-slate-400 mt-1 font-medium leading-tight">
-                          {isTodayCompleted ? 'Day completed! Next unlocks tomorrow' : 'Pending 2m daily study'}
+                          {isTodayCompleted ? 'Completed for today!' : 'Pending today\'s study activity'}
                         </p>
                       </div>
 
@@ -909,7 +607,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                       </div>
 
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                        Your streak is synchronized via real-time cloud timestamps across all devices. It increments based on active study time present in the app (2 minutes daily) or completed study activities, and never on device switching.
+                        Your streak is synchronized via real-time cloud timestamps across all devices. It increments when you complete study activities each day, and is protected across device switches.
                       </p>
 
                       <div className="pt-1 flex items-center justify-between">
@@ -925,7 +623,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                         </button>
 
                         <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                           <span>Real-Time Sync</span>
                         </div>
                       </div>
@@ -985,7 +683,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 
                     <div className="text-[11px] text-slate-400 flex items-center justify-center text-center bg-white dark:bg-slate-800/40 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800/80 gap-2">
                       <HelpCircle className="w-4 h-4 text-orange-400 flex-shrink-0" />
-                      <span>Streaks are calculated based on active learning time present in the app (2 minutes daily) or completed study tasks, fully synchronized across all your devices.</span>
+                      <span>Streaks increment daily upon completing any study activity or quiz, and are synchronized in real-time across all your devices.</span>
                     </div>
                   </div>
                 )}
