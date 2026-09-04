@@ -21,6 +21,11 @@ const PORT = 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
+// Redirect legacy favicon or apple-touch-icon requests directly to official logo URL
+app.get(['/favicon.ico', '/favicon.png', '/favicon-:size.png', '/apple-touch-icon.png', '/apple-touch-icon-:size.png'], (req, res) => {
+  res.redirect(301, 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg');
+});
+
 // Serve static public assets (favicons, logos, manifests, robots.txt, etc.)
 app.use(express.static(path.resolve(resolvedDirname, "public"), {
   maxAge: '1d',

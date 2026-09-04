@@ -51,14 +51,20 @@ function ensureCanonicalLink(href: string) {
 }
 
 function ensureFaviconLinks() {
+  // Purge any legacy favicon links from the document head
+  const legacyLinks = document.querySelectorAll('link[rel*="icon"]');
+  legacyLinks.forEach((link) => {
+    const href = link.getAttribute('href') || '';
+    if (href !== DEFAULT_FAVICON_URL && (href.includes('favicon') || href.includes('apple-touch-icon'))) {
+      link.remove();
+    }
+  });
+
   const icons = [
-    { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-    { rel: 'shortcut icon', type: 'image/x-icon', href: '/favicon.ico' },
-    { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
-    { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
-    { rel: 'icon', type: 'image/jpeg', href: DEFAULT_LOGO_URL },
-    { rel: 'apple-touch-icon', href: DEFAULT_LOGO_URL },
-    { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+    { rel: 'icon', type: 'image/jpeg', href: DEFAULT_FAVICON_URL },
+    { rel: 'shortcut icon', type: 'image/jpeg', href: DEFAULT_FAVICON_URL },
+    { rel: 'apple-touch-icon', href: DEFAULT_FAVICON_URL },
+    { rel: 'apple-touch-icon', sizes: '180x180', href: DEFAULT_FAVICON_URL },
   ];
 
   icons.forEach(({ rel, type, href, sizes }) => {
