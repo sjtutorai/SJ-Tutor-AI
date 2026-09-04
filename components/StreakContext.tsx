@@ -45,6 +45,11 @@ interface StreakContextType {
   soundEnabled: boolean;
   setSoundEnabled: (val: boolean) => void;
   syncWithCloud: () => Promise<void>;
+  isStreakModalOpen: boolean;
+  setIsStreakModalOpen: (val: boolean) => void;
+  openStreakModal: () => void;
+  nextStreak: number;
+  nextMilestone: { days: number; label: string; bonusCredits: number; badge: string } | null;
 }
 
 const StreakContext = createContext<StreakContextType | undefined>(undefined);
@@ -130,6 +135,11 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => {
     return localStorage.getItem('sjtutor_streak_sound_enabled') !== 'false';
   });
+  const [isStreakModalOpen, setIsStreakModalOpen] = useState(false);
+  const openStreakModal = useCallback(() => setIsStreakModalOpen(true), []);
+
+  const nextStreak = streak.currentStreak > 0 ? streak.currentStreak + 1 : 1;
+  const nextMilestone = STREAK_MILESTONES.find(m => m.days > streak.currentStreak) || null;
 
   // Track active seconds spent in the app today
   const [activeSecondsToday, setActiveSecondsToday] = useState<number>(() => {
@@ -686,6 +696,11 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       soundEnabled,
       setSoundEnabled,
       syncWithCloud,
+      isStreakModalOpen,
+      setIsStreakModalOpen,
+      openStreakModal,
+      nextStreak,
+      nextMilestone,
     }}>
       {children}
     </StreakContext.Provider>
