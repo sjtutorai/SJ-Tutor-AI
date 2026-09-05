@@ -68,10 +68,56 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     prevStreakCountRef.current = current;
   }, [streak.currentStreak]);
 
-  // Position state for floating drag / docking
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  // Storage key for custom dragged streak position
+  const STREAK_POS_KEY = 'sjtutor_streak_widget_pos';
+
+  // Position state for floating drag / docking anywhere on screen
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(() => {
+    try {
+      const saved = localStorage.getItem('sjtutor_streak_widget_pos');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          // Clamp inside current window dimensions
+          return {
+            x: Math.max(8, Math.min(window.innerWidth - 64, parsed.x)),
+            y: Math.max(8, Math.min(window.innerHeight - 64, parsed.y)),
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load saved streak position:', e);
+    }
+    return null;
+  });
+
+  const [isDraggingActive, setIsDraggingActive] = useState(false);
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0, startPosX: 0, startPosY: 0 });
+  const badgeRef = useRef<HTMLDivElement>(null);
+
+  // Keep widget in bounds on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setPosition((prev) => {
+        if (!prev) return null;
+        const clampedX = Math.max(8, Math.min(window.innerWidth - 64, prev.x));
+        const clampedY = Math.max(8, Math.min(window.innerHeight - 64, prev.y));
+        if (clampedX !== prev.x || clampedY !== prev.y) {
+          const updated = { x: clampedX, y: clampedY };
+          try {
+            localStorage.setItem(STREAK_POS_KEY, JSON.stringify(updated));
+          } catch (e) {
+            console.warn('Failed to save streak position on resize:', e);
+          }
+          return updated;
+        }
+        return prev;
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Play pleasant web audio celebration chime
   const playCelebrationChime = () => {
@@ -230,35 +276,84 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   };
 
   // Drag handlers for the floating button
-  const handlePointerDown = (e: React.PointerEvent) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     isDragging.current = false;
+    setIsDraggingActive(true);
+
+    const rect = badgeRef.current?.getBoundingClientRect();
+    const currentX = rect ? rect.left : (position ? position.x : window.innerWidth - 80);
+    const currentY = rect ? rect.top : (position ? position.y : window.innerHeight - 80);
+
     dragStart.current = {
       x: e.clientX,
       y: e.clientY,
-      startPosX: position ? position.x : window.innerWidth - 100,
-      startPosY: position ? position.y : window.innerHeight - 100,
+      startPosX: currentX,
+      startPosY: currentY,
     };
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Pointer capture fallback
+    }
   };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    const dist = Math.hypot(e.clientX - dragStart.current.x, e.clientY - dragStart.current.y);
-    if (dist > 6) {
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const deltaX = e.clientX - dragStart.current.x;
+    const deltaY = e.clientY - dragStart.current.y;
+    const dist = Math.hypot(deltaX, deltaY);
+
+    if (dist > 4) {
       isDragging.current = true;
-      const newX = Math.max(16, Math.min(window.innerWidth - 90, dragStart.current.startPosX + (e.clientX - dragStart.current.x)));
-      const newY = Math.max(16, Math.min(window.innerHeight - 90, dragStart.current.startPosY + (e.clientY - dragStart.current.y)));
+      const newX = Math.max(8, Math.min(window.innerWidth - 64, dragStart.current.startPosX + deltaX));
+      const newY = Math.max(8, Math.min(window.innerHeight - 64, dragStart.current.startPosY + deltaY));
       setPosition({ x: newX, y: newY });
     }
   };
 
-  const handlePointerUp = () => {
-    if (!isDragging.current) {
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsDraggingActive(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // Pointer release fallback
+    }
+
+    if (isDragging.current) {
+      // Calculate latest position from drag
+      const deltaX = e.clientX - dragStart.current.x;
+      const deltaY = e.clientY - dragStart.current.y;
+      const finalX = Math.max(8, Math.min(window.innerWidth - 64, dragStart.current.startPosX + deltaX));
+      const finalY = Math.max(8, Math.min(window.innerHeight - 64, dragStart.current.startPosY + deltaY));
+      const finalPos = { x: finalX, y: finalY };
+      setPosition(finalPos);
+      try {
+        localStorage.setItem(STREAK_POS_KEY, JSON.stringify(finalPos));
+      } catch (err) {
+        console.warn('Failed to save streak position:', err);
+      }
+
+      setTimeout(() => {
+        isDragging.current = false;
+      }, 80);
+    } else {
       setIsOpen(true);
     }
   };
 
+  const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsDraggingActive(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // Pointer cancel fallback
+    }
+    isDragging.current = false;
+  };
+
   return (
     <>
-      {/* Floating Streak Widget Button - Surrounded Circle with Fire Icon */}
+      {/* Floating Streak Widget Button - Surrounded Circle with Fire Icon (Draggable Anywhere) */}
       <div
         id="floating-streak-container"
         style={
@@ -266,17 +361,21 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
             ? { left: `${position.x}px`, top: `${position.y}px`, right: 'auto', bottom: 'auto' }
             : {}
         }
-        className={`fixed ${!position ? 'bottom-6 right-6' : ''} z-40 select-none touch-none transition-transform active:scale-95`}
+        className={`fixed ${!position ? 'bottom-6 right-6' : ''} z-40 select-none touch-none`}
       >
         <div
+          ref={badgeRef}
           id="floating-streak-badge"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
           role="button"
           tabIndex={0}
-          title={`🔥 ${currentStreak} Day Streak • Click to open Streak Hub`}
-          className="group relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-600 dark:from-amber-600 dark:via-orange-600 dark:to-amber-700 text-white shadow-xl shadow-orange-500/30 hover:shadow-orange-500/50 border-2 border-amber-300/80 dark:border-amber-400/60 cursor-pointer backdrop-blur-md transition-all hover:scale-110"
+          title={`🔥 ${currentStreak} Day Streak • Drag anywhere to place • Click to open Streak Hub`}
+          className={`group relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-600 dark:from-amber-600 dark:via-orange-600 dark:to-amber-700 text-white shadow-xl shadow-orange-500/30 hover:shadow-orange-500/50 border-2 border-amber-300/80 dark:border-amber-400/60 backdrop-blur-md transition-all ${
+            isDraggingActive ? 'cursor-grabbing scale-110 shadow-2xl shadow-orange-500/60' : 'cursor-grab hover:scale-105 active:scale-95'
+          }`}
         >
           {/* Outer Pulsing Glow Ring */}
           <span className="absolute -inset-1 rounded-full bg-amber-400/30 dark:bg-amber-400/20 animate-ping opacity-75 pointer-events-none" />

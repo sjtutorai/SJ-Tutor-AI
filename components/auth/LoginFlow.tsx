@@ -20,6 +20,7 @@ import {
   recoverAccountStep2Verify,
   sendPasswordReset,
 } from '../../services/authService';
+import { SecurityPinService } from '../../services/securityPinService';
 
 interface LoginFlowProps {
   onSuccess: (userData: any) => void;
@@ -77,6 +78,9 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
         return;
       }
       if (res.status === 'SUCCESS') {
+        if (res.user?.uid) {
+          SecurityPinService.clearTwoStepVerified(res.user.uid);
+        }
         onSuccess(res.user);
       } else if (res.status === 'ERROR') {
         setErrorAlert(res.message || 'Authentication error.');
@@ -111,6 +115,9 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
         return;
       }
       if (res.status === 'SUCCESS') {
+        if (res.user?.uid) {
+          SecurityPinService.clearTwoStepVerified(res.user.uid);
+        }
         onSuccess(res.user);
       } else {
         setErrorAlert(res.message || 'Login failed.');
@@ -182,6 +189,9 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
         return;
       }
       if (res.status === 'SUCCESS') {
+        if (res.user?.uid) {
+          SecurityPinService.clearTwoStepVerified(res.user.uid);
+        }
         onSuccess(res.user);
       } else {
         setErrorAlert(res.message || 'PIN verification failed.');

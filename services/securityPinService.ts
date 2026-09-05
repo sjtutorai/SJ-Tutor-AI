@@ -85,12 +85,13 @@ export const SecurityPinService = {
   },
 
   /**
-   * Checks if 2-Step Login verification was already passed in this login session.
+   * Checks if 2-Step Login verification was already completed on this device/session.
+   * Persisted in localStorage so reloading the website does not re-trigger 2-step verification.
    */
   isTwoStepVerified: (uid?: string | null): boolean => {
     if (!uid) return true;
     try {
-      return sessionStorage.getItem(`${STORAGE_2STEP_PREFIX}${uid}`) === 'true';
+      return localStorage.getItem(`${STORAGE_2STEP_PREFIX}${uid}`) === 'true';
     } catch {
       return false;
     }
@@ -102,19 +103,19 @@ export const SecurityPinService = {
   setTwoStepVerified: (uid?: string | null): void => {
     if (!uid) return;
     try {
-      sessionStorage.setItem(`${STORAGE_2STEP_PREFIX}${uid}`, 'true');
+      localStorage.setItem(`${STORAGE_2STEP_PREFIX}${uid}`, 'true');
     } catch (e) {
       console.warn('Failed to set 2-step verified state:', e);
     }
   },
 
   /**
-   * Clears 2-Step Login verification state.
+   * Clears 2-Step Login verification state on logout or fresh login.
    */
   clearTwoStepVerified: (uid?: string | null): void => {
     if (!uid) return;
     try {
-      sessionStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
+      localStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
     } catch (e) {
       console.warn('Failed to clear 2-step verified state:', e);
     }
