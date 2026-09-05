@@ -20,7 +20,13 @@ import {
   Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useStreak, STREAK_MILESTONES, LeaderboardEntry, getLocalDateString } from './StreakContext';
+import { 
+  useStreak, 
+  STREAK_MILESTONES, 
+  LeaderboardEntry, 
+  getLocalDateString,
+  getTimeUntilNextStreakClaim
+} from './StreakContext';
 import { UserProfile } from '../types';
 
 interface FloatingStreakWidgetProps {
@@ -47,31 +53,43 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isNewlyAchievedPulse, setIsNewlyAchievedPulse] = useState(false);
 
-  // Local celebratory toast when streak increases during session
+  // Local celebratory toast when streak increases after completing 24-hour cycle and study activity
   const [celebrationModal, setCelebrationModal] = useState<{
     show: boolean;
     streakCount: number;
     milestone: number | null;
   } | null>(null);
 
-  // Track previous streak to trigger celebratory popup and confetti when streak increments
-  const prevStreakCountRef = useRef<number>(streak.currentStreak || 0);
+  // Realtime 24-hour streak claim countdown
+  const [claimCountdown, setClaimCountdown] = useState(() => getTimeUntilNextStreakClaim(streak));
 
   useEffect(() => {
-    const current = streak.currentStreak || 0;
-    if (prevStreakCountRef.current > 0 && current > prevStreakCountRef.current) {
+    setClaimCountdown(getTimeUntilNextStreakClaim(streak));
+    const interval = setInterval(() => {
+      setClaimCountdown(getTimeUntilNextStreakClaim(streak));
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [streak.lastStudyTimestamp, streak.lastStudyDate]);
+
+  // STRICT POLICY: Only display streak increased celebration when the 24 hours is completed and user completes study activity to claim it
+  useEffect(() => {
+    const handleStreakClaimed = (e: Event) => {
+      const customEvent = e as CustomEvent<{ streakCount: number; milestone: number | null; actionType?: string }>;
+      const streakCount = customEvent.detail?.streakCount || streak.currentStreak || 1;
+      const milestone = customEvent.detail?.milestone || STREAK_MILESTONES.find(m => m.days === streakCount)?.days || null;
+
       setIsNewlyAchievedPulse(true);
       setCelebrationModal({
         show: true,
-        streakCount: current,
-        milestone: STREAK_MILESTONES.find(m => m.days === current)?.days || null,
+        streakCount,
+        milestone,
       });
 
-      // Confetti burst for milestone / new daily streak
+      // Confetti burst for milestone / claimed daily streak
       try {
         confetti({
-          particleCount: 65,
-          spread: 60,
+          particleCount: 75,
+          spread: 70,
           origin: { y: 0.7 },
           colors: ['#f59e0b', '#ef4444', '#10b981', '#6366f1'],
         });
@@ -84,8 +102,12 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
       // Reset pulse after 10 seconds
       const t = setTimeout(() => setIsNewlyAchievedPulse(false), 10000);
       return () => clearTimeout(t);
-    }
-    prevStreakCountRef.current = current;
+    };
+
+    window.addEventListener('sjtutor_streak_incremented', handleStreakClaimed);
+    return () => {
+      window.removeEventListener('sjtutor_streak_incremented', handleStreakClaimed);
+    };
   }, [streak.currentStreak]);
 
   // Storage key for custom dragged streak position
@@ -555,6 +577,30 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                       style={{ width: `${milestoneProgress}%` }}
                     />
                   </div>
+                </div>
+
+                {/* 24-Hour Streak Claim Status Banner */}
+                <div className="mt-3.5 p-2.5 rounded-xl bg-black/25 backdrop-blur-xs border border-white/20 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{claimCountdown.canClaim ? '✨' : '⏳'}</span>
+                    <div>
+                      <div className="font-bold text-white">
+                        {claimCountdown.canClaim
+                          ? '24 Hours Completed! Ready to Claim'
+                          : `Next Streak Increase in ${claimCountdown.hours}h ${claimCountdown.minutes}m`}
+                      </div>
+                      <div className="text-[11px] text-amber-100/90 font-medium">
+                        {claimCountdown.canClaim
+                          ? `Complete any study activity (quiz, tutor question, study timer) to claim Day ${currentStreak + 1}!`
+                          : 'Streak secured for this 24h cycle. Keep studying to maintain mastery!'}
+                      </div>
+                    </div>
+                  </div>
+                  {claimCountdown.canClaim && (
+                    <span className="px-2.5 py-1 bg-amber-300 text-amber-950 font-black text-[10px] rounded-lg tracking-wider uppercase shadow-xs">
+                      Ready
+                    </span>
+                  )}
                 </div>
               </div>
 

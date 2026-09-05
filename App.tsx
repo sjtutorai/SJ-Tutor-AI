@@ -449,42 +449,58 @@ const App: React.FC = () => {
   const [userProfile, setUserProfile] =
     useState<UserProfile>(initialProfileState);
 
-  // Original clean daily streak tracker
+  // Original clean daily streak tracker with 24-hour claim rule
   const recordDailyActivity = async () => {
     try {
+      const now = Date.now();
       const today = new Date().toISOString().split("T")[0];
-      const lastDate = userProfile.lastStudyDate || "";
-      
-      if (lastDate === today) {
-        return;
+      const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+      // STRICT 24-HOUR CLAIM REQUIREMENT:
+      // Only increase streak when 24 hours have completed and the student completes a study activity!
+      let canClaim = true;
+      if (typeof userProfile.lastStudyTimestamp === "number" && userProfile.lastStudyTimestamp > 0) {
+        canClaim = now - userProfile.lastStudyTimestamp >= TWENTY_FOUR_HOURS_MS;
+      } else if (userProfile.lastStudyDate) {
+        canClaim = userProfile.lastStudyDate !== today;
       }
 
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split("T")[0];
+      const currentStreakVal = typeof userProfile.streak === "number"
+        ? userProfile.streak
+        : (typeof userProfile.currentStreak === "number" ? userProfile.currentStreak : 0);
 
-      const currentStreakVal = typeof userProfile.streak === "number" ? userProfile.streak : 0;
-      let newStreak = currentStreakVal;
-      if (lastDate === yesterdayStr) {
-        newStreak += 1;
-      } else if (!lastDate) {
-        newStreak = Math.max(1, currentStreakVal);
-      } else {
-        // Keep existing established streak intact
-        newStreak = currentStreakVal > 0 ? currentStreakVal : 1;
-      }
-
-      const highestStreak = Math.max(userProfile.highestStreak || 0, newStreak);
       const history = Array.isArray(userProfile.streakHistory) ? [...userProfile.streakHistory] : [];
       if (!history.includes(today)) {
         history.push(today);
       }
+
+      if (!canClaim) {
+        // Within the active 24-hour cycle: record study activity history without incrementing streak
+        const updatedActivityOnly: Partial<UserProfile> = {
+          streakHistory: history,
+          lastActivityDate: today,
+        };
+        setUserProfile((prev) => ({
+          ...prev,
+          ...updatedActivityOnly,
+        }));
+        if (user?.uid) {
+          saveProfileToFirestore(user.uid, updatedActivityOnly).catch(() => {});
+        }
+        return;
+      }
+
+      // 24 hours completed! Increment streak and record timestamp
+      const newStreak = currentStreakVal + 1;
+      const highestStreak = Math.max(userProfile.highestStreak || 0, newStreak);
 
       const updatedStreakData: Partial<UserProfile> = {
         streak: newStreak,
         currentStreak: newStreak,
         highestStreak,
         lastStudyDate: today,
+        lastActivityDate: today,
+        lastStudyTimestamp: now,
         streakHistory: history,
       };
 
@@ -1554,11 +1570,12 @@ const App: React.FC = () => {
       return;
     }
 
-    // 1. Two-Step Verification on Login Check
-    const isTwoStepRequired = !!userProfile.twoFactorPassword || (!!userProfile.twoFactorEnabled && !!userProfile.twoFactorPassword);
-    if (isTwoStepRequired) {
-      const alreadyTwoStepVerified = SecurityPinService.isTwoStepVerified(user.uid);
-      setIsTwoStepVerified(alreadyTwoStepVerified);
+    // 1. Two-Step Verification Check:
+    // Ask it ONLY when the user logins, NOT every time on refresh, page reload, or navigation!
+    const isTwoStepConfigured = !!userProfile.twoFactorPassword || (!!userProfile.twoFactorEnabled && !!userProfile.twoFactorPassword);
+    if (isTwoStepConfigured) {
+      const isPendingOnLogin = SecurityPinService.isTwoStepRequiredForCurrentSession(user.uid);
+      setIsTwoStepVerified(!isPendingOnLogin);
     } else {
       setIsTwoStepVerified(true);
     }

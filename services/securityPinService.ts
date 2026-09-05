@@ -13,10 +13,11 @@ export interface SecurityPinConfig {
 }
 
 const STORAGE_2STEP_PREFIX = 'sjtutor_2step_verified_';
+const STORAGE_PENDING_2STEP_PREFIX = 'sjtutor_pending_2step_';
 const LOCAL_PIN_PREFIX = 'sjtutor_security_pin_';
+const STORAGE_PIN_SESSION_PREFIX = 'sjtutor_pin_unlocked_';
 
 // In-memory set of unlocked user IDs for the active page session.
-// This resets when the web page is refreshed or reloaded so the user is prompted for their PIN.
 const inMemoryUnlockedUids = new Set<string>();
 
 export const SecurityPinService = {
@@ -85,6 +86,50 @@ export const SecurityPinService = {
   },
 
   /**
+   * Marks that a fresh user login action just took place (from sign-in form or social provider).
+   * Two-step verification will ONLY be required for this specific fresh login attempt.
+   */
+  markLoginAttempt: (uid: string): void => {
+    if (!uid) return;
+    try {
+      sessionStorage.setItem(`${STORAGE_PENDING_2STEP_PREFIX}${uid}`, 'true');
+      localStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
+    } catch (e) {
+      console.warn('Failed to mark login attempt:', e);
+    }
+  },
+
+  /**
+   * Completes two-step verification after successful password validation on login.
+   * Clears the pending login flag and remembers the verified state.
+   */
+  completeTwoStepVerification: (uid: string): void => {
+    if (!uid) return;
+    try {
+      sessionStorage.removeItem(`${STORAGE_PENDING_2STEP_PREFIX}${uid}`);
+      localStorage.setItem(`${STORAGE_2STEP_PREFIX}${uid}`, 'true');
+    } catch (e) {
+      console.warn('Failed to complete 2-step verification:', e);
+    }
+  },
+
+  /**
+   * Determines if Two-Step Verification is required for the user.
+   * STRICT POLICY: Only required when the user freshly logs in.
+   * Returning visitors, page reloads, and navigation do NOT prompt for 2-step verification.
+   */
+  isTwoStepRequiredForCurrentSession: (uid?: string | null): boolean => {
+    if (!uid) return false;
+    try {
+      const isPending = sessionStorage.getItem(`${STORAGE_PENDING_2STEP_PREFIX}${uid}`) === 'true';
+      const isVerified = localStorage.getItem(`${STORAGE_2STEP_PREFIX}${uid}`) === 'true';
+      return isPending && !isVerified;
+    } catch {
+      return false;
+    }
+  },
+
+  /**
    * Checks if 2-Step Login verification was already completed on this device/session.
    * Persisted in localStorage so reloading the website does not re-trigger 2-step verification.
    */
@@ -103,6 +148,7 @@ export const SecurityPinService = {
   setTwoStepVerified: (uid?: string | null): void => {
     if (!uid) return;
     try {
+      sessionStorage.removeItem(`${STORAGE_PENDING_2STEP_PREFIX}${uid}`);
       localStorage.setItem(`${STORAGE_2STEP_PREFIX}${uid}`, 'true');
     } catch (e) {
       console.warn('Failed to set 2-step verified state:', e);
@@ -110,24 +156,30 @@ export const SecurityPinService = {
   },
 
   /**
-   * Clears 2-Step Login verification state on logout or fresh login.
+   * Clears 2-Step Login verification state on logout.
    */
   clearTwoStepVerified: (uid?: string | null): void => {
     if (!uid) return;
     try {
       localStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
+      sessionStorage.removeItem(`${STORAGE_PENDING_2STEP_PREFIX}${uid}`);
     } catch (e) {
       console.warn('Failed to clear 2-step verified state:', e);
     }
   },
 
   /**
-   * Checks if the user's session is already unlocked in the active page lifecycle.
-   * Resets upon page refresh so the user is asked for their PIN again.
+   * Checks if the user's session is already unlocked.
+   * Uses memory and session storage so page reloads during active session do not prompt repeatedly.
    */
   isSessionUnlocked: (uid?: string | null): boolean => {
     if (!uid) return true;
-    return inMemoryUnlockedUids.has(uid);
+    if (inMemoryUnlockedUids.has(uid)) return true;
+    try {
+      return sessionStorage.getItem(`${STORAGE_PIN_SESSION_PREFIX}${uid}`) === 'true';
+    } catch {
+      return false;
+    }
   },
 
   /**
@@ -136,6 +188,11 @@ export const SecurityPinService = {
   setSessionUnlocked: (uid?: string | null): void => {
     if (!uid) return;
     inMemoryUnlockedUids.add(uid);
+    try {
+      sessionStorage.setItem(`${STORAGE_PIN_SESSION_PREFIX}${uid}`, 'true');
+    } catch (e) {
+      console.warn('Failed to set session unlocked:', e);
+    }
   },
 
   /**
@@ -144,9 +201,24 @@ export const SecurityPinService = {
   lockSession: (uid?: string | null): void => {
     if (!uid) {
       inMemoryUnlockedUids.clear();
+      try {
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const k = sessionStorage.key(i);
+          if (k?.startsWith(STORAGE_PIN_SESSION_PREFIX)) {
+            sessionStorage.removeItem(k);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not clear session storage PIN keys:', e);
+      }
       return;
     }
     inMemoryUnlockedUids.delete(uid);
+    try {
+      sessionStorage.removeItem(`${STORAGE_PIN_SESSION_PREFIX}${uid}`);
+    } catch (e) {
+      console.warn('Could not clear session storage PIN:', e);
+    }
   },
 
   /**

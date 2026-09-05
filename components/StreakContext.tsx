@@ -43,12 +43,57 @@ export interface StreakData {
   highestStreak: number;
   lastStudyDate: string | null;
   lastActivityDate: string | null;
+  lastStudyTimestamp?: number;
   streakHistory: string[];
   streakFreezes?: number;
   streakFreezeDates?: string[];
   claimedMilestones: number[];
   updatedAt?: number;
 }
+
+export const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+export const canClaimStreakIncrease = (streak: { lastStudyTimestamp?: number; lastStudyDate?: string | null }): boolean => {
+  if (!streak.lastStudyTimestamp && !streak.lastStudyDate) {
+    // Fresh user - can claim their first streak day on their first study activity
+    return true;
+  }
+  const now = Date.now();
+  if (typeof streak.lastStudyTimestamp === 'number' && streak.lastStudyTimestamp > 0) {
+    return now - streak.lastStudyTimestamp >= TWENTY_FOUR_HOURS_MS;
+  }
+  // Fallback to calendar date if timestamp wasn't stored yet
+  const today = getLocalDateString();
+  return streak.lastStudyDate !== today;
+};
+
+export const getTimeUntilNextStreakClaim = (streak: { lastStudyTimestamp?: number; lastStudyDate?: string | null }): {
+  hours: number;
+  minutes: number;
+  seconds: number;
+  totalMs: number;
+  canClaim: boolean;
+} => {
+  if (canClaimStreakIncrease(streak)) {
+    return { hours: 0, minutes: 0, seconds: 0, totalMs: 0, canClaim: true };
+  }
+  const now = Date.now();
+  const timestamp = streak.lastStudyTimestamp || 0;
+  const elapsed = now - timestamp;
+  const remainingMs = Math.max(0, TWENTY_FOUR_HOURS_MS - elapsed);
+  
+  const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+  const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+
+  return {
+    hours,
+    minutes,
+    seconds,
+    totalMs: remainingMs,
+    canClaim: false,
+  };
+};
 
 export interface LeaderboardEntry {
   uid: string;
@@ -62,7 +107,9 @@ export interface LeaderboardEntry {
 export interface StreakContextType {
   streak: StreakData;
   isStudiedToday: boolean;
-  recordActivity: (actionType?: string) => Promise<{ success: boolean; incremented: boolean; milestoneReached: number | null }>;
+  canClaimStreak: boolean;
+  timeUntilNextClaim: { hours: number; minutes: number; seconds: number; totalMs: number; canClaim: boolean };
+  recordActivity: (actionType?: string) => Promise<{ success: boolean; incremented: boolean; milestoneReached: number | null; newStreak?: number }>;
   claimMilestone: (days: number) => Promise<{ success: boolean; creditsAdded: number; message: string }>;
   buyStreakFreeze: (costCredits?: number) => Promise<{ success: boolean; message: string; remainingCredits: number; totalFreezes: number }>;
   useStreakFreeze: (dateStr?: string) => Promise<{ success: boolean; message: string; remainingFreezes: number }>;
@@ -140,6 +187,8 @@ const defaultStreakData: StreakData = {
 const StreakContext = createContext<StreakContextType>({
   streak: defaultStreakData,
   isStudiedToday: false,
+  canClaimStreak: true,
+  timeUntilNextClaim: { hours: 0, minutes: 0, seconds: 0, totalMs: 0, canClaim: true },
   recordActivity: async () => ({ success: true, incremented: false, milestoneReached: null }),
   claimMilestone: async () => ({ success: false, creditsAdded: 0, message: '' }),
   buyStreakFreeze: async () => ({ success: false, message: '', remainingCredits: 0, totalFreezes: 0 }),
@@ -248,24 +297,44 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => unsubscribe();
   }, [currentUser]);
 
-  // Record Activity and calculate continuous daily streak
-  const recordActivity = useCallback(
-    async (): Promise<{ success: boolean; incremented: boolean; milestoneReached: number | null }> => {
-      const today = getLocalDateString();
-      const currentLastStudy = streak.lastStudyDate;
+  const canClaimStreak = canClaimStreakIncrease(streak);
+  const timeUntilNextClaim = getTimeUntilNextStreakClaim(streak);
 
-      // If user already studied today, mark active & return
-      if (currentLastStudy === today) {
-        return { success: true, incremented: false, milestoneReached: null };
+  // Record Activity and calculate continuous daily streak
+  // STRICT RULE: Only increment streak when 24 hours is completed and user completes a study activity!
+  const recordActivity = useCallback(
+    async (actionType?: string): Promise<{ success: boolean; incremented: boolean; milestoneReached: number | null; newStreak?: number }> => {
+      const today = getLocalDateString();
+      const now = Date.now();
+
+      // Check if 24 hours has elapsed since the last claimed study activity
+      const isEligibleToClaim = canClaimStreakIncrease(streak);
+
+      if (!isEligibleToClaim) {
+        // User studied within the current 24-hour cycle:
+        // Update activity history and lastActivityDate without incrementing streak or firing celebration
+        const updatedHistory = Array.isArray(streak.streakHistory) ? [...streak.streakHistory] : [];
+        if (!updatedHistory.includes(today)) {
+          updatedHistory.push(today);
+        }
+        const updatedStreak: StreakData = {
+          ...streak,
+          lastActivityDate: today,
+          streakHistory: updatedHistory,
+          updatedAt: now,
+        };
+        setStreak(updatedStreak);
+        return {
+          success: true,
+          incremented: false,
+          milestoneReached: null,
+          newStreak: streak.currentStreak || 0,
+        };
       }
 
+      // 24 HOURS COMPLETED! User is completing a study activity now to claim their streak increase.
       const prevStreak = typeof streak.currentStreak === 'number' ? streak.currentStreak : 0;
-      
-      // STRICT NO-RESET POLICY:
-      // The streak represents accumulated learning consistency and NEVER resets to 0 or decreases.
-      // Every new day the user engages with any learning activity, streak increments by +1.
       const newStreak = prevStreak + 1;
-
       const newHighest = Math.max(streak.highestStreak || 0, newStreak);
       const updatedHistory = Array.isArray(streak.streakHistory) ? [...streak.streakHistory] : [];
       if (!updatedHistory.includes(today)) {
@@ -290,8 +359,9 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         highestStreak: newHighest,
         lastStudyDate: today,
         lastActivityDate: today,
+        lastStudyTimestamp: now,
         streakHistory: updatedHistory,
-        updatedAt: Date.now(),
+        updatedAt: now,
       };
 
       setStreak(updatedStreak);
@@ -317,6 +387,8 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             currentStreak: newStreak,
             highestStreak: newHighest,
             lastStudyDate: today,
+            lastActivityDate: today,
+            lastStudyTimestamp: now,
             streakHistory: updatedHistory,
             updatedAt: Timestamp.now(),
           }).catch(() => {});
@@ -325,7 +397,21 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
 
-      return { success: true, incremented: true, milestoneReached };
+      // DISPATCH CELEBRATION EVENT:
+      // Dispatched ONLY upon completing this study activity after 24 hours elapsed!
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('sjtutor_streak_incremented', {
+            detail: {
+              streakCount: newStreak,
+              milestone: milestoneReached,
+              actionType: actionType || 'Study Activity',
+            },
+          })
+        );
+      }
+
+      return { success: true, incremented: true, milestoneReached, newStreak };
     },
     [streak, currentUser]
   );
@@ -632,6 +718,8 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       value={{
         streak,
         isStudiedToday,
+        canClaimStreak,
+        timeUntilNextClaim,
         recordActivity,
         claimMilestone,
         buyStreakFreeze,

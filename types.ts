@@ -102,6 +102,7 @@ export interface UserProfile {
   currentStreak?: number;
   highestStreak?: number;
   lastStudyDate?: string;
+  lastStudyTimestamp?: number;
   streakHistory?: string[];
   streakFreezes?: number;
   streakFreezeDates?: string[];

@@ -79,7 +79,7 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
       }
       if (res.status === 'SUCCESS') {
         if (res.user?.uid) {
-          SecurityPinService.clearTwoStepVerified(res.user.uid);
+          SecurityPinService.markLoginAttempt(res.user.uid);
         }
         onSuccess(res.user);
       } else if (res.status === 'ERROR') {
@@ -116,7 +116,7 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
       }
       if (res.status === 'SUCCESS') {
         if (res.user?.uid) {
-          SecurityPinService.clearTwoStepVerified(res.user.uid);
+          SecurityPinService.markLoginAttempt(res.user.uid);
         }
         onSuccess(res.user);
       } else {
@@ -190,7 +190,7 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
       }
       if (res.status === 'SUCCESS') {
         if (res.user?.uid) {
-          SecurityPinService.clearTwoStepVerified(res.user.uid);
+          SecurityPinService.markLoginAttempt(res.user.uid);
         }
         onSuccess(res.user);
       } else {

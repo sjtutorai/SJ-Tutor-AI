@@ -72,7 +72,7 @@ export const TwoStepLoginModal: React.FC<TwoStepLoginModalProps> = ({
       const isValid = await SecurityPinService.verifySecret(password.trim(), storedSecret, uid);
 
       if (isValid) {
-        SecurityPinService.setTwoStepVerified(uid);
+        SecurityPinService.completeTwoStepVerification(uid);
         onVerifySuccess();
       } else {
         setError('Incorrect Two-Step Verification Password. Please try again.');
@@ -152,7 +152,7 @@ export const TwoStepLoginModal: React.FC<TwoStepLoginModalProps> = ({
         },
       });
 
-      SecurityPinService.setTwoStepVerified(uid);
+      SecurityPinService.completeTwoStepVerification(uid);
       setShowForgotModal(false);
       onVerifySuccess();
     } catch (err: any) {
