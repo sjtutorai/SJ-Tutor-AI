@@ -130,8 +130,14 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
   const [scheds, setScheds] = useState<SchedItem[]>([]);
 
   // Fetch admin logs and scheduled lists in real-time
+  // STRICT ACCESS: Only sjtutorai@gmail.com can fetch admin logs or access the broadcaster
   useEffect(() => {
-    if (!isAdminUser) return;
+    if (!isAdminUser) {
+      if (activeTab === 'admin') {
+        setActiveTab('inbox');
+      }
+      return;
+    }
 
     // Listen to delivery logs
     const logsRef = collection(db, 'notification_logs');
@@ -209,6 +215,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
 
   // Dispatch scheduled broadcast immediately
   const handleDispatchNow = async (sched: SchedItem) => {
+    if (!isAdminUser) return;
     try {
       setIsSending(true);
       const success = await sendBulkNotification(
@@ -232,6 +239,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
 
   // Cancel scheduled broadcast
   const handleCancelScheduled = async (id: string) => {
+    if (!isAdminUser) return;
     try {
       await deleteDoc(doc(db, 'notifications', id));
       // Delete corresponding log
@@ -243,6 +251,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
 
   // Retry failed delivery log
   const handleRetryFailed = async (log: LogItem) => {
+    if (!isAdminUser) return;
     try {
       setIsSending(true);
       await sendBulkNotification(
@@ -262,6 +271,10 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
   // Submit Broadcast Form
   const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdminUser) {
+      setSendErrorMsg('Access Denied: The Admin Broadcaster is strictly for sjtutorai@gmail.com.');
+      return;
+    }
     if (!title.trim() || !body.trim()) {
       setSendErrorMsg('Please fill in both title and body fields.');
       return;
@@ -592,8 +605,8 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
               </div>
             </div>
           </motion.div>
-        ) : (
-          /* ADMIN BROADCASTER VIEW */
+        ) : isAdminUser ? (
+          /* ADMIN BROADCASTER VIEW - EXCLUSIVELY FOR sjtutorai@gmail.com */
           <motion.div
             key="admin"
             initial={{ opacity: 0, y: 15 }}
@@ -903,7 +916,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigateToGroup
 
             </div>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </div>
   );

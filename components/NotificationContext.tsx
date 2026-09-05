@@ -235,7 +235,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   const seenNotificationIdsRef = useRef<Set<string>>(new Set());
-  const isAdminUser = currentUser?.email === 'sjtutorai@gmail.com';
+  const isAdminUser = currentUser?.email?.toLowerCase().trim() === 'sjtutorai@gmail.com';
 
   // FCM Token generation & storage
   const setupFCM = async (user: User) => {
