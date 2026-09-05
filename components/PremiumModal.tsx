@@ -17,6 +17,24 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
   const [copiedUid, setCopiedUid] = useState(false);
   const [trial, setTrial] = useState<TrialInfo>(() => calculateTrialInfo(userProfile, uid));
 
+  // Sync URL for direct link bookmarking / routing
+  useEffect(() => {
+    const originalPath = window.location.pathname;
+    window.history.replaceState(null, 'Premium Plans - SJ Tutor AI', '/premium');
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.history.replaceState(null, '', originalPath === '/premium' || originalPath === '/pricing' ? '/dashboard' : originalPath);
+    };
+  }, [onClose]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setTrial(calculateTrialInfo(userProfile, uid));

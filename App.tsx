@@ -69,6 +69,7 @@ import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { SEOService } from "./services/seoService";
+import { parseCurrentRoute, syncBrowserUrl } from "./utils/routeUtils";
 import { db, auth } from "./firebaseConfig";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { StudyGroup } from "./types";
@@ -198,10 +199,16 @@ const App: React.FC = () => {
     setMode(AppMode.GROUP_INVITE);
   };
 
-  // Process group invite link parameters from URL (e.g. ?groupId=xxx or ?groupInvite=xxx or ?invite=xxx)
+  // Process group invite link parameters from URL (e.g. ?groupId=xxx or ?groupInvite=xxx or ?invite=xxx or /invite/:code)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const groupIdFromUrl = params.get("groupId") || params.get("groupInvite") || params.get("invite");
+    const path = window.location.pathname;
+    const pathInviteCode = path.startsWith("/invite/")
+      ? path.substring(8).replace(/\/$/, "")
+      : path.startsWith("/group-invite/")
+      ? path.substring(14).replace(/\/$/, "")
+      : null;
+    const groupIdFromUrl = params.get("groupId") || params.get("groupInvite") || params.get("invite") || pathInviteCode;
     const inviterFromUrl = params.get("inviter") || "A student";
 
     if (groupIdFromUrl) {
@@ -256,17 +263,34 @@ const App: React.FC = () => {
     }
   }, [requestPermission]);
 
+  // Initial Route resolution (e.g. /login, /signup, /quiz, /summary, /homework, /notes, /tutor, /profile, /settings, /premium, /about, /privacy, /terms)
+  const initialRoute = parseCurrentRoute();
+
   // Auth State
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
+  const [showAuthModal, setShowAuthModal] = useState(initialRoute.isAuthModalOpen);
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>(initialRoute.authModalMode);
 
-  const openAuthModal = (mode: 'signin' | 'signup' = 'signin') => {
-    setAuthModalMode(mode);
+  const openAuthModal = (authMode: 'signin' | 'signup' = 'signin') => {
+    setAuthModalMode(authMode);
     setShowAuthModal(true);
+    syncBrowserUrl(mode || AppMode.DASHBOARD, { modal: authMode });
   };
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const closeAuthModal = () => {
+    setShowAuthModal(false);
+    syncBrowserUrl(mode || AppMode.DASHBOARD);
+  };
+
+  const [showPremiumModal, setShowPremiumModal] = useState(initialRoute.isPremiumModalOpen);
+  const openPremiumModal = () => {
+    setShowPremiumModal(true);
+    syncBrowserUrl(mode || AppMode.DASHBOARD, { modal: 'premium' });
+  };
+  const closePremiumModal = () => {
+    setShowPremiumModal(false);
+    syncBrowserUrl(mode || AppMode.DASHBOARD);
+  };
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -290,44 +314,9 @@ const App: React.FC = () => {
     setMode(AppMode.SETTINGS);
   };
 
-  // App State
+  // App State - Shared ID resolution (from route or query params)
   const [publicShareId, setPublicShareId] = useState<string | null>(() => {
-    const path = window.location.pathname;
-    
-    // 9. Error Logging: Detecting path on load
-    console.log("[SHARE AUDIT] Detecting public share path on initial load:", path);
-    
-    if (path.startsWith("/share/")) {
-      const shareId = path.substring(7).replace(/\/$/, "");
-      console.log("[SHARE AUDIT] Match /share/ style ID:", shareId);
-      return shareId;
-    }
-    
-    // Support type-specific custom URLs (Requirement 2)
-    const prefixes = ["/quiz/", "/summary/", "/notes/", "/homework/", "/tutor/"];
-    for (const prefix of prefixes) {
-      if (path.startsWith(prefix)) {
-        const segments = path.substring(prefix.length).split('/').filter(Boolean);
-        if (segments.length === 1) {
-          console.log(`[SHARE AUDIT] Match single segment share ID under ${prefix}:`, segments[0]);
-          return segments[0]; // e.g. /quiz/{quizId} -> {quizId}
-        } else if (segments.length > 1) {
-          // Structured quiz slug fallback
-          const prefixName = prefix.substring(1, prefix.length - 1);
-          const slug = `${prefixName}_${segments.join("_")}`;
-          console.log(`[SHARE AUDIT] Match multi-segment slug under ${prefix}:`, slug);
-          return slug;
-        }
-      }
-    }
-    
-    const params = new URLSearchParams(window.location.search);
-    const queryShare = params.get("share");
-    if (queryShare) {
-      console.log("[SHARE AUDIT] Match query-param share ID:", queryShare);
-      return queryShare;
-    }
-    return null;
+    return initialRoute.publicShareId;
   });
 
   const [shareSuccessModal, setShareSuccessModal] = useState<{
@@ -342,10 +331,7 @@ const App: React.FC = () => {
 
   const [mode, setMode] = useState<AppMode>(() => {
     try {
-      const path = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
-      if (path === '/privacy') return AppMode.PRIVACY;
-      if (path === '/terms') return AppMode.TERMS;
-      if (path === '/about') return AppMode.ABOUT;
+      if (initialRoute.mode) return initialRoute.mode;
       return (localStorage.getItem('sjtutor_autosave_mode') as AppMode) || AppMode.DASHBOARD;
     } catch {
       return AppMode.DASHBOARD;
@@ -358,15 +344,31 @@ const App: React.FC = () => {
     } catch (e) {
       console.warn("Could not save mode", e);
     }
-  }, [mode]);
 
-  // Route & Hash Popstate Listener
+    // Keep browser address bar and document title in sync for every feature
+    if (!showAuthModal && !showPremiumModal) {
+      syncBrowserUrl(mode, {
+        shareId: publicShareId,
+      });
+    }
+  }, [mode, showAuthModal, showPremiumModal, publicShareId]);
+
+  // Route & Hash Popstate Listener for full browser back/forward history navigation
   useEffect(() => {
     const handleNavigationChange = () => {
-      const path = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
-      if (path === '/privacy') setMode(AppMode.PRIVACY);
-      else if (path === '/terms') setMode(AppMode.TERMS);
-      else if (path === '/about') setMode(AppMode.ABOUT);
+      const route = parseCurrentRoute();
+      setMode(route.mode);
+      if (route.isAuthModalOpen) {
+        setShowAuthModal(true);
+        setAuthModalMode(route.authModalMode);
+      } else {
+        setShowAuthModal(false);
+      }
+      setShowPremiumModal(route.isPremiumModalOpen);
+      if (route.publicShareId) {
+        setPublicShareId(route.publicShareId);
+      }
+      document.title = route.title;
     };
 
     window.addEventListener('popstate', handleNavigationChange);
@@ -698,6 +700,9 @@ const App: React.FC = () => {
       }
     }
     setError(null);
+
+    // Sync browser URL to feature route
+    syncBrowserUrl(newMode);
 
     // Reset form with profile defaults
     const settings = SettingsService.getSettings();
@@ -1309,7 +1314,8 @@ const App: React.FC = () => {
                 ...parsed,
               }));
               if (parsed.hasCompletedOnboarding || parsed.isRegisteredInFirestore) {
-                setMode(AppMode.DASHBOARD);
+                const targetMode = (initialRoute.mode && initialRoute.mode !== AppMode.DASHBOARD) ? initialRoute.mode : AppMode.DASHBOARD;
+                setMode(targetMode);
               }
             }
           } catch (err) {
@@ -1341,13 +1347,15 @@ const App: React.FC = () => {
             }
 
             if (isRegisteredInDb) {
-              setMode(AppMode.DASHBOARD);
+              const targetMode = (initialRoute.mode && initialRoute.mode !== AppMode.DASHBOARD) ? initialRoute.mode : AppMode.DASHBOARD;
+              setMode(targetMode);
               setShowCompletionReminder(false);
               setShowTutorial(false);
             } else if (!userProf.hasCompletedOnboarding) {
               setMode(AppMode.PROFILE);
             } else {
-              setMode(AppMode.DASHBOARD);
+              const targetMode = (initialRoute.mode && initialRoute.mode !== AppMode.DASHBOARD) ? initialRoute.mode : AppMode.DASHBOARD;
+              setMode(targetMode);
             }
           } catch (e) {
             console.error("Error fetching/creating profile:", e);
@@ -1363,7 +1371,11 @@ const App: React.FC = () => {
           } else {
             setUser(null);
             setUserProfile(initialProfileState);
-            setMode(AppMode.DASHBOARD);
+            if (initialRoute.mode) {
+              setMode(initialRoute.mode);
+            } else {
+              setMode(AppMode.DASHBOARD);
+            }
           }
         }
         setAuthLoading(false);
@@ -2751,7 +2763,7 @@ const App: React.FC = () => {
         <TrialBannerCard 
           userProfile={userProfile} 
           uid={user?.uid} 
-          onOpenUpgrade={() => setShowPremiumModal(true)} 
+          onOpenUpgrade={openPremiumModal} 
         />
 
         {user && !userProfile.twoFactorPassword && !dismissed2faReminder && (
@@ -3063,7 +3075,7 @@ const App: React.FC = () => {
               onFillSample={handleFillSample}
               lockGradeClass={!userProfile.planType || userProfile.planType === 'Free'}
               userProfile={userProfile}
-              onOpenUpgrade={() => setShowPremiumModal(true)}
+              onOpenUpgrade={openPremiumModal}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -3128,7 +3140,7 @@ const App: React.FC = () => {
               onFillSample={handleFillSample}
               lockGradeClass={!userProfile.planType || userProfile.planType === 'Free'}
               userProfile={userProfile}
-              onOpenUpgrade={() => setShowPremiumModal(true)}
+              onOpenUpgrade={openPremiumModal}
               onFilesUpload={setHomeworkFiles}
               homeworkFiles={homeworkFiles}
             />
@@ -3196,7 +3208,7 @@ const App: React.FC = () => {
               onFillSample={handleFillSample}
               lockGradeClass={!userProfile.planType || userProfile.planType === 'Free'}
               userProfile={userProfile}
-              onOpenUpgrade={() => setShowPremiumModal(true)}
+              onOpenUpgrade={openPremiumModal}
             />
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
@@ -3322,7 +3334,7 @@ const App: React.FC = () => {
               userId={user ? user.uid : null}
               onDeductCredit={deductCredit}
               userProfile={userProfile}
-              onOpenUpgrade={() => setShowPremiumModal(true)}
+              onOpenUpgrade={openPremiumModal}
             />
           </div>
         );
@@ -3346,7 +3358,7 @@ const App: React.FC = () => {
               userProfile={userProfile}
               onLogout={handleLogout}
               onNavigateToProfile={() => setMode(AppMode.PROFILE)}
-              onOpenPremium={() => setShowPremiumModal(true)}
+              onOpenPremium={openPremiumModal}
               onNavigateToLegal={(legalMode) => setMode(legalMode as any)}
               onUpdateProfile={handleProfileSave}
               onOpenShortcuts={() => setShowShortcutsModal(true)}
@@ -3487,7 +3499,7 @@ const App: React.FC = () => {
         />
         {showAuthModal && (
           <Auth
-            onClose={() => setShowAuthModal(false)}
+            onClose={closeAuthModal}
             onSignUpSuccess={handleSignUpSuccess}
             onCountryDetected={setDetectedCountry}
             initialMode={authModalMode}
@@ -3573,7 +3585,7 @@ const App: React.FC = () => {
           </main>
           {showAuthModal && (
             <Auth
-              onClose={() => setShowAuthModal(false)}
+              onClose={closeAuthModal}
               onSignUpSuccess={handleSignUpSuccess}
               onCountryDetected={setDetectedCountry}
               initialMode={authModalMode}
@@ -3595,11 +3607,19 @@ const App: React.FC = () => {
         />
         {showAuthModal && (
           <Auth
-            onClose={() => setShowAuthModal(false)}
+            onClose={closeAuthModal}
             onSignUpSuccess={handleSignUpSuccess}
             onCountryDetected={setDetectedCountry}
             initialCountry={detectedCountry}
             initialMode={authModalMode}
+          />
+        )}
+        {showPremiumModal && (
+          <PremiumModal
+            onClose={closePremiumModal}
+            onPaymentSuccess={handlePaymentSuccess}
+            userProfile={userProfile}
+            uid={user?.uid}
           />
         )}
       </div>
@@ -3813,7 +3833,7 @@ const App: React.FC = () => {
 
             {user && (
               <button
-                onClick={() => setShowPremiumModal(true)}
+                onClick={openPremiumModal}
                 title={!isExpanded ? "Upgrade Plan" : undefined}
                 className={`w-full flex items-center justify-center ${isExpanded ? "py-2 gap-1.5 text-xs font-bold" : "p-2"} bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg shadow-sm transition-all`}
               >
@@ -3914,7 +3934,7 @@ const App: React.FC = () => {
             <TrialHeaderBadge 
               userProfile={userProfile} 
               uid={user?.uid} 
-              onOpenUpgrade={() => setShowPremiumModal(true)} 
+              onOpenUpgrade={openPremiumModal} 
             />
           </div>
         </header>
@@ -3937,7 +3957,7 @@ const App: React.FC = () => {
 
       {showAuthModal && (
         <Auth
-          onClose={() => setShowAuthModal(false)}
+          onClose={closeAuthModal}
           onSignUpSuccess={handleSignUpSuccess}
           onCountryDetected={setDetectedCountry}
           initialMode={authModalMode}
@@ -3946,7 +3966,7 @@ const App: React.FC = () => {
 
       {showPremiumModal && (
         <PremiumModal
-          onClose={() => setShowPremiumModal(false)}
+          onClose={closePremiumModal}
           onPaymentSuccess={handlePaymentSuccess}
           userProfile={userProfile}
           uid={user?.uid}
