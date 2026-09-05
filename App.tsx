@@ -43,6 +43,8 @@ import NotificationsView from "./components/NotificationsView";
 import { useNotifications } from "./components/NotificationContext";
 import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
+import { useStreak } from "./components/StreakContext";
+import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
 import { TrialHeaderBadge, TrialBannerCard, calculateTrialInfo } from "./components/TrialTimerWidget";
 import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
@@ -179,6 +181,8 @@ const App: React.FC = () => {
   useEffect(() => {
     sendNotificationRef.current = sendNotification;
   }, [sendNotification]);
+
+  const { streak: streakData, recordActivity } = useStreak();
 
   // Video & Audio Calling States (1-on-1 & Group)
   const [activeDirectCall, setActiveDirectCall] = useState<DirectCall | null>(null);
@@ -1701,6 +1705,15 @@ const App: React.FC = () => {
 
     // Record daily activity for streak
     recordDailyActivity();
+    recordActivity().then((res) => {
+      if (res.success && res.incremented && res.milestoneReached) {
+        triggerToast(
+          "🔥 Streak Milestone Reached!",
+          `Congratulations! You reached a ${res.milestoneReached}-day learning streak on SJ Tutor AI! Open the Streak widget to claim your reward.`,
+          "Daily Streak Reminders"
+        );
+      }
+    }).catch(() => {});
   };
 
   const handleSharePublicLink = async (type: string, title: string, content: any, customId?: string, customUrl?: string, customMessage?: string) => {
@@ -1807,6 +1820,15 @@ const App: React.FC = () => {
 
       // Record daily activity for streak
       recordDailyActivity();
+      recordActivity().then((res) => {
+        if (res.success && res.incremented && res.milestoneReached) {
+          triggerToast(
+            "🔥 Streak Milestone Reached!",
+            `Congratulations! You reached a ${res.milestoneReached}-day learning streak on SJ Tutor AI! Open the Streak widget to claim your reward.`,
+            "Daily Streak Reminders"
+          );
+        }
+      }).catch(() => {});
 
       // Calculate rewards
       const qCount = (historyItem.content as QuizQuestion[]).length;
@@ -3689,13 +3711,13 @@ const App: React.FC = () => {
             </button>
 
             {/* Daily Streak Badge */}
-            {(userProfile.streak !== undefined && userProfile.streak > 0) && (
+            {((streakData.currentStreak > 0) || (userProfile.streak !== undefined && userProfile.streak > 0)) && (
               <div 
                 className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold shadow-xs select-none"
-                title={`${userProfile.streak} Day Learning Streak`}
+                title={`${streakData.currentStreak || userProfile.streak} Day Learning Streak`}
               >
                 <span className="text-sm leading-none">🔥</span>
-                <span className="font-mono">{userProfile.streak}</span>
+                <span className="font-mono">{streakData.currentStreak || userProfile.streak}</span>
                 <span className="hidden sm:inline text-[11px] font-medium text-amber-600/80 dark:text-amber-400/80">days</span>
               </div>
             )}
@@ -3741,6 +3763,12 @@ const App: React.FC = () => {
           uid={user?.uid}
         />
       )}
+
+      {/* Floating Daily Streak Hub Widget */}
+      <FloatingStreakWidget
+        userProfile={userProfile}
+        onProfileUpdate={handleProfileSave}
+      />
 
       <AnimatePresence>
         {showTutorial && !userProfile.isRegisteredInFirestore && <Tutorial onClose={handleTutorialClose} />}
