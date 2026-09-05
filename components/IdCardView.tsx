@@ -35,6 +35,7 @@ const IdCardView: React.FC<IdCardViewProps> = ({ userProfile, email }) => {
 
   // Generate a consistent pseudo-random student ID if not stored
   const studentId = React.useMemo(() => {
+    if (userProfile.sjTutorId) return userProfile.sjTutorId;
     if (userProfile.registrationNumber) return userProfile.registrationNumber;
     const base = email || userProfile.displayName || 'student';
     let hash = 0;

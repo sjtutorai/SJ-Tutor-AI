@@ -1563,33 +1563,71 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSignUpSuccess = async (signupData?: Partial<UserProfile>) => {
-    if (auth.currentUser) {
+  const handleSignUpSuccess = async (signupData?: Partial<UserProfile> | any) => {
+    if (signupData) {
+      const targetUid = signupData.uid || auth.currentUser?.uid || `sjt_${Date.now()}`;
+      const mergedProfile: UserProfile = {
+        ...initialProfileState,
+        ...userProfile,
+        ...signupData,
+        displayName: signupData.displayName || userProfile.displayName || "Student",
+        email: signupData.email || userProfile.email || "",
+        grade: signupData.classGrade || signupData.grade || userProfile.grade || "Class 10",
+        sjTutorId: signupData.sjTutorId || userProfile.sjTutorId,
+        registrationNumber: signupData.sjTutorId || userProfile.registrationNumber,
+        hasCompletedOnboarding: true,
+        isRegisteredInFirestore: true,
+      };
+
+      setUserProfile(mergedProfile);
+
+      if (!auth.currentUser && !user) {
+        setUser({
+          uid: targetUid,
+          displayName: mergedProfile.displayName,
+          email: mergedProfile.email,
+          photoURL: mergedProfile.photoURL || null,
+        } as any);
+      }
+
+      try {
+        localStorage.setItem(`profile_${targetUid}`, JSON.stringify(mergedProfile));
+        localStorage.setItem("sjtutor_active_user", JSON.stringify(mergedProfile));
+      } catch (e) {
+        console.warn("Could not save to localStorage", e);
+      }
+
+      if (auth.currentUser) {
+        try {
+          await saveProfileToFirestore(auth.currentUser.uid, mergedProfile);
+        } catch (e) {
+          console.warn("Could not save to firestore", e);
+        }
+      }
+
+      if (signupData?.language) {
+        SettingsService.updateSettings({
+          learning: {
+            ...SettingsService.getSettings().learning,
+            language: signupData.language,
+          },
+        });
+        setFormData((prev) => ({
+          ...prev,
+          language: signupData.language || prev.language,
+        }));
+      }
+
+      setMode(AppMode.DASHBOARD);
+      setDashboardView("OVERVIEW");
+    } else if (auth.currentUser) {
       try {
         const userProf = await getCurrentUserProfile(auth.currentUser);
         const mergedProfile = {
           ...initialProfileState,
           ...userProf,
-          ...(signupData || {}),
         };
         setUserProfile(mergedProfile as any);
-
-        if (signupData?.language) {
-          SettingsService.updateSettings({
-            learning: {
-              ...SettingsService.getSettings().learning,
-              language: signupData.language,
-            }
-          });
-          setFormData((prev) => ({
-            ...prev,
-            language: signupData.language || prev.language,
-          }));
-          await saveProfileToFirestore(auth.currentUser.uid, {
-            language: signupData.language,
-          });
-        }
-
         if (!userProf.hasCompletedOnboarding) {
           setMode(AppMode.PROFILE);
         } else {

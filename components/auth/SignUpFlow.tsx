@@ -19,6 +19,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { GoogleIcon, AppleIcon, YahooIcon } from './AuthIcons';
+import IdCardView from '../IdCardView';
 import {
   handleSocialAuth,
   initEmailSignUp,
@@ -1316,46 +1317,97 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLog
       )}
 
       {/* ══════════════════════════════════════════════════════════
-          STEP 9: SECURITY SETUP SUCCESS / COMPLETE
+          STEP 9: SECURITY SETUP SUCCESS / COMPLETE (DISPLAY SJ TUTOR AI CARD)
          ══════════════════════════════════════════════════════════ */}
       {currentStep === 'COMPLETE' && (
-        <div className="text-center py-4">
-          <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/60 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700 shadow-sm">
-            <ShieldCheck className="w-9 h-9" />
-          </div>
-
-          <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-            🛡️ Your Account Is Secured!
-          </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-xs mx-auto">
-            Your SJ Tutor AI account has been successfully created and secured.
-          </p>
-
-          <div className="my-5 p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl">
-            <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Your SJ Tutor AI ID</span>
-            <div className="text-2xl font-mono font-black text-amber-600 dark:text-amber-400 mt-1">
-              {generatedSjTutorId}
+        <div className="py-2 space-y-6">
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold mb-3">
+              <ShieldCheck className="w-4 h-4" />
+              <span>Security Setup Complete • Account Active</span>
             </div>
+
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+              Welcome to SJ Tutor AI! 🎉
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-md mx-auto">
+              Your 2-step verification and PIN protection are active. Here is your official <span className="font-bold text-amber-500">SJ Tutor AI Card</span>:
+            </p>
           </div>
 
-          <button
-            onClick={() => {
-              onSuccess({
-                uid: createdUser?.uid,
-                sjTutorId: generatedSjTutorId,
+          {/* Quick ID Badge */}
+          <div className="flex items-center justify-between p-4 bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/20 rounded-2xl">
+            <div>
+              <span className="text-[11px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-400">
+                Your Official SJ Tutor AI ID
+              </span>
+              <div className="text-xl font-mono font-black text-slate-900 dark:text-white">
+                {generatedSjTutorId}
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(generatedSjTutorId);
+                setCopiedId(true);
+                setTimeout(() => setCopiedId(false), 2000);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition-all flex items-center gap-1.5 shadow-sm"
+            >
+              {copiedId ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedId ? 'Copied!' : 'Copy ID'}</span>
+            </button>
+          </div>
+
+          {/* Official SJ Tutor AI Card Display */}
+          <div className="border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-900/50 overflow-hidden shadow-inner">
+            <IdCardView
+              userProfile={{
                 displayName: createdUser?.displayName || `${firstName} ${lastName}`.trim(),
-                email: createdUser?.email || authIdentity?.email,
+                email: createdUser?.email || authIdentity?.email || '',
                 photoURL,
-                classGrade,
-                subjects: selectedSubjects,
-                learningPreferences: selectedPreferences,
-                preferredLanguage,
-              });
-            }}
-            className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-all shadow-md shadow-amber-500/20"
-          >
-            Go to SJ Tutor AI
-          </button>
+                grade: classGrade,
+                institution: 'SJ Tutor AI Academy',
+                phoneNumber: '+91 8105423488',
+                state: 'Karnataka',
+                district: 'Dharwad',
+                board: 'CBSE',
+                planType: 'Scholar',
+                sjTutorId: generatedSjTutorId,
+                registrationNumber: generatedSjTutorId,
+                credits: 100,
+                hasCompletedOnboarding: true,
+                isRegisteredInFirestore: true,
+              } as any}
+              email={createdUser?.email || authIdentity?.email}
+            />
+          </div>
+
+          {/* Action to enter app */}
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                onSuccess({
+                  uid: createdUser?.uid,
+                  sjTutorId: generatedSjTutorId,
+                  displayName: createdUser?.displayName || `${firstName} ${lastName}`.trim(),
+                  email: createdUser?.email || authIdentity?.email,
+                  photoURL,
+                  classGrade,
+                  subjects: selectedSubjects,
+                  learningPreferences: selectedPreferences,
+                  preferredLanguage,
+                  hasCompletedOnboarding: true,
+                  isRegisteredInFirestore: true,
+                });
+              }}
+              className="w-full py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-2xl font-black text-base transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2"
+            >
+              <Sparkles className="w-5 h-5" />
+              <span>Enter SJ Tutor AI & Start Learning</span>
+              <ArrowRight className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       )}
     </div>
