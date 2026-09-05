@@ -5,6 +5,12 @@
     "providerEmail": "sjtutorai@gmail.com",
     "verified": true
   },
+  "google_sadanandj2011@gmail.com": {
+    "userId": "sadanand_uid_achiever",
+    "provider": "google",
+    "providerEmail": "sadanandj2011@gmail.com",
+    "verified": true
+  },
   "sj_tutor_ai_id_SJTA-DEMO01": {
     "userId": "demo_student_uid_01",
     "provider": "sj_tutor_ai_id",

@@ -70,6 +70,39 @@ export const SecurityPinLockScreen: React.FC<SecurityPinLockScreenProps> = ({
     setError(null);
 
     try {
+      if (!storedPin) {
+        // Initial setup for users who don't have a PIN saved yet
+        const pinHash = await SecurityPinService.hashPin(pinToVerify, uid);
+        const updatedProfile: Partial<UserProfile> = {
+          securityPin: pinHash,
+          securityPinLength: pinLength,
+          pinLockEnabled: true,
+        };
+        if (onUpdateProfile) {
+          await onUpdateProfile(updatedProfile);
+        }
+        SettingsService.updateSettings({
+          privacy: {
+            ...SettingsService.getSettings().privacy,
+            pin: pinHash,
+            pinLength,
+            pinLock: true,
+            appLock: true,
+          },
+        });
+        SecurityPinService.saveLocalConfig(uid, {
+          enabled: true,
+          pinHash,
+          pinLength,
+          salt: uid,
+          biometricsEnabled: userProfile.biometricsEnabled,
+          updatedAt: Date.now(),
+        });
+        SecurityPinService.setSessionUnlocked(uid);
+        onUnlock();
+        return;
+      }
+
       const isValid = await SecurityPinService.verifyPin(pinToVerify, storedPin, uid);
       if (isValid) {
         SecurityPinService.setSessionUnlocked(uid);
@@ -88,7 +121,7 @@ export const SecurityPinLockScreen: React.FC<SecurityPinLockScreenProps> = ({
     } finally {
       setIsVerifying(false);
     }
-  }, [pinLength, storedPin, uid, onUnlock]);
+  }, [pinLength, storedPin, uid, onUnlock, onUpdateProfile, userProfile.biometricsEnabled]);
 
   const handleKeyPress = useCallback((num: string) => {
     if (pin.length < pinLength) {
@@ -278,7 +311,15 @@ export const SecurityPinLockScreen: React.FC<SecurityPinLockScreenProps> = ({
         </h2>
         
         <p className="text-xs text-slate-400 mt-1 max-w-xs">
-          Welcome back, <strong className="text-slate-200">{userProfile.displayName || 'Student'}</strong>! Enter your <strong className="text-amber-400 font-mono">{pinLength}-digit PIN</strong> to unlock.
+          {!storedPin ? (
+            <>
+              Welcome, <strong className="text-slate-200">{userProfile.displayName || 'Student'}</strong>! Create your <strong className="text-amber-400 font-mono">{pinLength}-digit PIN</strong> to protect your account on reloads and visits.
+            </>
+          ) : (
+            <>
+              Welcome back, <strong className="text-slate-200">{userProfile.displayName || 'Student'}</strong>! Enter your <strong className="text-amber-400 font-mono">{pinLength}-digit PIN</strong> to unlock.
+            </>
+          )}
         </p>
 
         {userProfile.email && (

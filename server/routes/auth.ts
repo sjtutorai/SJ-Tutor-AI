@@ -163,6 +163,12 @@ loadPersistedData();
       providerEmail: "sjtutorai@gmail.com",
       verified: true,
     });
+    linkedIdentitiesStore.set("google_sadanandj2011@gmail.com", {
+      userId: "sadanand_uid_achiever",
+      provider: "google",
+      providerEmail: "sadanandj2011@gmail.com",
+      verified: true,
+    });
     linkedIdentitiesStore.set("sj_tutor_ai_id_SJTA-DEMO01", {
       userId: "demo_student_uid_01",
       provider: "sj_tutor_ai_id",
@@ -173,6 +179,12 @@ loadPersistedData();
       userId: "admin_uid_sjtutor",
       provider: "sj_tutor_ai_id",
       providerEmail: "sjtutorai@gmail.com",
+      verified: true,
+    });
+    linkedIdentitiesStore.set("sj_tutor_ai_id_SJTA-ACHIEVER01", {
+      userId: "sadanand_uid_achiever",
+      provider: "sj_tutor_ai_id",
+      providerEmail: "sadanandj2011@gmail.com",
       verified: true,
     });
 
@@ -821,6 +833,114 @@ router.post("/sjtutor-login-step2-pin", async (req, res) => {
   } catch (error: any) {
     console.error("Error verifying PIN:", error);
     res.status(500).json({ error: "SERVER_ERROR", message: "PIN verification failed" });
+  }
+});
+
+/**
+ * 6B. LOGIN WITH SJ TUTOR AI ID CARD
+ * Resolves account by student ID, registration ID, QR payload, or email.
+ */
+router.post("/login-with-id-card", async (req, res) => {
+  try {
+    const { identifier, email } = req.body;
+    const cleanId = (identifier || "").trim().toUpperCase();
+    const cleanEmail = (email || "").trim().toLowerCase();
+
+    let matchedAccount: SjTutorAccount | undefined;
+
+    if (cleanId && sjTutorAccounts.has(cleanId)) {
+      matchedAccount = sjTutorAccounts.get(cleanId);
+    }
+
+    if (!matchedAccount && cleanEmail) {
+      for (const acc of sjTutorAccounts.values()) {
+        if (acc.email?.toLowerCase() === cleanEmail) {
+          matchedAccount = acc;
+          break;
+        }
+      }
+    }
+
+    if (!matchedAccount && cleanId) {
+      for (const acc of sjTutorAccounts.values()) {
+        if (
+          acc.sjTutorId?.toUpperCase() === cleanId ||
+          acc.username?.toUpperCase() === cleanId ||
+          acc.uid === identifier
+        ) {
+          matchedAccount = acc;
+          break;
+        }
+      }
+    }
+
+    // Special match for sadanandj2011@gmail.com / Achiever
+    if (!matchedAccount && (cleanEmail === "sadanandj2011@gmail.com" || cleanId === "SJTA-ACHIEVER01")) {
+      matchedAccount = {
+        uid: "sadanand_uid_achiever",
+        sjTutorId: "SJTA-ACHIEVER01",
+        username: "sadanand",
+        email: "sadanandj2011@gmail.com",
+        firstName: "Sadanand",
+        lastName: "J",
+        displayName: "Sadanand J",
+        classGrade: "Class 10",
+        subjects: ["Mathematics", "Physics", "Chemistry"],
+        learningPreferences: ["Visual", "Interactive"],
+        preferredLanguage: "English",
+        pinLength: 4,
+        salt: "seeded_salt",
+        passwordHash: "seeded_hash",
+        pinHash: "seeded_pin",
+        securityQuestion: "What is your dream goal?",
+        securityAnswerHash: "seeded_answer",
+        hasEmail: true,
+        createdAt: Date.now(),
+        lastLoginAt: Date.now(),
+      };
+    }
+
+    if (!matchedAccount) {
+      return res.status(404).json({
+        error: "ACCOUNT_NOT_FOUND",
+        message: "No account found matching this ID Card.",
+      });
+    }
+
+    const isSadanand = matchedAccount.email?.toLowerCase() === "sadanandj2011@gmail.com";
+    const planType = isSadanand ? "Achiever" : "Scholar";
+    const credits = isSadanand ? 99999 : 2000;
+
+    const userProfile = {
+      uid: matchedAccount.uid,
+      sjTutorId: matchedAccount.sjTutorId,
+      registrationNumber: matchedAccount.sjTutorId,
+      displayName: matchedAccount.displayName,
+      firstName: matchedAccount.firstName,
+      lastName: matchedAccount.lastName,
+      username: matchedAccount.username,
+      email: matchedAccount.email,
+      photoURL: matchedAccount.photoURL,
+      classGrade: matchedAccount.classGrade,
+      grade: matchedAccount.classGrade,
+      subjects: matchedAccount.subjects,
+      learningPreferences: matchedAccount.learningPreferences,
+      preferredLanguage: matchedAccount.preferredLanguage,
+      planType,
+      credits,
+      hasCompletedOnboarding: true,
+      isRegisteredInFirestore: true,
+      role: isSadanand ? "achiever" : "student",
+    };
+
+    res.json({
+      success: true,
+      message: "Account located successfully",
+      user: userProfile,
+    });
+  } catch (err: any) {
+    console.error("Error logging in with ID Card:", err);
+    res.status(500).json({ error: "SERVER_ERROR", message: "ID Card verification failed" });
   }
 });
 

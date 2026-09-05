@@ -25,6 +25,7 @@ import {
   appleProvider,
   yahooProvider,
 } from "../firebaseConfig";
+import { getMembershipByEmail } from "../utils/userService";
 import type { AuthProviderType } from "../types";
 
 export type AuthResultStatus =
@@ -820,4 +821,305 @@ export async function logOutUser(): Promise<void> {
   }
   localStorage.removeItem("sjtutor_authenticated_user");
   window.dispatchEvent(new Event("sjtutor_auth_changed"));
+}
+
+/**
+ * Log in with SJ Tutor AI ID card:
+ * Searches and retrieves the student's account from Firestore (by UID, sjTutorId, registrationNumber, email, or QR payload),
+ * persists their session, applies their membership plan (e.g. Achiever with 99,999 credits for sadanandj2011@gmail.com),
+ * and activates their normal full functionality.
+ */
+export async function findAccountAndLoginWithIdCard(
+  cardInputOrQrPayload: string
+): Promise<{
+  success: boolean;
+  status: "SUCCESS" | "ACCOUNT_NOT_FOUND" | "ERROR";
+  user?: any;
+  message?: string;
+}> {
+  try {
+    const raw = cardInputOrQrPayload.trim();
+    if (!raw) {
+      return {
+        success: false,
+        status: "ERROR",
+        message: "Please provide an ID card number or scan your ID QR code.",
+      };
+    }
+
+    let parsedId = raw;
+    let parsedEmail = "";
+    let parsedName = "";
+    let parsedPlan = "";
+    let parsedInstitution = "";
+    let parsedGrade = "";
+    let parsedPhone = "";
+
+    // If QR payload is JSON from the ID Card QR code
+    if (raw.startsWith("{") && raw.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(raw);
+        parsedId = parsed.id || parsed.sjTutorId || parsed.uid || raw;
+        parsedEmail = parsed.email || "";
+        parsedName = parsed.name || parsed.displayName || "";
+        parsedPlan = parsed.plan || parsed.planType || "";
+        parsedInstitution = parsed.institution || "";
+        parsedGrade = parsed.grade || "";
+        parsedPhone = parsed.phone || parsed.phoneNumber || "";
+      } catch {
+        // use raw
+      }
+    }
+
+    const cleanId = parsedId.trim();
+    const cleanEmail = parsedEmail.trim().toLowerCase();
+
+    let foundUserDoc: any = null;
+    let foundUserId = "";
+
+    // 1. Check direct doc in Firestore: doc(db, "users", cleanId)
+    try {
+      if (cleanId) {
+        const directSnap = await getDoc(doc(db, "users", cleanId));
+        if (directSnap.exists()) {
+          foundUserDoc = directSnap.data();
+          foundUserId = directSnap.id;
+        }
+      }
+    } catch (err) {
+      console.warn("Direct Firestore doc lookup error:", err);
+    }
+
+    // 2. Query Firestore users collection by sjTutorId
+    if (!foundUserDoc && cleanId) {
+      try {
+        const q = query(collection(db, "users"), where("sjTutorId", "==", cleanId));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          foundUserDoc = snap.docs[0].data();
+          foundUserId = snap.docs[0].id;
+        }
+      } catch (err) {
+        console.warn("Firestore query by sjTutorId error:", err);
+      }
+    }
+
+    // 3. Query Firestore by registrationNumber
+    if (!foundUserDoc && cleanId) {
+      try {
+        const q = query(collection(db, "users"), where("registrationNumber", "==", cleanId));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          foundUserDoc = snap.docs[0].data();
+          foundUserId = snap.docs[0].id;
+        }
+      } catch (err) {
+        console.warn("Firestore query by registrationNumber error:", err);
+      }
+    }
+
+    // 4. Query Firestore by studentId
+    if (!foundUserDoc && cleanId) {
+      try {
+        const q = query(collection(db, "users"), where("studentId", "==", cleanId));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          foundUserDoc = snap.docs[0].data();
+          foundUserId = snap.docs[0].id;
+        }
+      } catch (err) {
+        console.warn("Firestore query by studentId error:", err);
+      }
+    }
+
+    // 5. Query Firestore by email
+    const emailToSearch = cleanEmail || (cleanId.includes("@") ? cleanId.toLowerCase() : "");
+    if (!foundUserDoc && emailToSearch) {
+      try {
+        const q = query(collection(db, "users"), where("email", "==", emailToSearch));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          foundUserDoc = snap.docs[0].data();
+          foundUserId = snap.docs[0].id;
+        }
+      } catch (err) {
+        console.warn("Firestore query by email error:", err);
+      }
+    }
+
+    // 6. Check server API fallback / seeded accounts
+    if (!foundUserDoc) {
+      try {
+        const serverRes = await fetch("/api/auth/login-with-id-card", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identifier: cleanId, email: emailToSearch, raw }),
+        });
+        if (serverRes.ok) {
+          const serverData = await serverRes.json();
+          if (serverData.user) {
+            foundUserDoc = serverData.user;
+            foundUserId = serverData.user.uid || cleanId;
+          }
+        }
+      } catch (serverErr) {
+        console.warn("Server ID card lookup error:", serverErr);
+      }
+    }
+
+    // Fallback seed for target account (e.g. sadanandj2011@gmail.com / SJTA-ACHIEVER01)
+    if (!foundUserDoc && (emailToSearch === "sadanandj2011@gmail.com" || cleanId.toUpperCase() === "SJTA-ACHIEVER01" || cleanId === "sadanand_uid_achiever")) {
+      foundUserId = "sadanand_uid_achiever";
+      foundUserDoc = {
+        uid: "sadanand_uid_achiever",
+        displayName: "Sadanand J",
+        name: "Sadanand J",
+        email: "sadanandj2011@gmail.com",
+        sjTutorId: "SJTA-ACHIEVER01",
+        registrationNumber: "SJTA-ACHIEVER01",
+        planType: "Achiever",
+        credits: 99999,
+        institution: "SJ Tutor AI Academy",
+        grade: "Class 10",
+        role: "student",
+        hasCompletedOnboarding: true,
+        isRegisteredInFirestore: true,
+      };
+      try {
+        await setDoc(doc(db, "users", foundUserId), foundUserDoc, { merge: true });
+      } catch (e) {
+        console.warn("Error seeding found account to Firestore:", e);
+      }
+    }
+
+    if (!foundUserDoc) {
+      return {
+        success: false,
+        status: "ACCOUNT_NOT_FOUND",
+        message: `No active student account found in Firestore for "${cleanId || emailToSearch}". Please check the ID Card or register first.`,
+      };
+    }
+
+    // Apply latest membership / VIP plan rules (e.g. Achiever for sadanandj2011@gmail.com)
+    const effectiveEmail = (foundUserDoc.email || emailToSearch || "").toLowerCase();
+    const membership = getMembershipByEmail(effectiveEmail);
+
+    // Fetch and merge streak details from Firestore streaks collection
+    let streakCount = Number(foundUserDoc.streak ?? foundUserDoc.currentStreak ?? 0);
+    let longestStreak = Number(foundUserDoc.highestStreak ?? foundUserDoc.longestStreak ?? streakCount);
+    let lastStudyDate = foundUserDoc.lastStudyDate || null;
+    let streakHistory = Array.isArray(foundUserDoc.streakHistory) ? foundUserDoc.streakHistory : [];
+    let claimedMilestones = Array.isArray(foundUserDoc.claimedMilestones) ? foundUserDoc.claimedMilestones : [];
+
+    const targetUid = foundUserId || foundUserDoc.uid || cleanId;
+    try {
+      const streakDocSnap = await getDoc(doc(db, "streaks", targetUid));
+      if (streakDocSnap.exists()) {
+        const sData = streakDocSnap.data();
+        if (typeof sData.currentStreak === "number") streakCount = Math.max(streakCount, sData.currentStreak);
+        if (typeof sData.highestStreak === "number") longestStreak = Math.max(longestStreak, sData.highestStreak);
+        if (sData.lastStudyDate) lastStudyDate = sData.lastStudyDate;
+        if (Array.isArray(sData.streakHistory)) streakHistory = sData.streakHistory;
+        if (Array.isArray(sData.claimedMilestones)) claimedMilestones = sData.claimedMilestones;
+      }
+    } catch (streakErr) {
+      console.warn("Could not query streaks collection in Firestore:", streakErr);
+    }
+
+    const fullProfile = {
+      uid: targetUid,
+      displayName: foundUserDoc.displayName || foundUserDoc.name || parsedName || "Student",
+      name: foundUserDoc.displayName || foundUserDoc.name || parsedName || "Student",
+      email: effectiveEmail,
+      photoURL: foundUserDoc.photoURL || null,
+      sjTutorId: foundUserDoc.sjTutorId || cleanId,
+      registrationNumber: foundUserDoc.registrationNumber || foundUserDoc.sjTutorId || cleanId,
+      institution: foundUserDoc.institution || parsedInstitution || "SJ Tutor AI Academy",
+      grade: foundUserDoc.grade || foundUserDoc.class || parsedGrade || "Class 10",
+      phoneNumber: foundUserDoc.phoneNumber || parsedPhone || "",
+      credits: membership ? Math.max(membership.credits, foundUserDoc.credits || 0) : (foundUserDoc.credits ?? 2000),
+      planType: membership ? membership.planType : (foundUserDoc.planType || parsedPlan || "Scholar"),
+      role: membership?.role || foundUserDoc.role || "student",
+      streak: streakCount,
+      currentStreak: streakCount,
+      highestStreak: longestStreak,
+      longestStreak: longestStreak,
+      lastStudyDate: lastStudyDate,
+      streakHistory: streakHistory,
+      claimedMilestones: claimedMilestones,
+      hasCompletedOnboarding: true,
+      isRegisteredInFirestore: true,
+      lastLoginAt: Date.now(),
+      ...foundUserDoc,
+    };
+
+    // Ensure streak values override any old/zero values in foundUserDoc
+    fullProfile.streak = streakCount;
+    fullProfile.currentStreak = streakCount;
+    fullProfile.highestStreak = longestStreak;
+    fullProfile.longestStreak = longestStreak;
+    fullProfile.lastStudyDate = lastStudyDate;
+    fullProfile.streakHistory = streakHistory;
+    fullProfile.claimedMilestones = claimedMilestones;
+
+    if (membership) {
+      fullProfile.planType = membership.planType;
+      fullProfile.credits = Math.max(membership.credits, fullProfile.credits || 0);
+      fullProfile.hasCompletedOnboarding = true;
+    }
+
+    // Keep Firestore updated with fullProfile
+    try {
+      await setDoc(doc(db, "users", fullProfile.uid), fullProfile, { merge: true });
+    } catch (e) {
+      console.warn("Error updating Firestore on ID card login:", e);
+    }
+
+    // Store active session in localStorage
+    localStorage.setItem("sjtutor_authenticated_user", JSON.stringify(fullProfile));
+    localStorage.setItem(`profile_${fullProfile.uid}`, JSON.stringify(fullProfile));
+    localStorage.setItem("sjtutor_active_user", JSON.stringify(fullProfile));
+
+    // Save streak data to localStorage for instant hydration
+    try {
+      const streakObj = {
+        uid: fullProfile.uid,
+        currentStreak: streakCount,
+        highestStreak: longestStreak,
+        lastStudyDate: lastStudyDate,
+        totalDaysStudied: streakHistory.length || streakCount,
+        streakHistory: streakHistory,
+        freezesRemaining: foundUserDoc.freezesRemaining ?? 2,
+        claimedMilestones: claimedMilestones,
+        lastUpdated: new Date().toISOString(),
+      };
+      localStorage.setItem(`sjtutor_streak_${fullProfile.uid}`, JSON.stringify(streakObj));
+    } catch (streakStoreErr) {
+      console.warn("Could not save streak to localStorage:", streakStoreErr);
+    }
+
+    // Mark login attempt so Two-Step Verification is strictly enforced upon login
+    try {
+      SecurityPinService.markLoginAttempt(fullProfile.uid);
+    } catch (secErr) {
+      console.warn("SecurityPinService markLoginAttempt error:", secErr);
+    }
+
+    // Dispatch global event for immediate hydration
+    window.dispatchEvent(new Event("sjtutor_auth_changed"));
+
+    return {
+      success: true,
+      status: "SUCCESS",
+      user: fullProfile,
+      message: `Account found in Firestore! Welcome back, ${fullProfile.displayName}.`,
+    };
+  } catch (error: any) {
+    console.error("ID Card login error:", error);
+    return {
+      success: false,
+      status: "ERROR",
+      message: error?.message || "An error occurred while finding your account from Firestore.",
+    };
+  }
 }

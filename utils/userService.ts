@@ -15,7 +15,15 @@ export const getMembershipByEmail = (email?: string | null) => {
       hasCompletedOnboarding: true,
     };
   }
-  if (normalized === "sadanandj2011@gmail.com" || normalized === "krishay5712@gmail.com") {
+  if (normalized === "sadanandj2011@gmail.com") {
+    return {
+      planType: "Achiever" as const,
+      credits: 99999,
+      role: "student",
+      hasCompletedOnboarding: true,
+    };
+  }
+  if (normalized === "krishay5712@gmail.com") {
     return {
       planType: "Scholar" as const,
       credits: 2000,

@@ -34,5 +34,23 @@
     "securitySetupCompleted": true,
     "createdAt": 1788414400446,
     "updatedAt": 1788587200446
+  },
+  {
+    "sjTutorId": "SJTA-ACHIEVER01",
+    "userId": "sadanand_uid_achiever",
+    "displayName": "Sadanand J",
+    "firstName": "Sadanand",
+    "lastName": "J",
+    "username": "sadanandj",
+    "email": "sadanandj2011@gmail.com",
+    "passwordHash": "$2b$10$cw/pDHKXo0ty2fsjAxPF6uYp2cH9IhJmQ5V.sSFezjbPUP4nnvtwC",
+    "pinHash": "$2b$10$GVNtc2YYkrQ7gVhjtyMk4.kRs4rN0g3mfRE5xZjiq8NOgCdTcYOnm",
+    "pinLength": 6,
+    "securityQuestion": "What is your favorite subject?",
+    "securityAnswerHash": "$2b$10$B5Z/0NVHXj2J/1T.CHc5uuycZlyfPVSOjFyfQ8zfWKXX5j2BLSOly",
+    "twoStepEnabled": false,
+    "securitySetupCompleted": true,
+    "createdAt": 1788414400446,
+    "updatedAt": 1788587200446
   }
 ]

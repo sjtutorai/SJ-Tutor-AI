@@ -215,12 +215,48 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const todayStr = getLocalDateString();
   const isStudiedToday = streak.lastStudyDate === todayStr;
 
-  // Listen to Auth State
+  // Listen to Auth State and local authenticated user
   useEffect(() => {
+    const syncUser = () => {
+      if (auth.currentUser) {
+        setCurrentUser(auth.currentUser);
+        return;
+      }
+      try {
+        const localAuth = localStorage.getItem('sjtutor_authenticated_user') || localStorage.getItem('sjtutor_active_user');
+        if (localAuth) {
+          const parsed = JSON.parse(localAuth);
+          if (parsed?.uid) {
+            setCurrentUser({
+              uid: parsed.uid,
+              displayName: parsed.displayName || parsed.name || 'Student',
+              email: parsed.email || '',
+              photoURL: parsed.photoURL || null,
+            } as any);
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      setCurrentUser(null);
+    };
+
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
+      if (user) {
+        setCurrentUser(user);
+      } else {
+        syncUser();
+      }
     });
-    return () => unsubscribeAuth();
+
+    window.addEventListener('sjtutor_auth_changed', syncUser);
+    syncUser();
+
+    return () => {
+      unsubscribeAuth();
+      window.removeEventListener('sjtutor_auth_changed', syncUser);
+    };
   }, []);
 
   // Listen / Fetch streak in real-time for logged in user

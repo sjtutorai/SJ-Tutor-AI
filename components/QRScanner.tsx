@@ -1,24 +1,31 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone } from 'lucide-react';
+import { X, User, School, GraduationCap, ShieldCheck, Zap, Phone, CheckCircle2, ArrowRight, Loader2, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { findAccountAndLoginWithIdCard } from '../services/authService';
 
 interface QRScannerProps {
   onClose: () => void;
+  onLoginSuccess?: (userData: any) => void;
 }
 
 interface ScannedUser {
   name: string;
   id: string;
+  email?: string;
   institution?: string;
   grade?: string;
   plan?: string;
   phone?: string;
+  credits?: number;
+  streak?: number;
 }
 
-const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
+const QRScanner: React.FC<QRScannerProps> = ({ onClose, onLoginSuccess }) => {
   const [scannedData, setScannedData] = useState<ScannedUser | null>(null);
+  const [authenticatedAccount, setAuthenticatedAccount] = useState<any | null>(null);
+  const [searchingDb, setSearchingDb] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
@@ -29,46 +36,70 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
       /* verbose= */ false
     );
 
-        const onScanSuccess = (decodedText: string) => {
-          try {
-            console.log("Scanned QR Text:", decodedText);
-            const trimmed = decodedText.trim();
-            // Handle JSON format
-            let data: ScannedUser;
-            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-              const parsed = JSON.parse(trimmed);
-              data = {
-                name: parsed.name || "Student",
-                id: parsed.id || trimmed,
-                institution: parsed.institution || "SJ Tutor AI",
-                grade: parsed.grade || "N/A",
-                plan: parsed.plan || "Scholar",
-                phone: parsed.phone || "N/A"
-              };
-            } else {
-              // Plain text ID fallback
-              data = {
-                name: "Member",
-                id: trimmed,
-                institution: "SJ Tutor AI",
-                grade: "N/A",
-                plan: "Student"
-              };
-            }
+    const onScanSuccess = async (decodedText: string) => {
+      try {
+        console.log("Scanned QR Text:", decodedText);
+        const trimmed = decodedText.trim();
+        let data: ScannedUser;
 
-            if (data.id) {
-              setScannedData(data);
-              if (scannerRef.current) {
-                scannerRef.current.clear().catch(() => {});
-              }
-            } else {
-              setError("Unrecognized ID format.");
-            }
-          } catch (err) {
-            console.error("Scan Error:", err);
-            setError("Could not parse QR code. Please scan a valid SJ Tutor ID.");
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          const parsed = JSON.parse(trimmed);
+          data = {
+            name: parsed.name || "Student",
+            id: parsed.id || parsed.sjTutorId || trimmed,
+            email: parsed.email || "",
+            institution: parsed.institution || "SJ Tutor AI Academy",
+            grade: parsed.grade || "Class 10",
+            plan: parsed.plan || "Scholar",
+            phone: parsed.phone || "N/A"
+          };
+        } else {
+          data = {
+            name: "Student",
+            id: trimmed,
+            institution: "SJ Tutor AI Academy",
+            grade: "Class 10",
+            plan: "Student"
+          };
+        }
+
+        if (data.id) {
+          setScannedData(data);
+          if (scannerRef.current) {
+            scannerRef.current.clear().catch(() => {});
           }
-        };
+
+          // Search Firestore for the account
+          setSearchingDb(true);
+          try {
+            const authRes = await findAccountAndLoginWithIdCard(trimmed);
+            if (authRes.success && authRes.user) {
+              setAuthenticatedAccount(authRes.user);
+              setScannedData({
+                name: authRes.user.displayName || authRes.user.name || data.name,
+                id: authRes.user.sjTutorId || authRes.user.registrationNumber || data.id,
+                email: authRes.user.email || data.email,
+                institution: authRes.user.institution || data.institution,
+                grade: authRes.user.grade || data.grade,
+                plan: authRes.user.planType || data.plan,
+                credits: authRes.user.credits,
+                streak: authRes.user.streak ?? authRes.user.currentStreak ?? 0,
+                phone: authRes.user.phoneNumber || data.phone,
+              });
+            }
+          } catch (e) {
+            console.warn("Firestore lookup error during scan:", e);
+          } finally {
+            setSearchingDb(false);
+          }
+        } else {
+          setError("Unrecognized ID format.");
+        }
+      } catch (err) {
+        console.error("Scan Error:", err);
+        setError("Could not parse QR code. Please scan a valid SJ Tutor ID.");
+      }
+    };
 
     const onScanFailure = () => {
       // Optional: handle scan failures
@@ -84,6 +115,16 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
       }
     };
   }, []);
+
+  const handleConfirmLogin = () => {
+    if (authenticatedAccount && onLoginSuccess) {
+      onLoginSuccess(authenticatedAccount);
+      onClose();
+    } else if (scannedData && onLoginSuccess) {
+      onLoginSuccess(scannedData);
+      onClose();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -183,26 +224,60 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
                 <div className="p-4 bg-primary-50 dark:bg-primary-900/20 rounded-2xl border border-primary-100 dark:border-primary-900/30 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-primary-100 dark:bg-primary-900/40 rounded-lg">
-                      <Zap className="w-4 h-4 text-primary-600" />
+                      {scannedData.plan === 'Achiever' ? (
+                        <Sparkles className="w-4 h-4 text-amber-500" />
+                      ) : (
+                        <Zap className="w-4 h-4 text-primary-600" />
+                      )}
                     </div>
                     <div>
-                      <p className="text-[10px] text-primary-600/60 font-bold uppercase tracking-wider">Member Since</p>
-                      <p className="text-sm font-bold text-primary-900 dark:text-primary-100">
-                        {scannedData.plan || 'Scholar'}
+                      <p className="text-[10px] text-primary-600/60 font-bold uppercase tracking-wider">Plan & Status</p>
+                      <p className="text-sm font-bold text-primary-900 dark:text-primary-100 flex items-center gap-1.5 flex-wrap">
+                        <span>{scannedData.plan || 'Scholar'}</span>
+                        {scannedData.credits ? <span>• {scannedData.credits.toLocaleString()} Credits</span> : null}
+                        {typeof scannedData.streak === 'number' && (
+                          <span className="text-xs text-orange-600 dark:text-orange-400 font-bold">
+                            • 🔥 {scannedData.streak}d streak
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
-                  <div className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-full border border-emerald-100 dark:border-emerald-900/30">
-                    ACTIVE
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1 rounded-full border border-emerald-100 dark:border-emerald-900/30">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{searchingDb ? 'VERIFYING...' : 'FIRESTORE ACTIVE'}</span>
                   </div>
                 </div>
 
-                <button 
-                  onClick={() => setScannedData(null)}
-                  className="w-full py-3.5 bg-primary-600 text-white rounded-2xl font-bold shadow-xl shadow-primary-500/20 hover:bg-primary-700 transition-all active:scale-95"
-                >
-                  Scan Another ID
-                </button>
+                <div className="space-y-2.5">
+                  <button 
+                    onClick={handleConfirmLogin}
+                    disabled={searchingDb}
+                    className="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white rounded-2xl font-bold shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {searchingDb ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Verifying in Firestore...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Log In with this ID Card</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      setScannedData(null);
+                      setAuthenticatedAccount(null);
+                    }}
+                    className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-sm"
+                  >
+                    Scan Another ID
+                  </button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

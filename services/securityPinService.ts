@@ -15,7 +15,6 @@ export interface SecurityPinConfig {
 const STORAGE_2STEP_PREFIX = 'sjtutor_2step_verified_';
 const STORAGE_PENDING_2STEP_PREFIX = 'sjtutor_pending_2step_';
 const LOCAL_PIN_PREFIX = 'sjtutor_security_pin_';
-const STORAGE_PIN_SESSION_PREFIX = 'sjtutor_pin_unlocked_';
 
 // In-memory set of unlocked user IDs for the active page session.
 const inMemoryUnlockedUids = new Set<string>();
@@ -169,30 +168,21 @@ export const SecurityPinService = {
   },
 
   /**
-   * Checks if the user's session is already unlocked.
-   * Uses memory and session storage so page reloads during active session do not prompt repeatedly.
+   * Checks if the user's session is already unlocked in the current active page view.
+   * On page reload or website visits, in-memory state is empty, so the app
+   * prompts for the 4 or 6 digit PIN.
    */
   isSessionUnlocked: (uid?: string | null): boolean => {
     if (!uid) return true;
-    if (inMemoryUnlockedUids.has(uid)) return true;
-    try {
-      return sessionStorage.getItem(`${STORAGE_PIN_SESSION_PREFIX}${uid}`) === 'true';
-    } catch {
-      return false;
-    }
+    return inMemoryUnlockedUids.has(uid);
   },
 
   /**
-   * Marks the session as unlocked for the active page session.
+   * Marks the session as unlocked for the current in-memory browsing session.
    */
   setSessionUnlocked: (uid?: string | null): void => {
     if (!uid) return;
     inMemoryUnlockedUids.add(uid);
-    try {
-      sessionStorage.setItem(`${STORAGE_PIN_SESSION_PREFIX}${uid}`, 'true');
-    } catch (e) {
-      console.warn('Failed to set session unlocked:', e);
-    }
   },
 
   /**
@@ -201,24 +191,9 @@ export const SecurityPinService = {
   lockSession: (uid?: string | null): void => {
     if (!uid) {
       inMemoryUnlockedUids.clear();
-      try {
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const k = sessionStorage.key(i);
-          if (k?.startsWith(STORAGE_PIN_SESSION_PREFIX)) {
-            sessionStorage.removeItem(k);
-          }
-        }
-      } catch (e) {
-        console.warn('Could not clear session storage PIN keys:', e);
-      }
       return;
     }
     inMemoryUnlockedUids.delete(uid);
-    try {
-      sessionStorage.removeItem(`${STORAGE_PIN_SESSION_PREFIX}${uid}`);
-    } catch (e) {
-      console.warn('Could not clear session storage PIN:', e);
-    }
   },
 
   /**

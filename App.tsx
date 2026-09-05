@@ -1283,6 +1283,15 @@ const App: React.FC = () => {
                 ...fullProfile,
               }));
 
+              // Ensure upgraded membership (e.g. Achiever for sadanandj2011@gmail.com) is persisted to Firestore
+              if (membership && (fsData.planType !== membership.planType || (fsData.credits ?? 0) < membership.credits)) {
+                saveProfileToFirestore(targetUid, {
+                  planType: membership.planType,
+                  credits,
+                  hasCompletedOnboarding: true,
+                }).catch(() => {});
+              }
+
               try {
                 localStorage.setItem(`profile_${targetUid}`, JSON.stringify(fullProfile));
               } catch (err) {
@@ -1580,14 +1589,10 @@ const App: React.FC = () => {
       setIsTwoStepVerified(true);
     }
 
-    // 2. PIN Lock on Refresh / Revisit Check
-    const isPinRequired = !!userProfile.pinLockEnabled || !!userProfile.securityPin || !!SettingsService.getSettings().privacy.pinLock || !!SettingsService.getSettings().privacy.pin;
-    if (isPinRequired) {
-      const alreadyPinUnlocked = SecurityPinService.isSessionUnlocked(user.uid);
-      setIsPinSessionUnlocked(alreadyPinUnlocked);
-    } else {
-      setIsPinSessionUnlocked(true);
-    }
+    // 2. PIN Lock on Refresh / Revisit Check:
+    // Prompt for 4 or 6 digit PIN whenever the user visits or reloads the website
+    const alreadyPinUnlocked = SecurityPinService.isSessionUnlocked(user.uid);
+    setIsPinSessionUnlocked(alreadyPinUnlocked);
   }, [user?.uid, userProfile.twoFactorEnabled, userProfile.twoFactorPassword, userProfile.pinLockEnabled, userProfile.securityPin]);
 
   // Monitor trial expiration and ensure post-trial 100 credits are awarded
@@ -1753,18 +1758,18 @@ const App: React.FC = () => {
 
       setUserProfile(mergedProfile);
 
-      if (!auth.currentUser && !user) {
-        setUser({
-          uid: targetUid,
-          displayName: mergedProfile.displayName,
-          email: mergedProfile.email,
-          photoURL: mergedProfile.photoURL || null,
-        } as any);
-      }
+      setUser({
+        uid: targetUid,
+        displayName: mergedProfile.displayName,
+        email: mergedProfile.email,
+        photoURL: mergedProfile.photoURL || null,
+      } as any);
 
       try {
+        localStorage.setItem("sjtutor_authenticated_user", JSON.stringify(mergedProfile));
         localStorage.setItem(`profile_${targetUid}`, JSON.stringify(mergedProfile));
         localStorage.setItem("sjtutor_active_user", JSON.stringify(mergedProfile));
+        window.dispatchEvent(new Event("sjtutor_auth_changed"));
       } catch (e) {
         console.warn("Could not save to localStorage", e);
       }
@@ -1792,6 +1797,7 @@ const App: React.FC = () => {
 
       setMode(AppMode.DASHBOARD);
       setDashboardView("OVERVIEW");
+      setShowAuthModal(false);
     } else if (auth.currentUser) {
       try {
         const userProf = await getCurrentUserProfile(auth.currentUser);
@@ -4001,7 +4007,15 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showQRScanner && <QRScanner onClose={() => setShowQRScanner(false)} />}
+        {showQRScanner && (
+          <QRScanner
+            onClose={() => setShowQRScanner(false)}
+            onLoginSuccess={(userData) => {
+              setShowQRScanner(false);
+              handleSignUpSuccess(userData);
+            }}
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
@@ -4258,7 +4272,7 @@ const App: React.FC = () => {
       )}
 
       {/* 2. Security PIN Lock Screen on Refresh / Website Visit */}
-      {user && isTwoStepVerified && !isPinSessionUnlocked && (!!userProfile.pinLockEnabled || !!userProfile.securityPin || !!SettingsService.getSettings().privacy.pinLock || !!SettingsService.getSettings().privacy.pin) && (
+      {user && isTwoStepVerified && !isPinSessionUnlocked && (
         <SecurityPinLockScreen
           userProfile={userProfile}
           uid={user.uid}

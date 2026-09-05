@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Loader2,
   Mail,
@@ -8,8 +8,17 @@ import {
   Eye,
   EyeOff,
   KeyRound,
-  CheckCircle2
+  CheckCircle2,
+  QrCode,
+  ScanLine,
+  Camera,
+  UploadCloud,
+  ShieldCheck,
+  Sparkles,
+  ArrowRight,
+  Search,
 } from 'lucide-react';
+import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import { GoogleIcon, AppleIcon, YahooIcon } from './AuthIcons';
 import {
   handleSocialAuth,
@@ -19,6 +28,7 @@ import {
   recoverAccountStep1,
   recoverAccountStep2Verify,
   sendPasswordReset,
+  findAccountAndLoginWithIdCard,
 } from '../../services/authService';
 import { SecurityPinService } from '../../services/securityPinService';
 
@@ -29,6 +39,7 @@ interface LoginFlowProps {
 
 type LoginView =
   | 'OVERVIEW'
+  | 'ID_CARD_LOGIN'
   | 'ACCOUNT_NOT_FOUND'
   | 'EMAIL'
   | 'SJTUTOR_ID'
@@ -54,6 +65,98 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
   const [challengeId, setChallengeId] = useState('');
   const [pinLength, setPinLength] = useState<4 | 6>(6);
   const [pin, setPin] = useState('');
+
+  // ID Card Login states
+  const [idCardInput, setIdCardInput] = useState('');
+  const [idCardMode, setIdCardMode] = useState<'scan' | 'upload' | 'manual'>('scan');
+  const [foundStudentAccount, setFoundStudentAccount] = useState<any | null>(null);
+  const [isSearchingFirestore, setIsSearchingFirestore] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Live QR camera scanner lifecycle
+  useEffect(() => {
+    if (activeView !== 'ID_CARD_LOGIN' || idCardMode !== 'scan' || foundStudentAccount) return;
+
+    let scanner: Html5QrcodeScanner | null = null;
+    const timer = setTimeout(() => {
+      try {
+        const el = document.getElementById("login-id-card-qr-reader");
+        if (el) {
+          scanner = new Html5QrcodeScanner(
+            "login-id-card-qr-reader",
+            {
+              fps: 10,
+              qrbox: { width: 220, height: 220 },
+              aspectRatio: 1.0,
+            },
+            false
+          );
+          scanner.render(
+            (decodedText) => {
+              handleProcessIdCard(decodedText);
+            },
+            () => {}
+          );
+        }
+      } catch (err) {
+        console.warn("Scanner initialization warning:", err);
+      }
+    }, 150);
+
+    return () => {
+      clearTimeout(timer);
+      if (scanner) {
+        scanner.clear().catch(() => {});
+      }
+    };
+  }, [activeView, idCardMode, foundStudentAccount]);
+
+  const handleIdCardFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsSearchingFirestore(true);
+    setErrorAlert(null);
+    try {
+      const html5QrCode = new Html5Qrcode("hidden-file-qr-reader");
+      const decodedText = await html5QrCode.scanFile(file, false);
+      html5QrCode.clear();
+      await handleProcessIdCard(decodedText);
+    } catch (err) {
+      console.warn("Could not scan QR code from image:", err);
+      setErrorAlert("Could not detect a valid QR code in this image. Please enter the ID card number directly.");
+      setIdCardMode('manual');
+    } finally {
+      setIsSearchingFirestore(false);
+    }
+  };
+
+  const handleProcessIdCard = async (val: string) => {
+    const target = val.trim();
+    if (!target) return;
+    setIsSearchingFirestore(true);
+    setLoading(true);
+    setErrorAlert(null);
+    try {
+      const res = await findAccountAndLoginWithIdCard(target);
+      if (!res.success || !res.user) {
+        setErrorAlert(res.message || "No student account found in Firestore for this registration number / ID card.");
+        return;
+      }
+      setFoundStudentAccount(res.user);
+      if (res.user?.uid) {
+        SecurityPinService.markLoginAttempt(res.user.uid);
+      }
+      setTimeout(() => {
+        onSuccess(res.user);
+      }, 1200);
+    } catch (err: any) {
+      console.error(err);
+      setErrorAlert("An error occurred while finding your account from Firestore.");
+    } finally {
+      setIsSearchingFirestore(false);
+      setLoading(false);
+    }
+  };
 
   // Account Recovery states
   const [recoverIdentifier, setRecoverIdentifier] = useState('');
@@ -360,6 +463,30 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
 
           <div className="space-y-2.5">
             <button
+              onClick={() => {
+                setErrorAlert(null);
+                setFoundStudentAccount(null);
+                setActiveView('ID_CARD_LOGIN');
+              }}
+              className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-emerald-500/5 hover:from-emerald-500/25 hover:via-teal-500/20 hover:to-emerald-500/10 border border-emerald-500/40 dark:border-emerald-500/50 text-emerald-950 dark:text-emerald-200 rounded-xl font-bold transition-all shadow-sm group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <ScanLine className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    Fast Student Sign-In
+                  </div>
+                  <div className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                    Log in with ID Card / Reg Number
+                  </div>
+                </div>
+              </div>
+              <QrCode className="w-5 h-5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+            </button>
+
+            <button
               onClick={() => setActiveView('EMAIL')}
               className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-semibold transition-colors"
             >
@@ -385,6 +512,245 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
               Sign Up
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+          VIEW: SJ TUTOR AI ID CARD LOGIN (FIRESTORE SYNCED)
+         ══════════════════════════════════════════════════════════ */}
+      {activeView === 'ID_CARD_LOGIN' && (
+        <div>
+          <button
+            onClick={() => {
+              setFoundStudentAccount(null);
+              setErrorAlert(null);
+              setActiveView('OVERVIEW');
+            }}
+            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-4 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>All login options</span>
+          </button>
+
+          <div className="text-center mb-5">
+            <div className="inline-flex p-2.5 bg-emerald-500/10 dark:bg-emerald-400/10 rounded-2xl text-emerald-600 dark:text-emerald-400 mb-2 border border-emerald-500/20">
+              <ScanLine className="w-6 h-6" />
+            </div>
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+              Log in with ID Card
+            </h2>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+              Scan your SJ Tutor AI Student ID card or enter your Card ID to find your account in Firestore and log in instantly.
+            </p>
+          </div>
+
+          {/* Hidden element for file scanning */}
+          <div id="hidden-file-qr-reader" className="hidden" />
+
+          {foundStudentAccount ? (
+            /* Verified Account Found in Firestore Card */
+            <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-5 text-center space-y-4 animate-in fade-in zoom-in-95 duration-300">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/50 mx-auto flex items-center justify-center border-2 border-emerald-500/30 shadow-inner">
+                <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400 animate-bounce" />
+              </div>
+
+              <div>
+                <div className="inline-flex items-center gap-1 text-[11px] font-extrabold uppercase tracking-widest text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 mb-2">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Account Found in Firestore</span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                  {foundStudentAccount.displayName || foundStudentAccount.name}
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-400 font-mono mt-0.5">
+                  ID: {foundStudentAccount.sjTutorId || foundStudentAccount.registrationNumber || foundStudentAccount.uid}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-left bg-white/80 dark:bg-slate-900/80 p-3 rounded-xl border border-emerald-500/20 text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Plan Tier</span>
+                  <span className="font-extrabold text-amber-600 dark:text-amber-400 flex items-center gap-1 truncate">
+                    <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+                    {foundStudentAccount.planType || 'Scholar'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Credits</span>
+                  <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                    {(foundStudentAccount.credits ?? 2000).toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Learning Streak</span>
+                  <span className="font-extrabold text-orange-600 dark:text-orange-400 flex items-center gap-1">
+                    🔥 {foundStudentAccount.streak ?? foundStudentAccount.currentStreak ?? 0}d
+                  </span>
+                </div>
+                <div className="col-span-3 pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 dark:text-slate-400 font-medium truncate max-w-[200px]">
+                    {foundStudentAccount.institution || 'SJ Tutor AI Academy'} • {foundStudentAccount.grade || 'Class 10'}
+                  </span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                    Reg: {foundStudentAccount.registrationNumber || foundStudentAccount.sjTutorId || 'Verified'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 py-1">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Hydrating streak & study workspace...</span>
+              </div>
+
+              <button
+                onClick={() => onSuccess(foundStudentAccount)}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
+              >
+                <span>Continue to Dashboard</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Mode Tabs */}
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setIdCardMode('scan')}
+                  className={`py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                    idCardMode === 'scan'
+                      ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Scan QR</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIdCardMode('upload')}
+                  className={`py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                    idCardMode === 'upload'
+                      ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  <span>Upload Card</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIdCardMode('manual')}
+                  className={`py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                    idCardMode === 'manual'
+                      ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Reg No / ID</span>
+                </button>
+              </div>
+
+              {/* Mode 1: Live Camera Scan */}
+              {idCardMode === 'scan' && (
+                <div className="space-y-3">
+                  <div
+                    id="login-id-card-qr-reader"
+                    className="overflow-hidden rounded-2xl border-2 border-dashed border-emerald-500/40 bg-slate-50 dark:bg-slate-800/50 p-1"
+                  />
+                  <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+                    Align the QR code from the back of your SJ Tutor AI ID card in front of your camera.
+                  </p>
+                </div>
+              )}
+
+              {/* Mode 2: Upload ID Card photo / screenshot */}
+              {idCardMode === 'upload' && (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-emerald-500/40 hover:border-emerald-500 bg-slate-50/50 dark:bg-slate-800/50 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 rounded-2xl p-8 text-center cursor-pointer transition-all group"
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleIdCardFileUpload}
+                    className="hidden"
+                  />
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                    <UploadCloud className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                    Click or Drag to Upload ID Card
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Upload a photo or screenshot of your ID Card or QR code (PNG, JPG, WEBP)
+                  </p>
+                  {isSearchingFirestore && (
+                    <div className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-emerald-600">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Reading QR & searching Firestore...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Mode 3: Manual ID lookup */}
+              {idCardMode === 'manual' && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!idCardInput.trim()) {
+                      setErrorAlert('Please enter your SJ Tutor AI ID Card number or email.');
+                      return;
+                    }
+                    handleProcessIdCard(idCardInput.trim());
+                  }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Registration Number or Student Card ID
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        autoFocus
+                        placeholder="e.g. SJTA-ACHIEVER01 or SJTA-XXXXXX"
+                        value={idCardInput}
+                        onChange={(e) => setIdCardInput(e.target.value)}
+                        className="w-full pl-3.5 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none uppercase placeholder:normal-case font-mono"
+                      />
+                      <Search className="absolute right-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Instantly finds your account in Firestore by registration number, card ID, or email, and restores all credits &amp; streaks.
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading || isSearchingFirestore}
+                    className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                  >
+                    {loading || isSearchingFirestore ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Searching Firestore Database...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Find Account & Log In</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
         </div>
       )}
 
