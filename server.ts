@@ -42,6 +42,18 @@ app.use((req, res, next) => {
   next();
 });
 
+// Server-side Gemini multi-key rotation pool using GEMINI_API_KEY_1, GEMINI_API_KEY_2, and GEMINI_API_KEY_3
+const getServerGeminiKeys = (): string[] => {
+  const rawKeys = [
+    process.env.GEMINI_API_KEY_1,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_3,
+    process.env.GEMINI_API_KEY,
+    process.env.API_KEY,
+  ];
+  return Array.from(new Set(rawKeys.map(k => (k || '').trim()).filter(k => k.length > 5 && k !== 'undefined' && k !== 'null')));
+};
+
 // SEO Crawler endpoints
 app.get("/robots.txt", (req, res) => {
   const robotsPath = path.resolve(resolvedDirname, "public", "robots.txt");
@@ -144,12 +156,13 @@ app.post("/api/generate-image", async (req, res, next) => {
     const cleanPrompt = prompt.trim();
     let imageUrl = "";
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-    if (apiKey) {
+    const keys = getServerGeminiKeys();
+    for (const key of keys) {
+      if (!key) continue;
       try {
         const { GoogleGenAI } = await import("@google/genai");
         const ai = new GoogleGenAI({ 
-          apiKey,
+          apiKey: key,
           httpOptions: {
             headers: {
               'User-Agent': 'aistudio-build',
@@ -177,8 +190,9 @@ app.post("/api/generate-image", async (req, res, next) => {
             break;
           }
         }
+        if (imageUrl) break;
       } catch (geminiErr: any) {
-        console.warn("Gemini Image generation fallback to generative synthesis:", geminiErr.message);
+        console.warn(`[Server] Gemini Image generation attempt failed with key:`, geminiErr.message);
       }
     }
 
@@ -322,20 +336,12 @@ app.post("/api/transcribe-audio", async (req, res) => {
       }
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-    if (!apiKey) {
-      return res.status(500).json({ error: "GEMINI_API_KEY not configured on server" });
+    const keys = getServerGeminiKeys();
+    if (keys.length === 0) {
+      return res.status(500).json({ error: "GEMINI_API_KEY_1 or GEMINI_API_KEY_2 not configured on server" });
     }
 
     const { GoogleGenAI } = await import("@google/genai");
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
 
     const prompt = `Transcribe all spoken words in this audio recording accurately and faithfully. 
 Preserve the speaker's language (primarily ${language} or any spoken language in the audio).
@@ -343,23 +349,49 @@ Return ONLY the raw transcription text with proper capitalization and punctuatio
 Do NOT include any timestamps, markdown labels, explanations, or quotes. 
 If the audio is completely silent or contains no discernible speech, return an empty string.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
-      contents: [
-        {
-          inlineData: {
-            mimeType: finalMimeType || 'audio/webm',
-            data: cleanBase64,
-          }
-        },
-        {
-          text: prompt
-        }
-      ]
-    });
+    let transcript = "";
+    let lastError: any = null;
 
-    const transcript = response.text?.trim() || "";
-    res.json({ success: true, transcript });
+    for (const key of keys) {
+      if (!key) continue;
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: key,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.7-flash',
+          contents: [
+            {
+              inlineData: {
+                mimeType: finalMimeType || 'audio/webm',
+                data: cleanBase64,
+              }
+            },
+            {
+              text: prompt
+            }
+          ]
+        });
+
+        transcript = response.text?.trim() || "";
+        break;
+      } catch (transcribeErr: any) {
+        lastError = transcribeErr;
+        console.warn(`[Server Audio] Key error:`, transcribeErr.message);
+      }
+    }
+
+    if (transcript !== "" || !lastError) {
+      res.json({ success: true, transcript });
+    } else {
+      throw lastError || new Error("Failed to transcribe audio with all available keys");
+    }
   } catch (error: any) {
     console.error("[Audio Transcription API Error]:", error);
     res.status(500).json({ success: false, error: error.message || "Failed to transcribe audio" });

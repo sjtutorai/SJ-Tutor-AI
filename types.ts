@@ -103,6 +103,9 @@ export interface UserProfile {
   highestStreak?: number;
   lastStudyDate?: string;
   streakHistory?: string[];
+  streakFreezes?: number;
+  streakFreezeDates?: string[];
+  claimedStreakRewards?: number[];
   twoFactorEnabled?: boolean;
   twoFactorPassword?: string;
   pinLockEnabled?: boolean;

@@ -10,11 +10,12 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      // Polyfill process.env.API_KEY for the browser environment as per global guidelines
-      // We explicitly check process.env (for CI/Hosting providers) and env (for local .env files)
-      // JSON.stringify is essential to wrap the value in quotes for the browser bundle
-      'process.env.API_KEY': JSON.stringify(process.env.API_KEY || process.env.GEMINI_API_KEY || env.API_KEY || env.GEMINI_API_KEY || ''),
-      'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY || process.env.API_KEY || env.GEMINI_API_KEY || env.API_KEY || ''),
+      // Define GEMINI_API_KEY_1, GEMINI_API_KEY_2, and GEMINI_API_KEY_3 for client-side generation
+      'process.env.GEMINI_API_KEY_1': JSON.stringify(process.env.GEMINI_API_KEY_1 || env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY || env.GEMINI_API_KEY || process.env.API_KEY || env.API_KEY || ''),
+      'process.env.GEMINI_API_KEY_2': JSON.stringify(process.env.GEMINI_API_KEY_2 || env.GEMINI_API_KEY_2 || ''),
+      'process.env.GEMINI_API_KEY_3': JSON.stringify(process.env.GEMINI_API_KEY_3 || env.GEMINI_API_KEY_3 || ''),
+      'process.env.GEMINI_API_KEY': JSON.stringify(process.env.GEMINI_API_KEY_1 || env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY || env.GEMINI_API_KEY || process.env.API_KEY || env.API_KEY || ''),
+      'process.env.API_KEY': JSON.stringify(process.env.GEMINI_API_KEY_1 || env.GEMINI_API_KEY_1 || process.env.GEMINI_API_KEY || env.GEMINI_API_KEY || process.env.API_KEY || env.API_KEY || ''),
     },
     server: {
       port: 3000,

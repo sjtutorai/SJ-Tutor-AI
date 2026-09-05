@@ -44,6 +44,8 @@ export interface StreakData {
   lastStudyDate: string | null;
   lastActivityDate: string | null;
   streakHistory: string[];
+  streakFreezes?: number;
+  streakFreezeDates?: string[];
   claimedMilestones: number[];
   updatedAt?: number;
 }
@@ -62,6 +64,9 @@ export interface StreakContextType {
   isStudiedToday: boolean;
   recordActivity: (actionType?: string) => Promise<{ success: boolean; incremented: boolean; milestoneReached: number | null }>;
   claimMilestone: (days: number) => Promise<{ success: boolean; creditsAdded: number; message: string }>;
+  buyStreakFreeze: (costCredits?: number) => Promise<{ success: boolean; message: string; remainingCredits: number; totalFreezes: number }>;
+  useStreakFreeze: (dateStr?: string) => Promise<{ success: boolean; message: string; remainingFreezes: number }>;
+  applyStreakFreeze: (dateStr?: string) => Promise<{ success: boolean; message: string; remainingFreezes: number }>;
   fetchLeaderboard: () => Promise<LeaderboardEntry[]>;
   refreshStreak: () => Promise<void>;
   loading: boolean;
@@ -127,6 +132,8 @@ const defaultStreakData: StreakData = {
   lastStudyDate: null,
   lastActivityDate: null,
   streakHistory: [],
+  streakFreezes: 1, // Start every student with 1 free complimentary streak freeze!
+  streakFreezeDates: [],
   claimedMilestones: [],
 };
 
@@ -135,6 +142,9 @@ const StreakContext = createContext<StreakContextType>({
   isStudiedToday: false,
   recordActivity: async () => ({ success: true, incremented: false, milestoneReached: null }),
   claimMilestone: async () => ({ success: false, creditsAdded: 0, message: '' }),
+  buyStreakFreeze: async () => ({ success: false, message: '', remainingCredits: 0, totalFreezes: 0 }),
+  useStreakFreeze: async () => ({ success: false, message: '', remainingFreezes: 0 }),
+  applyStreakFreeze: async () => ({ success: false, message: '', remainingFreezes: 0 }),
   fetchLeaderboard: async () => [],
   refreshStreak: async () => {},
   loading: true,
@@ -397,6 +407,185 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [streak, currentUser]
   );
 
+  // Buy a Streak Freeze using credits (Default: 50 credits)
+  const buyStreakFreeze = useCallback(
+    async (costCredits: number = 50): Promise<{ success: boolean; message: string; remainingCredits: number; totalFreezes: number }> => {
+      const currentFreezes = typeof streak.streakFreezes === 'number' ? streak.streakFreezes : 0;
+      let userCredits = 100;
+
+      // Check current user credit balance
+      if (currentUser) {
+        try {
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          const userSnap = await getDoc(userDocRef);
+          if (userSnap.exists()) {
+            userCredits = (userSnap.data()?.credits ?? 100) as number;
+          }
+        } catch {
+          // fallback to localStorage
+          const cached = localStorage.getItem(`profile_${currentUser.uid}`);
+          if (cached) {
+            try {
+              userCredits = JSON.parse(cached).credits ?? 100;
+            } catch {
+              // ignore
+            }
+          }
+        }
+      } else {
+        const guestProf = localStorage.getItem('profile_guest');
+        if (guestProf) {
+          try {
+            userCredits = JSON.parse(guestProf).credits ?? 100;
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      if (userCredits < costCredits) {
+        return {
+          success: false,
+          message: `Insufficient credits. You need ${costCredits} credits to purchase a Streak Freeze (Current balance: ${userCredits}).`,
+          remainingCredits: userCredits,
+          totalFreezes: currentFreezes,
+        };
+      }
+
+      const updatedCredits = userCredits - costCredits;
+      const updatedFreezes = currentFreezes + 1;
+
+      const updatedStreak: StreakData = {
+        ...streak,
+        streakFreezes: updatedFreezes,
+        updatedAt: Date.now(),
+      };
+
+      setStreak(updatedStreak);
+
+      // Persist locally
+      try {
+        const key = currentUser ? `sjtutor_streak_${currentUser.uid}` : 'sjtutor_streak_guest';
+        localStorage.setItem(key, JSON.stringify(updatedStreak));
+
+        const profileKey = currentUser ? `profile_${currentUser.uid}` : 'profile_guest';
+        const cachedProf = localStorage.getItem(profileKey);
+        if (cachedProf) {
+          const prof = JSON.parse(cachedProf);
+          prof.credits = updatedCredits;
+          prof.streakFreezes = updatedFreezes;
+          localStorage.setItem(profileKey, JSON.stringify(prof));
+        }
+      } catch {
+        // ignore
+      }
+
+      // Persist in Firestore
+      if (currentUser) {
+        try {
+          const streakDocRef = doc(db, 'streaks', currentUser.uid);
+          await updateDoc(streakDocRef, {
+            streakFreezes: updatedFreezes,
+            updatedAt: Date.now(),
+          }).catch(async () => {
+            await setDoc(streakDocRef, updatedStreak, { merge: true });
+          });
+
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          await updateDoc(userDocRef, {
+            credits: updatedCredits,
+            streakFreezes: updatedFreezes,
+            updatedAt: Timestamp.now(),
+          });
+        } catch (err) {
+          console.warn('Could not sync freeze purchase to Firestore:', err);
+        }
+      }
+
+      return {
+        success: true,
+        message: `Successfully purchased 1 Streak Freeze for ${costCredits} credits! (Total: ${updatedFreezes} ❄️)`,
+        remainingCredits: updatedCredits,
+        totalFreezes: updatedFreezes,
+      };
+    },
+    [streak, currentUser]
+  );
+
+  // Use a Streak Freeze to protect a missed study day
+  const useStreakFreeze = useCallback(
+    async (targetDate?: string): Promise<{ success: boolean; message: string; remainingFreezes: number }> => {
+      const currentFreezes = typeof streak.streakFreezes === 'number' ? streak.streakFreezes : 0;
+      if (currentFreezes <= 0) {
+        return {
+          success: false,
+          message: 'You have no Streak Freezes available. Purchase one with credits from your Profile or Streak Hub!',
+          remainingFreezes: 0,
+        };
+      }
+
+      const dateToFreeze = targetDate || getLocalDateString();
+      const existingFreezeDates = Array.isArray(streak.streakFreezeDates) ? [...streak.streakFreezeDates] : [];
+      if (existingFreezeDates.includes(dateToFreeze)) {
+        return {
+          success: false,
+          message: `${dateToFreeze} is already protected by a Streak Freeze!`,
+          remainingFreezes: currentFreezes,
+        };
+      }
+
+      const updatedFreezes = currentFreezes - 1;
+      existingFreezeDates.push(dateToFreeze);
+
+      const history = Array.isArray(streak.streakHistory) ? [...streak.streakHistory] : [];
+      if (!history.includes(dateToFreeze)) {
+        history.push(dateToFreeze);
+      }
+
+      const updatedStreak: StreakData = {
+        ...streak,
+        streakFreezes: updatedFreezes,
+        streakFreezeDates: existingFreezeDates,
+        streakHistory: history,
+        lastStudyDate: streak.lastStudyDate || dateToFreeze,
+        updatedAt: Date.now(),
+      };
+
+      setStreak(updatedStreak);
+
+      try {
+        const key = currentUser ? `sjtutor_streak_${currentUser.uid}` : 'sjtutor_streak_guest';
+        localStorage.setItem(key, JSON.stringify(updatedStreak));
+      } catch {
+        // ignore
+      }
+
+      if (currentUser) {
+        try {
+          const streakDocRef = doc(db, 'streaks', currentUser.uid);
+          await setDoc(streakDocRef, updatedStreak, { merge: true });
+
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          await updateDoc(userDocRef, {
+            streakFreezes: updatedFreezes,
+            streakFreezeDates: existingFreezeDates,
+            streakHistory: history,
+            updatedAt: Timestamp.now(),
+          }).catch(() => {});
+        } catch (e) {
+          console.warn('Error saving used freeze to Firestore:', e);
+        }
+      }
+
+      return {
+        success: true,
+        message: `Streak Freeze successfully applied for ${dateToFreeze}! Your active streak is safe. (Remaining: ${updatedFreezes} ❄️)`,
+        remainingFreezes: updatedFreezes,
+      };
+    },
+    [streak, currentUser]
+  );
+
   // Fetch Community Leaderboard
   const fetchLeaderboard = useCallback(async (): Promise<LeaderboardEntry[]> => {
     try {
@@ -445,6 +634,9 @@ export const StreakProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         isStudiedToday,
         recordActivity,
         claimMilestone,
+        buyStreakFreeze,
+        useStreakFreeze,
+        applyStreakFreeze: useStreakFreeze,
         fetchLeaderboard,
         refreshStreak,
         loading,

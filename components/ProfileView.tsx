@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { calculateTrialInfo } from './TrialTimerWidget';
+import { StreakCalendarHeatmap } from './StreakCalendarHeatmap';
 import { 
   User, 
   Phone, 
@@ -851,6 +852,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                 </div>
              </div>
           </div>
+
+          {/* 30-Day Streak Activity Calendar & Streak Freeze Shop */}
+          {!isOnboarding && (
+            <StreakCalendarHeatmap 
+              profile={formData} 
+              onProfileUpdate={onSave} 
+            />
+          )}
 
           {isOnboarding && (
             <div className="flex justify-end pt-4">

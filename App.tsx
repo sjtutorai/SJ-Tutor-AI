@@ -45,6 +45,7 @@ import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
 import { useStreak } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
+import { StreakRewardModal } from "./components/StreakRewardModal";
 import { TrialHeaderBadge, TrialBannerCard, calculateTrialInfo } from "./components/TrialTimerWidget";
 import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
@@ -182,7 +183,8 @@ const App: React.FC = () => {
     sendNotificationRef.current = sendNotification;
   }, [sendNotification]);
 
-  const { streak: streakData, recordActivity } = useStreak();
+  const { streak: streakData, recordActivity, claimMilestone } = useStreak();
+  const [pendingStreakRewardMilestone, setPendingStreakRewardMilestone] = useState<number | null>(null);
 
   // Video & Audio Calling States (1-on-1 & Group)
   const [activeDirectCall, setActiveDirectCall] = useState<DirectCall | null>(null);
@@ -1707,9 +1709,10 @@ const App: React.FC = () => {
     recordDailyActivity();
     recordActivity().then((res) => {
       if (res.success && res.incremented && res.milestoneReached) {
+        setPendingStreakRewardMilestone(res.milestoneReached);
         triggerToast(
           "🔥 Streak Milestone Reached!",
-          `Congratulations! You reached a ${res.milestoneReached}-day learning streak on SJ Tutor AI! Open the Streak widget to claim your reward.`,
+          `Congratulations! You reached a ${res.milestoneReached}-day learning streak on SJ Tutor AI! Claim your bonus credits now.`,
           "Daily Streak Reminders"
         );
       }
@@ -1822,9 +1825,10 @@ const App: React.FC = () => {
       recordDailyActivity();
       recordActivity().then((res) => {
         if (res.success && res.incremented && res.milestoneReached) {
+          setPendingStreakRewardMilestone(res.milestoneReached);
           triggerToast(
             "🔥 Streak Milestone Reached!",
-            `Congratulations! You reached a ${res.milestoneReached}-day learning streak on SJ Tutor AI! Open the Streak widget to claim your reward.`,
+            `Congratulations! You reached a ${res.milestoneReached}-day learning streak on SJ Tutor AI! Claim your bonus credits now.`,
             "Daily Streak Reminders"
           );
         }
@@ -4046,6 +4050,37 @@ const App: React.FC = () => {
             if (user) {
               await saveProfileToFirestore(user.uid, updated);
             }
+          }}
+        />
+      )}
+
+      {/* 3. Milestone Streak Reward Celebration Modal */}
+      {pendingStreakRewardMilestone !== null && (
+        <StreakRewardModal
+          days={pendingStreakRewardMilestone}
+          onClose={() => setPendingStreakRewardMilestone(null)}
+          userCredits={userProfile.credits ?? 100}
+          onClaimReward={async (days, credits) => {
+            await claimMilestone(days);
+            const newCredits = (userProfile.credits ?? 100) + credits;
+            const claimedRewards = [...(userProfile.claimedStreakRewards || []), days];
+            const updatedProf: UserProfile = {
+              ...userProfile,
+              credits: newCredits,
+              claimedStreakRewards: claimedRewards,
+            };
+            setUserProfile(updatedProf);
+            if (user?.uid) {
+              await saveProfileToFirestore(user.uid, {
+                credits: newCredits,
+                claimedStreakRewards: claimedRewards,
+              });
+            }
+            triggerToast(
+              "🎉 Milestone Reward Claimed!",
+              `+${credits} Credits successfully added to your balance for achieving your ${days}-Day Streak!`,
+              "Daily Streak Reminders"
+            );
           }}
         />
       )}

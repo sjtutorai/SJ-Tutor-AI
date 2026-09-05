@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import confetti from 'canvas-confetti';
 import { 
   Flame, 
   Trophy, 
@@ -44,6 +45,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [claimStatusMsg, setClaimStatusMsg] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isNewlyAchievedPulse, setIsNewlyAchievedPulse] = useState(false);
 
   // Local celebratory toast when streak increases during session
   const [celebrationModal, setCelebrationModal] = useState<{
@@ -52,18 +54,36 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     milestone: number | null;
   } | null>(null);
 
-  // Track previous streak to trigger celebratory popup when streak increments
+  // Track previous streak to trigger celebratory popup and confetti when streak increments
   const prevStreakCountRef = useRef<number>(streak.currentStreak || 0);
 
   useEffect(() => {
     const current = streak.currentStreak || 0;
     if (prevStreakCountRef.current > 0 && current > prevStreakCountRef.current) {
+      setIsNewlyAchievedPulse(true);
       setCelebrationModal({
         show: true,
         streakCount: current,
         milestone: STREAK_MILESTONES.find(m => m.days === current)?.days || null,
       });
+
+      // Confetti burst for milestone / new daily streak
+      try {
+        confetti({
+          particleCount: 65,
+          spread: 60,
+          origin: { y: 0.7 },
+          colors: ['#f59e0b', '#ef4444', '#10b981', '#6366f1'],
+        });
+      } catch (err) {
+        console.warn('Confetti burst error:', err);
+      }
+
       playCelebrationChime();
+
+      // Reset pulse after 10 seconds
+      const t = setTimeout(() => setIsNewlyAchievedPulse(false), 10000);
+      return () => clearTimeout(t);
     }
     prevStreakCountRef.current = current;
   }, [streak.currentStreak]);
@@ -374,11 +394,17 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
           tabIndex={0}
           title={`🔥 ${currentStreak} Day Streak • Drag anywhere to place • Click to open Streak Hub`}
           className={`group relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-600 dark:from-amber-600 dark:via-orange-600 dark:to-amber-700 text-white shadow-xl shadow-orange-500/30 hover:shadow-orange-500/50 border-2 border-amber-300/80 dark:border-amber-400/60 backdrop-blur-md transition-all ${
-            isDraggingActive ? 'cursor-grabbing scale-110 shadow-2xl shadow-orange-500/60' : 'cursor-grab hover:scale-105 active:scale-95'
+            isDraggingActive 
+              ? 'cursor-grabbing scale-110 shadow-2xl shadow-orange-500/60' 
+              : isNewlyAchievedPulse
+              ? 'cursor-grab scale-105 ring-4 ring-amber-400/80 ring-offset-2 ring-offset-slate-900 animate-pulse shadow-2xl shadow-orange-500/60'
+              : 'cursor-grab hover:scale-105 active:scale-95'
           }`}
         >
           {/* Outer Pulsing Glow Ring */}
-          <span className="absolute -inset-1 rounded-full bg-amber-400/30 dark:bg-amber-400/20 animate-ping opacity-75 pointer-events-none" />
+          <span className={`absolute -inset-1 rounded-full bg-amber-400/30 dark:bg-amber-400/20 pointer-events-none ${
+            isNewlyAchievedPulse ? 'animate-ping opacity-100 ring-2 ring-amber-400' : 'animate-ping opacity-75'
+          }`} />
           
           {/* Inner Surrounded Circular Border */}
           <div className="absolute inset-1 rounded-full border border-white/40 dark:border-white/20 pointer-events-none" />

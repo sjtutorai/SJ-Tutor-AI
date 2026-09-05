@@ -1,23 +1,165 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate, HomeworkFile } from "../types";
+import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate, HomeworkFile, DifficultyLevel } from "../types";
 import { SettingsService } from "./settingsService";
 
-// Helper to initialize AI client.
-const getAI = () => {
-  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY_MISSING: Please set the API_KEY environment variable.");
+/**
+ * Multi-Key Rotation and Failover Manager for Gemini API
+ * Automatically rotates and balances requests between GEMINI_API_KEY_1 and GEMINI_API_KEY_2.
+ */
+class GeminiKeyManager {
+  private keys: string[] = [];
+  private keyIndex: number = 0;
+
+  constructor() {
+    this.refreshKeys();
   }
-  return new GoogleGenAI({ apiKey });
+
+  /**
+   * Refreshes and returns the active unique key pool using GEMINI_API_KEY_1, GEMINI_API_KEY_2, and GEMINI_API_KEY_3.
+   */
+  public refreshKeys(): string[] {
+    const rawKeys: (string | undefined)[] = [
+      process.env.GEMINI_API_KEY_1,
+      process.env.GEMINI_API_KEY_2,
+      process.env.GEMINI_API_KEY_3,
+      process.env.GEMINI_API_KEY,
+      process.env.API_KEY,
+    ];
+
+    const uniqueKeys = Array.from(
+      new Set(
+        rawKeys
+          .map((k) => (k || "").trim())
+          .filter((k) => k.length > 5 && k !== "undefined" && k !== "null")
+      )
+    );
+
+    this.keys = uniqueKeys;
+    return this.keys;
+  }
+
+  public getKeys(): string[] {
+    if (this.keys.length === 0) {
+      this.refreshKeys();
+    }
+    return this.keys;
+  }
+
+  public getKeyCount(): number {
+    return this.getKeys().length;
+  }
+
+  /**
+   * Returns the next API key in round-robin order.
+   */
+  public getNextKey(): string {
+    const keys = this.getKeys();
+    if (keys.length === 0) {
+      throw new Error(
+        "API_KEY_MISSING: Please configure at least one valid Gemini API Key."
+      );
+    }
+    const selectedKey = keys[this.keyIndex % keys.length];
+    this.keyIndex = (this.keyIndex + 1) % keys.length;
+    return selectedKey;
+  }
+
+  /**
+   * Returns metadata about current key rotation pool for UI / diagnostics.
+   */
+  public getStatus(): { totalKeys: number; activeIndex: number; maskedKey: string } {
+    const keys = this.getKeys();
+    const count = keys.length;
+    const currentIdx = this.keyIndex % (count || 1);
+    const key = keys[currentIdx] || "";
+    const maskedKey =
+      key.length > 8
+        ? `${key.substring(0, 4)}...${key.substring(key.length - 4)}`
+        : "***";
+    return {
+      totalKeys: count,
+      activeIndex: currentIdx,
+      maskedKey,
+    };
+  }
+
+  /**
+   * Returns a GoogleGenAI instance using the next rotated key.
+   */
+  public getAI(specificKey?: string): GoogleGenAI {
+    const apiKey = specificKey || this.getNextKey();
+    return new GoogleGenAI({ apiKey });
+  }
+
+  /**
+   * Executes an asynchronous AI task with round-robin key rotation
+   * and automatic failover across all keys in the pool if rate limits or quota errors are encountered.
+   */
+  public async executeWithRotation<T>(
+    operation: (ai: GoogleGenAI, key: string, attempt: number) => Promise<T>
+  ): Promise<T> {
+    const keys = this.getKeys();
+    if (keys.length === 0) {
+      throw new Error(
+        "API_KEY_MISSING: Please configure at least one valid Gemini API Key."
+      );
+    }
+
+    let lastError: any = null;
+    const startIndex = this.keyIndex % keys.length;
+    this.keyIndex = (this.keyIndex + 1) % keys.length;
+
+    for (let i = 0; i < keys.length; i++) {
+      const keyIndex = (startIndex + i) % keys.length;
+      const key = keys[keyIndex];
+      const ai = new GoogleGenAI({ apiKey: key });
+
+      try {
+        return await operation(ai, key, i + 1);
+      } catch (err: any) {
+        lastError = err;
+        const msg = String(err?.message || err || "");
+        const isQuotaOrLimit =
+          msg.includes("429") ||
+          msg.includes("RESOURCE_EXHAUSTED") ||
+          msg.includes("quota") ||
+          msg.includes("rate") ||
+          msg.includes("limit") ||
+          msg.includes("PERMISSION_DENIED") ||
+          msg.includes("API key not valid") ||
+          msg.includes("API_KEY_INVALID");
+
+        console.warn(
+          `[GeminiKeyManager] Key #${keyIndex + 1}/${keys.length} error: ${msg.substring(
+            0,
+            120
+          )}. ${i + 1 < keys.length ? "Rotating to next API key..." : "All keys in pool exhausted."}`
+        );
+
+        if (!isQuotaOrLimit && i === keys.length - 1) {
+          throw err;
+        }
+      }
+    }
+
+    throw lastError || new Error("All configured Gemini API keys failed.");
+  }
+}
+
+export const keyManager = new GeminiKeyManager();
+
+// Helper to initialize AI client with key rotation
+export const getAI = () => {
+  return keyManager.getAI();
 };
 
 // Helper to parse base64 dataUrl accurately
 const parseDataUrl = (str: string) => {
   if (!str) return null;
-  if (str.startsWith('data:')) {
-    const parts = str.split(';base64,');
+  if (str.startsWith("data:")) {
+    const parts = str.split(";base64,");
     if (parts.length === 2) {
-      const mimeType = parts[0].replace('data:', '');
+      const mimeType = parts[0].replace("data:", "");
       return { mimeType, data: parts[1] };
     }
   }
@@ -580,6 +722,9 @@ Your mission:
       console.error("Image generation error:", e);
       throw e;
     }
-  }
+  },
+
+  getKeyCount: () => keyManager.getKeyCount(),
+  getKeyStatus: () => keyManager.getStatus(),
 };
 
