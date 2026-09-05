@@ -98,6 +98,11 @@ export interface UserProfile {
   hasCompletedOnboarding?: boolean;
   isRegisteredInFirestore?: boolean;
   trialStartDate?: number;
+  streak?: number;
+  currentStreak?: number;
+  highestStreak?: number;
+  lastStudyDate?: string;
+  streakHistory?: string[];
   twoFactorEnabled?: boolean;
   twoFactorPassword?: string;
   pinLockEnabled?: boolean;

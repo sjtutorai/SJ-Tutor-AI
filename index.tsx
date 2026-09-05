@@ -3,7 +3,6 @@ import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { NotificationProvider } from './components/NotificationContext';
-import { StreakProvider } from './components/StreakContext';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -68,9 +67,7 @@ root.render(
   <React.StrictMode>
     <ErrorBoundary>
       <NotificationProvider>
-        <StreakProvider>
-          <App />
-        </StreakProvider>
+        <App />
       </NotificationProvider>
     </ErrorBoundary>
   </React.StrictMode>

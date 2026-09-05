@@ -474,6 +474,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                  </span>
                </div>
                <div className="flex justify-between text-sm mb-2">
+                 <span className="text-slate-500">Daily Streak</span>
+                 <span className="font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 px-2.5 py-0.5 rounded text-xs flex items-center gap-1">
+                   🔥 {formData.streak ?? 0} {(formData.streak ?? 0) === 1 ? 'Day' : 'Days'}
+                 </span>
+               </div>
+               <div className="flex justify-between text-sm mb-2">
                  <span className="text-slate-500">Profile Edits</span>
                  <span className={`font-semibold px-2 py-0.5 rounded text-xs flex items-center gap-1 ${
                    isPremium 

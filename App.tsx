@@ -43,8 +43,6 @@ import NotificationsView from "./components/NotificationsView";
 import { useNotifications } from "./components/NotificationContext";
 import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
-import { useStreak } from "./components/StreakContext";
-import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
 import { TrialHeaderBadge, TrialBannerCard, calculateTrialInfo } from "./components/TrialTimerWidget";
 import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
@@ -181,8 +179,6 @@ const App: React.FC = () => {
   useEffect(() => {
     sendNotificationRef.current = sendNotification;
   }, [sendNotification]);
-
-  const { recordActivity } = useStreak();
 
   // Video & Audio Calling States (1-on-1 & Group)
   const [activeDirectCall, setActiveDirectCall] = useState<DirectCall | null>(null);
@@ -440,9 +436,72 @@ const App: React.FC = () => {
     planType: "Free",
     dob: "",
     registrationNumber: "",
+    streak: 0,
   };
   const [userProfile, setUserProfile] =
     useState<UserProfile>(initialProfileState);
+
+  // Original clean daily streak tracker
+  const recordDailyActivity = async () => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const lastDate = userProfile.lastStudyDate || "";
+      
+      if (lastDate === today) {
+        return;
+      }
+
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+      const currentStreakVal = typeof userProfile.streak === "number" ? userProfile.streak : 0;
+      let newStreak = currentStreakVal;
+      if (lastDate === yesterdayStr) {
+        newStreak += 1;
+      } else if (!lastDate) {
+        newStreak = Math.max(1, currentStreakVal);
+      } else {
+        // Keep existing established streak intact
+        newStreak = currentStreakVal > 0 ? currentStreakVal : 1;
+      }
+
+      const highestStreak = Math.max(userProfile.highestStreak || 0, newStreak);
+      const history = Array.isArray(userProfile.streakHistory) ? [...userProfile.streakHistory] : [];
+      if (!history.includes(today)) {
+        history.push(today);
+      }
+
+      const updatedStreakData: Partial<UserProfile> = {
+        streak: newStreak,
+        currentStreak: newStreak,
+        highestStreak,
+        lastStudyDate: today,
+        streakHistory: history,
+      };
+
+      setUserProfile((prev) => ({
+        ...prev,
+        ...updatedStreakData,
+      }));
+
+      if (user?.uid) {
+        try {
+          const cached = localStorage.getItem(`profile_${user.uid}`);
+          const parsed = cached ? JSON.parse(cached) : {};
+          localStorage.setItem(`profile_${user.uid}`, JSON.stringify({
+            ...parsed,
+            ...updatedStreakData,
+          }));
+        } catch {
+          // ignore cache error
+        }
+        await saveProfileToFirestore(user.uid, updatedStreakData);
+      }
+    } catch (e) {
+      console.warn("Error updating daily streak:", e);
+    }
+  };
 
   // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -1640,16 +1699,8 @@ const App: React.FC = () => {
       saveHistoryItemToFirestore(user.uid, newItem);
     }
 
-    // Record learning activity sequence progress
-    recordActivity().then((res) => {
-      if (res.success && res.incremented) {
-        if (res.milestoneReached) {
-          setTimeout(() => {
-            alert(`🎉 STREAK MILESTONE REACHED! 🎉\n\nYou have completed ${res.milestoneReached} consecutive learning days on SJ Tutor AI!\n\nOpen the Streak Widget on your screen to claim your Reward in learning credits!`);
-          }, 1500);
-        }
-      }
-    });
+    // Record daily activity for streak
+    recordDailyActivity();
   };
 
   const handleSharePublicLink = async (type: string, title: string, content: any, customId?: string, customUrl?: string, customMessage?: string) => {
@@ -1754,20 +1805,8 @@ const App: React.FC = () => {
         saveHistoryItemToFirestore(user.uid, updatedItem);
       }
 
-      // Record active quiz completion sequence
-      recordActivity().then((res) => {
-        if (res.success && res.incremented) {
-          if (res.milestoneReached) {
-            setTimeout(() => {
-              triggerToast(
-                "Streak Milestone! 🔥",
-                `You have completed ${res.milestoneReached} consecutive learning days on SJ Tutor AI! Open the Streak Widget to claim your reward.`,
-                "Daily Streak Reminders"
-              );
-            }, 1500);
-          }
-        }
-      });
+      // Record daily activity for streak
+      recordDailyActivity();
 
       // Calculate rewards
       const qCount = (historyItem.content as QuizQuestion[]).length;
@@ -3534,6 +3573,11 @@ const App: React.FC = () => {
                       <p className="text-xs text-slate-400 truncate">
                         {user.email}
                       </p>
+                      {Boolean(userProfile.streak && userProfile.streak > 0) && (
+                        <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-0.5">
+                          <span>🔥</span> {userProfile.streak}-day streak
+                        </p>
+                      )}
                     </div>
                   )}
                 </button>
@@ -3644,6 +3688,18 @@ const App: React.FC = () => {
               <QrCode className="w-5 h-5" />
             </button>
 
+            {/* Daily Streak Badge */}
+            {(userProfile.streak !== undefined && userProfile.streak > 0) && (
+              <div 
+                className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold shadow-xs select-none"
+                title={`${userProfile.streak} Day Learning Streak`}
+              >
+                <span className="text-sm leading-none">🔥</span>
+                <span className="font-mono">{userProfile.streak}</span>
+                <span className="hidden sm:inline text-[11px] font-medium text-amber-600/80 dark:text-amber-400/80">days</span>
+              </div>
+            )}
+
             <TrialHeaderBadge 
               userProfile={userProfile} 
               uid={user?.uid} 
@@ -3685,11 +3741,6 @@ const App: React.FC = () => {
           uid={user?.uid}
         />
       )}
-
-      <FloatingStreakWidget
-        userProfile={userProfile}
-        onProfileUpdate={handleProfileSave}
-      />
 
       <AnimatePresence>
         {showTutorial && !userProfile.isRegisteredInFirestore && <Tutorial onClose={handleTutorialClose} />}
