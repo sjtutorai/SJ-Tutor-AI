@@ -70,7 +70,7 @@ import { GeminiService } from "./services/geminiService";
 import { SettingsService } from "./services/settingsService";
 import { SEOService } from "./services/seoService";
 import { db, auth } from "./firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { StudyGroup } from "./types";
 import { getCurrentUserProfile, getMembershipByEmail } from "./utils/userService";
 import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, } from "firebase/auth";
@@ -1177,8 +1177,10 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Auth Listener
+  // Auth Listener & Real-time Profile Hydration
   useEffect(() => {
+    let unsubSnapshot: (() => void) | null = null;
+
     const timeoutId = setTimeout(() => {
       if (authLoading) {
         console.warn("Auth check timed out, defaulting to guest.");
@@ -1186,52 +1188,183 @@ const App: React.FC = () => {
       }
     }, 4000);
 
+    // Helper to check and hydrate an SJ Tutor AI ID session
+    const checkSavedSjTutorSession = () => {
+      try {
+        const savedSession = localStorage.getItem("sjtutor_authenticated_user");
+        if (savedSession) {
+          const parsed = JSON.parse(savedSession);
+          if (parsed && (parsed.uid || parsed.sjTutorId)) {
+            const targetUid = parsed.uid || parsed.sjTutorId;
+            setUser({
+              uid: targetUid,
+              displayName: parsed.displayName || parsed.name || "Student",
+              email: parsed.email || "",
+              photoURL: parsed.photoURL || null,
+            } as any);
+
+            const merged = {
+              ...initialProfileState,
+              ...parsed,
+              isRegisteredInFirestore: true,
+              hasCompletedOnboarding: true,
+            };
+            setUserProfile(merged as any);
+            setMode(AppMode.DASHBOARD);
+            setAuthLoading(false);
+            return targetUid;
+          }
+        }
+      } catch (e) {
+        console.warn("Error parsing saved SJ Tutor session:", e);
+      }
+      return null;
+    };
+
+    // Helper to attach real-time Firestore onSnapshot for profile sync
+    const attachProfileSnapshot = (targetUid: string, userEmail?: string | null) => {
+      if (unsubSnapshot) {
+        unsubSnapshot();
+        unsubSnapshot = null;
+      }
+      try {
+        const userRef = doc(db, "users", targetUid);
+        unsubSnapshot = onSnapshot(
+          userRef,
+          (docSnap) => {
+            if (docSnap.exists()) {
+              const fsData = docSnap.data();
+              const membership = getMembershipByEmail(fsData.email || userEmail);
+              const credits = membership
+                ? Math.max(membership.credits, fsData.credits || membership.credits)
+                : (fsData.credits ?? 100);
+              const planType = membership
+                ? membership.planType
+                : (fsData.planType || "Free");
+
+              const fullProfile = {
+                ...initialProfileState,
+                ...fsData,
+                credits,
+                planType,
+                trialStartDate: fsData.trialStartDate || Date.now(),
+                uid: targetUid,
+                name: fsData.displayName || fsData.name || "Scholar",
+                displayName: fsData.displayName || fsData.name || "Scholar",
+                email: fsData.email || userEmail || "",
+                photoURL: fsData.photoURL || "",
+                isRegisteredInFirestore: true,
+                hasCompletedOnboarding: membership ? true : (fsData.hasCompletedOnboarding ?? true),
+              };
+
+              setUserProfile((prev) => ({
+                ...prev,
+                ...fullProfile,
+              }));
+
+              try {
+                localStorage.setItem(`profile_${targetUid}`, JSON.stringify(fullProfile));
+              } catch (err) {
+                console.debug("Snapshot cache save notice:", err);
+              }
+
+              if (fullProfile.language) {
+                SettingsService.updateSettings({
+                  learning: {
+                    ...SettingsService.getSettings().learning,
+                    language: fullProfile.language,
+                  }
+                });
+                setFormData((prev) => ({
+                  ...prev,
+                  language: fullProfile.language || prev.language,
+                }));
+              }
+            }
+          },
+          (snapshotErr) => {
+            console.warn("Real-time profile sync notice:", snapshotErr);
+          }
+        );
+      } catch (err) {
+        console.warn("Could not attach profile snapshot listener:", err);
+      }
+    };
+
     const unsubscribe = onAuthStateChanged(
       auth,
       async (currentUser) => {
         clearTimeout(timeoutId);
         if (currentUser) {
+          setUser(currentUser);
 
-           setUser(currentUser);
-           try {
-             const userProf = await getCurrentUserProfile(currentUser);
-             const isRegisteredInDb = userProf.isRegisteredInFirestore || userProf.hasCompletedOnboarding;
-             setUserProfile({
-               ...initialProfileState,
-               ...userProf,
-               hasCompletedOnboarding: isRegisteredInDb ? true : userProf.hasCompletedOnboarding,
-             } as any);
+          // 1. Instant local cache hydration (0ms render time)
+          try {
+            const cached = localStorage.getItem(`profile_${currentUser.uid}`);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              setUserProfile((prev) => ({
+                ...initialProfileState,
+                ...prev,
+                ...parsed,
+              }));
+              if (parsed.hasCompletedOnboarding || parsed.isRegisteredInFirestore) {
+                setMode(AppMode.DASHBOARD);
+              }
+            }
+          } catch (err) {
+            console.debug("Cache parse notice:", err);
+          }
 
-             if (userProf.language) {
-               SettingsService.updateSettings({
-                 learning: {
-                   ...SettingsService.getSettings().learning,
-                   language: userProf.language,
-                 }
-               });
-               setFormData((prev) => ({
-                 ...prev,
-                 language: userProf.language || prev.language,
-               }));
-             }
+          // 2. Fetch full profile from Firestore
+          try {
+            const userProf = await getCurrentUserProfile(currentUser);
+            const isRegisteredInDb = userProf.isRegisteredInFirestore || userProf.hasCompletedOnboarding;
+            setUserProfile((prev) => ({
+              ...initialProfileState,
+              ...prev,
+              ...userProf,
+              hasCompletedOnboarding: isRegisteredInDb ? true : userProf.hasCompletedOnboarding,
+            } as any));
 
-             if (isRegisteredInDb) {
-               // User is already registered in Firestore - navigate to dashboard, hide welcome & profile prompts
-               setMode(AppMode.DASHBOARD);
-               setShowCompletionReminder(false);
-               setShowTutorial(false);
-             } else if (!userProf.hasCompletedOnboarding) {
-               setMode(AppMode.PROFILE);
-             } else {
-               setMode(AppMode.DASHBOARD);
-             }
-           } catch (e) {
-             console.error("Error fetching/creating profile:", e);
-           }
+            if (userProf.language) {
+              SettingsService.updateSettings({
+                learning: {
+                  ...SettingsService.getSettings().learning,
+                  language: userProf.language,
+                }
+              });
+              setFormData((prev) => ({
+                ...prev,
+                language: userProf.language || prev.language,
+              }));
+            }
+
+            if (isRegisteredInDb) {
+              setMode(AppMode.DASHBOARD);
+              setShowCompletionReminder(false);
+              setShowTutorial(false);
+            } else if (!userProf.hasCompletedOnboarding) {
+              setMode(AppMode.PROFILE);
+            } else {
+              setMode(AppMode.DASHBOARD);
+            }
+          } catch (e) {
+            console.error("Error fetching/creating profile:", e);
+          }
+
+          // 3. Attach real-time snapshot listener to keep profile in continuous sync
+          attachProfileSnapshot(currentUser.uid, currentUser.email);
         } else {
-          setUser(null);
-          setUserProfile(initialProfileState);
-          setMode(AppMode.DASHBOARD);
+          // Check for active SJ Tutor AI ID session
+          const sjUid = checkSavedSjTutorSession();
+          if (sjUid) {
+            attachProfileSnapshot(sjUid);
+          } else {
+            setUser(null);
+            setUserProfile(initialProfileState);
+            setMode(AppMode.DASHBOARD);
+          }
         }
         setAuthLoading(false);
       },
@@ -1242,9 +1375,19 @@ const App: React.FC = () => {
       },
     );
 
+    const handleSjAuthChange = () => {
+      const sjUid = checkSavedSjTutorSession();
+      if (sjUid) {
+        attachProfileSnapshot(sjUid);
+      }
+    };
+    window.addEventListener("sjtutor_auth_changed", handleSjAuthChange);
+
     return () => {
       unsubscribe();
       clearTimeout(timeoutId);
+      if (unsubSnapshot) unsubSnapshot();
+      window.removeEventListener("sjtutor_auth_changed", handleSjAuthChange);
     };
   }, []);
 
@@ -2207,12 +2350,14 @@ const App: React.FC = () => {
         SecurityPinService.lockSession(user.uid);
         const currentDeviceId = getCurrentDeviceId();
         await DeviceService.logoutDevice(user.uid, currentDeviceId);
-      } else {
-        await signOut(auth);
       }
+      await signOut(auth);
     } catch (error) {
       console.error("Error signing out:", error);
     } finally {
+      localStorage.removeItem("sjtutor_authenticated_user");
+      setUser(null);
+      setUserProfile(initialProfileState);
       setIsTwoStepVerified(true);
       setIsPinSessionUnlocked(true);
       setMode(AppMode.DASHBOARD);
@@ -2226,13 +2371,15 @@ const App: React.FC = () => {
         SecurityPinService.clearTwoStepVerified(user.uid);
         SecurityPinService.lockSession(user.uid);
         await DeviceService.logoutAllDevices(user.uid);
-      } else {
-        await signOut(auth);
       }
+      await signOut(auth);
       triggerToast("Logged Out Successfully", "You have been logged out from all devices.", "Important Alerts");
     } catch (error) {
       console.error("Error signing out all devices:", error);
     } finally {
+      localStorage.removeItem("sjtutor_authenticated_user");
+      setUser(null);
+      setUserProfile(initialProfileState);
       setIsTwoStepVerified(true);
       setIsPinSessionUnlocked(true);
       setMode(AppMode.DASHBOARD);

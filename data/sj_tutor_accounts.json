@@ -1,0 +1,38 @@
+[
+  {
+    "sjTutorId": "SJTA-DEMO01",
+    "userId": "demo_student_uid_01",
+    "displayName": "Demo Student",
+    "firstName": "Demo",
+    "lastName": "Student",
+    "username": "demostudent",
+    "email": "demo.student@sjtutor.ai",
+    "passwordHash": "$2b$10$v.pIHYAx2eoJLzIBoWvFYOoPQDN7nO5whmwulbooHaVWj/D2/0ecO",
+    "pinHash": "$2b$10$BRs3yJEFxOtWPmFwHm5sdOJjFgC9aMOFqgQtov46kD4D8ZFtXHarq",
+    "pinLength": 6,
+    "securityQuestion": "What is your favorite subject?",
+    "securityAnswerHash": "$2b$10$L5qtbghgKP9KX75j4mh4gedaJ85dgbrhGgiEAXiwt2sWcfl5XqjIa",
+    "twoStepEnabled": true,
+    "securitySetupCompleted": true,
+    "createdAt": 1788500800121,
+    "updatedAt": 1788587200121
+  },
+  {
+    "sjTutorId": "SJTA-ADMIN01",
+    "userId": "admin_uid_sjtutor",
+    "displayName": "SJ Tutor Admin",
+    "firstName": "SJ",
+    "lastName": "Admin",
+    "username": "sjtutoradmin",
+    "email": "sjtutorai@gmail.com",
+    "passwordHash": "$2b$10$cw/pDHKXo0ty2fsjAxPF6uYp2cH9IhJmQ5V.sSFezjbPUP4nnvtwC",
+    "pinHash": "$2b$10$GVNtc2YYkrQ7gVhjtyMk4.kRs4rN0g3mfRE5xZjiq8NOgCdTcYOnm",
+    "pinLength": 6,
+    "securityQuestion": "What was the name of your first school?",
+    "securityAnswerHash": "$2b$10$B5Z/0NVHXj2J/1T.CHc5uuycZlyfPVSOjFyfQ8zfWKXX5j2BLSOly",
+    "twoStepEnabled": true,
+    "securitySetupCompleted": true,
+    "createdAt": 1788414400446,
+    "updatedAt": 1788587200446
+  }
+]

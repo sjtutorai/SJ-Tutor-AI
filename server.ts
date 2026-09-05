@@ -5,14 +5,10 @@ import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
 import { pushNotificationService } from "./server/services/pushNotificationService";
 import path from "path";
-import { fileURLToPath } from "url";
 import fs from "fs";
 
-const resolvedFilename = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
-const resolvedDirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(resolvedFilename);
-
 // Load .env with override to ensure it takes precedence over system defaults
-const envPath = path.resolve(resolvedDirname, ".env");
+const envPath = path.resolve(process.cwd(), ".env");
 dotenv.config({ path: envPath, override: true });
 
 const app = express();
@@ -27,7 +23,7 @@ app.get(['/favicon.ico', '/favicon.png', '/favicon-:size.png', '/apple-touch-ico
 });
 
 // Serve static public assets (favicons, logos, manifests, robots.txt, etc.)
-app.use(express.static(path.resolve(resolvedDirname, "public"), {
+app.use(express.static(path.resolve(process.cwd(), "public"), {
   maxAge: '1d',
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.ico')) {
@@ -56,7 +52,7 @@ const getServerGeminiKeys = (): string[] => {
 
 // SEO Crawler endpoints
 app.get("/robots.txt", (req, res) => {
-  const robotsPath = path.resolve(resolvedDirname, "public", "robots.txt");
+  const robotsPath = path.resolve(process.cwd(), "public", "robots.txt");
   if (fs.existsSync(robotsPath)) {
     res.setHeader("Content-Type", "text/plain");
     res.sendFile(robotsPath);
@@ -102,7 +98,7 @@ Sitemap: https://sjtutorai.vercel.app/sitemap.xml`);
 });
 
 app.get("/sitemap.xml", (req, res) => {
-  const sitemapPath = path.resolve(resolvedDirname, "public", "sitemap.xml");
+  const sitemapPath = path.resolve(process.cwd(), "public", "sitemap.xml");
   if (fs.existsSync(sitemapPath)) {
     res.setHeader("Content-Type", "application/xml");
     res.sendFile(sitemapPath);
@@ -449,7 +445,7 @@ async function startServer() {
       if (process.env.NODE_ENV !== "production") {
          next();
       } else {
-         const indexPath = path.resolve(resolvedDirname, "dist", "index.html");
+         const indexPath = path.resolve(process.cwd(), "dist", "index.html");
          let html = await fs.promises.readFile(indexPath, 'utf-8');
          html = html.replace('<title>SJ Tutor AI - Your AI Study Buddy</title>', metaTags);
          res.send(html);
@@ -466,9 +462,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static("dist"));
-    app.get("*", (req, res) => {
-      res.sendFile(path.resolve(resolvedDirname, "dist", "index.html"));
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("{*path}", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 

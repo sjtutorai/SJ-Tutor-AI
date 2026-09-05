@@ -1,19 +1,15 @@
 import webpush from "web-push";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const resolvedFilename = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
-const resolvedDirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(resolvedFilename);
 
 // Data directory for persistent server-side push subscriptions & VAPID keys
-const DATA_DIR = path.resolve(resolvedDirname, "../../data");
-if (!fs.existsSync(DATA_DIR)) {
-  try {
+const DATA_DIR = path.join(process.cwd(), "data");
+try {
+  if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-  } catch (err) {
-    console.warn("[Push Service] Error creating data directory:", err);
   }
+} catch (err) {
+  console.warn("[Push Service] Error creating data directory:", err);
 }
 
 const VAPID_FILE = path.join(DATA_DIR, "vapid-keys.json");

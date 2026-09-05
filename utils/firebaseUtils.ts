@@ -6,7 +6,17 @@ import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, G
 export const saveProfileToFirestore = async (uid: string, profile: Partial<UserProfile>) => {
   try {
     const userDocRef = doc(db, "users", uid);
-    await setDoc(userDocRef, profile, { merge: true });
+    const sanitized = sanitizeForFirestore(profile);
+    await setDoc(userDocRef, { ...sanitized, updatedAt: serverTimestamp() }, { merge: true });
+    
+    // Maintain immediate local cache
+    try {
+      const existingRaw = localStorage.getItem(`profile_${uid}`);
+      const existing = existingRaw ? JSON.parse(existingRaw) : {};
+      localStorage.setItem(`profile_${uid}`, JSON.stringify({ ...existing, ...sanitized }));
+    } catch (lsErr) {
+      console.warn("Could not update profile cache in localStorage:", lsErr);
+    }
     return true;
   } catch (error: any) {
     const isOffline = !navigator.onLine || (error && error.message && error.message.includes("offline"));
@@ -25,11 +35,17 @@ export const getProfileFromFirestore = async (uid: string): Promise<UserProfile 
     const docSnap = await getDoc(userDocRef);
     if (docSnap.exists()) {
       const data = docSnap.data() as UserProfile;
-      return {
+      const profile = {
         ...data,
         isRegisteredInFirestore: true,
         hasCompletedOnboarding: data.hasCompletedOnboarding ?? true,
       };
+      try {
+        localStorage.setItem(`profile_${uid}`, JSON.stringify(profile));
+      } catch (lsErr) {
+        console.warn("Could not cache profile in localStorage:", lsErr);
+      }
+      return profile;
     }
     return null;
   } catch (error: any) {

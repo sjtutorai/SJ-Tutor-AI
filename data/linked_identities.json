@@ -1,0 +1,20 @@
+{
+  "google_sjtutorai@gmail.com": {
+    "userId": "admin_uid_sjtutor",
+    "provider": "google",
+    "providerEmail": "sjtutorai@gmail.com",
+    "verified": true
+  },
+  "sj_tutor_ai_id_SJTA-DEMO01": {
+    "userId": "demo_student_uid_01",
+    "provider": "sj_tutor_ai_id",
+    "providerEmail": "demo.student@sjtutor.ai",
+    "verified": true
+  },
+  "sj_tutor_ai_id_SJTA-ADMIN01": {
+    "userId": "admin_uid_sjtutor",
+    "provider": "sj_tutor_ai_id",
+    "providerEmail": "sjtutorai@gmail.com",
+    "verified": true
+  }
+}
