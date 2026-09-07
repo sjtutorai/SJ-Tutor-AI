@@ -3,7 +3,7 @@
 const CACHE_NAME = 'sjtutor-offline-v2';
 const STATIC_ASSETS = [
   '/',
-  'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
+  '/SJ-Tutor-AI-Logo.jpg',
   '/index.html',
   '/manifest.json'
 ];

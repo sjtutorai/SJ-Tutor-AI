@@ -27,14 +27,16 @@ const APPS_TO_BLOCK = [
 
 const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) => {
   // Generate or retrieve unique device session ID to identify local vs remote updates
-  const deviceIdRef = useRef<string>(() => {
-    let id = sessionStorage.getItem('sjtutor_device_id');
-    if (!id) {
-      id = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      sessionStorage.setItem('sjtutor_device_id', id);
-    }
-    return id;
-  });
+  const deviceIdRef = useRef<string>(
+    (() => {
+      let id = sessionStorage.getItem('sjtutor_device_id');
+      if (!id) {
+        id = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        sessionStorage.setItem('sjtutor_device_id', id);
+      }
+      return id;
+    })()
+  );
 
   // Input states
   const [inputH, setInputH] = useState('00');
@@ -269,8 +271,13 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
     setShowFocusSetup(false);
     setShowPermDialog(false);
 
-    if (Notification.permission === "default") {
-      Notification.requestPermission();
+    try {
+      const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
+      if (!isInsideIframe && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
+      }
+    } catch {
+      // ignore
     }
 
     // Sync across all devices for this email

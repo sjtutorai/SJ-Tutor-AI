@@ -117,6 +117,7 @@ export interface UserProfile {
   securityAnswer?: string;
   securityQuestionSetAt?: number;
   lastProfileUpdate?: number;
+  lastActivityDate?: string;
   createdAt?: number | any;
   updatedAt?: number | any;
 }
@@ -351,6 +352,7 @@ export interface GroupMessage {
   timestamp: number;
   type: 'text' | 'image' | 'poll' | 'system' | 'note' | 'voice';
   mediaUrl?: string;
+  voiceUrl?: string;
   noteData?: { title: string; content: string; subject?: string };
   pollData?: GroupPoll;
   replyTo?: { id: string; senderName: string; text: string };
@@ -388,8 +390,6 @@ export interface StudyGroup {
   };
   chatBgImage?: string;
   chatBgColor?: string;
-  chatBgOverlay?: number;
-  chatBgBlur?: number;
   chatBgOverlay?: number; // 0 to 1
   chatBgBlur?: number; // 0 to 20 px
 }
@@ -527,6 +527,8 @@ export interface GroupCallParticipant {
   photoURL?: string;
   isMuted: boolean;
   isVideoOff: boolean;
+  isAudioMuted?: boolean;
+  isVideoMuted?: boolean;
   isScreenSharing: boolean;
   isHandRaised: boolean;
   joinedAt: number;
@@ -538,6 +540,7 @@ export interface GroupCall {
   groupId: string;
   groupName: string;
   hostUid: string;
+  hostId?: string;
   hostName: string;
   type: CallType;
   status: 'active' | 'ended';

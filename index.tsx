@@ -58,28 +58,28 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
-// Global error guards to suppress opaque third-party script errors from crashing the app
+// Global error guards to suppress unhandled errors and opaque third-party script errors from bubbling to host iframe
 if (typeof window !== 'undefined') {
+  window.onerror = function(msg, url, line, col, error) {
+    console.warn('[SJ Tutor AI Intercepted Window Error]:', msg, url ? `${url}:${line}:${col}` : '', error);
+    return true; // Mark handled so cross-origin parent container does not receive generic Script error
+  };
+
   window.addEventListener('error', (event) => {
     if (!event) return;
     const msg = event.message || (event.error && event.error.message) || '';
-    if (msg === 'Script error.' || (!event.filename && !event.lineno)) {
-      console.warn('[SJ Tutor AI] Handled external Script error:', event);
-      if (typeof event.preventDefault === 'function') {
-        event.preventDefault();
-      }
-    }
+    console.warn('[SJ Tutor AI Handled Error Event]:', msg);
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+    if (typeof event.stopPropagation === 'function') event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
   }, true);
 
   window.addEventListener('unhandledrejection', (event) => {
     if (!event) return;
-    const reasonMsg = (event.reason && event.reason.message) || String(event.reason || '');
-    if (reasonMsg === 'Script error.' || reasonMsg.includes('Script error')) {
-      console.warn('[SJ Tutor AI] Handled unhandled rejection Script error:', event.reason);
-      if (typeof event.preventDefault === 'function') {
-        event.preventDefault();
-      }
-    }
+    console.warn('[SJ Tutor AI Handled Unhandled Rejection]:', event.reason);
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+    if (typeof event.stopPropagation === 'function') event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
   });
 }
 

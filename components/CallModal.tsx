@@ -1549,7 +1549,11 @@ export const CallModal: React.FC<CallModalProps> = ({
           <div>
             <div className="flex items-center gap-1.5">
               <p className="text-xs font-bold text-slate-200 truncate max-w-[110px]">{otherPersonName}</p>
-              {isOtherPersonMuted && <MicOff className="w-3 h-3 text-rose-400" title="Microphone muted" />}
+              {isOtherPersonMuted && (
+                <span title="Microphone muted">
+                  <MicOff className="w-3 h-3 text-rose-400" />
+                </span>
+              )}
             </div>
             <p className="text-[10px] font-mono text-emerald-400">{formatSeconds(callDuration)}</p>
           </div>

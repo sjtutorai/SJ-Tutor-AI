@@ -27,9 +27,11 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
   } = useStreak();
 
   const [hoveredDay, setHoveredDay] = useState<{
+    date?: Date;
     dateStr: string;
     dayNum: number;
     dayOfWeek: string;
+    fullDateFormatted?: string;
     level: number;
     isToday: boolean;
     isFrozen: boolean;

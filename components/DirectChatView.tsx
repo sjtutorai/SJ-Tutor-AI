@@ -864,9 +864,9 @@ export const DirectChatView: React.FC<DirectChatViewProps> = ({
                             <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate">
                               {friendInfo.displayName}
                             </h4>
-                            {friendInfo.registrationNumber && (
+                            {(friendInfo as any).registrationNumber && (
                               <p className="text-[10px] text-amber-600 dark:text-amber-400 font-mono">
-                                ID: {friendInfo.registrationNumber}
+                                ID: {(friendInfo as any).registrationNumber}
                               </p>
                             )}
                           </div>

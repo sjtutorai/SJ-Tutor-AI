@@ -391,7 +391,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   // Sync messages state when switching sessions from sidebar or history
   useEffect(() => {
     if (activeSessionId && activeSessionId !== currentSessionIdRef.current) {
-      setLoadedSessionId(activeSessionId);
       setCurrentSessionId(activeSessionId);
       currentSessionIdRef.current = activeSessionId;
       const matched = recentSessions?.find(s => s.id === activeSessionId);

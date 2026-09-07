@@ -16,7 +16,8 @@ export interface TrialInfo {
   formattedTime: string;
 }
 
-export function calculateTrialInfo(userProfile?: UserProfile): TrialInfo {
+export function calculateTrialInfo(userProfile?: UserProfile, uid?: string): TrialInfo {
+  void uid;
   const isPro = Boolean(
     userProfile?.planType && 
     userProfile.planType !== 'Free'

@@ -204,7 +204,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   // Personal Group Wallpapers (Personal to this user, not shared with other group members)
   const [personalGroupBgs, setPersonalGroupBgs] = useState<Record<string, ChatBgSettings>>(() => {
     try {
-      const storageKey = `sjtutor_personal_group_bg_${userProfile?.uid || user?.uid || 'guest'}`;
+      const storageKey = `sjtutor_personal_group_bg_${userProfile?.uid || currentUid || 'guest'}`;
       const saved = localStorage.getItem(storageKey);
       return saved ? JSON.parse(saved) : {};
     } catch {

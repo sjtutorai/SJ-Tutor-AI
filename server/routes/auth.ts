@@ -26,6 +26,7 @@ const sharedContentStore = new Map<string, any>();
 export interface SjTutorAccount {
   sjTutorId: string;
   userId: string;
+  uid?: string;
   displayName: string;
   firstName?: string;
   lastName?: string;
@@ -878,6 +879,7 @@ router.post("/login-with-id-card", async (req, res) => {
     if (!matchedAccount && (cleanEmail === "sadanandj2011@gmail.com" || cleanId === "SJTA-ACHIEVER01")) {
       matchedAccount = {
         uid: "sadanand_uid_achiever",
+        userId: "sadanand_uid_achiever",
         sjTutorId: "SJTA-ACHIEVER01",
         username: "sadanand",
         email: "sadanandj2011@gmail.com",
@@ -895,9 +897,11 @@ router.post("/login-with-id-card", async (req, res) => {
         securityQuestion: "What is your dream goal?",
         securityAnswerHash: "seeded_answer",
         hasEmail: true,
+        twoStepEnabled: false,
         createdAt: Date.now(),
+        updatedAt: Date.now(),
         lastLoginAt: Date.now(),
-      };
+      } as any;
     }
 
     if (!matchedAccount) {

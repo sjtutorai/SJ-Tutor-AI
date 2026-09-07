@@ -26,6 +26,7 @@ import {
   yahooProvider,
 } from "../firebaseConfig";
 import { getMembershipByEmail } from "../utils/userService";
+import { SecurityPinService } from "./securityPinService";
 import type { AuthProviderType } from "../types";
 
 export type AuthResultStatus =
@@ -174,7 +175,7 @@ export async function handleSocialAuth(
       serverExists = await checkIdentityExists({ email: currentUser.email, provider: providerType, identifier: currentUser.uid });
     }
 
-    const isRegistered = existingFirestoreAccount || identityDoc.exists() || serverExists || (!isNew && userDocSnap.data()?.sjTutorId);
+    const isRegistered = existingFirestoreAccount || identityDoc.exists() || serverExists || (!isNew && (userDocSnap as any).data()?.sjTutorId);
 
     // ----------------------------------------------------
     // CASE A: User is in SIGN UP mode, but account ALREADY exists!

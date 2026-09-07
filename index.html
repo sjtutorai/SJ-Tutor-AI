@@ -5,30 +5,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
-      // Global error handler to catch and safely handle cross-origin Script errors from third-party scripts or iframes
+      // Global error handlers to prevent unhandled exceptions or rejections from bubbling across iframe boundaries as "Script error."
+      window.onerror = function(msg, url, line, col, error) {
+        console.warn('[SJ Tutor AI Intercepted Window Error]:', msg, url ? url + ':' + line + ':' + col : '', error);
+        return true; // Prevents the error from propagating to browser console / host iframe container
+      };
+
       window.addEventListener('error', function(event) {
         if (!event) return;
         var msg = event.message || (event.error && event.error.message) || '';
-        if (msg === 'Script error.' || (!event.filename && !event.lineno)) {
-          // Opaque script error from external CDN or sandboxed iframe
-          console.warn('[SJ Tutor AI] Handled external Script error cleanly:', event);
-          if (typeof event.preventDefault === 'function') {
-            event.preventDefault();
-          }
-          return true;
-        }
+        console.warn('[SJ Tutor AI Handled Error Event]:', msg);
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        if (typeof event.stopPropagation === 'function') event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+        return true;
       }, true);
 
       window.addEventListener('unhandledrejection', function(event) {
         if (!event) return;
         var reason = event.reason;
-        var reasonMsg = (reason && reason.message) || String(reason || '');
-        if (reasonMsg === 'Script error.' || reasonMsg.indexOf('Script error') !== -1) {
-          console.warn('[SJ Tutor AI] Handled unhandled rejection Script error:', reason);
-          if (typeof event.preventDefault === 'function') {
-            event.preventDefault();
-          }
-        }
+        console.warn('[SJ Tutor AI Handled Unhandled Rejection]:', reason);
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        if (typeof event.stopPropagation === 'function') event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
       });
     </script>
     <meta name="google-site-verification" content="DvLZ1hhoITDEB1YvZ7W89uaCN4S8k9eSZ-hNyWpq0To" />

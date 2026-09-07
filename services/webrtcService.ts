@@ -16,16 +16,10 @@ import {
   DirectCall,
   GroupCall,
   GroupCallParticipant,
+  RingtoneStyle,
 } from "../types";
 import { NotificationService } from "./notificationService";
 import { SettingsService } from "./settingsService";
-import {
-  CallType,
-  DirectCall,
-  GroupCall,
-  GroupCallParticipant,
-  RingtoneStyle,
-} from "../types";
 
 // ==========================================
 // 1. Web Audio API Ringtone & Chime Synthesizer

@@ -243,18 +243,24 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const messaging = await getFCM();
       if (!messaging) return;
 
-      if (Notification.permission !== 'granted') {
+      const hasNotificationPermission = typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted';
+      if (!hasNotificationPermission) {
         return;
       }
 
       const vapidKey = (import.meta as any).env.VITE_FIREBASE_VAPID_KEY || 'BMrbB4gM7e_E9l_YvZ7W89uaCN4S8k9eSZ-hNyWpq0To';
 
       let reg: ServiceWorkerRegistration | undefined;
-      if ('serviceWorker' in navigator) {
-        reg = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
-        if (!reg) {
-          reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      try {
+        const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
+        if (!isInsideIframe && 'serviceWorker' in navigator) {
+          reg = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+          if (!reg) {
+            reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          }
         }
+      } catch (swErr) {
+        console.warn('FCM SW registration not supported in this frame:', swErr);
       }
 
       const token = await getToken(messaging, { 
@@ -289,7 +295,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
-      if (user && Notification.permission === 'granted') {
+      const hasPermission = typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted';
+      if (user && hasPermission) {
         NotificationService.registerPushSubscription(user.uid).catch(() => {});
         setupFCM(user).catch(() => {});
       }
@@ -454,16 +461,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     }
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/firebase-messaging-sw.js')
-        .then((reg) => {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('FCM Service Worker registered successfully: ', reg.scope);
-          }
-        })
-        .catch((err) => {
-          console.warn('Service Worker registration failed:', err);
-        });
+    const isInsideIframe = (() => {
+      try {
+        return window.self !== window.top;
+      } catch {
+        return true;
+      }
+    })();
+
+    if (!isInsideIframe && 'serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+      try {
+        navigator.serviceWorker.register('/firebase-messaging-sw.js')
+          .then((reg) => {
+            if (process.env.NODE_ENV === 'development') {
+              console.log('FCM Service Worker registered successfully: ', reg.scope);
+            }
+          })
+          .catch((err) => {
+            console.warn('Service Worker registration skipped/failed:', err?.message || err);
+          });
+      } catch (e) {
+        console.warn('Service worker registration exception handled:', e);
+      }
     }
 
     return () => {

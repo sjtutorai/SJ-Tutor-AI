@@ -186,7 +186,8 @@ export class NotificationService {
     userId: string, 
     existingReg?: ServiceWorkerRegistration
   ): Promise<PushSubscription | null> {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
+    if (isInsideIframe || !('serviceWorker' in navigator) || !('PushManager' in window)) {
       return null;
     }
 
@@ -272,7 +273,8 @@ export class NotificationService {
    * Register the background push service worker.
    */
   static async registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
-    if (!('serviceWorker' in navigator)) {
+    const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
+    if (isInsideIframe || !('serviceWorker' in navigator)) {
       return null;
     }
 
@@ -284,7 +286,7 @@ export class NotificationService {
       console.log('[NotificationService] Service Worker registered with scope:', registration.scope);
       return registration;
     } catch (error) {
-      console.error('[NotificationService] Service Worker registration failed:', error);
+      console.warn('[NotificationService] Service Worker registration notice:', error);
       return null;
     }
   }

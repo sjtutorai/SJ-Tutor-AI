@@ -46,10 +46,9 @@ import Tutorial from "./components/Tutorial";
 import { useStreak } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
 import { StreakRewardModal } from "./components/StreakRewardModal";
-import { TrialHeaderBadge, TrialBannerCard, calculateTrialInfo } from "./components/TrialTimerWidget";
+import { TrialBannerCard, calculateTrialInfo } from "./components/TrialTimerWidget";
 import { SharedContentView } from "./components/SharedContentView";
 import { PublicShareViewer } from "./components/PublicShareViewer";
-import { DevicesHeaderButton } from "./components/DevicesHeaderButton";
 import { DevicesModal } from "./components/DevicesModal";
 import { DeviceService, DeviceSession, getCurrentDeviceId } from "./services/deviceService";
 import { SecurityPinLockScreen } from "./components/SecurityPinLockScreen";
@@ -74,7 +73,7 @@ import { db, auth } from "./firebaseConfig";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { StudyGroup } from "./types";
 import { getCurrentUserProfile, getMembershipByEmail } from "./utils/userService";
-import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, } from "firebase/auth";
+import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo, } from "firebase/auth";
 import type { User } from "firebase/auth";
 import {
   FileText,
@@ -831,9 +830,18 @@ const App: React.FC = () => {
 
   // Notification Service
   useEffect(() => {
-    // Request permission on mount
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
+    const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
+    
+    // Request permission only if top-level window and supported
+    if (!isInsideIframe && typeof window !== 'undefined' && "Notification" in window && Notification.permission === "default") {
+      try {
+        const p = Notification.requestPermission();
+        if (p && typeof p.catch === 'function') {
+          p.catch(() => {});
+        }
+      } catch {
+        // Suppress errors if permission requests are blocked
+      }
     }
 
     const interval = setInterval(() => {
@@ -851,27 +859,22 @@ const App: React.FC = () => {
               const dueTime = new Date(item.dueTime).getTime();
               // Check if the due time fell within the last check interval window
               if (dueTime > lastCheck && dueTime <= now) {
-                if (Notification.permission === "granted") {
-                  new Notification("SJ Tutor AI Reminder", {
-                    body: item.task,
-                    icon: SJTUTOR_AVATAR,
-                  });
-                } else if (Notification.permission !== "denied") {
-                  Notification.requestPermission().then((permission) => {
-                    if (permission === "granted") {
-                      new Notification("SJ Tutor AI Reminder", {
-                        body: item.task,
-                        icon: SJTUTOR_AVATAR,
-                      });
-                    }
-                  });
+                if (typeof window !== 'undefined' && "Notification" in window && Notification.permission === "granted") {
+                  try {
+                    new Notification("SJ Tutor AI Reminder", {
+                      body: item.task,
+                      icon: SJTUTOR_AVATAR,
+                    });
+                  } catch {
+                    // Ignore notification construction errors in restricted sandboxes
+                  }
                 }
               }
             }
           });
         }
       } catch (e) {
-        console.error("Error checking reminders", e);
+        console.warn("Error checking reminders", e);
       }
 
       lastNotificationCheck.current = now;
@@ -3619,6 +3622,7 @@ const App: React.FC = () => {
                   id: group.id,
                   groupId: group.id,
                   groupName: group.name,
+                  hostUid: user ? user.uid : 'guest',
                   hostId: user ? user.uid : 'guest',
                   hostName: userProfile.displayName || 'Scholar User',
                   type,
@@ -3630,9 +3634,12 @@ const App: React.FC = () => {
                       displayName: userProfile.displayName || 'Scholar User',
                       photoURL: userProfile.photoURL || '',
                       joinedAt: Date.now(),
+                      isMuted: false,
+                      isVideoOff: type === 'audio',
                       isAudioMuted: false,
                       isVideoMuted: type === 'audio',
                       isScreenSharing: false,
+                      isHandRaised: false,
                     }
                   }
                 });
@@ -4071,14 +4078,7 @@ const App: React.FC = () => {
               <Sun className="w-5 h-5 block dark:hidden" />
             </button>
 
-            {/* Devices Logged In Button */}
-            {user && (
-              <DevicesHeaderButton 
-                devices={loggedInDevices} 
-                onClick={() => setShowDevicesModal(true)} 
-              />
-            )}
-
+            {/* Notifications */}
             <div className="relative">
               <button
                 onClick={() => {
@@ -4129,12 +4129,6 @@ const App: React.FC = () => {
                 <span className="hidden sm:inline text-[11px] font-medium text-amber-600/80 dark:text-amber-400/80">days</span>
               </div>
             )}
-
-            <TrialHeaderBadge 
-              userProfile={userProfile} 
-              uid={user?.uid} 
-              onOpenUpgrade={openPremiumModal} 
-            />
 
             {/* User Account & Direct Log Out Dropdown */}
             {user ? (

@@ -430,7 +430,7 @@ export const SecurityPinService = {
   clearLocalConfig: (uid: string): void => {
     try {
       localStorage.removeItem(`${LOCAL_PIN_PREFIX}${uid}`);
-      sessionStorage.removeItem(`${STORAGE_SESSION_PREFIX}${uid}`);
+      sessionStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);
     } catch (e) {
       console.warn('Failed to clear PIN config', e);
     }
