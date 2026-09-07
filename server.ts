@@ -25,8 +25,9 @@ app.get('/favicon.ico', (req, res) => {
   res.sendFile(filePath);
 });
 
-app.get('/favicon-48x48.png', (req, res) => {
-  const filePath = path.resolve(process.cwd(), "public", "favicon-48x48.png");
+app.get(['/favicon-48x48.png', '/favicon-96x96.png', '/favicon-144x144.png'], (req, res) => {
+  const file = req.path.replace('/', '');
+  const filePath = path.resolve(process.cwd(), "public", file);
   res.setHeader("Content-Type", "image/png");
   res.setHeader("Cache-Control", "public, max-age=86400");
   res.sendFile(filePath);
@@ -480,6 +481,42 @@ async function startServer() {
          let html = await fs.promises.readFile(indexPath, 'utf-8');
          html = html.replace('<title>SJ Tutor AI - Your AI Study Buddy</title>', metaTags);
          res.send(html);
+      }
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // Handle shared content routes with open graph tags and SPA entry fallback
+  app.get(["/share/:shareId", "/shared/:shareId"], async (req, res, next) => {
+    try {
+      const { shareId } = req.params;
+      const title = `Shared Study Material | SJ Tutor AI`;
+      const desc = `Access interactive practice quizzes, comprehensive chapter summaries, and AI homework solutions on SJ Tutor AI.`;
+
+      const metaTags = `
+        <title>${title}</title>
+        <meta name="description" content="${desc}">
+        <meta property="og:title" content="🎓 ${title}">
+        <meta property="og:description" content="${desc}">
+        <meta property="og:type" content="website">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="${title}">
+        <meta name="twitter:description" content="${desc}">
+        <link rel="canonical" href="https://sjtutorai.vercel.app/share/${shareId}">
+      `;
+
+      if (process.env.NODE_ENV !== "production") {
+        next();
+      } else {
+        const indexPath = path.resolve(process.cwd(), "dist", "index.html");
+        if (fs.existsSync(indexPath)) {
+          let html = await fs.promises.readFile(indexPath, 'utf-8');
+          html = html.replace('<title>SJ Tutor AI - Your AI Study Buddy</title>', metaTags);
+          res.send(html);
+        } else {
+          next();
+        }
       }
     } catch (e) {
       next(e);

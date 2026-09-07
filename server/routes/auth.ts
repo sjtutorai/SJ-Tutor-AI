@@ -1132,19 +1132,23 @@ router.post("/link-identity", (req, res) => {
 
 router.post("/share", async (req, res) => {
   try {
-    const { type, title, subtitle, content } = req.body;
-    const id = uuidv4().slice(0, 8);
+    const { shareId, id: providedId, customId, type, title, subtitle, content, ownerUid } = req.body;
+    const id = shareId || customId || providedId || uuidv4().slice(0, 8);
 
-    sharedContentStore.set(id, {
+    const record = {
       id,
+      shareId: id,
       type,
       title,
       subtitle,
       content,
+      ownerUid: ownerUid || "guest",
       createdAt: new Date(),
-    });
+    };
 
-    res.json({ success: true, id });
+    sharedContentStore.set(id, record);
+
+    res.json({ success: true, id, shareId: id, data: record });
   } catch (error: any) {
     console.error("[SHARE] Error:", error);
     res.status(500).json({ message: "Failed to share content", error: error.message });

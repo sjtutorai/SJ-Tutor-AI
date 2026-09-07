@@ -11,7 +11,12 @@ interface LogoProps {
 }
 
 const FALLBACK_SOURCES = [
-  SJTUTOR_LOGO_URL, // "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg"
+  "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+  "/SJ-Tutor-AI-Logo.jpg",
+  "/logo.jpg",
+  "/logo.png",
+  "/images/sjtutor-logo.png",
+  SJTUTOR_LOGO_URL,
   SJTUTOR_AVATAR_IBB,
   SJTUTOR_AVATAR,
   SJTUTOR_AVATAR_REMOTE
@@ -111,11 +116,10 @@ export default function Logo({
       {!hasAllFailed && currentSrc ? (
         <img 
           src={currentSrc} 
-          alt="SJ-Tutor-AI-Logo" 
+          alt="SJ Tutor AI Logo" 
           className="w-full h-full object-cover block select-none pointer-events-none"
           loading="eager"
           decoding="async"
-          referrerPolicy="no-referrer"
           onError={handleImageError}
         />
       ) : (

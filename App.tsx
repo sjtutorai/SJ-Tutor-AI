@@ -989,7 +989,20 @@ const App: React.FC = () => {
           let item = await getSharedContent(shareId);
           console.log("[SHARE AUDIT] Firestore fetch status:", item ? "Success" : "Not found in Firestore, attempting API fallback");
           
-          // 2. Fallback to server API if not found in Firestore
+          // 2. Fallback to localStorage / sessionStorage cache
+          if (!item) {
+            try {
+              const localCached = localStorage.getItem(`sjtutor_shared_${shareId}`) || sessionStorage.getItem(`sjtutor_shared_${shareId}`);
+              if (localCached) {
+                item = JSON.parse(localCached);
+                console.log("[SHARE AUDIT] Loaded from local browser cache:", item);
+              }
+            } catch (localErr) {
+              console.warn("[SHARE AUDIT] Error reading local share cache:", localErr);
+            }
+          }
+
+          // 3. Fallback to server API if not found in Firestore or local storage
           if (!item) {
             try {
               console.log("[SHARE AUDIT] Calling API route fallback /api/auth/share/" + shareId);
@@ -1029,9 +1042,27 @@ const App: React.FC = () => {
               gradeClass: item.subtitle?.split(" • ")[0] || "",
             }));
           } else {
-            console.error("Shared content not found or expired.");
+            console.error("Shared content not found or expired in database.");
             if (shareId.startsWith("quiz_")) {
-              setQuizNotFoundError(true);
+              const parts = shareId.split("_");
+              if (parts.length >= 3) {
+                const cls = parts[1].replace(/-/g, " ");
+                const sub = parts[2].replace(/-/g, " ");
+                const chp = parts.slice(3).join(" ").replace(/-/g, " ");
+                setFormData((prev) => ({
+                  ...prev,
+                  gradeClass: cls,
+                  subject: sub,
+                  chapterName: chp || "Practice Quiz",
+                }));
+                setMode(AppMode.QUIZ);
+                triggerToast("Quiz Ready To Generate", `Loaded quiz topic for Class ${cls} (${sub} • ${chp}). Click "Generate Quiz" to begin!`, "Important Alerts");
+              } else {
+                setQuizNotFoundError(true);
+              }
+            } else {
+              triggerToast("Shared Content Notice", "The requested shared item was not found. Redirected to your learning dashboard.", "Important Alerts");
+              setMode(AppMode.DASHBOARD);
             }
           }
         } catch (err) {
@@ -1954,6 +1985,30 @@ const App: React.FC = () => {
         // 5. User Feedback: "Unable to generate share link."
         triggerToast("Unable to generate share link.", "The database could not create a unique resource identifier.", "Important Alerts");
         return;
+      }
+
+      // Cache locally and on server for instantaneous resolution
+      try {
+        const payload = {
+          shareId,
+          id: shareId,
+          type,
+          title,
+          content,
+          ownerUid: uid,
+          customId,
+          customUrl,
+          createdAt: Date.now()
+        };
+        localStorage.setItem(`sjtutor_shared_${shareId}`, JSON.stringify(payload));
+        sessionStorage.setItem(`sjtutor_shared_${shareId}`, JSON.stringify(payload));
+        fetch('/api/auth/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      } catch (cacheErr) {
+        console.warn("[SHARE AUDIT] Local cache write warning:", cacheErr);
       }
 
       // 2. Generate the Share URL

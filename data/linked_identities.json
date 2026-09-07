@@ -22,5 +22,11 @@
     "provider": "sj_tutor_ai_id",
     "providerEmail": "sjtutorai@gmail.com",
     "verified": true
+  },
+  "sj_tutor_ai_id_SJTA-ACHIEVER01": {
+    "userId": "sadanand_uid_achiever",
+    "provider": "sj_tutor_ai_id",
+    "providerEmail": "sadanandj2011@gmail.com",
+    "verified": true
   }
 }
