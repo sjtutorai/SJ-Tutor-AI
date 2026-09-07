@@ -8,10 +8,13 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "firebase deploy",
+    "deploy:hosting": "firebase deploy --only hosting"
   },
   "dependencies": {
     "@google/genai": "^1.32.0",
+    "@tailwindcss/vite": "^4.3.3",
     "axios": "^1.13.5",
     "bcryptjs": "^3.0.3",
     "canvas-confetti": "^1.9.4",
@@ -30,6 +33,7 @@
     "react-dom": "^19.2.1",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
     "uuid": "^13.0.0",
     "web-push": "^3.6.7"

@@ -1,6 +1,6 @@
 /**
  * SJ Tutor AI - SEO Service & Dynamic Metadata Engine
- * Ensures canonical consistency (https://sjtutorai.vercel.app), dynamic title/meta synchronization,
+ * Ensures canonical consistency (https://sj-tutorai.web.app), dynamic title/meta synchronization,
  * Open Graph, Twitter cards, and Schema.org JSON-LD structured data.
  */
 
@@ -15,7 +15,7 @@ export interface SEOConfig {
   noindex?: boolean;
 }
 
-export const CANONICAL_BASE_URL = 'https://sjtutorai.vercel.app';
+export const CANONICAL_BASE_URL = 'https://sj-tutorai.web.app';
 export const DEFAULT_LOGO_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_FAVICON_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';

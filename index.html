@@ -4,6 +4,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Global error handler to catch and safely handle cross-origin Script errors from third-party scripts or iframes
+      window.addEventListener('error', function(event) {
+        if (!event) return;
+        var msg = event.message || (event.error && event.error.message) || '';
+        if (msg === 'Script error.' || (!event.filename && !event.lineno)) {
+          // Opaque script error from external CDN or sandboxed iframe
+          console.warn('[SJ Tutor AI] Handled external Script error cleanly:', event);
+          if (typeof event.preventDefault === 'function') {
+            event.preventDefault();
+          }
+          return true;
+        }
+      }, true);
+
+      window.addEventListener('unhandledrejection', function(event) {
+        if (!event) return;
+        var reason = event.reason;
+        var reasonMsg = (reason && reason.message) || String(reason || '');
+        if (reasonMsg === 'Script error.' || reasonMsg.indexOf('Script error') !== -1) {
+          console.warn('[SJ Tutor AI] Handled unhandled rejection Script error:', reason);
+          if (typeof event.preventDefault === 'function') {
+            event.preventDefault();
+          }
+        }
+      });
+    </script>
     <meta name="google-site-verification" content="DvLZ1hhoITDEB1YvZ7W89uaCN4S8k9eSZ-hNyWpq0To" />
     
     <!-- Primary Meta Tags -->
@@ -16,7 +43,7 @@
     <meta name="theme-color" content="#D4AF37" />
 
     <!-- Canonical URL -->
-    <link rel="canonical" href="https://sjtutorai.vercel.app/" />
+    <link rel="canonical" href="https://sj-tutorai.web.app/" />
 
     <!-- Direct Link to Official Favicon and Multi-Resolution App Icons -->
     <link rel="icon" type="image/jpeg" href="https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg" />
@@ -41,7 +68,7 @@
     <!-- Open Graph / Facebook / WhatsApp / Telegram -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="SJ Tutor AI" />
-    <meta property="og:url" content="https://sjtutorai.vercel.app/" />
+    <meta property="og:url" content="https://sj-tutorai.web.app/" />
     <meta property="og:title" content="SJ Tutor AI - Your AI Study Buddy" />
     <meta property="og:description" content="SJ Tutor AI is an all-in-one AI study companion that generates summaries, practice quizzes, homework solutions, and real-time scan-to-solve AI tutoring based on your curriculum." />
     <meta property="og:image" content="https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg" />
@@ -63,10 +90,10 @@
       "@graph": [
         {
           "@type": "Organization",
-          "@id": "https://sjtutorai.vercel.app/#organization",
+          "@id": "https://sj-tutorai.web.app/#organization",
           "name": "SJ Tutor AI",
           "alternateName": ["SJ Tutor", "SJTutorAI"],
-          "url": "https://sjtutorai.vercel.app/",
+          "url": "https://sj-tutorai.web.app/",
           "logo": {
             "@type": "ImageObject",
             "url": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
@@ -80,43 +107,41 @@
         },
         {
           "@type": "EducationalOrganization",
-          "@id": "https://sjtutorai.vercel.app/#educational-organization",
+          "@id": "https://sj-tutorai.web.app/#educational-organization",
           "name": "SJ Tutor AI",
-          "url": "https://sjtutorai.vercel.app/",
+          "url": "https://sj-tutorai.web.app/",
           "logo": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
           "image": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
           "description": "An all-in-one AI study companion that empowers students with interactive AI tutoring, instant quizzes, and homework solving."
         },
         {
           "@type": "WebSite",
-          "@id": "https://sjtutorai.vercel.app/#website",
-          "url": "https://sjtutorai.vercel.app/",
+          "@id": "https://sj-tutorai.web.app/#website",
+          "url": "https://sj-tutorai.web.app/",
           "name": "SJ Tutor AI",
           "alternateName": "SJ Tutor",
           "description": "An all-in-one AI study companion for students.",
           "publisher": {
-            "@id": "https://sjtutorai.vercel.app/#organization"
+            "@id": "https://sj-tutorai.web.app/#organization"
           }
         },
         {
           "@type": "EducationalApplication",
-          "@id": "https://sjtutorai.vercel.app/#application",
+          "@id": "https://sj-tutorai.web.app/#application",
           "name": "SJ Tutor AI",
           "alternateName": "SJ Tutor",
           "description": "An all-in-one AI study companion that helps students learn, practice, revise, and solve doubts.",
-          "url": "https://sjtutorai.vercel.app/",
+          "url": "https://sj-tutorai.web.app/",
           "image": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
           "applicationCategory": "EducationalApplication",
           "operatingSystem": "All",
           "publisher": {
-            "@id": "https://sjtutorai.vercel.app/#organization"
+            "@id": "https://sj-tutorai.web.app/#organization"
           }
         }
       ]
     }
     </script>
-    <!-- Tailwind CSS via CDN kept for simplicity in this setup -->
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -142,52 +167,6 @@
     <script>
       // Safety polyfill for process.env to prevent "process is not defined" errors in browser
       window.process = window.process || { env: {} };
-    </script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['var(--font-sans)', 'Inter', 'system-ui', 'sans-serif'],
-            },
-            colors: {
-              primary: {
-                50: 'var(--color-primary-50)', 
-                100: 'var(--color-primary-100)',
-                200: 'var(--color-primary-200)',
-                300: 'var(--color-primary-300)',
-                400: 'var(--color-primary-400)',
-                500: 'var(--color-primary-500)',
-                600: 'var(--color-primary-600)',
-                700: 'var(--color-primary-700)',
-                800: 'var(--color-primary-800)',
-                900: 'var(--color-primary-900)',
-              },
-              slate: {
-                850: '#1a202c', /* Premium Dark for text */
-                900: '#111827',
-              }
-            },
-            animation: {
-              blob: "blob 7s infinite",
-              'fade-in-up': 'fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
-            },
-            keyframes: {
-              blob: {
-                "0%": { transform: "translate(0px, 0px) scale(1)" },
-                "33%": { transform: "translate(30px, -50px) scale(1.1)" },
-                "66%": { transform: "translate(-20px, 20px) scale(0.9)" },
-                "100%": { transform: "translate(0px, 0px) scale(1)" },
-              },
-              fadeInUp: {
-                '0%': { opacity: '0', transform: 'translateY(20px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              }
-            },
-          },
-        },
-      }
     </script>
     <style>
       /* Default Variables to prevent flash */
@@ -353,7 +332,7 @@
     <div id="root">
       <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0b1120; color: #f8fafc; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;">
         <div style="position: relative; width: 88px; height: 88px; margin-bottom: 20px;">
-          <img src="/SJ-Tutor-AI-Logo.jpg" onerror="this.onerror=null;this.src='https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';" alt="SJ Tutor AI Logo" style="width: 88px; height: 88px; border-radius: 22px; box-shadow: 0 12px 30px -6px rgba(212, 175, 55, 0.45); object-fit: cover; border: 2px solid rgba(212, 175, 55, 0.5);" />
+          <img src="/SJ-Tutor-AI-Logo.jpg" alt="SJ Tutor AI Logo" style="width: 88px; height: 88px; border-radius: 22px; box-shadow: 0 12px 30px -6px rgba(212, 175, 55, 0.45); object-fit: cover; border: 2px solid rgba(212, 175, 55, 0.5);" />
         </div>
         <div style="font-size: 26px; font-weight: 800; letter-spacing: -0.03em; display: flex; align-items: center; gap: 8px;">
           SJ Tutor <span style="background: linear-gradient(135deg, #d4af37, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">AI</span>

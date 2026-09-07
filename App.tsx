@@ -85,6 +85,7 @@ import {
   Menu,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   LayoutDashboard,
   ArrowLeft,
   Calendar,
@@ -107,6 +108,7 @@ import {
   Search,
   X,
   Trash2,
+  Laptop,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GenerateContentResponse } from "@google/genai";
@@ -299,6 +301,25 @@ const App: React.FC = () => {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [loggedInDevices, setLoggedInDevices] = useState<DeviceSession[]>([]);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const isLoggingOutRef = useRef<boolean>(false);
+  const unsubProfileSnapshotRef = useRef<(() => void) | null>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+    if (showUserDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showUserDropdown]);
+
   const [isTwoStepVerified, setIsTwoStepVerified] = useState<boolean>(true);
   const [isPinSessionUnlocked, setIsPinSessionUnlocked] = useState<boolean>(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<any>('account');
@@ -1231,8 +1252,6 @@ const App: React.FC = () => {
 
   // Auth Listener & Real-time Profile Hydration
   useEffect(() => {
-    let unsubSnapshot: (() => void) | null = null;
-
     const timeoutId = setTimeout(() => {
       if (authLoading) {
         console.warn("Auth check timed out, defaulting to guest.");
@@ -1242,6 +1261,7 @@ const App: React.FC = () => {
 
     // Helper to check and hydrate an SJ Tutor AI ID session
     const checkSavedSjTutorSession = () => {
+      if (isLoggingOutRef.current) return null;
       try {
         const savedSession = localStorage.getItem("sjtutor_authenticated_user");
         if (savedSession) {
@@ -1275,15 +1295,17 @@ const App: React.FC = () => {
 
     // Helper to attach real-time Firestore onSnapshot for profile sync
     const attachProfileSnapshot = (targetUid: string, userEmail?: string | null) => {
-      if (unsubSnapshot) {
-        unsubSnapshot();
-        unsubSnapshot = null;
+      if (isLoggingOutRef.current) return;
+      if (unsubProfileSnapshotRef.current) {
+        unsubProfileSnapshotRef.current();
+        unsubProfileSnapshotRef.current = null;
       }
       try {
         const userRef = doc(db, "users", targetUid);
-        unsubSnapshot = onSnapshot(
+        unsubProfileSnapshotRef.current = onSnapshot(
           userRef,
           (docSnap) => {
+            if (isLoggingOutRef.current) return;
             if (docSnap.exists()) {
               const fsData = docSnap.data();
               const membership = getMembershipByEmail(fsData.email || userEmail);
@@ -1356,6 +1378,10 @@ const App: React.FC = () => {
       auth,
       async (currentUser) => {
         clearTimeout(timeoutId);
+        if (isLoggingOutRef.current) {
+          setAuthLoading(false);
+          return;
+        }
         if (currentUser) {
           setUser(currentUser);
 
@@ -1444,9 +1470,17 @@ const App: React.FC = () => {
     );
 
     const handleSjAuthChange = () => {
+      if (isLoggingOutRef.current) return;
       const sjUid = checkSavedSjTutorSession();
       if (sjUid) {
         attachProfileSnapshot(sjUid);
+      } else if (!auth.currentUser) {
+        if (unsubProfileSnapshotRef.current) {
+          unsubProfileSnapshotRef.current();
+          unsubProfileSnapshotRef.current = null;
+        }
+        setUser(null);
+        setUserProfile(initialProfileState);
       }
     };
     window.addEventListener("sjtutor_auth_changed", handleSjAuthChange);
@@ -1454,7 +1488,10 @@ const App: React.FC = () => {
     return () => {
       unsubscribe();
       clearTimeout(timeoutId);
-      if (unsubSnapshot) unsubSnapshot();
+      if (unsubProfileSnapshotRef.current) {
+        unsubProfileSnapshotRef.current();
+        unsubProfileSnapshotRef.current = null;
+      }
       window.removeEventListener("sjtutor_auth_changed", handleSjAuthChange);
     };
   }, []);
@@ -2434,47 +2471,126 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    try {
-      if (user) {
-        SecurityPinService.clearTwoStepVerified(user.uid);
-        SecurityPinService.lockSession(user.uid);
+    isLoggingOutRef.current = true;
+
+    if (unsubProfileSnapshotRef.current) {
+      unsubProfileSnapshotRef.current();
+      unsubProfileSnapshotRef.current = null;
+    }
+
+    setShowUserDropdown(false);
+    setShowDevicesModal(false);
+    setShowNotifDropdown(false);
+
+    const currentUid = user?.uid;
+    localStorage.removeItem("sjtutor_authenticated_user");
+    localStorage.removeItem("sjtutor_active_user");
+    localStorage.removeItem("sjtutor_device_login_time");
+    localStorage.removeItem("sjtutor_active_chat_state");
+    localStorage.removeItem("sjtutor_active_group_id");
+
+    if (currentUid) {
+      SecurityPinService.clearTwoStepVerified(currentUid);
+      SecurityPinService.lockSession(currentUid);
+      localStorage.removeItem(`sjtutor_pin_session_unlocked_${currentUid}`);
+      localStorage.removeItem(`sjtutor_2step_verified_${currentUid}`);
+    }
+
+    setUser(null);
+    setUserProfile(initialProfileState);
+    setIsTwoStepVerified(true);
+    setIsPinSessionUnlocked(true);
+    setMode(AppMode.DASHBOARD);
+    setDashboardView("OVERVIEW");
+    setPublicShareId(null);
+
+    window.dispatchEvent(new Event("sjtutor_auth_changed"));
+
+    if (currentUid) {
+      try {
         const currentDeviceId = getCurrentDeviceId();
-        await DeviceService.logoutDevice(user.uid, currentDeviceId);
+        DeviceService.logoutDevice(currentUid, currentDeviceId).catch((e) => {
+          console.warn("Notice revoking device session:", e);
+        });
+      } catch (err) {
+        console.warn("Device service notice:", err);
       }
+    }
+
+    try {
       await signOut(auth);
     } catch (error) {
-      console.error("Error signing out:", error);
+      console.warn("Firebase signOut notice:", error);
     } finally {
       localStorage.removeItem("sjtutor_authenticated_user");
-      setUser(null);
-      setUserProfile(initialProfileState);
-      setIsTwoStepVerified(true);
-      setIsPinSessionUnlocked(true);
-      setMode(AppMode.DASHBOARD);
-      setDashboardView("OVERVIEW");
+      localStorage.removeItem("sjtutor_active_user");
+      setTimeout(() => {
+        isLoggingOutRef.current = false;
+      }, 800);
     }
+
+    syncBrowserUrl(AppMode.DASHBOARD, { replace: true });
+    triggerToast("Logged Out Successfully", "You have been signed out from SJ Tutor AI.", "Important Alerts");
   };
 
   const handleLogoutAllDevices = async () => {
-    try {
-      if (user) {
-        SecurityPinService.clearTwoStepVerified(user.uid);
-        SecurityPinService.lockSession(user.uid);
-        await DeviceService.logoutAllDevices(user.uid);
+    isLoggingOutRef.current = true;
+
+    if (unsubProfileSnapshotRef.current) {
+      unsubProfileSnapshotRef.current();
+      unsubProfileSnapshotRef.current = null;
+    }
+
+    setShowUserDropdown(false);
+    setShowDevicesModal(false);
+    setShowNotifDropdown(false);
+
+    const currentUid = user?.uid;
+    localStorage.removeItem("sjtutor_authenticated_user");
+    localStorage.removeItem("sjtutor_active_user");
+    localStorage.removeItem("sjtutor_device_login_time");
+    localStorage.removeItem("sjtutor_active_chat_state");
+    localStorage.removeItem("sjtutor_active_group_id");
+
+    if (currentUid) {
+      SecurityPinService.clearTwoStepVerified(currentUid);
+      SecurityPinService.lockSession(currentUid);
+      localStorage.removeItem(`sjtutor_pin_session_unlocked_${currentUid}`);
+      localStorage.removeItem(`sjtutor_2step_verified_${currentUid}`);
+    }
+
+    setUser(null);
+    setUserProfile(initialProfileState);
+    setIsTwoStepVerified(true);
+    setIsPinSessionUnlocked(true);
+    setMode(AppMode.DASHBOARD);
+    setDashboardView("OVERVIEW");
+    setPublicShareId(null);
+
+    window.dispatchEvent(new Event("sjtutor_auth_changed"));
+
+    if (currentUid) {
+      try {
+        await DeviceService.logoutAllDevices(currentUid);
+      } catch (err) {
+        console.warn("Revoke all devices notice:", err);
       }
+    }
+
+    try {
       await signOut(auth);
-      triggerToast("Logged Out Successfully", "You have been logged out from all devices.", "Important Alerts");
     } catch (error) {
-      console.error("Error signing out all devices:", error);
+      console.warn("Firebase signOut notice:", error);
     } finally {
       localStorage.removeItem("sjtutor_authenticated_user");
-      setUser(null);
-      setUserProfile(initialProfileState);
-      setIsTwoStepVerified(true);
-      setIsPinSessionUnlocked(true);
-      setMode(AppMode.DASHBOARD);
-      setDashboardView("OVERVIEW");
+      localStorage.removeItem("sjtutor_active_user");
+      setTimeout(() => {
+        isLoggingOutRef.current = false;
+      }, 800);
     }
+
+    syncBrowserUrl(AppMode.DASHBOARD, { replace: true });
+    triggerToast("Logged Out Successfully", "You have been logged out from all devices.", "Important Alerts");
   };
 
   const navItems = [
@@ -3425,6 +3541,9 @@ const App: React.FC = () => {
               email={user?.email || "Guest"}
               onSave={(p, r) => handleProfileSave(p, r)}
               isOnboarding={!userProfile.hasCompletedOnboarding}
+              onOpenUpgrade={openPremiumModal}
+              userUid={user ? user.uid : (userProfile?.uid || null)}
+              onLoadItem={loadHistoryItem}
             />
           </div>
         );
@@ -3891,9 +4010,11 @@ const App: React.FC = () => {
                   )}
                 </button>
                 <button
+                  type="button"
+                  id="sidebar-logout-btn"
                   onClick={handleLogout}
                   title={!isExpanded ? "Sign Out" : undefined}
-                  className={`w-full flex items-center justify-center ${isExpanded ? "gap-2 px-3 py-2 text-xs" : "p-2"} font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors`}
+                  className={`w-full flex items-center justify-center ${isExpanded ? "gap-2 px-3 py-2 text-xs" : "p-2"} font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors cursor-pointer`}
                 >
                   <LogOut className="w-3.5 h-3.5 flex-shrink-0" />
                   {isExpanded && <span>Sign Out</span>}
@@ -4014,6 +4135,130 @@ const App: React.FC = () => {
               uid={user?.uid} 
               onOpenUpgrade={openPremiumModal} 
             />
+
+            {/* User Account & Direct Log Out Dropdown */}
+            {user ? (
+              <div className="relative" ref={userDropdownRef}>
+                <button
+                  type="button"
+                  id="header-user-menu-btn"
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-full sm:rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary-400 dark:hover:border-primary-600 bg-white dark:bg-slate-800 transition-all shadow-xs"
+                  title="Account & Log Out"
+                >
+                  <div className="w-7 h-7 rounded-full bg-primary-600 text-white flex items-center justify-center text-xs font-bold overflow-hidden flex-shrink-0">
+                    {userProfile.photoURL ? (
+                      <img
+                        src={userProfile.photoURL}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span>{(userProfile.displayName || user.email || "S").charAt(0).toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div className="hidden md:flex flex-col text-left">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 max-w-[90px] truncate leading-tight">
+                      {userProfile.displayName || "Scholar"}
+                    </span>
+                    <span className="text-[10px] text-slate-400 max-w-[90px] truncate leading-tight">
+                      {userProfile.planType || "Free Plan"}
+                    </span>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
+                </button>
+
+                {showUserDropdown && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="p-3 border-b border-slate-100 dark:border-slate-800 mb-1">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                        {userProfile.displayName || "Scholar"}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        {user.email}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="px-2 py-0.5 text-[10px] font-bold bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400 rounded-md border border-primary-200 dark:border-primary-800">
+                          {userProfile.planType || "Free"}
+                        </span>
+                        {userProfile.credits !== undefined && (
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {userProfile.credits.toLocaleString()} credits
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        setMode(AppMode.PROFILE);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors text-left"
+                    >
+                      <UserIcon className="w-4 h-4 text-slate-400" />
+                      <span>My Profile</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        setMode(AppMode.SETTINGS);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors text-left"
+                    >
+                      <Settings className="w-4 h-4 text-slate-400" />
+                      <span>Settings</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        setShowDevicesModal(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors text-left"
+                    >
+                      <Laptop className="w-4 h-4 text-slate-400" />
+                      <span>Active Devices</span>
+                      {loggedInDevices.length > 0 && (
+                        <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md">
+                          {loggedInDevices.length}
+                        </span>
+                      )}
+                    </button>
+
+                    <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+
+                    <button
+                      type="button"
+                      id="header-logout-btn"
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        handleLogout();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors text-left"
+                    >
+                      <LogOut className="w-4 h-4 text-red-500" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                id="header-signin-btn"
+                onClick={() => openAuthModal('signin')}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-primary-600 hover:bg-primary-700 text-white rounded-xl shadow-xs transition-colors"
+              >
+                <UserIcon className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </button>
+            )}
           </div>
         </header>
 

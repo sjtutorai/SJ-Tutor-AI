@@ -33,5 +33,5 @@ Disallow: /notifications
 Disallow: /history
 Disallow: /auth
 
-Sitemap: https://sjtutorai.vercel.app/sitemap.xml
+Sitemap: https://sj-tutorai.web.app/sitemap.xml
 

@@ -336,6 +336,8 @@ export class DeviceService {
       console.warn("[DeviceService] Notice deleting device document from Firestore:", error);
     } finally {
       if (isCurrent) {
+        localStorage.removeItem("sjtutor_authenticated_user");
+        localStorage.removeItem("sjtutor_active_user");
         localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
         localStorage.removeItem(DEVICE_ID_KEY);
         this.stopHeartbeat();
@@ -377,6 +379,8 @@ export class DeviceService {
     } catch (error) {
       console.error("[DeviceService] Error revoking all devices:", error);
     } finally {
+      localStorage.removeItem("sjtutor_authenticated_user");
+      localStorage.removeItem("sjtutor_active_user");
       localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
       localStorage.removeItem(DEVICE_ID_KEY);
       this.stopHeartbeat();

@@ -125,7 +125,7 @@ Disallow: /notifications
 Disallow: /history
 Disallow: /auth
 
-Sitemap: https://sjtutorai.vercel.app/sitemap.xml`);
+Sitemap: https://sj-tutorai.web.app/sitemap.xml`);
   }
 });
 
@@ -139,32 +139,32 @@ app.get("/sitemap.xml", (req, res) => {
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://sjtutorai.vercel.app/</loc>
+    <loc>https://sj-tutorai.web.app/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.vercel.app/about</loc>
+    <loc>https://sj-tutorai.web.app/about</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.vercel.app/features</loc>
+    <loc>https://sj-tutorai.web.app/features</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.vercel.app/contact</loc>
+    <loc>https://sj-tutorai.web.app/contact</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.vercel.app/privacy</loc>
+    <loc>https://sj-tutorai.web.app/privacy</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://sjtutorai.vercel.app/terms</loc>
+    <loc>https://sj-tutorai.web.app/terms</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -173,6 +173,10 @@ app.get("/sitemap.xml", (req, res) => {
 });
 
 // API routes
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 app.use("/api/auth", authRoutes);
 
 app.post("/api/generate-image", async (req, res, next) => {
@@ -426,18 +430,6 @@ If the audio is completely silent or contains no discernible speech, return an e
   }
 });
 
-// Background call decline endpoint from Service Worker
-app.post("/api/calls/decline", async (req, res) => {
-  try {
-    const { callId } = req.body;
-    console.log(`[CALL DECLINE API] Call declined remotely from Service Worker, callId: ${callId}`);
-    res.json({ success: true, callId, status: "declined" });
-  } catch (err: any) {
-    console.error("[CALL DECLINE API Error]:", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 // Global Error Handler
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -471,7 +463,7 @@ async function startServer() {
         <meta name="twitter:card" content="summary_large_image">
         <meta name="twitter:title" content="${title}">
         <meta name="twitter:description" content="${desc}">
-        <link rel="canonical" href="https://sjtutorai.vercel.app/quiz/${classSlug}/${subjectSlug}/${chapterSlug}">
+        <link rel="canonical" href="https://sj-tutorai.web.app/quiz/${classSlug}/${subjectSlug}/${chapterSlug}">
       `;
 
       if (process.env.NODE_ENV !== "production") {
@@ -503,7 +495,7 @@ async function startServer() {
         <meta name="twitter:card" content="summary_large_image">
         <meta name="twitter:title" content="${title}">
         <meta name="twitter:description" content="${desc}">
-        <link rel="canonical" href="https://sjtutorai.vercel.app/share/${shareId}">
+        <link rel="canonical" href="https://sj-tutorai.web.app/share/${shareId}">
       `;
 
       if (process.env.NODE_ENV !== "production") {

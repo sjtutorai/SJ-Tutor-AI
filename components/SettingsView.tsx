@@ -384,12 +384,21 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                  </div>
                )}
                
-               <div className="p-4 flex justify-between items-center hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer group" onClick={onLogout}>
+               <div 
+                  id="settings-logout-row"
+                  role="button"
+                  tabIndex={0}
+                  className="p-4 flex justify-between items-center hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer group transition-colors" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onLogout();
+                  }}
+               >
                   <div>
                     <p className="font-medium text-red-600 group-hover:text-red-700">Log Out</p>
                     <p className="text-xs text-red-400">Sign out of this device</p>
                   </div>
-                  <LogOut className="w-4 h-4 text-red-400" />
+                  <LogOut className="w-4 h-4 text-red-400 group-hover:text-red-600 transition-colors" />
                </div>
             </div>
 

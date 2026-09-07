@@ -814,13 +814,22 @@ export async function sendPasswordReset(emailOrId: string): Promise<{ success: b
  * Log out user from all active sessions
  */
 export async function logOutUser(): Promise<void> {
+  // Clear persistent session keys immediately before Firebase signs out to prevent auto-rehydration
+  localStorage.removeItem("sjtutor_authenticated_user");
+  localStorage.removeItem("sjtutor_active_user");
+  localStorage.removeItem("sjtutor_device_login_time");
+  localStorage.removeItem("sjtutor_active_chat_state");
+  localStorage.removeItem("sjtutor_active_group_id");
+
   try {
     await signOut(auth);
   } catch (e) {
     console.warn("Firebase signOut error:", e);
+  } finally {
+    localStorage.removeItem("sjtutor_authenticated_user");
+    localStorage.removeItem("sjtutor_active_user");
+    window.dispatchEvent(new Event("sjtutor_auth_changed"));
   }
-  localStorage.removeItem("sjtutor_authenticated_user");
-  window.dispatchEvent(new Event("sjtutor_auth_changed"));
 }
 
 /**

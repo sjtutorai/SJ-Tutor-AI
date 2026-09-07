@@ -20,8 +20,11 @@ import {
   ArrowRight,
   Crown,
   Lock,
-  Clock
+  Clock,
+  BookMarked,
+  FolderOpen
 } from 'lucide-react';
+import { HistoryItem } from '../types';
 import { validateAndParsePhone, CountryPhone } from '../utils/phoneUtils';
 import { 
   calculateProfileCompletion, 
@@ -30,6 +33,7 @@ import {
   getMissingProfileFields,
   calculateProfileUpdateCooldown 
 } from '../utils/profileUtils';
+import { ProfileSavedItemsSection } from './ProfileSavedItemsSection';
 
 interface ProfileViewProps {
   profile: UserProfile;
@@ -37,6 +41,8 @@ interface ProfileViewProps {
   onSave: (profile: UserProfile, redirect?: boolean) => void;
   isOnboarding?: boolean;
   onOpenUpgrade?: () => void;
+  userUid?: string | null;
+  onLoadItem?: (item: HistoryItem) => void;
 }
 
 const STATE_DISTRICT_MAPPING: Record<string, string[]> = {
@@ -158,12 +164,22 @@ const COMMON_SCHOOL_TYPES = [
   'University Departmental School'
 ];
 
-const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnboarding = false, onOpenUpgrade }) => {
+const ProfileView: React.FC<ProfileViewProps> = ({ 
+  profile, 
+  email, 
+  onSave, 
+  isOnboarding = false, 
+  onOpenUpgrade,
+  userUid,
+  onLoadItem
+}) => {
   const [isEditing, setIsEditing] = useState(isOnboarding);
   const [formData, setFormData] = useState<UserProfile>(profile);
   const [filteredSchools, setFilteredSchools] = useState<string[]>(COMMON_SCHOOL_TYPES);
   const [phoneInfo, setPhoneInfo] = useState<{ country?: CountryPhone, isValid: boolean, error?: string }>({ isValid: false });
   const [showCooldownModal, setShowCooldownModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'all' | 'saved' | 'details' | 'streak'>('all');
+  const [savedItemsCount, setSavedItemsCount] = useState<number>(0);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -505,6 +521,21 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                     {!calculateTrialInfo(formData).isExpired ? "Unlimited Access (Trial)" : `${formData.credits ?? 100} Credits`}
                  </div>
                </div>
+
+               <div className="flex justify-between text-sm items-center mt-2 p-2 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-100 dark:border-slate-800">
+                 <span className="text-slate-500 font-medium">Saved Items</span>
+                 <button
+                   onClick={() => {
+                     setActiveTab('saved');
+                     const el = document.getElementById('profile-saved-items');
+                     el?.scrollIntoView({ behavior: 'smooth' });
+                   }}
+                   className="flex items-center gap-1 font-extrabold text-primary-600 dark:text-primary-400 bg-white dark:bg-slate-900 border border-primary-100 dark:border-primary-950 px-2 py-0.5 rounded text-xs hover:bg-primary-50 transition-colors cursor-pointer"
+                 >
+                   <BookMarked className="w-3 h-3 text-primary-500" />
+                   <span>{savedItemsCount} {savedItemsCount === 1 ? 'Item' : 'Items'}</span>
+                 </button>
+               </div>
                
                {formData.emblems && formData.emblems.length > 0 && (
                  <div className="w-full border-t border-slate-100 pt-3 mt-3 text-left">
@@ -567,10 +598,76 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                 </button>
               </div>
             )}
+
+            {!isOnboarding && !isEditing && (
+              <button
+                onClick={() => {
+                  setActiveTab('saved');
+                  const el = document.getElementById('profile-saved-items');
+                  el?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="w-full mt-2.5 py-2 px-3 bg-slate-50 hover:bg-primary-50 text-slate-700 hover:text-primary-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 hover:border-primary-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-primary-500" />
+                Browse Saved Items ({savedItemsCount})
+              </button>
+            )}
         </div>
 
-        {/* Right Column: Details Forms */}
+        {/* Right Column: Details Forms & Saved Items */}
         <div className="lg:col-span-2 space-y-6">
+          
+          {/* Navigation Filter Tabs */}
+          {!isOnboarding && (
+            <div className="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto scrollbar-none">
+              <button
+                onClick={() => setActiveTab('all')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  activeTab === 'all'
+                    ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Overview & All
+              </button>
+              <button
+                onClick={() => setActiveTab('saved')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+                  activeTab === 'saved'
+                    ? 'bg-white dark:bg-slate-800 text-primary-600 dark:text-primary-400 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <BookMarked className="w-3.5 h-3.5 text-primary-500" />
+                Saved Items ({savedItemsCount})
+              </button>
+              <button
+                onClick={() => setActiveTab('details')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'details'
+                    ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                Profile Details
+              </button>
+              <button
+                onClick={() => setActiveTab('streak')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'streak'
+                    ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <span>🔥 Streak & Habits</span>
+              </button>
+            </div>
+          )}
+
+          {/* Form Sections (visible when on All or Details tab) */}
+          {(activeTab === 'all' || activeTab === 'details') && (
+            <>
           
           {/* Section 1: Personal Details */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
@@ -852,9 +949,22 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, email, onSave, isOnb
                 </div>
              </div>
           </div>
+          </>
+          )}
+
+          {/* Section 4: Saved Items & Study Materials from Firestore */}
+          {(activeTab === 'all' || activeTab === 'saved') && (
+            <ProfileSavedItemsSection
+              userUid={userUid}
+              profile={formData}
+              email={email}
+              onLoadItem={onLoadItem}
+              onItemsCountChange={setSavedItemsCount}
+            />
+          )}
 
           {/* 30-Day Streak Activity Calendar & Streak Freeze Shop */}
-          {!isOnboarding && (
+          {!isOnboarding && (activeTab === 'all' || activeTab === 'streak') && (
             <StreakCalendarHeatmap 
               profile={formData} 
               onProfileUpdate={onSave} 

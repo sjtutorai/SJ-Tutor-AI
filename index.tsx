@@ -58,6 +58,31 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
+// Global error guards to suppress opaque third-party script errors from crashing the app
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (event) => {
+    if (!event) return;
+    const msg = event.message || (event.error && event.error.message) || '';
+    if (msg === 'Script error.' || (!event.filename && !event.lineno)) {
+      console.warn('[SJ Tutor AI] Handled external Script error:', event);
+      if (typeof event.preventDefault === 'function') {
+        event.preventDefault();
+      }
+    }
+  }, true);
+
+  window.addEventListener('unhandledrejection', (event) => {
+    if (!event) return;
+    const reasonMsg = (event.reason && event.reason.message) || String(event.reason || '');
+    if (reasonMsg === 'Script error.' || reasonMsg.includes('Script error')) {
+      console.warn('[SJ Tutor AI] Handled unhandled rejection Script error:', event.reason);
+      if (typeof event.preventDefault === 'function') {
+        event.preventDefault();
+      }
+    }
+  });
+}
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
