@@ -29,6 +29,11 @@ interface ImageStudioViewProps {
   onNavigateToTutor?: (imageInfo: { url: string; prompt: string }) => void;
   currentTheme?: string;
   userId?: string;
+  initialPrompt?: string;
+  initialImage?: string;
+  initialTab?: "generate" | "edit" | "gallery";
+  isInTutorSession?: boolean;
+  onCloseTutorStudio?: () => void;
 }
 
 const ASPECT_RATIOS = [
@@ -102,15 +107,22 @@ export const ImageStudioView: React.FC<ImageStudioViewProps> = ({
   onNavigateToNotes,
   onNavigateToTutor,
   userId,
+  initialPrompt,
+  initialImage,
+  initialTab,
+  isInTutorSession,
+  onCloseTutorStudio,
 }) => {
   const { triggerToast } = useNotifications();
   const storageKey = userId ? `${STORAGE_KEY}_${userId}` : STORAGE_KEY;
 
   // Active sub-mode: 'generate' | 'edit' | 'gallery'
-  const [activeTab, setActiveTab] = useState<"generate" | "edit" | "gallery">("generate");
+  const [activeTab, setActiveTab] = useState<"generate" | "edit" | "gallery">(
+    initialTab || (initialImage ? "edit" : "generate")
+  );
 
   // Generate State
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(initialPrompt || "");
   const [selectedAspectRatio, setSelectedAspectRatio] = useState("1:1");
   const [selectedStyle, setSelectedStyle] = useState("Academic Diagram");
   const [selectedImageSize, setSelectedImageSize] = useState<"1K" | "512px" | "2K">("1K");
@@ -118,9 +130,25 @@ export const ImageStudioView: React.FC<ImageStudioViewProps> = ({
 
   // Edit State
   const [editPrompt, setEditPrompt] = useState("");
-  const [sourceImage, setSourceImage] = useState<string | null>(null);
+  const [sourceImage, setSourceImage] = useState<string | null>(initialImage || null);
   const [isEditing, setIsEditing] = useState(false);
   const [editComparisonView, setEditComparisonView] = useState<"after" | "split" | "before">("after");
+
+  // Keep state in sync with initial props if changed
+  useEffect(() => {
+    if (initialPrompt) setPrompt(initialPrompt);
+  }, [initialPrompt]);
+
+  useEffect(() => {
+    if (initialImage) {
+      setSourceImage(initialImage);
+      setActiveTab("edit");
+    }
+  }, [initialImage]);
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   // Current active result
   const [currentResult, setCurrentResult] = useState<GeneratedImageItem | null>(null);
@@ -207,14 +235,14 @@ export const ImageStudioView: React.FC<ImageStudioViewProps> = ({
         prompt: prompt.trim(),
         aspectRatio: selectedAspectRatio,
         style: selectedStyle,
-        model: res.model || "gemini-3.1-flash-image-preview",
+        model: res.model || "Gemini Flash Visual",
         isEdited: false,
         createdAt: Date.now(),
       };
 
       setCurrentResult(newItem);
       saveToGallery(newItem);
-      triggerToast("Image Created! 🎨", "Your AI image has been generated using gemini-3.1-flash-image-preview.", "Achievements");
+      triggerToast("Image Created! 🎨", `Your AI image has been generated successfully with ${res.model || "AI Visual Engine"}.`, "Achievements");
     } catch (err: any) {
       console.error("Generate image error:", err);
       triggerToast("Generation Failed", err.message || "Could not generate image. Please try another prompt.", "Important Alerts");
@@ -397,22 +425,50 @@ export const ImageStudioView: React.FC<ImageStudioViewProps> = ({
         className="hidden"
       />
 
+      {/* In Tutor Session Header Banner */}
+      {isInTutorSession && (
+        <div className="mb-5 p-3.5 bg-gradient-to-r from-amber-500/10 via-primary-500/10 to-indigo-500/10 border border-amber-200 dark:border-amber-900/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 bg-amber-500 text-white rounded-xl shadow-xs">
+              <Sparkles className="w-4 h-4 fill-white" />
+            </span>
+            <div>
+              <p className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-wider">
+                AI Tutor Session • Visual Studio Mode
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                Create scientific diagrams, flowcharts, or equations to send straight into your active lesson chat.
+              </p>
+            </div>
+          </div>
+          {onCloseTutorStudio && (
+            <button
+              onClick={onCloseTutorStudio}
+              className="px-3 py-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-800 transition flex items-center justify-center gap-1.5 shadow-2xs self-start sm:self-auto cursor-pointer"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-primary-500" />
+              <span>← Return to Tutor Chat</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Main Studio Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-slate-200">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-5 border-b border-slate-200 dark:border-slate-800">
         <div>
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-400 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                 AI Image Studio
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
-                  <Wand2 className="w-3 h-3 text-amber-600" />
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                  <Wand2 className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                   gemini-3.1-flash-image-preview
                 </span>
               </h1>
-              <p className="text-sm text-slate-600 mt-0.5">
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
                 Generate high-definition educational diagrams, visual study aids, and transform existing images with natural language prompts.
               </p>
             </div>
@@ -420,7 +476,7 @@ export const ImageStudioView: React.FC<ImageStudioViewProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start md:self-auto">
+        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 self-start md:self-auto">
           <button
             onClick={() => setActiveTab("generate")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${

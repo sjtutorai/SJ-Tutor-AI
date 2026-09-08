@@ -80,18 +80,15 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
       const isFrozen = freezeDatesSet.has(dateStr);
       const completed = historySet.has(dateStr) || isFrozen;
 
-      // Calculate intensity level:
-      // 0 = Inactive / rest
-      // 1 = Light (1 study action)
-      // 2 = Moderate (standard session)
-      // 3 = High (extended focus / milestone)
-      // If completed, compute varied realistic intensity based on date hash
+      // Calculate status:
+      // Frozen = 2
+      // Completed / Streak = 1
+      // Inactive / Rest = 0
       let level = 0;
       if (isFrozen) {
-        level = 4; // Frozen
+        level = 2; // Frozen
       } else if (completed) {
-        const hash = (d.getDate() * 7 + d.getMonth() * 13) % 3;
-        level = hash === 0 ? 1 : hash === 1 ? 2 : 3;
+        level = 1; // Completed Streak Day (uniform streak color)
       }
 
       days.push({
@@ -193,7 +190,7 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
               </span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Visual log of daily study consistency with color-coded intensity levels.
+              Visual log of your daily study streak consistency.
             </p>
           </div>
         </div>
@@ -227,20 +224,15 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
         <div className="p-4 bg-slate-50/70 dark:bg-slate-800/40 rounded-2xl border border-slate-200/80 dark:border-slate-800">
           <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 sm:gap-2.5">
             {last30Days.map((day) => {
-              // Styling per level
+              // Styling per level - Single consistent streak color for all active streak days
               let bgClass = 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800';
               let ringClass = '';
 
               if (day.isFrozen) {
                 bgClass = 'bg-gradient-to-tr from-cyan-400 to-blue-500 text-white border-cyan-400 shadow-xs shadow-cyan-500/20';
                 ringClass = 'ring-2 ring-cyan-300 dark:ring-cyan-500/50';
-              } else if (day.level === 3) {
-                bgClass = 'bg-gradient-to-tr from-emerald-500 to-teal-500 text-white border-emerald-600 shadow-xs shadow-emerald-500/20';
-                ringClass = 'ring-2 ring-emerald-400/50';
-              } else if (day.level === 2) {
-                bgClass = 'bg-emerald-400 dark:bg-emerald-600 text-white border-emerald-500';
-              } else if (day.level === 1) {
-                bgClass = 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800';
+              } else if (day.completed) {
+                bgClass = 'bg-emerald-500 text-white border-emerald-600 shadow-xs shadow-emerald-500/20';
               } else if (day.isToday) {
                 bgClass = 'bg-amber-50 dark:bg-amber-950/40 border-dashed border-amber-400 text-amber-700 dark:text-amber-300 font-bold';
               }
@@ -282,7 +274,7 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
                   {hoveredDay.isFrozen
                     ? '❄️ Streak Freeze Applied (Protected Missed Day)'
                     : hoveredDay.completed
-                    ? `🔥 Level ${hoveredDay.level} Study Activity Completed`
+                    ? '🔥 Study Streak Active'
                     : hoveredDay.isToday
                     ? isStudiedToday ? '🔥 Studied Today' : '⏳ Today (Study or use freeze to extend streak)'
                     : '💤 Rest Day (Streak preserved by No-Reset Policy)'}
@@ -290,7 +282,7 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
               </div>
             ) : (
               <span className="text-slate-400 italic text-[11px]">
-                Hover or tap any date cell above to inspect session intensity details.
+                Hover or tap any date cell above to inspect streak details.
               </span>
             )}
           </div>
@@ -298,27 +290,23 @@ export const StreakCalendarHeatmap: React.FC<StreakCalendarHeatmapProps> = ({
 
         {/* Heatmap Legend */}
         <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-400 pt-1">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">Intensity:</span>
+          <div className="flex items-center gap-3">
+            <span className="font-semibold">Legend:</span>
             <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700" title="Rest Day" />
-              <span>Rest</span>
+              <span className="w-3.5 h-3.5 rounded bg-emerald-500 border border-emerald-600" title="Streak Active" />
+              <span>🔥 Streak Active</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded bg-emerald-100 dark:bg-emerald-950 border border-emerald-300" title="Light" />
-              <span>Light</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded bg-emerald-400 dark:bg-emerald-600" title="Moderate" />
-              <span>Medium</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded bg-gradient-to-tr from-emerald-500 to-teal-500 text-white" title="High" />
-              <span>Peak</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded bg-gradient-to-tr from-cyan-400 to-blue-500" title="Streak Freeze" />
+              <span className="w-3.5 h-3.5 rounded bg-gradient-to-tr from-cyan-400 to-blue-500 border border-cyan-400" title="Streak Freeze" />
               <span>❄️ Frozen</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3.5 h-3.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-dashed border-amber-400" title="Today" />
+              <span>Today</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3.5 h-3.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" title="Rest Day" />
+              <span>Rest Day</span>
             </div>
           </div>
 

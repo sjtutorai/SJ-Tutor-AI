@@ -3560,6 +3560,9 @@ const App: React.FC = () => {
                 triggerToast("Session Deleted 🗑️", "AI Tutor session was removed from your history.", "AI Tutor");
               }}
               onCreateQuiz={() => setMode(AppMode.QUIZ)}
+              userId={user ? user.uid : undefined}
+              currentTheme={SettingsService.getSettings().appearance.theme}
+              onNavigateToNotes={() => setMode(AppMode.NOTES)}
             />
           </div>
         );
@@ -3581,7 +3584,7 @@ const App: React.FC = () => {
           <div className="w-full max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <ImageStudioView
               userId={user ? user.uid : undefined}
-              currentTheme={theme}
+              currentTheme={SettingsService.getSettings().appearance.theme}
               onNavigateToNotes={() => {
                 setMode(AppMode.NOTES);
               }}

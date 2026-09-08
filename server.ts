@@ -194,11 +194,11 @@ app.post("/api/generate-image", async (req, res, next) => {
     const targetAspectRatio = validAspectRatios.includes(aspectRatio) ? aspectRatio : "1:1";
 
     let imageUrl = "";
-    let usedModel = "gemini-3.1-flash-image-preview";
+    let usedModel = "gemini-3.1-flash-image";
     const keys = getServerGeminiKeys();
 
     const candidateModels = [
-      "gemini-3.1-flash-image-preview",
+      "imagen-3.0-generate-002",
       "gemini-3.1-flash-image",
       "gemini-3.1-flash-lite-image",
     ];
@@ -219,38 +219,60 @@ app.post("/api/generate-image", async (req, res, next) => {
 
         for (const modelName of candidateModels) {
           try {
-            const config: any = {
-              imageConfig: {
-                aspectRatio: targetAspectRatio,
-              }
-            };
-            if (modelName !== "gemini-3.1-flash-lite-image" && (imageSize === "512px" || imageSize === "1K" || imageSize === "2K")) {
-              config.imageConfig.imageSize = imageSize;
-            }
-
-            const response = await ai.models.generateContent({
-              model: modelName,
-              contents: {
-                parts: [{ text: promptWithStyle }]
-              },
-              config
-            });
-
-            const parts = response.candidates?.[0]?.content?.parts || [];
-            for (const part of parts) {
-              if (part.inlineData && part.inlineData.data) {
-                const mimeType = part.inlineData.mimeType || 'image/png';
-                imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+            if (modelName === "imagen-3.0-generate-002") {
+              const imagenResponse = await ai.models.generateImages({
+                model: modelName,
+                prompt: promptWithStyle,
+                config: {
+                  numberOfImages: 1,
+                  aspectRatio: targetAspectRatio as any,
+                },
+              });
+              const generated = imagenResponse.generatedImages?.[0];
+              if (generated?.image?.imageBytes) {
+                imageUrl = `data:image/png;base64,${generated.image.imageBytes}`;
                 usedModel = modelName;
                 break outerLoop;
               }
+            } else {
+              const config: any = {
+                imageConfig: {
+                  aspectRatio: targetAspectRatio,
+                }
+              };
+              if (modelName !== "gemini-3.1-flash-lite-image" && (imageSize === "512px" || imageSize === "1K" || imageSize === "2K")) {
+                config.imageConfig.imageSize = imageSize;
+              }
+
+              const response = await ai.models.generateContent({
+                model: modelName,
+                contents: {
+                  parts: [{ text: promptWithStyle }]
+                },
+                config
+              });
+
+              const parts = response.candidates?.[0]?.content?.parts || [];
+              for (const part of parts) {
+                if (part.inlineData && part.inlineData.data) {
+                  const mimeType = part.inlineData.mimeType || 'image/png';
+                  imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+                  usedModel = modelName;
+                  break outerLoop;
+                }
+              }
             }
           } catch (modelErr: any) {
-            console.warn(`[Server] Image model ${modelName} attempt notice:`, modelErr.message);
+            const isQuotaOrRateLimit = modelErr?.status === 429 || modelErr?.message?.includes("429") || modelErr?.message?.includes("quota") || modelErr?.message?.includes("RESOURCE_EXHAUSTED");
+            if (isQuotaOrRateLimit) {
+              console.log(`[Image Studio] Model ${modelName} quota limit reached, activating fallback engine.`);
+            } else {
+              console.log(`[Image Studio] Model ${modelName} notice: ${modelErr?.message?.slice(0, 120) || 'Engine unavailable'}`);
+            }
           }
         }
       } catch (geminiErr: any) {
-        console.warn(`[Server] Gemini Image generation attempt failed with key:`, geminiErr.message);
+        console.log(`[Image Studio] Key rotation switch: ${geminiErr?.message?.slice(0, 100) || 'Failover'}`);
       }
     }
 
@@ -263,7 +285,7 @@ app.post("/api/generate-image", async (req, res, next) => {
                    targetAspectRatio === '4:3'  ? { w: 1024, h: 768 } :
                    targetAspectRatio === '3:4'  ? { w: 768, h: 1024 } : { w: 1024, h: 1024 };
       imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${dims.w}&height=${dims.h}&nologo=true&seed=${seed}&model=flux`;
-      usedModel = "hybrid-synth";
+      usedModel = "Flux AI Engine";
     }
 
     res.json({ 
@@ -299,11 +321,10 @@ app.post("/api/edit-image", async (req, res, next) => {
     }
 
     let imageUrl = "";
-    let usedModel = "gemini-3.1-flash-image-preview";
+    let usedModel = "gemini-3.1-flash-image";
     const keys = getServerGeminiKeys();
 
     const candidateModels = [
-      "gemini-3.1-flash-image-preview",
       "gemini-3.1-flash-image",
       "gemini-3.1-flash-lite-image",
     ];
@@ -357,20 +378,25 @@ app.post("/api/edit-image", async (req, res, next) => {
               }
             }
           } catch (modelErr: any) {
-            console.warn(`[Server] Image edit model ${modelName} notice:`, modelErr.message);
+            const isQuotaOrRateLimit = modelErr?.status === 429 || modelErr?.message?.includes("429") || modelErr?.message?.includes("quota") || modelErr?.message?.includes("RESOURCE_EXHAUSTED");
+            if (isQuotaOrRateLimit) {
+              console.log(`[Image Studio Edit] Model ${modelName} quota limit reached, activating fallback engine.`);
+            } else {
+              console.log(`[Image Studio Edit] Model ${modelName} notice: ${modelErr?.message?.slice(0, 120) || 'Engine unavailable'}`);
+            }
           }
         }
       } catch (geminiErr: any) {
-        console.warn(`[Server] Gemini Image edit attempt failed with key:`, geminiErr.message);
+        console.log(`[Image Studio Edit] Key rotation switch: ${geminiErr?.message?.slice(0, 100) || 'Failover'}`);
       }
     }
 
     // High quality fallback if needed
     if (!imageUrl) {
       const seed = Math.floor(Math.random() * 1000000);
-      const encodedPrompt = encodeURIComponent(`Edited version: ${cleanPrompt}, highly detailed`);
+      const encodedPrompt = encodeURIComponent(`Edited version: ${cleanPrompt}, highly detailed educational visual`);
       imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
-      usedModel = "hybrid-synth";
+      usedModel = "Flux AI Engine";
     }
 
     res.json({

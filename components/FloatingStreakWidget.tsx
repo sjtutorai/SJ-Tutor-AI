@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { 
-  Flame, 
   Trophy, 
   Calendar as CalendarIcon, 
   Sparkles, 
@@ -17,7 +16,8 @@ import {
   Users,
   Info,
   ChevronRight,
-  Award
+  Award,
+  Crown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -27,6 +27,13 @@ import {
   getLocalDateString,
   getTimeUntilNextStreakClaim
 } from './StreakContext';
+import { 
+  STREAK_TIERS, 
+  getStreakTier, 
+  getStreakTierProgress, 
+  StreakTierIcon, 
+  StreakBadgePill 
+} from './StreakTierBadge';
 import { UserProfile } from '../types';
 
 interface FloatingStreakWidgetProps {
@@ -46,7 +53,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   } = useStreak();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'weekly' | 'roadmap' | 'calendar' | 'leaderboard' | 'guide'>('weekly');
+  const [activeTab, setActiveTab] = useState<'weekly' | 'tiers' | 'roadmap' | 'calendar' | 'leaderboard' | 'guide'>('weekly');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [claimStatusMsg, setClaimStatusMsg] = useState<string | null>(null);
@@ -188,23 +195,9 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   const highestStreak = streak.highestStreak || currentStreak;
   const totalLearningDays = streak.streakHistory?.length || (currentStreak > 0 ? currentStreak : 0);
 
-  // Next milestone calculation
-  const nextMilestone = useMemo(() => {
-    return STREAK_MILESTONES.find((m) => m.days > currentStreak) || STREAK_MILESTONES[STREAK_MILESTONES.length - 1];
-  }, [currentStreak]);
-
-  const prevMilestoneDays = useMemo(() => {
-    const prev = [...STREAK_MILESTONES].reverse().find((m) => m.days <= currentStreak);
-    return prev ? prev.days : 0;
-  }, [currentStreak]);
-
-  const milestoneProgress = useMemo(() => {
-    if (!nextMilestone) return 100;
-    const span = nextMilestone.days - prevMilestoneDays;
-    if (span <= 0) return 100;
-    const done = currentStreak - prevMilestoneDays;
-    return Math.min(100, Math.max(0, Math.round((done / span) * 100)));
-  }, [currentStreak, nextMilestone, prevMilestoneDays]);
+  // Active streak tier and progress
+  const userTier = useMemo(() => getStreakTier(currentStreak), [currentStreak]);
+  const tierProgress = useMemo(() => getStreakTierProgress(currentStreak), [currentStreak]);
 
   // Load leaderboard when tab is opened
   useEffect(() => {
@@ -395,7 +388,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 
   return (
     <>
-      {/* Floating Streak Widget Button - Surrounded Circle with Fire Icon (Draggable Anywhere) */}
+      {/* Floating Streak Widget Button - Surrounded Circle with Dynamic Tier Icon (Draggable Anywhere) */}
       <div
         id="floating-streak-container"
         style={
@@ -414,30 +407,30 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
           onPointerCancel={handlePointerCancel}
           role="button"
           tabIndex={0}
-          title={`🔥 ${currentStreak} Day Streak • Drag anywhere to place • Click to open Streak Hub`}
-          className={`group relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-600 dark:from-amber-600 dark:via-orange-600 dark:to-amber-700 text-white shadow-xl shadow-orange-500/30 hover:shadow-orange-500/50 border-2 border-amber-300/80 dark:border-amber-400/60 backdrop-blur-md transition-all ${
+          title={`${userTier.emoji} ${currentStreak} Day Streak (${userTier.name}) • Drag anywhere to place • Click to open Streak Hub`}
+          className={`group relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr ${userTier.gradient} text-white shadow-xl ${userTier.glowColor} hover:shadow-2xl border-2 ${userTier.borderColor} backdrop-blur-md transition-all ${
             isDraggingActive 
-              ? 'cursor-grabbing scale-110 shadow-2xl shadow-orange-500/60' 
+              ? 'cursor-grabbing scale-110 shadow-2xl' 
               : isNewlyAchievedPulse
-              ? 'cursor-grab scale-105 ring-4 ring-amber-400/80 ring-offset-2 ring-offset-slate-900 animate-pulse shadow-2xl shadow-orange-500/60'
+              ? `cursor-grab scale-105 ring-4 ${userTier.ringColor} ring-offset-2 ring-offset-slate-900 animate-pulse shadow-2xl`
               : 'cursor-grab hover:scale-105 active:scale-95'
           }`}
         >
           {/* Outer Pulsing Glow Ring */}
-          <span className={`absolute -inset-1 rounded-full bg-amber-400/30 dark:bg-amber-400/20 pointer-events-none ${
-            isNewlyAchievedPulse ? 'animate-ping opacity-100 ring-2 ring-amber-400' : 'animate-ping opacity-75'
+          <span className={`absolute -inset-1 rounded-full bg-white/30 dark:bg-white/20 pointer-events-none ${
+            isNewlyAchievedPulse ? `animate-ping opacity-100 ring-2 ${userTier.ringColor}` : 'animate-ping opacity-70'
           }`} />
           
           {/* Inner Surrounded Circular Border */}
           <div className="absolute inset-1 rounded-full border border-white/40 dark:border-white/20 pointer-events-none" />
 
-          {/* Central Fire Icon */}
+          {/* Dynamic Tier Streak Icon */}
           <div className="relative flex flex-col items-center justify-center">
-            <Flame className="w-7 h-7 text-amber-100 fill-amber-200 drop-shadow-md animate-pulse" />
+            <StreakTierIcon tier={userTier} size="lg" animate={true} className="text-white fill-white/80 drop-shadow-md" />
           </div>
 
-          {/* Floating Number Badge on Circle */}
-          <div className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 min-w-[22px] h-[22px] bg-slate-950/90 text-amber-300 font-mono font-black text-[11px] rounded-full border border-amber-400/80 flex items-center justify-center shadow-lg">
+          {/* Floating Number Badge on Circle with Tier Styling */}
+          <div className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 min-w-[22px] h-[22px] bg-slate-950/95 text-white font-mono font-black text-[11px] rounded-full border border-white/50 flex items-center justify-center shadow-lg">
             {currentStreak}
           </div>
 
@@ -463,12 +456,17 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
               {/* Confetti Glow Background */}
               <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-amber-400/20 to-transparent pointer-events-none" />
               
-              <div className="relative mx-auto w-20 h-20 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/30 mb-4 animate-bounce">
-                <Flame className="w-12 h-12 text-white fill-amber-200" />
+              <div className={`relative mx-auto w-20 h-20 rounded-2xl bg-gradient-to-tr ${userTier.gradient} flex items-center justify-center shadow-lg mb-4 animate-bounce`}>
+                <StreakTierIcon tier={userTier} size="2xl" animate={true} className="text-white fill-white/80" />
+              </div>
+
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mb-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                <span>{userTier.emoji}</span>
+                <span>{userTier.name} Tier</span>
               </div>
 
               <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mb-1">
-                🔥 Streak Increased!
+                Streak Extended!
               </h3>
               
               <p className="text-base font-bold text-amber-600 dark:text-amber-400 mb-2">
@@ -476,7 +474,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
               </p>
 
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 font-medium">
-                Keep learning! 🚀 Your daily streak never resets — every study day builds permanent academic mastery.
+                Keep learning! 🚀 Your daily streak never resets — every study day unlocks higher streak icon tiers.
               </p>
 
               {celebrationModal.milestone && (
@@ -491,9 +489,9 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                   setCelebrationModal(null);
                   setIsOpen(true);
                 }}
-                className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl font-bold text-sm shadow-md shadow-orange-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                className={`w-full py-3 bg-gradient-to-r ${userTier.gradient} text-white rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2`}
               >
-                <span>View Streak Hub</span>
+                <span>View Streak Hub & Icons</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </motion.div>
@@ -512,28 +510,35 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
               transition={{ duration: 0.2 }}
               className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[92vh] flex flex-col"
             >
-              {/* Header Hero Banner */}
-              <div className="relative p-5 sm:p-6 bg-gradient-to-br from-amber-500 via-orange-600 to-rose-600 text-white overflow-hidden shrink-0">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-black/10 rounded-full blur-2xl pointer-events-none" />
+              {/* Header Hero Banner with Dynamic Tier Gradient */}
+              <div className={`relative p-5 sm:p-6 bg-gradient-to-br ${userTier.gradient} text-white overflow-hidden shrink-0`}>
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/15 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-black/15 rounded-full blur-2xl pointer-events-none" />
 
                 <div className="relative flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3.5">
                     <div className="relative w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center shadow-inner">
-                      <Flame className="w-9 h-9 text-amber-200 fill-amber-300 drop-shadow-md animate-pulse" />
+                      <StreakTierIcon tier={userTier} size="xl" animate={true} className="text-white fill-white/80 drop-shadow-md" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-2xl sm:text-3xl font-black tracking-tight font-mono">🔥 {currentStreak} Day Streak</h2>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-2xl sm:text-3xl font-black tracking-tight font-mono">
+                          {userTier.emoji} {currentStreak} Day Streak
+                        </h2>
                         {isStudiedToday && (
                           <span className="px-2 py-0.5 bg-emerald-500/90 text-white text-[11px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs">
                             <CheckCircle2 className="w-3 h-3" /> Done Today
                           </span>
                         )}
                       </div>
-                      <p className="text-xs sm:text-sm text-amber-100 font-semibold mt-0.5">
-                        Keep learning! 🚀
-                      </p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="px-2 py-0.5 bg-black/20 text-white rounded-md text-xs font-black tracking-wider uppercase backdrop-blur-xs">
+                          {userTier.name}
+                        </span>
+                        <span className="text-xs text-white/90 font-medium">
+                          {userTier.title} • Tier {userTier.tierRank} of {STREAK_TIERS.length}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -563,18 +568,22 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                   </div>
                 </div>
 
-                {/* Progress towards Next Milestone */}
+                {/* Progress towards Next Tier */}
                 <div className="mt-4 pt-3.5 border-t border-white/20">
                   <div className="flex justify-between items-center text-xs font-semibold mb-1">
-                    <span className="text-amber-100 flex items-center gap-1">
-                      <Trophy className="w-3.5 h-3.5 text-amber-200" /> Next Milestone: {nextMilestone?.title} ({nextMilestone?.days} Days)
+                    <span className="text-white/95 flex items-center gap-1">
+                      <Trophy className="w-3.5 h-3.5 text-yellow-200" /> 
+                      {tierProgress.nextTier 
+                        ? `Next Icon Tier: ${tierProgress.nextTier.emoji} ${tierProgress.nextTier.name} (${tierProgress.daysToNext} days left)`
+                        : `Max Tier Unlocked: ${userTier.emoji} ${userTier.name}`
+                      }
                     </span>
-                    <span className="font-mono text-amber-200">{milestoneProgress}%</span>
+                    <span className="font-mono text-yellow-200">{tierProgress.percentage}%</span>
                   </div>
-                  <div className="w-full h-2.5 bg-black/20 rounded-full overflow-hidden p-0.5">
+                  <div className="w-full h-2.5 bg-black/25 rounded-full overflow-hidden p-0.5">
                     <div 
-                      className="h-full bg-gradient-to-r from-amber-300 via-yellow-200 to-white rounded-full transition-all duration-500 shadow-xs"
-                      style={{ width: `${milestoneProgress}%` }}
+                      className="h-full bg-gradient-to-r from-yellow-300 via-white to-yellow-200 rounded-full transition-all duration-500 shadow-xs"
+                      style={{ width: `${tierProgress.percentage}%` }}
                     />
                   </div>
                 </div>
@@ -589,7 +598,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                           ? '24 Hours Completed! Ready to Claim'
                           : `Next Streak Increase in ${claimCountdown.hours}h ${claimCountdown.minutes}m`}
                       </div>
-                      <div className="text-[11px] text-amber-100/90 font-medium">
+                      <div className="text-[11px] text-white/80 font-medium">
                         {claimCountdown.canClaim
                           ? `Complete any study activity (quiz, tutor question, study timer) to claim Day ${currentStreak + 1}!`
                           : 'Streak secured for this 24h cycle. Keep studying to maintain mastery!'}
@@ -624,6 +633,17 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                 >
                   <CalendarIcon className="w-4 h-4" />
                   <span>Weekly & Stats</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('tiers')}
+                  className={`flex items-center gap-1.5 py-3 px-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                    activeTab === 'tiers'
+                      ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Crown className="w-4 h-4" />
+                  <span>Streak Icons ({userTier.name})</span>
                 </button>
                 <button
                   onClick={() => setActiveTab('roadmap')}
@@ -676,6 +696,52 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                 {/* TAB 1: WEEKLY VIEW & STATS */}
                 {activeTab === 'weekly' && (
                   <div className="space-y-5">
+                    {/* Active Streak Tier Highlight Card */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 text-white border border-slate-700 shadow-md">
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${userTier.gradient} flex items-center justify-center shadow-md`}>
+                            <StreakTierIcon tier={userTier} size="lg" animate={true} className="text-white fill-white/80" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-base font-black tracking-tight">{userTier.emoji} {userTier.name} Tier</span>
+                              <span className="px-2 py-0.5 bg-white/20 text-white text-[10px] font-black uppercase rounded">
+                                Rank {userTier.tierRank}/9
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-300 font-medium mt-0.5">
+                              {userTier.title} • {userTier.perk}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => setActiveTab('tiers')}
+                          className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0"
+                        >
+                          <span>All Tiers</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Tier progress bar */}
+                      <div className="space-y-1.5 pt-2 border-t border-white/10">
+                        <div className="flex justify-between items-center text-[11px] font-semibold text-slate-300">
+                          <span>Progress to Next Icon:</span>
+                          <span className="font-mono text-yellow-400">
+                            {tierProgress.nextTier ? `${tierProgress.daysToNext} days to ${tierProgress.nextTier.name}` : 'Maximum Tier Mastered!'}
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full bg-gradient-to-r ${userTier.gradient} rounded-full transition-all duration-500`}
+                            style={{ width: `${tierProgress.percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Weekly Calendar View */}
                     <div className="bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
                       <div className="flex items-center justify-between mb-3">
@@ -723,8 +789,8 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-900/40 flex items-center gap-3.5">
-                          <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                            <Flame className="w-5 h-5 fill-current" />
+                          <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${userTier.gradient} flex items-center justify-center text-white`}>
+                            <StreakTierIcon tier={userTier} size="md" />
                           </div>
                           <div>
                             <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Current Streak</span>
@@ -752,6 +818,100 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                           </div>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 2: STREAK ICON TIERS ROADMAP */}
+                {activeTab === 'tiers' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <Crown className="w-4 h-4 text-amber-500" />
+                          <span>Streak Icon Progression Tiers</span>
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          As your daily streak grows, your floating badge transforms into rare dynamic icon forms!
+                        </p>
+                      </div>
+                      <StreakBadgePill streakCount={currentStreak} size="sm" />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {STREAK_TIERS.map((tier) => {
+                        const isCurrent = userTier.id === tier.id;
+                        const isUnlocked = currentStreak >= tier.minDays;
+                        const daysRemaining = tier.minDays - currentStreak;
+
+                        return (
+                          <div
+                            key={tier.id}
+                            className={`relative p-4 rounded-2xl border transition-all ${
+                              isCurrent
+                                ? `bg-gradient-to-br ${tier.lightBg} border-2 ${tier.borderColor} shadow-md ring-2 ${tier.ringColor}`
+                                : isUnlocked
+                                ? 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700'
+                                : 'bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/70 opacity-75'
+                            }`}
+                          >
+                            {/* Current Badge Tag */}
+                            {isCurrent && (
+                              <div className="absolute top-3 right-3 px-2 py-0.5 bg-amber-500 text-white font-black text-[10px] rounded-full uppercase tracking-wider shadow-xs">
+                                Active Tier
+                              </div>
+                            )}
+
+                            <div className="flex items-start gap-3">
+                              <div className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${tier.gradient} flex items-center justify-center text-white shadow-sm shrink-0`}>
+                                <StreakTierIcon tier={tier} size="lg" animate={isCurrent} />
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-sm text-slate-900 dark:text-white">
+                                    {tier.emoji} {tier.name}
+                                  </span>
+                                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                    ({tier.minDays === 0 ? '0-2' : tier.minDays === 365 ? '365+' : `${tier.minDays}+`} Days)
+                                  </span>
+                                </div>
+                                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">
+                                  {tier.title}
+                                </p>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                  {tier.description}
+                                </p>
+                                <div className="mt-2 text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3" />
+                                  <span>{tier.perk}</span>
+                                </div>
+
+                                {/* Status Footer */}
+                                <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
+                                  {isCurrent ? (
+                                    <span className="font-bold text-amber-600 dark:text-amber-400">
+                                      Currently Equipped
+                                    </span>
+                                  ) : isUnlocked ? (
+                                    <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3" /> Unlocked
+                                    </span>
+                                  ) : (
+                                    <span className="font-bold text-slate-400 flex items-center gap-1">
+                                      <Lock className="w-3 h-3" /> Unlocks in {daysRemaining} days
+                                    </span>
+                                  )}
+
+                                  <span className="text-slate-400 text-[10px] uppercase font-mono">
+                                    Tier {tier.tierRank}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -930,9 +1090,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-1 font-mono font-black text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-1 rounded-xl border border-amber-200 dark:border-amber-900/50">
-                                  <span>🔥</span> {item.currentStreak}
-                                </div>
+                                <StreakBadgePill streakCount={item.currentStreak} size="sm" />
                               </div>
                             );
                           })

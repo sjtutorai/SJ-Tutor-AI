@@ -34,6 +34,7 @@ import {
   calculateProfileUpdateCooldown 
 } from '../utils/profileUtils';
 import { ProfileSavedItemsSection } from './ProfileSavedItemsSection';
+import { StreakBadgePill } from './StreakTierBadge';
 
 interface ProfileViewProps {
   profile: UserProfile;
@@ -490,11 +491,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                       : "Free Tier (100 Credits)"}
                  </span>
                </div>
-               <div className="flex justify-between text-sm mb-2">
+               <div className="flex justify-between text-sm items-center mb-2">
                  <span className="text-slate-500">Daily Streak</span>
-                 <span className="font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 px-2.5 py-0.5 rounded text-xs flex items-center gap-1">
-                   🔥 {formData.streak ?? 0} {(formData.streak ?? 0) === 1 ? 'Day' : 'Days'}
-                 </span>
+                 <StreakBadgePill streakCount={formData.streak ?? 0} size="sm" showLabel={true} />
                </div>
                <div className="flex justify-between text-sm mb-2">
                  <span className="text-slate-500">Profile Edits</span>
