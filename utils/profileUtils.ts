@@ -1,40 +1,48 @@
 
 import { UserProfile } from '../types';
 
-export const calculateProfileCompletion = (profile: UserProfile): number => {
+export const calculateProfileCompletion = (profile?: UserProfile | null): number => {
+  if (!profile) return 0;
   let completion = 0;
   
-  if (profile.displayName && profile.displayName.length >= 2) completion += 10;
-  if (profile.photoURL) completion += 10;
-  if (profile.dob) completion += 10;
-  if (profile.institution) completion += 10;
-  if (profile.grade) completion += 10;
-  if (profile.board) completion += 5;
-  if (profile.state) completion += 5;
-  if (profile.district) completion += 5;
-  if (profile.bio && profile.bio.length >= 5) completion += 10;
-  if (profile.phoneNumber) completion += 15;
-  if (profile.learningGoal) completion += 5;
-  if (profile.learningStyle) completion += 5;
+  if (profile.displayName && profile.displayName.trim().length >= 2) completion += 10;
+  if (profile.photoURL && profile.photoURL.trim().length > 0) completion += 10;
+  if (profile.dob && profile.dob.trim().length > 0) completion += 10;
+  if (profile.institution && profile.institution.trim().length > 0) completion += 10;
+  if (profile.grade && profile.grade.trim().length > 0) completion += 10;
+  if (profile.board && profile.board.trim().length > 0) completion += 5;
+  if (profile.state && profile.state.trim().length > 0) completion += 5;
+  if (profile.district && profile.district.trim().length > 0) completion += 5;
+  if (profile.bio && profile.bio.trim().length >= 3) completion += 10;
+  if (profile.phoneNumber && profile.phoneNumber.trim().length >= 5) completion += 15;
+  if (profile.learningGoal && profile.learningGoal.trim().length > 0) completion += 5;
+  if (profile.learningStyle && profile.learningStyle.trim().length > 0) completion += 5;
   
   return Math.min(100, completion);
 };
 
-export const getMissingProfileFields = (profile: UserProfile): string[] => {
+export const getMissingProfileFields = (profile?: UserProfile | null): string[] => {
+  if (!profile) {
+    return [
+      "Full Name", "Profile Photo", "Date of Birth", "School/Institution",
+      "Class/Grade", "Board", "State", "District", "About Me",
+      "Phone Number", "Learning Goal", "Learning Style"
+    ];
+  }
   const missing: string[] = [];
   
-  if (!profile.displayName || profile.displayName.length < 2) missing.push("Full Name");
-  if (!profile.photoURL) missing.push("Profile Photo");
-  if (!profile.dob) missing.push("Date of Birth");
-  if (!profile.institution) missing.push("School/Institution");
-  if (!profile.grade) missing.push("Class/Grade");
-  if (!profile.board) missing.push("Board");
-  if (!profile.state) missing.push("State");
-  if (!profile.district) missing.push("District");
-  if (!profile.bio || profile.bio.length < 5) missing.push("About Me");
-  if (!profile.phoneNumber) missing.push("Phone Number");
-  if (!profile.learningGoal) missing.push("Learning Goal");
-  if (!profile.learningStyle) missing.push("Learning Style");
+  if (!profile.displayName || profile.displayName.trim().length < 2) missing.push("Full Name");
+  if (!profile.photoURL || profile.photoURL.trim().length === 0) missing.push("Profile Photo");
+  if (!profile.dob || profile.dob.trim().length === 0) missing.push("Date of Birth");
+  if (!profile.institution || profile.institution.trim().length === 0) missing.push("School/Institution");
+  if (!profile.grade || profile.grade.trim().length === 0) missing.push("Class/Grade");
+  if (!profile.board || profile.board.trim().length === 0) missing.push("Board");
+  if (!profile.state || profile.state.trim().length === 0) missing.push("State");
+  if (!profile.district || profile.district.trim().length === 0) missing.push("District");
+  if (!profile.bio || profile.bio.trim().length < 3) missing.push("About Me");
+  if (!profile.phoneNumber || profile.phoneNumber.trim().length < 5) missing.push("Phone Number");
+  if (!profile.learningGoal || profile.learningGoal.trim().length === 0) missing.push("Learning Goal");
+  if (!profile.learningStyle || profile.learningStyle.trim().length === 0) missing.push("Learning Style");
   
   return missing;
 };

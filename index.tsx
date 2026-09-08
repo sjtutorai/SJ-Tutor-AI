@@ -76,6 +76,11 @@ if (typeof window !== 'undefined') {
 
   window.addEventListener('unhandledrejection', (event) => {
     if (!event) return;
+    const reasonStr = (event.reason && (event.reason.message || event.reason.toString())) || '';
+    if (reasonStr.includes('WebSocket') || reasonStr.includes('vite')) {
+      if (typeof event.preventDefault === 'function') event.preventDefault();
+      return;
+    }
     console.warn('[SJ Tutor AI Handled Unhandled Rejection]:', event.reason);
     if (typeof event.preventDefault === 'function') event.preventDefault();
     if (typeof event.stopPropagation === 'function') event.stopPropagation();

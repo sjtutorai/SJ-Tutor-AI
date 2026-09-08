@@ -173,9 +173,9 @@ export function mapDocToProfileSavedItem(
 /**
  * Fetches all saved items for a given user account from Firestore.
  * Queries `users/{accountId}/history` as well as `users/{accountId}/savedItems`
- * and any additional account aliases if present.
+ * and any additional account aliases (e.g. Firebase UID or SJ Tutor ID) if present.
  */
-export async function getProfileSavedItems(accountId: string): Promise<ProfileSavedItem[]> {
+export async function getProfileSavedItems(accountId: string, alternateId?: string | null): Promise<ProfileSavedItem[]> {
   if (!accountId || accountId === 'guest') {
     return [];
   }
@@ -184,6 +184,7 @@ export async function getProfileSavedItems(accountId: string): Promise<ProfileSa
 
   // Helper to fetch from a subcollection
   const fetchSubcollection = async (uid: string, subcollectionName: 'history' | 'savedItems') => {
+    if (!uid || uid === 'guest') return;
     try {
       const colRef = collection(db, 'users', uid, subcollectionName);
       const snapshot = await getDocs(colRef);
@@ -199,11 +200,31 @@ export async function getProfileSavedItems(accountId: string): Promise<ProfileSa
     }
   };
 
-  // Primary fetch: history subcollection (where summaries, quizzes, tutor notes live)
+  // 1. Primary account ID subcollections
   await fetchSubcollection(accountId, 'history');
-
-  // Secondary fetch: savedItems subcollection (if any were saved directly to savedItems)
   await fetchSubcollection(accountId, 'savedItems');
+
+  // 2. Query alternate ID if provided (e.g. sjTutorId if accountId is auth UID)
+  if (alternateId && alternateId !== accountId && alternateId !== 'guest') {
+    await fetchSubcollection(alternateId, 'history');
+    await fetchSubcollection(alternateId, 'savedItems');
+  }
+
+  // 3. Try to discover linked sjTutorId / registrationNumber from user document
+  try {
+    const userDocRef = doc(db, 'users', accountId);
+    const userDocSnap = await getDoc(userDocRef);
+    if (userDocSnap.exists()) {
+      const uData = userDocSnap.data();
+      const sjId = uData?.sjTutorId || uData?.registrationNumber;
+      if (sjId && sjId !== accountId && sjId !== alternateId) {
+        await fetchSubcollection(sjId, 'history');
+        await fetchSubcollection(sjId, 'savedItems');
+      }
+    }
+  } catch (err) {
+    console.debug('[ProfileSavedItems] Alias document check notice:', err);
+  }
 
   // Convert map to array and sort by newest first
   const result = Array.from(itemsMap.values()).sort((a, b) => b.timestamp - a.timestamp);
@@ -213,20 +234,23 @@ export async function getProfileSavedItems(accountId: string): Promise<ProfileSa
 /**
  * Deletes a saved item from Firestore across both potential subcollections
  */
-export async function deleteProfileSavedItem(accountId: string, itemId: string): Promise<boolean> {
+export async function deleteProfileSavedItem(accountId: string, itemId: string, alternateId?: string | null): Promise<boolean> {
   if (!accountId || !itemId) return false;
+  const targetIds = [accountId, alternateId].filter((id): id is string => Boolean(id && id !== 'guest'));
   try {
-    // Delete from history
-    try {
-      await deleteDoc(doc(db, 'users', accountId, 'history', itemId));
-    } catch {
-      // Ignore if not found in history
-    }
-    // Delete from savedItems
-    try {
-      await deleteDoc(doc(db, 'users', accountId, 'savedItems', itemId));
-    } catch {
-      // Ignore if not found in savedItems
+    for (const uid of targetIds) {
+      // Delete from history
+      try {
+        await deleteDoc(doc(db, 'users', uid, 'history', itemId));
+      } catch {
+        // Ignore if not found in history
+      }
+      // Delete from savedItems
+      try {
+        await deleteDoc(doc(db, 'users', uid, 'savedItems', itemId));
+      } catch {
+        // Ignore if not found in savedItems
+      }
     }
     return true;
   } catch (err) {
@@ -241,7 +265,8 @@ export async function deleteProfileSavedItem(accountId: string, itemId: string):
 export function subscribeToProfileSavedItems(
   accountId: string, 
   onUpdate: (items: ProfileSavedItem[]) => void,
-  onError?: (err: any) => void
+  onError?: (err: any) => void,
+  alternateId?: string | null
 ): () => void {
   if (!accountId || accountId === 'guest') {
     onUpdate([]);
@@ -261,42 +286,55 @@ export function subscribeToProfileSavedItems(
     onUpdate(sorted);
   };
 
-  // 1. Listen to history
-  const unsubHistory = onSnapshot(
-    collection(db, 'users', accountId, 'history'),
-    (snapshot) => {
-      historyMap.clear();
-      snapshot.forEach((d) => {
-        const item = mapDocToProfileSavedItem(d.id, d.data(), 'history');
-        historyMap.set(item.id, item);
-      });
-      emitMerged();
-    },
-    (err) => {
-      console.warn('[ProfileSavedItems] Real-time history listener warning:', err);
-      if (onError) onError(err);
-    }
-  );
+  const unsubs: (() => void)[] = [];
 
-  // 2. Listen to savedItems
-  const unsubSavedItems = onSnapshot(
-    collection(db, 'users', accountId, 'savedItems'),
-    (snapshot) => {
-      savedItemsMap.clear();
-      snapshot.forEach((d) => {
-        const item = mapDocToProfileSavedItem(d.id, d.data(), 'savedItems');
-        savedItemsMap.set(item.id, item);
-      });
-      emitMerged();
-    },
-    (err) => {
-      // It's normal if savedItems doesn't exist yet
-      console.warn('[ProfileSavedItems] Real-time savedItems listener warning:', err);
+  const attachListenersForId = (targetUid: string) => {
+    if (!targetUid || targetUid === 'guest') return;
+    try {
+      const unsubHist = onSnapshot(
+        collection(db, 'users', targetUid, 'history'),
+        (snapshot) => {
+          snapshot.forEach((d) => {
+            const item = mapDocToProfileSavedItem(d.id, d.data(), 'history');
+            historyMap.set(item.id, item);
+          });
+          emitMerged();
+        },
+        (err) => {
+          console.warn(`[ProfileSavedItems] Real-time history listener warning (${targetUid}):`, err);
+          if (onError) onError(err);
+        }
+      );
+      unsubs.push(unsubHist);
+
+      const unsubSaved = onSnapshot(
+        collection(db, 'users', targetUid, 'savedItems'),
+        (snapshot) => {
+          snapshot.forEach((d) => {
+            const item = mapDocToProfileSavedItem(d.id, d.data(), 'savedItems');
+            savedItemsMap.set(item.id, item);
+          });
+          emitMerged();
+        },
+        (err) => {
+          console.debug(`[ProfileSavedItems] Real-time savedItems listener notice (${targetUid}):`, err);
+        }
+      );
+      unsubs.push(unsubSaved);
+    } catch (e) {
+      console.warn(`[ProfileSavedItems] Error attaching listeners for ${targetUid}:`, e);
     }
-  );
+  };
+
+  // Attach for primary account ID
+  attachListenersForId(accountId);
+
+  // Attach for alternate ID if distinct
+  if (alternateId && alternateId !== accountId && alternateId !== 'guest') {
+    attachListenersForId(alternateId);
+  }
 
   return () => {
-    unsubHistory();
-    unsubSavedItems();
+    unsubs.forEach((unsub) => unsub());
   };
 }

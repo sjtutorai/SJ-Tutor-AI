@@ -24,6 +24,12 @@
       window.addEventListener('unhandledrejection', function(event) {
         if (!event) return;
         var reason = event.reason;
+        var str = (reason && (reason.message || reason.toString())) || '';
+        // Suppress expected benign Vite HMR websocket disconnection in sandbox
+        if (str.indexOf('WebSocket') !== -1 || str.indexOf('vite') !== -1) {
+          if (typeof event.preventDefault === 'function') event.preventDefault();
+          return;
+        }
         console.warn('[SJ Tutor AI Handled Unhandled Rejection]:', reason);
         if (typeof event.preventDefault === 'function') event.preventDefault();
         if (typeof event.stopPropagation === 'function') event.stopPropagation();

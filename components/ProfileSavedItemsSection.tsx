@@ -67,6 +67,7 @@ export const ProfileSavedItemsSection: React.FC<ProfileSavedItemsSectionProps> =
     try {
       // 1. Resolve Account ID using identical logic to Summaries & Quizzes
       const providedCandidate = userUid || profile?.uid || profile?.sjTutorId || profile?.registrationNumber;
+      const alternateCandidate = profile?.sjTutorId || profile?.registrationNumber || (userUid !== profile?.uid ? profile?.uid : null);
       const accountId = await resolveUserAccountId(providedCandidate, email || profile?.email);
 
       if (!accountId) {
@@ -78,7 +79,7 @@ export const ProfileSavedItemsSection: React.FC<ProfileSavedItemsSectionProps> =
       setResolvedAccountId(accountId);
 
       // 2. Fetch all saved documents from Firestore (both history and savedItems)
-      const fetched = await getProfileSavedItems(accountId);
+      const fetched = await getProfileSavedItems(accountId, alternateCandidate);
       setItems(fetched);
       if (onItemsCountChange) {
         onItemsCountChange(fetched.length);
@@ -101,6 +102,8 @@ export const ProfileSavedItemsSection: React.FC<ProfileSavedItemsSectionProps> =
   useEffect(() => {
     if (!resolvedAccountId) return;
 
+    const alternateCandidate = profile?.sjTutorId || profile?.registrationNumber || (userUid !== profile?.uid ? profile?.uid : null);
+
     const unsubscribe = subscribeToProfileSavedItems(
       resolvedAccountId,
       (updatedItems) => {
@@ -112,7 +115,8 @@ export const ProfileSavedItemsSection: React.FC<ProfileSavedItemsSectionProps> =
       },
       (err) => {
         console.warn('[ProfileSavedItems] Real-time listener non-fatal error:', err);
-      }
+      },
+      alternateCandidate
     );
 
     return () => {

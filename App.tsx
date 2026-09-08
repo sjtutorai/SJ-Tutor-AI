@@ -457,6 +457,9 @@ const App: React.FC = () => {
     phoneNumber: "",
     institution: "",
     grade: "",
+    board: "",
+    state: "",
+    district: "",
     bio: "",
     photoURL: "",
     learningGoal: "",
@@ -1576,41 +1579,12 @@ const App: React.FC = () => {
         localStorage.setItem(lastShownKey, now.toString());
       }
 
-      // SPEED OPTIMIZATION: Load locally stored profile from LocalStorage IMMEDIATELY
-      const savedProfile = localStorage.getItem(`profile_${user.uid}`);
-      let cached: any = null;
-      if (savedProfile) {
-        try {
-          cached = JSON.parse(savedProfile);
-        } catch {
-          // Ignore parse errors
-        }
-      }
-
-      const membership = getMembershipByEmail(user.email);
-      const initialProfile = {
-        ...initialProfileState,
-        credits: membership ? membership.credits : 100,
-        planType: membership ? membership.planType : "Free",
-        ...cached,
-        ...(membership ? { planType: membership.planType, credits: membership.credits, hasCompletedOnboarding: true } : {}),
-        displayName: (cached && cached.displayName) || user.displayName || "",
-        photoURL: (cached && cached.photoURL) || user.photoURL || "",
-      };
-
-      // Set user profile instantly to avoid blocking or lagging perceived speed!
-      setUserProfile((prev) => ({
-        ...initialProfile,
-        isRegisteredInFirestore: prev.isRegisteredInFirestore || cached?.isRegisteredInFirestore,
-        hasCompletedOnboarding: !!membership || prev.hasCompletedOnboarding || cached?.hasCompletedOnboarding,
-      }));
-
       // Check profile completion to trigger alerts/notifications (skip for users registered in Firestore)
-      const isRegisteredInDb = userProfile.isRegisteredInFirestore || cached?.isRegisteredInFirestore || userProfile.hasCompletedOnboarding;
-      const cachedCompletion = calculateProfileCompletion(initialProfile);
+      const isRegisteredInDb = userProfile.isRegisteredInFirestore || userProfile.hasCompletedOnboarding;
+      const currentCompletion = calculateProfileCompletion(userProfile);
       const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
 
-      if (!isRegisteredInDb && cachedCompletion < 100 && !isDismissedPrompt) {
+      if (!isRegisteredInDb && currentCompletion < 100 && !isDismissedPrompt) {
         setTimeout(() => {
           setShowCompletionReminder(true);
         }, 2000);
@@ -1648,7 +1622,7 @@ const App: React.FC = () => {
         }
       }
     }
-  }, [user]);
+  }, [user, userProfile.isRegisteredInFirestore, userProfile.hasCompletedOnboarding]);
 
   // Two-Step Verification (on Login) & PIN Lock (on Refresh/Visit) Check
   useEffect(() => {
@@ -1676,7 +1650,7 @@ const App: React.FC = () => {
 
   // Monitor trial expiration and ensure post-trial 100 credits are awarded
   useEffect(() => {
-    if (!user) return;
+    if (!user || !userProfile.isRegisteredInFirestore) return;
     const trialInfo = calculateTrialInfo(userProfile, user.uid);
     if (trialInfo.isExpired && (!userProfile.planType || userProfile.planType === "Free")) {
       const grantKey = `post_trial_credits_granted_${user.uid}`;
@@ -1685,13 +1659,11 @@ const App: React.FC = () => {
         localStorage.setItem(grantKey, "true");
         const currentCredits = typeof userProfile.credits === "number" ? userProfile.credits : 0;
         const newCredits = Math.max(100, currentCredits);
-        const updated = {
-          ...userProfile,
+        setUserProfile((prev) => ({
+          ...prev,
           credits: newCredits,
-        };
-        setUserProfile(updated);
-        localStorage.setItem(`profile_${user.uid}`, JSON.stringify(updated));
-        saveProfileToFirestore(user.uid, updated);
+        }));
+        saveProfileToFirestore(user.uid, { credits: newCredits });
 
         sendNotificationRef.current(
           "100 Free Credits Awarded 🎁",
@@ -1701,7 +1673,7 @@ const App: React.FC = () => {
         ).catch((e) => console.warn("Failed to send trial expiration notification:", e));
       }
     }
-  }, [userProfile.trialStartDate, user, userProfile.planType]);
+  }, [userProfile.trialStartDate, user, userProfile.planType, userProfile.isRegisteredInFirestore]);
 
   // History Persistence and Database Synchronization
   useEffect(() => {
@@ -1798,7 +1770,14 @@ const App: React.FC = () => {
     newProfile: UserProfile,
     redirectDashboard = false,
   ) => {
-    setUserProfile(newProfile);
+    const fullSaved: UserProfile = {
+      ...initialProfileState,
+      ...userProfile,
+      ...newProfile,
+      isRegisteredInFirestore: true,
+      hasCompletedOnboarding: true,
+    };
+    setUserProfile(fullSaved);
     if (newProfile.grade) {
       SettingsService.updateSettings({
         learning: {
@@ -1807,9 +1786,10 @@ const App: React.FC = () => {
         }
       });
     }
-    if (user) {
-      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
-      await saveProfileToFirestore(user.uid, newProfile);
+    const targetUid = user?.uid || newProfile.uid || newProfile.sjTutorId;
+    if (targetUid) {
+      localStorage.setItem(`profile_${targetUid}`, JSON.stringify(fullSaved));
+      await saveProfileToFirestore(targetUid, fullSaved);
     }
     
     // Automatically redirect to Dashboard after completing onboarding
@@ -1822,15 +1802,28 @@ const App: React.FC = () => {
   const handleSignUpSuccess = async (signupData?: Partial<UserProfile> | any) => {
     if (signupData) {
       const targetUid = signupData.uid || auth.currentUser?.uid || `sjt_${Date.now()}`;
+      
+      // Fetch existing Firestore profile first to prevent overwriting Device A's fields
+      let remoteProfile: any = null;
+      try {
+        const remoteDoc = await getDoc(doc(db, "users", targetUid));
+        if (remoteDoc.exists()) {
+          remoteProfile = remoteDoc.data();
+        }
+      } catch (e) {
+        console.warn("Could not check remote profile on auth success:", e);
+      }
+
       const mergedProfile: UserProfile = {
         ...initialProfileState,
+        ...remoteProfile,
         ...userProfile,
         ...signupData,
-        displayName: signupData.displayName || userProfile.displayName || "Student",
-        email: signupData.email || userProfile.email || "",
-        grade: signupData.classGrade || signupData.grade || userProfile.grade || "Class 10",
-        sjTutorId: signupData.sjTutorId || userProfile.sjTutorId,
-        registrationNumber: signupData.sjTutorId || userProfile.registrationNumber,
+        displayName: signupData.displayName || remoteProfile?.displayName || userProfile.displayName || "Student",
+        email: signupData.email || remoteProfile?.email || userProfile.email || "",
+        grade: signupData.classGrade || signupData.grade || remoteProfile?.grade || userProfile.grade || "Class 10",
+        sjTutorId: signupData.sjTutorId || remoteProfile?.sjTutorId || userProfile.sjTutorId,
+        registrationNumber: signupData.sjTutorId || remoteProfile?.registrationNumber || userProfile.registrationNumber,
         hasCompletedOnboarding: true,
         isRegisteredInFirestore: true,
       };
@@ -1853,7 +1846,8 @@ const App: React.FC = () => {
         console.warn("Could not save to localStorage", e);
       }
 
-      if (auth.currentUser) {
+      // If this is a fresh registration without an existing remote profile, save to Firestore
+      if (auth.currentUser && !remoteProfile) {
         try {
           await saveProfileToFirestore(auth.currentUser.uid, mergedProfile);
         } catch (e) {
@@ -1883,6 +1877,7 @@ const App: React.FC = () => {
         const mergedProfile = {
           ...initialProfileState,
           ...userProf,
+          isRegisteredInFirestore: true,
         };
         setUserProfile(mergedProfile as any);
         if (!userProf.hasCompletedOnboarding) {
