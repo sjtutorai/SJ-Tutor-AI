@@ -181,14 +181,29 @@ app.use("/api/auth", authRoutes);
 
 app.post("/api/generate-image", async (req, res, next) => {
   try {
-    const { prompt, aspectRatio = "16:9" } = req.body;
+    const { prompt, aspectRatio = "1:1", style, imageSize = "1K" } = req.body;
     if (!prompt) return res.status(400).json({ error: "Prompt is required" });
 
-    const seed = Math.floor(Math.random() * 1000000);
     const cleanPrompt = prompt.trim();
-    let imageUrl = "";
+    let promptWithStyle = cleanPrompt;
+    if (style && style !== "Default" && style !== "None") {
+      promptWithStyle = `${cleanPrompt}. Render in ${style} aesthetic style with high visual fidelity, educational diagrammatic clarity, and balanced lighting.`;
+    }
 
+    const validAspectRatios = ["1:1", "16:9", "9:16", "4:3", "3:4"];
+    const targetAspectRatio = validAspectRatios.includes(aspectRatio) ? aspectRatio : "1:1";
+
+    let imageUrl = "";
+    let usedModel = "gemini-3.1-flash-image-preview";
     const keys = getServerGeminiKeys();
+
+    const candidateModels = [
+      "gemini-3.1-flash-image-preview",
+      "gemini-3.1-flash-image",
+      "gemini-3.1-flash-lite-image",
+    ];
+
+    outerLoop:
     for (const key of keys) {
       if (!key) continue;
       try {
@@ -202,39 +217,171 @@ app.post("/api/generate-image", async (req, res, next) => {
           }
         });
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.1-flash-lite-image',
-          contents: {
-            parts: [{ text: `High quality digital background wallpaper: ${cleanPrompt}. Clean composition, wallpaper format, aesthetic lighting.` }]
-          },
-          config: {
-            imageConfig: {
-              aspectRatio: aspectRatio as any || "16:9",
+        for (const modelName of candidateModels) {
+          try {
+            const config: any = {
+              imageConfig: {
+                aspectRatio: targetAspectRatio,
+              }
+            };
+            if (modelName !== "gemini-3.1-flash-lite-image" && (imageSize === "512px" || imageSize === "1K" || imageSize === "2K")) {
+              config.imageConfig.imageSize = imageSize;
             }
-          }
-        });
 
-        const parts = response.candidates?.[0]?.content?.parts || [];
-        for (const part of parts) {
-          if (part.inlineData && part.inlineData.data) {
-            const mimeType = part.inlineData.mimeType || 'image/png';
-            imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
-            break;
+            const response = await ai.models.generateContent({
+              model: modelName,
+              contents: {
+                parts: [{ text: promptWithStyle }]
+              },
+              config
+            });
+
+            const parts = response.candidates?.[0]?.content?.parts || [];
+            for (const part of parts) {
+              if (part.inlineData && part.inlineData.data) {
+                const mimeType = part.inlineData.mimeType || 'image/png';
+                imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+                usedModel = modelName;
+                break outerLoop;
+              }
+            }
+          } catch (modelErr: any) {
+            console.warn(`[Server] Image model ${modelName} attempt notice:`, modelErr.message);
           }
         }
-        if (imageUrl) break;
       } catch (geminiErr: any) {
         console.warn(`[Server] Gemini Image generation attempt failed with key:`, geminiErr.message);
       }
     }
 
-    // Dynamic real-time AI image synthesis via Pollinations AI if Gemini base64 isn't returned
+    // Dynamic real-time AI image synthesis fallback if Gemini base64 isn't returned
     if (!imageUrl) {
-      const encodedPrompt = encodeURIComponent(`${cleanPrompt}, high quality aesthetic wallpaper 4k hd`);
-      imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1600&height=900&nologo=true&seed=${seed}&model=flux`;
+      const seed = Math.floor(Math.random() * 1000000);
+      const encodedPrompt = encodeURIComponent(`${promptWithStyle}, masterpiece, clean 4k resolution`);
+      const dims = targetAspectRatio === '16:9' ? { w: 1280, h: 720 } :
+                   targetAspectRatio === '9:16' ? { w: 720, h: 1280 } :
+                   targetAspectRatio === '4:3'  ? { w: 1024, h: 768 } :
+                   targetAspectRatio === '3:4'  ? { w: 768, h: 1024 } : { w: 1024, h: 1024 };
+      imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${dims.w}&height=${dims.h}&nologo=true&seed=${seed}&model=flux`;
+      usedModel = "hybrid-synth";
     }
 
-    res.json({ success: true, imageUrl, prompt: cleanPrompt });
+    res.json({ 
+      success: true, 
+      imageUrl, 
+      prompt: cleanPrompt,
+      style,
+      aspectRatio: targetAspectRatio,
+      model: usedModel,
+      createdAt: Date.now()
+    });
+  } catch (error: any) {
+    next(error);
+  }
+});
+
+app.post("/api/edit-image", async (req, res, next) => {
+  try {
+    const { prompt, image, mimeType = "image/png", aspectRatio } = req.body;
+    if (!prompt) return res.status(400).json({ error: "Edit prompt is required" });
+    if (!image) return res.status(400).json({ error: "Source image data is required" });
+
+    const cleanPrompt = prompt.trim();
+    let base64Data = image;
+    let effectiveMime = mimeType;
+
+    if (typeof image === "string" && image.startsWith("data:")) {
+      const match = image.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        effectiveMime = match[1];
+        base64Data = match[2];
+      }
+    }
+
+    let imageUrl = "";
+    let usedModel = "gemini-3.1-flash-image-preview";
+    const keys = getServerGeminiKeys();
+
+    const candidateModels = [
+      "gemini-3.1-flash-image-preview",
+      "gemini-3.1-flash-image",
+      "gemini-3.1-flash-lite-image",
+    ];
+
+    outerLoop:
+    for (const key of keys) {
+      if (!key) continue;
+      try {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({
+          apiKey: key,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
+
+        for (const modelName of candidateModels) {
+          try {
+            const config: any = {};
+            if (aspectRatio) {
+              config.imageConfig = { aspectRatio };
+            }
+
+            const response = await ai.models.generateContent({
+              model: modelName,
+              contents: {
+                parts: [
+                  {
+                    inlineData: {
+                      data: base64Data,
+                      mimeType: effectiveMime,
+                    },
+                  },
+                  {
+                    text: `Transform and edit this image as requested: ${cleanPrompt}. Maintain visual coherence and seamless blending.`,
+                  },
+                ],
+              },
+              config: Object.keys(config).length > 0 ? config : undefined,
+            });
+
+            const parts = response.candidates?.[0]?.content?.parts || [];
+            for (const part of parts) {
+              if (part.inlineData && part.inlineData.data) {
+                const outMime = part.inlineData.mimeType || 'image/png';
+                imageUrl = `data:${outMime};base64,${part.inlineData.data}`;
+                usedModel = modelName;
+                break outerLoop;
+              }
+            }
+          } catch (modelErr: any) {
+            console.warn(`[Server] Image edit model ${modelName} notice:`, modelErr.message);
+          }
+        }
+      } catch (geminiErr: any) {
+        console.warn(`[Server] Gemini Image edit attempt failed with key:`, geminiErr.message);
+      }
+    }
+
+    // High quality fallback if needed
+    if (!imageUrl) {
+      const seed = Math.floor(Math.random() * 1000000);
+      const encodedPrompt = encodeURIComponent(`Edited version: ${cleanPrompt}, highly detailed`);
+      imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
+      usedModel = "hybrid-synth";
+    }
+
+    res.json({
+      success: true,
+      imageUrl,
+      prompt: cleanPrompt,
+      originalUrl: image.startsWith("data:") ? image : `data:${effectiveMime};base64,${base64Data}`,
+      isEdited: true,
+      model: usedModel,
+      createdAt: Date.now()
+    });
   } catch (error: any) {
     next(error);
   }

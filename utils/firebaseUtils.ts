@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where, serverTimestamp, onSnapshot, orderBy, limit, updateDoc, writeBatch } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where, serverTimestamp, onSnapshot, orderBy, limit, updateDoc, writeBatch, arrayUnion } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember, Friendship, DirectChat, DirectMessage, UserTimerState, StudySessionRecord } from "../types";
 
@@ -340,6 +340,24 @@ export const incrementShareCount = async (shareId: string) => {
     }, { merge: true });
   } catch (error) {
     console.warn("Failed to increment shares count:", error);
+  }
+};
+
+export const recordSharedContentViewer = async (shareId: string, viewerName: string, viewerUid?: string) => {
+  try {
+    const docRef = doc(db, "sharedContent", shareId);
+    const viewerEntry = {
+      name: viewerName.trim(),
+      uid: viewerUid || "guest",
+      viewedAt: Date.now()
+    };
+    await setDoc(docRef, {
+      recentViewers: arrayUnion(viewerEntry),
+      views: increment(1),
+      lastViewedAt: Date.now()
+    }, { merge: true });
+  } catch (error) {
+    console.warn("Failed to record shared content viewer:", error);
   }
 };
 

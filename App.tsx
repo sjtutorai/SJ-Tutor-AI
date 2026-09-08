@@ -25,6 +25,7 @@ import LoadingState from "./components/LoadingState";
 import SplashScreen from "./components/SplashScreen";
 import DashboardSkeleton from "./components/DashboardSkeleton";
 import NotesView from "./components/NotesView";
+import ImageStudioView from "./components/ImageStudioView";
 import GroupsView from "./components/GroupsView";
 import GroupInviteView from "./components/GroupInviteView";
 import { CallModal } from "./components/CallModal";
@@ -672,6 +673,13 @@ const App: React.FC = () => {
         break;
       case AppMode.NOTES:
         SEOService.updateSEO(SEOService.getPresetForRoute('/notes'));
+        break;
+      case AppMode.IMAGE_STUDIO:
+        SEOService.updateSEO({
+          title: 'AI Image Studio | SJ Tutor AI',
+          description: 'Generate educational diagrams and transform images with gemini-3.1-flash-image-preview.',
+          canonicalPath: '/images',
+        });
         break;
       case AppMode.TIMER:
         SEOService.updateSEO(SEOService.getPresetForRoute('/timer'));
@@ -2604,6 +2612,7 @@ const App: React.FC = () => {
     { id: AppMode.QUIZ, label: "Quiz Creator", icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
+    { id: AppMode.IMAGE_STUDIO, label: "AI Image Studio", icon: Sparkles },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
@@ -2713,6 +2722,14 @@ const App: React.FC = () => {
         icon: Calendar,
         color: "text-emerald-700 dark:text-emerald-400",
         bg: "bg-[#FDF5E6] dark:bg-emerald-900/30",
+      },
+      {
+        id: AppMode.IMAGE_STUDIO,
+        label: "Image Studio",
+        count: null,
+        icon: Sparkles,
+        color: "text-amber-500 dark:text-amber-400",
+        bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
       },
     ];
 
@@ -2996,6 +3013,8 @@ const App: React.FC = () => {
 
                 if (card.id === AppMode.NOTES) {
                   setMode(AppMode.NOTES);
+                } else if (card.id === AppMode.IMAGE_STUDIO) {
+                  setMode(AppMode.IMAGE_STUDIO);
                 } else if (card.id === AppMode.GROUPS) {
                   setMode(AppMode.GROUPS);
                 } else if (card.id === AppMode.ID_CARD) {
@@ -3380,18 +3399,44 @@ const App: React.FC = () => {
               onAddToMyList={handleAddSharedToMyList}
               isAddedToList={isAddedSharedContent}
               onSharePublicLink={(type, title, content, customScore) => {
-                                const classSlug = sanitizeSlug(formData.gradeClass || "general");
+                const classSlug = sanitizeSlug(formData.gradeClass || "general");
                 const subjectSlug = sanitizeSlug(formData.subject || "general");
                 const chapterSlug = sanitizeSlug(formData.chapterName || "quiz");
                 
                 const customId = `quiz_${classSlug}_${subjectSlug}_${chapterSlug}`;
                 const customUrl = `${window.location.origin}/quiz/${classSlug}/${subjectSlug}/${chapterSlug}`;
-                const scoreText = customScore !== undefined ? ` Score: ${customScore}/${content.length}.` : '';
-                const studentNameText = userProfile.displayName ? ` Taken by ${userProfile.displayName}.` : '';
+                
+                const isQuizObj = content && typeof content === 'object' && 'questions' in content;
+                const questionsArray = isQuizObj ? content.questions : (Array.isArray(content) ? content : []);
+                const totalQ = questionsArray.length;
+                const finalScore = isQuizObj && content.userScore !== undefined ? content.userScore : customScore;
+                const scoreText = finalScore !== undefined ? ` Score: ${finalScore}/${totalQ} (${Math.round((finalScore / (totalQ || 1)) * 100)}%).` : '';
+                const studentName = userProfile.fullName || userProfile.displayName || (user ? user.displayName : "") || "Student";
+                const studentNameText = studentName ? ` Taken by ${studentName}.` : '';
                 const quizTitleText = formData.chapterName ? `"${formData.chapterName}"` : title;
-                const customMessage = `🎓 SJ Tutor AI - Quiz Results 🎓\nTitle: ${quizTitleText}\nClass: ${formData.gradeClass || "General"}\nSubject: ${formData.subject || "General"}${studentNameText}${scoreText}\n\nChallenge yourself or review results here:`;
+                const customMessage = `🎓 SJ Tutor AI - Quiz Results 🎓\nTitle: ${quizTitleText}\nClass: ${formData.gradeClass || "General"}\nSubject: ${formData.subject || "General"}${studentNameText}${scoreText}\n\nReview the questions, answers & student responses here:`;
 
-                handleSharePublicLink(type, quizTitleText, content, customId, customUrl, customMessage);
+                const enrichedContent = isQuizObj ? {
+                  ...content,
+                  submitterName: studentName,
+                  submitterUid: user ? user.uid : undefined,
+                  subject: formData.subject,
+                  gradeClass: formData.gradeClass,
+                  chapterName: formData.chapterName,
+                } : {
+                  questions: questionsArray,
+                  userScore: customScore,
+                  totalQuestions: totalQ,
+                  percentage: totalQ > 0 && customScore !== undefined ? Math.round((customScore / totalQ) * 100) : undefined,
+                  submitterName: studentName,
+                  submitterUid: user ? user.uid : undefined,
+                  subject: formData.subject,
+                  gradeClass: formData.gradeClass,
+                  chapterName: formData.chapterName,
+                  completedAt: Date.now()
+                };
+
+                handleSharePublicLink(type, quizTitleText, enrichedContent, customId, customUrl, customMessage);
               }}
             />
           );
@@ -3532,6 +3577,22 @@ const App: React.FC = () => {
               onDeductCredit={deductCredit}
               userProfile={userProfile}
               onOpenUpgrade={openPremiumModal}
+            />
+          </div>
+        );
+
+      case AppMode.IMAGE_STUDIO:
+        return (
+          <div className="w-full max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <ImageStudioView
+              userId={user ? user.uid : undefined}
+              currentTheme={theme}
+              onNavigateToNotes={() => {
+                setMode(AppMode.NOTES);
+              }}
+              onNavigateToTutor={() => {
+                setMode(AppMode.TUTOR);
+              }}
             />
           </div>
         );

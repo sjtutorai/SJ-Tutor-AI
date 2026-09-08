@@ -704,22 +704,52 @@ Your mission:
     return response.text || "I'm here to help with your group study! What question do you have?";
   },
 
-  generateImage: async (prompt: string): Promise<string> => {
+  generateImage: async (
+    params: string | { prompt: string; aspectRatio?: string; style?: string; imageSize?: string }
+  ): Promise<{ imageUrl: string; prompt: string; style?: string; aspectRatio?: string; model?: string }> => {
     try {
+      const payload = typeof params === "string" ? { prompt: params } : params;
       const response = await fetch("/api/generate-image", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
-        throw new Error("Failed to generate image from server");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to generate image from server");
       }
       const data = await response.json();
-      return data.imageUrl;
+      return data;
     } catch (e) {
       console.error("Image generation error:", e);
+      throw e;
+    }
+  },
+
+  editImage: async (params: {
+    prompt: string;
+    image: string;
+    mimeType?: string;
+    aspectRatio?: string;
+  }): Promise<{ imageUrl: string; prompt: string; originalUrl?: string; isEdited: boolean; model?: string }> => {
+    try {
+      const response = await fetch("/api/edit-image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(params),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to edit image from server");
+      }
+      const data = await response.json();
+      return data;
+    } catch (e) {
+      console.error("Image edit error:", e);
       throw e;
     }
   },

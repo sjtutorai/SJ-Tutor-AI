@@ -19,6 +19,7 @@ export const ROUTE_PATH_MAP: Record<AppMode, string> = {
   [AppMode.ESSAY]: "/essay",
   [AppMode.TUTOR]: "/tutor",
   [AppMode.NOTES]: "/notes",
+  [AppMode.IMAGE_STUDIO]: "/images",
   [AppMode.GROUPS]: "/groups",
   [AppMode.ID_CARD]: "/id-card",
   [AppMode.TIMER]: "/timer",
@@ -40,6 +41,7 @@ export const ROUTE_TITLES: Record<AppMode, string> = {
   [AppMode.ESSAY]: "AI Essay & Composition Writer - SJ Tutor AI",
   [AppMode.TUTOR]: "24/7 AI Personal Tutor Sessions - SJ Tutor AI",
   [AppMode.NOTES]: "Smart Notes & Study Schedule - SJ Tutor AI",
+  [AppMode.IMAGE_STUDIO]: "AI Image Creator & Editor - SJ Tutor AI",
   [AppMode.GROUPS]: "Collaborative Study Groups - SJ Tutor AI",
   [AppMode.ID_CARD]: "Official Student Identity Card - SJ Tutor AI",
   [AppMode.TIMER]: "Focused Study Timer & Stopwatch - SJ Tutor AI",
@@ -117,6 +119,8 @@ export const parseCurrentRoute = (pathname = window.location.pathname): RouteSta
     mode = AppMode.TUTOR;
   } else if (cleanPath === "/notes" || cleanPath === "/smart-notes" || cleanPath === "/schedule") {
     mode = AppMode.NOTES;
+  } else if (cleanPath === "/images" || cleanPath === "/image-studio" || cleanPath === "/create-image" || cleanPath === "/edit-image" || cleanPath === "/image-creator") {
+    mode = AppMode.IMAGE_STUDIO;
   } else if (cleanPath === "/groups" || cleanPath === "/study-groups") {
     mode = AppMode.GROUPS;
   } else if (cleanPath === "/id-card" || cleanPath === "/student-id" || cleanPath === "/id") {

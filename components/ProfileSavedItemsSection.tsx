@@ -209,8 +209,25 @@ export const ProfileSavedItemsSection: React.FC<ProfileSavedItemsSectionProps> =
     e.stopPropagation();
     try {
       const uid = resolvedAccountId || 'guest';
-      const shareId = await createSharedContent(item.type, item.title, item.content, uid);
-      const shareUrl = `${window.location.origin}/?share=${shareId}`;
+      let contentToShare = item.content;
+      if (item.type?.toLowerCase().includes('quiz') && item.score !== undefined) {
+        if (Array.isArray(item.content)) {
+          contentToShare = {
+            questions: item.content,
+            userScore: item.score,
+            totalQuestions: item.content.length,
+            percentage: item.content.length > 0 ? Math.round((item.score / item.content.length) * 100) : 0,
+            submitterName: 'Student'
+          };
+        } else if (item.content && typeof item.content === 'object') {
+          contentToShare = {
+            ...item.content,
+            userScore: item.score
+          };
+        }
+      }
+      const shareId = await createSharedContent(item.type, item.title, contentToShare, uid);
+      const shareUrl = `${window.location.origin}/share/${shareId}`;
       await navigator.clipboard.writeText(shareUrl);
       setCopiedItemId(item.id);
       setTimeout(() => setCopiedItemId(null), 3000);

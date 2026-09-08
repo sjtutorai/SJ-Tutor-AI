@@ -1057,7 +1057,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         }));
         
         try {
-          const imageUrl = await GeminiService.generateImage(imagePrompt);
+          const res = await GeminiService.generateImage(imagePrompt);
+          const imageUrl = typeof res === "string" ? res : res.imageUrl;
           accumulatedText = accumulatedText.replace(imgMatch[0], `\n\n![Generated Image](${imageUrl})\n\n`);
         } catch (e: any) {
           accumulatedText = accumulatedText.replace(imgMatch[0], `\n\n⚠️ Failed to generate image: ${e.message}\n\n`);

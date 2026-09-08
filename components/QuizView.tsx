@@ -53,11 +53,20 @@ const QuizView: React.FC<QuizViewProps> = ({
   const handleSharePublicLinkClick = async () => {
     if (isSharingPublic) return;
     setIsSharingPublic(true);
-    console.log("QuizView Share button click event detected.");
+    console.log("QuizView Share button click event detected with score and answers.");
     try {
       if (onSharePublicLink) {
         const title = questions[0]?.question ? `Quiz: ${questions[0].question.substring(0, 35)}...` : 'AI Quiz Challenge';
-        await onSharePublicLink('quiz', title, questions, score);
+        const quizPayload = {
+          questions,
+          userScore: score,
+          totalQuestions: questions.length,
+          percentage: questions.length > 0 ? Math.round((score / questions.length) * 100) : 0,
+          userAnswers, // Array of the user's selected option indices
+          quizCompleted: true,
+          completedAt: Date.now()
+        };
+        await onSharePublicLink('quiz', title, quizPayload, score);
       } else {
         console.warn("onSharePublicLink prop is not provided to QuizView.");
       }
