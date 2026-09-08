@@ -110,7 +110,7 @@ import {
   Laptop,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { GenerateContentResponse } from "@google/genai";
+import type { GenerateContentResponse } from "@google/genai";
 
 const sanitizeSlug = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") : "general";
 

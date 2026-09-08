@@ -553,13 +553,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Request native permission
   const requestPermission = async (): Promise<boolean> => {
-    if (!('Notification' in window)) {
-      alert('This browser does not support desktop notifications.');
-      return false;
-    }
-
     try {
-      const permission = await Notification.requestPermission();
+      if (typeof window === 'undefined' || !('Notification' in window) || !window.Notification) {
+        triggerToast('Notifications Notice', 'Desktop notifications are not supported in this browser.', 'Important Alerts');
+        return false;
+      }
+
+      const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
+      if (isInsideIframe) {
+        triggerToast('Notification Notice', 'To enable desktop notifications, open SJ Tutor AI in a new tab.', 'Important Alerts');
+        return false;
+      }
+
+      const permission = await Notification.requestPermission().catch(() => 'denied' as NotificationPermission);
       setPermissionStatus(permission);
       
       if (permission === 'granted') {
@@ -576,7 +582,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
       return false;
     } catch (e) {
-      console.error('Error requesting notification permission', e);
+      console.warn('Notification permission request notice:', e);
       return false;
     }
   };
@@ -795,7 +801,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     scheduledTime?: number
   ): Promise<boolean> => {
     if (!currentUser || !isAdminUser) {
-      alert('Access Denied: Only registered Admins can send bulk alerts.');
+      triggerToast('Access Denied', 'Only registered Admins can send bulk alerts.', 'Important Alerts');
       return false;
     }
 
