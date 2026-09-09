@@ -570,7 +570,7 @@ If the audio is completely silent or contains no discernible speech, return an e
         });
 
         const response = await ai.models.generateContent({
-          model: 'gemini-3.7-flash',
+          model: 'gemini-3.8-flash',
           contents: [
             {
               inlineData: {
@@ -690,7 +690,7 @@ async function startServer() {
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, allowedHosts: true },
       appType: "spa",
     });
     app.use(vite.middlewares);

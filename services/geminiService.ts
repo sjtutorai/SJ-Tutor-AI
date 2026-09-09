@@ -183,7 +183,7 @@ export const GeminiService = {
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.8-flash',
       contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
       config: {
         systemInstruction: `You are an AI study assistant. You must communicate and generate content strictly in ${language}.`
@@ -217,7 +217,7 @@ export const GeminiService = {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
     });
 
@@ -303,7 +303,7 @@ Generate notes based on:
 `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         systemInstruction,
@@ -345,7 +345,7 @@ Generate notes based on:
     `;
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         systemInstruction: `You are an expert academic tutor and notes creator. Personality: ${settings.aiTutor.personality}. You generate high quality, structured syllabus-aligned notes only in ${language}.`,
@@ -395,7 +395,7 @@ Generate notes based on:
     });
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.8-flash',
       contents: {
         parts: contents
       },
@@ -431,7 +431,7 @@ Generate notes based on:
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -467,7 +467,7 @@ Generate notes based on:
     const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -508,7 +508,7 @@ Generate notes based on:
     
     const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -545,7 +545,7 @@ Generate notes based on:
     const ai = getAI();
     const systemInstruction = SettingsService.getTutorSystemInstruction();
     return ai.chats.create({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.8-flash',
       config: { systemInstruction: systemInstruction }
     });
   },
@@ -571,7 +571,7 @@ Generate notes based on:
     });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.8-flash',
       contents: [...formattedHistory, { role: 'user', parts: currentParts }],
       config: { systemInstruction }
     });
@@ -647,7 +647,7 @@ Your mission:
     currentParts.push({ text: finalPrompt });
 
     const response = await ai.models.generateContentStream({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.8-flash',
       contents: [...formattedHistory, { role: 'user', parts: currentParts }],
       config: { systemInstruction }
     });
@@ -663,7 +663,7 @@ Your mission:
 
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.8-flash',
       contents: {
         parts: [
           { inlineData: { mimeType, data: cleanData } },
@@ -696,7 +696,7 @@ Your mission:
     If a user asks you to create, generate, or draw an image or picture, you MUST output a special markdown command in this exact format on a new line: <GENERATE_IMAGE: "detailed prompt for the image here">`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: { systemInstruction }
     });
