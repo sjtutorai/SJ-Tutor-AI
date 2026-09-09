@@ -601,6 +601,8 @@ export const subscribeToAllGroups = (callback: (groups: StudyGroup[]) => void): 
         snap.forEach((d) => groups.push(d.data() as StudyGroup));
         groups.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
         callback(groups);
+      }, (fallbackErr) => {
+        console.warn("Fallback group subscription notice:", fallbackErr);
       });
     });
   } catch (err) {
@@ -627,6 +629,8 @@ export const subscribeToGroupMessages = (groupId: string, callback: (messages: G
         snap.forEach((d) => msgs.push(d.data() as GroupMessage));
         msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
         callback(msgs);
+      }, (fallbackErr) => {
+        console.warn("Fallback message subscription notice:", fallbackErr);
       });
     });
   } catch (err) {

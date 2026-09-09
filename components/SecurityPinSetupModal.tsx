@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { SecurityPinService } from '../services/securityPinService';
-import { SettingsService } from '../services/settingsService';
 
 export interface SecurityPinSetupModalProps {
   isOpen: boolean;
@@ -48,7 +47,10 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
   const [currentTwoStepPassword, setCurrentTwoStepPassword] = useState('');
 
   // PIN States
-  const [pinLength, setPinLength] = useState<4 | 6>(userProfile.securityPinLength || 4);
+  const localConfig = uid ? SecurityPinService.getLocalConfig(uid) : null;
+  const existingTwoFactor = !!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword;
+  const existingPin = userProfile.securityPin || localConfig?.pinHash || '';
+  const [pinLength, setPinLength] = useState<4 | 6>(userProfile.securityPinLength || localConfig?.pinLength || 4);
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -59,7 +61,7 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
   const [questionMode, setQuestionMode] = useState<'template' | 'custom'>('template');
   const [selectedCategory, setSelectedCategory] = useState<string>(SecurityPinService.SECURITY_QUESTION_CATEGORIES[0].category);
   const [securityQuestion, setSecurityQuestion] = useState<string>(
-    userProfile.securityQuestion || SettingsService.getSettings().privacy.securityQuestion || SecurityPinService.DEFAULT_SECURITY_QUESTIONS[0]
+    userProfile.securityQuestion || SecurityPinService.DEFAULT_SECURITY_QUESTIONS[0]
   );
   const [securityAnswer, setSecurityAnswer] = useState<string>('');
   const [confirmSecurityAnswer, setConfirmSecurityAnswer] = useState<string>('');
@@ -68,9 +70,6 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
   const [showSecret, setShowSecret] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-
-  const existingTwoFactor = !!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword;
-  const existingPin = userProfile.securityPin || SettingsService.getSettings().privacy.pin || '';
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -84,10 +83,10 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
       setCurrentPin('');
       setNewPin('');
       setConfirmPin('');
-      setPinLength(userProfile.securityPinLength || 4);
+      setPinLength(userProfile.securityPinLength || localConfig?.pinLength || 4);
       setEnableBiometrics(userProfile.biometricsEnabled ?? true);
       
-      const currentQ = userProfile.securityQuestion || SettingsService.getSettings().privacy.securityQuestion || SecurityPinService.DEFAULT_SECURITY_QUESTIONS[0];
+      const currentQ = userProfile.securityQuestion || SecurityPinService.DEFAULT_SECURITY_QUESTIONS[0];
       setSecurityQuestion(currentQ);
       const isCustom = !SecurityPinService.DEFAULT_SECURITY_QUESTIONS.includes(currentQ);
       setQuestionMode(isCustom ? 'custom' : 'template');
@@ -140,14 +139,6 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           if (uid) {
             SecurityPinService.clearTwoStepVerified(uid);
           }
-
-          SettingsService.updateSettings({
-            privacy: {
-              ...SettingsService.getSettings().privacy,
-              twoFactor: false,
-              twoFactorPassword: '',
-            },
-          });
 
           onSuccess(updated);
           onClose();
@@ -228,16 +219,6 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           SecurityPinService.setTwoStepVerified(uid);
         }
 
-        SettingsService.updateSettings({
-          privacy: {
-            ...SettingsService.getSettings().privacy,
-            twoFactor: true,
-            twoFactorPassword: hashed,
-            securityQuestion: securityQuestion.trim(),
-            securityAnswer: hashedAnswer,
-          },
-        });
-
         onSuccess(updated);
         onClose();
       } else {
@@ -262,16 +243,6 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
             SecurityPinService.clearLocalConfig(uid);
             SecurityPinService.setSessionUnlocked(uid);
           }
-
-          SettingsService.updateSettings({
-            privacy: {
-              ...SettingsService.getSettings().privacy,
-              pinLock: false,
-              appLock: false,
-              pin: '',
-              pinLength: 4,
-            },
-          });
 
           onSuccess(updated);
           onClose();
@@ -369,19 +340,6 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           });
           SecurityPinService.setSessionUnlocked(uid);
         }
-
-        SettingsService.updateSettings({
-          privacy: {
-            ...SettingsService.getSettings().privacy,
-            pinLock: true,
-            appLock: true,
-            pin: pinHash,
-            pinLength,
-            biometrics: enableBiometrics && isBiometricsAvailable,
-            securityQuestion: securityQuestion.trim(),
-            securityAnswer: hashedAnswer,
-          },
-        });
 
         onSuccess(updated);
         onClose();

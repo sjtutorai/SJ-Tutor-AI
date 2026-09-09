@@ -400,7 +400,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       });
 
       setNotifications(combined);
-      localStorage.setItem(storageKey, JSON.stringify(combined));
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(combined));
+      } catch (e) {
+        console.warn("Storage write failed in mergeAndStore", e);
+      }
     };
 
     if (currentUser) {
@@ -530,7 +534,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               if (prev.some(n => n.id === newNotif.id)) return prev;
               const updated = [newNotif, ...prev];
               const storageKey = `notifications_${currentUser.uid}`;
-              localStorage.setItem(storageKey, JSON.stringify(updated));
+              try {
+                localStorage.setItem(storageKey, JSON.stringify(updated));
+              } catch (e) {
+                console.debug("Failed saving FCM notification locally:", e);
+              }
               return updated;
             });
           });
@@ -617,7 +625,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setNotifications(updated);
 
     const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
-    localStorage.setItem(storageKey, JSON.stringify(updated));
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Storage write failed in markAsRead", e);
+    }
 
     const localReadIdsKey = currentUser ? `read_global_ids_${currentUser.uid}` : 'read_global_ids_guest';
     try {
@@ -650,7 +662,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setNotifications(updated);
 
     const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
-    localStorage.setItem(storageKey, JSON.stringify(updated));
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Storage write failed in markAllAsRead", e);
+    }
 
     const localReadIdsKey = currentUser ? `read_global_ids_${currentUser.uid}` : 'read_global_ids_guest';
     try {
@@ -678,7 +694,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setNotifications(updated);
 
     const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
-    localStorage.setItem(storageKey, JSON.stringify(updated));
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Storage write failed in deleteNotification", e);
+    }
 
     const matched = notifications.find(n => n.id === id);
     if (matched?.userId === 'all') {
@@ -709,7 +729,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const clearNotifications = async () => {
     setNotifications([]);
     const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
-    localStorage.setItem(storageKey, JSON.stringify([]));
+    try {
+      localStorage.setItem(storageKey, JSON.stringify([]));
+    } catch (e) {
+      console.warn("Storage write failed in clearNotifications", e);
+    }
 
     const localReadIdsKey = currentUser ? `read_global_ids_${currentUser.uid}` : 'read_global_ids_guest';
     try {

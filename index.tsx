@@ -1,6 +1,7 @@
 
 import React, { ReactNode, ErrorInfo } from 'react';
 import ReactDOM from 'react-dom/client';
+import './index.css';
 import App from './App';
 import { NotificationProvider } from './components/NotificationContext';
 import { StreakProvider } from './components/StreakContext';
@@ -67,8 +68,6 @@ if (typeof window !== 'undefined') {
 
   window.addEventListener('error', (event) => {
     if (!event) return;
-    const msg = event.message || (event.error && event.error.message) || '';
-    console.warn('[SJ Tutor AI Handled Error Event]:', msg);
     if (typeof event.preventDefault === 'function') event.preventDefault();
     if (typeof event.stopPropagation === 'function') event.stopPropagation();
     if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
@@ -85,7 +84,7 @@ if (typeof window !== 'undefined') {
     if (typeof event.preventDefault === 'function') event.preventDefault();
     if (typeof event.stopPropagation === 'function') event.stopPropagation();
     if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
-  });
+  }, true);
 }
 
 const rootElement = document.getElementById('root');

@@ -415,7 +415,8 @@ export const SecurityPinService = {
   /**
    * Gets local security pin configuration.
    */
-  getLocalConfig: (uid: string): SecurityPinConfig | null => {
+  getLocalConfig: (uid?: string | null): SecurityPinConfig | null => {
+    if (!uid) return null;
     try {
       const stored = localStorage.getItem(`${LOCAL_PIN_PREFIX}${uid}`);
       return stored ? JSON.parse(stored) : null;
@@ -427,7 +428,8 @@ export const SecurityPinService = {
   /**
    * Clears local PIN config when 2FA is disabled.
    */
-  clearLocalConfig: (uid: string): void => {
+  clearLocalConfig: (uid?: string | null): void => {
+    if (!uid) return;
     try {
       localStorage.removeItem(`${LOCAL_PIN_PREFIX}${uid}`);
       sessionStorage.removeItem(`${STORAGE_2STEP_PREFIX}${uid}`);

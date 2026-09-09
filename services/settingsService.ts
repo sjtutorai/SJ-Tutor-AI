@@ -3,7 +3,42 @@ import { UserSettings, DEFAULT_SETTINGS } from '../types';
 
 const STORAGE_KEY = 'sjtutor_user_settings';
 
+/**
+ * Ensures user-specific authentication secrets (PIN, 2FA passwords, security recovery questions)
+ * are NEVER stored in or leaked through global browser-wide settings.
+ */
+const sanitizePrivacy = (privacy: any) => {
+  if (!privacy) return { ...DEFAULT_SETTINGS.privacy };
+  return {
+    ...privacy,
+    pin: '',
+    twoFactorPassword: '',
+    securityQuestion: '',
+    securityAnswer: '',
+    pinLock: false,
+    twoFactor: false,
+  };
+};
+
 export const SettingsService = {
+  /**
+   * Cleans any legacy credentials that may have been saved in global settings
+   */
+  scrubLegacyGlobalSecrets: (): void => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.privacy && (parsed.privacy.pin || parsed.privacy.twoFactorPassword || parsed.privacy.securityQuestion || parsed.privacy.securityAnswer)) {
+          parsed.privacy = sanitizePrivacy(parsed.privacy);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+        }
+      }
+    } catch {
+      // ignore
+    }
+  },
+
   /**
    * Retrieves the current settings from storage or returns defaults.
    */
@@ -21,7 +56,7 @@ export const SettingsService = {
           chat: { ...DEFAULT_SETTINGS.chat, ...parsed.chat },
           notifications: { ...DEFAULT_SETTINGS.notifications, ...parsed.notifications },
           appearance: { ...DEFAULT_SETTINGS.appearance, ...parsed.appearance },
-          privacy: { ...DEFAULT_SETTINGS.privacy, ...parsed.privacy },
+          privacy: sanitizePrivacy(parsed.privacy),
           calls: { ...DEFAULT_SETTINGS.calls, ...parsed.calls },
         };
       }
@@ -32,11 +67,15 @@ export const SettingsService = {
   },
 
   /**
-   * Saves settings to local storage.
+   * Saves settings to local storage, always sanitizing sensitive privacy fields.
    */
   saveSettings: (settings: UserSettings): void => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      const sanitized = {
+        ...settings,
+        privacy: sanitizePrivacy(settings.privacy),
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
     } catch (e) {
       console.error("Failed to save settings", e);
     }
@@ -56,7 +95,7 @@ export const SettingsService = {
         chat: { ...current.chat, ...(partialSettings.chat || {}) },
         notifications: { ...current.notifications, ...(partialSettings.notifications || {}) },
         appearance: { ...current.appearance, ...(partialSettings.appearance || {}) },
-        privacy: { ...current.privacy, ...(partialSettings.privacy || {}) },
+        privacy: sanitizePrivacy({ ...current.privacy, ...(partialSettings.privacy || {}) }),
         calls: { ...current.calls, ...(partialSettings.calls || {}) },
       };
       SettingsService.saveSettings(updated);

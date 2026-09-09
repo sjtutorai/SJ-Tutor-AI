@@ -19,8 +19,12 @@ export const yahooProvider = new OAuthProvider('yahoo.com');
 
 // Initialize messaging lazily
 export const getFCM = async () => {
-  if (typeof window !== "undefined" && await isSupported()) {
-    return getMessaging(app);
+  try {
+    if (typeof window !== "undefined" && typeof navigator !== "undefined" && "serviceWorker" in navigator && (await isSupported())) {
+      return getMessaging(app);
+    }
+  } catch (e) {
+    console.warn("FCM messaging initialization skipped:", e);
   }
   return null;
 };

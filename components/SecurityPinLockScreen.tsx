@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { SecurityPinService } from '../services/securityPinService';
-import { SettingsService } from '../services/settingsService';
 import Logo from './Logo';
 
 interface SecurityPinLockScreenProps {
@@ -35,8 +34,8 @@ export const SecurityPinLockScreen: React.FC<SecurityPinLockScreenProps> = ({
   onLogout,
   onUpdateProfile,
 }) => {
-  const privacySettings = SettingsService.getSettings().privacy;
-  const pinLength: 4 | 6 = (userProfile.securityPinLength === 6 || privacySettings.pinLength === 6) ? 6 : 4;
+  const localConfig = SecurityPinService.getLocalConfig(uid);
+  const pinLength: 4 | 6 = (userProfile.securityPinLength === 6 || localConfig?.pinLength === 6) ? 6 : 4;
   const [pin, setPin] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isShaking, setIsShaking] = useState(false);
@@ -56,9 +55,10 @@ export const SecurityPinLockScreen: React.FC<SecurityPinLockScreenProps> = ({
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
 
-  const storedPin = userProfile.securityPin || privacySettings.pin || '';
-  const configuredQuestion = userProfile.securityQuestion || privacySettings.securityQuestion || '';
-  const configuredAnswer = userProfile.securityAnswer || privacySettings.securityAnswer || '';
+  // User-isolated PIN & recovery configuration (NEVER from global settings)
+  const storedPin = userProfile.securityPin || localConfig?.pinHash || '';
+  const configuredQuestion = userProfile.securityQuestion || '';
+  const configuredAnswer = userProfile.securityAnswer || '';
 
   useEffect(() => {
     SecurityPinService.isBiometricsAvailable().then(setIsBiometricsAvailable);
@@ -81,15 +81,6 @@ export const SecurityPinLockScreen: React.FC<SecurityPinLockScreenProps> = ({
         if (onUpdateProfile) {
           await onUpdateProfile(updatedProfile);
         }
-        SettingsService.updateSettings({
-          privacy: {
-            ...SettingsService.getSettings().privacy,
-            pin: pinHash,
-            pinLength,
-            pinLock: true,
-            appLock: true,
-          },
-        });
         SecurityPinService.saveLocalConfig(uid, {
           enabled: true,
           pinHash,
@@ -254,16 +245,6 @@ export const SecurityPinLockScreen: React.FC<SecurityPinLockScreenProps> = ({
       if (onUpdateProfile) {
         await onUpdateProfile(updatedProfile);
       }
-
-      SettingsService.updateSettings({
-        privacy: {
-          ...SettingsService.getSettings().privacy,
-          pin: pinHash,
-          pinLength: resetPinLength,
-          pinLock: true,
-          appLock: true,
-        },
-      });
 
       SecurityPinService.saveLocalConfig(uid, {
         enabled: true,

@@ -245,7 +245,11 @@ const App: React.FC = () => {
           console.error("Error processing group invite link:", err);
         } finally {
           // Clean search params from URL so refresh doesn't re-trigger
-          window.history.replaceState({}, document.title, window.location.pathname);
+          try {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } catch {
+            // ignore
+          }
         }
       };
 
@@ -255,13 +259,21 @@ const App: React.FC = () => {
 
   // Request notification permission on first visit
   useEffect(() => {
-    const hasRequested = localStorage.getItem("has_requested_notif_permission");
-    if (!hasRequested) {
-      setTimeout(() => {
-        requestPermission().then(() => {
-          localStorage.setItem("has_requested_notif_permission", "true");
-        });
-      }, 3000);
+    try {
+      const hasRequested = localStorage.getItem("has_requested_notif_permission");
+      if (!hasRequested) {
+        setTimeout(() => {
+          requestPermission().then(() => {
+            try {
+              localStorage.setItem("has_requested_notif_permission", "true");
+            } catch {
+              // ignore
+            }
+          }).catch(() => {});
+        }, 3000);
+      }
+    } catch {
+      // ignore
     }
   }, [requestPermission]);
 
@@ -326,7 +338,11 @@ const App: React.FC = () => {
   const [settingsOpenPinTab, setSettingsOpenPinTab] = useState<'twostep' | 'pin' | undefined>(undefined);
   const [dismissed2faReminder, setDismissed2faReminder] = useState<boolean>(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
-    return localStorage.getItem("hasSeenTutorial") === "true";
+    try {
+      return localStorage.getItem("hasSeenTutorial") === "true";
+    } catch {
+      return false;
+    }
   });
 
   const navigateToPrivacySettings = (openTwoStepModal = false) => {
@@ -469,6 +485,14 @@ const App: React.FC = () => {
     dob: "",
     registrationNumber: "",
     streak: 0,
+    securityPin: "",
+    securityPinLength: 4,
+    pinLockEnabled: false,
+    twoFactorEnabled: false,
+    twoFactorPassword: "",
+    securityQuestion: "",
+    securityAnswer: "",
+    biometricsEnabled: false,
   };
   const [userProfile, setUserProfile] =
     useState<UserProfile>(initialProfileState);
@@ -962,7 +986,7 @@ const App: React.FC = () => {
       }
     };
 
-    if ("serviceWorker" in navigator) {
+    if ("serviceWorker" in navigator && navigator.serviceWorker) {
       navigator.serviceWorker.addEventListener("message", handleServiceWorkerMessage);
     }
 
@@ -1004,7 +1028,7 @@ const App: React.FC = () => {
     }
 
     return () => {
-      if ("serviceWorker" in navigator) {
+      if ("serviceWorker" in navigator && navigator.serviceWorker) {
         navigator.serviceWorker.removeEventListener("message", handleServiceWorkerMessage);
       }
     };
@@ -1330,7 +1354,7 @@ const App: React.FC = () => {
                 ? membership.planType
                 : (fsData.planType || "Free");
 
-              const fullProfile = {
+              const fullProfile: UserProfile = {
                 ...initialProfileState,
                 ...fsData,
                 credits,
@@ -1343,12 +1367,26 @@ const App: React.FC = () => {
                 photoURL: fsData.photoURL || "",
                 isRegisteredInFirestore: true,
                 hasCompletedOnboarding: membership ? true : (fsData.hasCompletedOnboarding ?? true),
+                securityPin: fsData.securityPin || "",
+                securityPinLength: fsData.securityPinLength || 4,
+                pinLockEnabled: !!fsData.pinLockEnabled,
+                twoFactorEnabled: !!fsData.twoFactorEnabled,
+                twoFactorPassword: fsData.twoFactorPassword || "",
+                securityQuestion: fsData.securityQuestion || "",
+                securityAnswer: fsData.securityAnswer || "",
+                biometricsEnabled: !!fsData.biometricsEnabled,
               };
 
-              setUserProfile((prev) => ({
-                ...prev,
-                ...fullProfile,
-              }));
+              setUserProfile((prev) => {
+                // If previous profile was for another user, do not leak old state
+                if (prev.uid && prev.uid !== targetUid) {
+                  return fullProfile;
+                }
+                return {
+                  ...prev,
+                  ...fullProfile,
+                };
+              });
 
               // Ensure upgraded membership (e.g. Achiever for sadanandj2011@gmail.com) is persisted to Firestore
               if (membership && (fsData.planType !== membership.planType || (fsData.credits ?? 0) < membership.credits)) {
@@ -1404,11 +1442,19 @@ const App: React.FC = () => {
             const cached = localStorage.getItem(`profile_${currentUser.uid}`);
             if (cached) {
               const parsed = JSON.parse(cached);
-              setUserProfile((prev) => ({
+              setUserProfile({
                 ...initialProfileState,
-                ...prev,
                 ...parsed,
-              }));
+                uid: currentUser.uid,
+                securityPin: parsed.securityPin || "",
+                securityPinLength: parsed.securityPinLength || 4,
+                pinLockEnabled: !!parsed.pinLockEnabled,
+                twoFactorEnabled: !!parsed.twoFactorEnabled,
+                twoFactorPassword: parsed.twoFactorPassword || "",
+                securityQuestion: parsed.securityQuestion || "",
+                securityAnswer: parsed.securityAnswer || "",
+                biometricsEnabled: !!parsed.biometricsEnabled,
+              });
               if (parsed.hasCompletedOnboarding || parsed.isRegisteredInFirestore) {
                 const targetMode = (initialRoute.mode && initialRoute.mode !== AppMode.DASHBOARD) ? initialRoute.mode : AppMode.DASHBOARD;
                 setMode(targetMode);
@@ -1422,12 +1468,20 @@ const App: React.FC = () => {
           try {
             const userProf = await getCurrentUserProfile(currentUser);
             const isRegisteredInDb = userProf.isRegisteredInFirestore || userProf.hasCompletedOnboarding;
-            setUserProfile((prev) => ({
+            setUserProfile({
               ...initialProfileState,
-              ...prev,
               ...userProf,
+              uid: currentUser.uid,
+              securityPin: userProf.securityPin || "",
+              securityPinLength: userProf.securityPinLength || 4,
+              pinLockEnabled: !!userProf.pinLockEnabled,
+              twoFactorEnabled: !!userProf.twoFactorEnabled,
+              twoFactorPassword: userProf.twoFactorPassword || "",
+              securityQuestion: userProf.securityQuestion || "",
+              securityAnswer: userProf.securityAnswer || "",
+              biometricsEnabled: !!userProf.biometricsEnabled,
               hasCompletedOnboarding: isRegisteredInDb ? true : userProf.hasCompletedOnboarding,
-            } as any));
+            } as any);
 
             if (userProf.language) {
               SettingsService.updateSettings({
@@ -1557,69 +1611,77 @@ const App: React.FC = () => {
 
   // Sync hasSeenTutorial state with localStorage
   useEffect(() => {
-    const saved = localStorage.getItem("hasSeenTutorial") === "true";
-    if (saved !== hasSeenTutorial) {
-      setHasSeenTutorial(saved);
+    try {
+      const saved = localStorage.getItem("hasSeenTutorial") === "true";
+      if (saved !== hasSeenTutorial) {
+        setHasSeenTutorial(saved);
+      }
+    } catch {
+      // ignore
     }
   }, []);
 
   // Profile Persistence
   useEffect(() => {
     if (user) {
-      // Check if 30 days have passed since last tutorial
-      const lastShownKey = `tutorial_last_shown_${user.uid}`;
-      const lastShown = localStorage.getItem(lastShownKey);
-      const now = Date.now();
-      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      try {
+        // Check if 30 days have passed since last tutorial
+        const lastShownKey = `tutorial_last_shown_${user.uid}`;
+        const lastShown = localStorage.getItem(lastShownKey);
+        const now = Date.now();
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 
-      if (!lastShown || now - parseInt(lastShown) > thirtyDaysMs) {
-        if (!userProfile.isRegisteredInFirestore && !userProfile.hasCompletedOnboarding) {
-          setShowTutorial(true);
+        if (!lastShown || now - parseInt(lastShown) > thirtyDaysMs) {
+          if (!userProfile.isRegisteredInFirestore && !userProfile.hasCompletedOnboarding) {
+            setShowTutorial(true);
+          }
+          localStorage.setItem(lastShownKey, now.toString());
         }
-        localStorage.setItem(lastShownKey, now.toString());
-      }
 
-      // Check profile completion to trigger alerts/notifications (skip for users registered in Firestore)
-      const isRegisteredInDb = userProfile.isRegisteredInFirestore || userProfile.hasCompletedOnboarding;
-      const currentCompletion = calculateProfileCompletion(userProfile);
-      const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
+        // Check profile completion to trigger alerts/notifications (skip for users registered in Firestore)
+        const isRegisteredInDb = userProfile.isRegisteredInFirestore || userProfile.hasCompletedOnboarding;
+        const currentCompletion = calculateProfileCompletion(userProfile);
+        const isDismissedPrompt = localStorage.getItem(`profile_reminder_dismissed_${user.uid}`) === "true";
 
-      if (!isRegisteredInDb && currentCompletion < 100 && !isDismissedPrompt) {
-        setTimeout(() => {
-          setShowCompletionReminder(true);
-        }, 2000);
+        if (!isRegisteredInDb && currentCompletion < 100 && !isDismissedPrompt) {
+          setTimeout(() => {
+            setShowCompletionReminder(true);
+          }, 2000);
 
-        const profileNotifKey = `profile_notif_sent_${user.uid}`;
-        const lastSentProfileNotif = localStorage.getItem(profileNotifKey);
-        const oneHourMs = 60 * 60 * 1000;
-        if (!lastSentProfileNotif || now - parseInt(lastSentProfileNotif) > oneHourMs) {
-          sendNotificationRef.current(
-            "Profile Incomplete 📋",
-            "Complete your learning profile details to unlock personalized recommendations, custom study tools, and claim 10 bonus credits!",
-            "Important Alerts",
-            user.uid
-          ).catch((e) => console.warn("Failed to send profile incomplete notification:", e));
-          localStorage.setItem(profileNotifKey, now.toString());
+          const profileNotifKey = `profile_notif_sent_${user.uid}`;
+          const lastSentProfileNotif = localStorage.getItem(profileNotifKey);
+          const oneHourMs = 60 * 60 * 1000;
+          if (!lastSentProfileNotif || now - parseInt(lastSentProfileNotif) > oneHourMs) {
+            sendNotificationRef.current(
+              "Profile Incomplete 📋",
+              "Complete your learning profile details to unlock personalized recommendations, custom study tools, and claim 10 bonus credits!",
+              "Important Alerts",
+              user.uid
+            ).catch((e) => console.warn("Failed to send profile incomplete notification:", e));
+            localStorage.setItem(profileNotifKey, now.toString());
+          }
+        } else {
+          setShowCompletionReminder(false);
         }
-      } else {
-        setShowCompletionReminder(false);
-      }
 
-      // Check if 2-Step Verification password is not kept, and send a security reminder notification
-      const hasTwoStep = !!userProfile.twoFactorPassword || !!userProfile.twoFactorEnabled;
-      if (!hasTwoStep) {
-        const twoStepNotifKey = `twostep_reminder_notif_${user.uid}`;
-        const lastSentTwoStepNotif = localStorage.getItem(twoStepNotifKey);
-        const oneDayMs = 24 * 60 * 60 * 1000;
-        if (!lastSentTwoStepNotif || now - parseInt(lastSentTwoStepNotif) > oneDayMs) {
-          sendNotificationRef.current(
-            "Account Security Notice 🛡️",
-            "You haven't set a 2-Step Verification password yet. Protect your account from unauthorized logins across all devices in Settings > Privacy & Security.",
-            "Important Alerts",
-            user.uid
-          ).catch((e) => console.warn("Failed to send 2-step reminder notification:", e));
-          localStorage.setItem(twoStepNotifKey, now.toString());
+        // Check if 2-Step Verification password is not kept, and send a security reminder notification
+        const hasTwoStep = !!userProfile.twoFactorPassword || !!userProfile.twoFactorEnabled;
+        if (!hasTwoStep) {
+          const twoStepNotifKey = `twostep_reminder_notif_${user.uid}`;
+          const lastSentTwoStepNotif = localStorage.getItem(twoStepNotifKey);
+          const oneDayMs = 24 * 60 * 60 * 1000;
+          if (!lastSentTwoStepNotif || now - parseInt(lastSentTwoStepNotif) > oneDayMs) {
+            sendNotificationRef.current(
+              "Account Security Notice 🛡️",
+              "You haven't set a 2-Step Verification password yet. Protect your account from unauthorized logins across all devices in Settings > Privacy & Security.",
+              "Important Alerts",
+              user.uid
+            ).catch((e) => console.warn("Failed to send 2-step reminder notification:", e));
+            localStorage.setItem(twoStepNotifKey, now.toString());
+          }
         }
+      } catch (err) {
+        console.warn("Profile persistence check notice:", err);
       }
     }
   }, [user, userProfile.isRegisteredInFirestore, userProfile.hasCompletedOnboarding]);
@@ -1643,35 +1705,45 @@ const App: React.FC = () => {
     }
 
     // 2. PIN Lock on Refresh / Revisit Check:
-    // Prompt for 4 or 6 digit PIN whenever the user visits or reloads the website
-    const alreadyPinUnlocked = SecurityPinService.isSessionUnlocked(user.uid);
-    setIsPinSessionUnlocked(alreadyPinUnlocked);
+    // Prompt for 4 or 6 digit PIN whenever the user visits or reloads the website IF pin lock is enabled
+    const userLocalPin = SecurityPinService.getLocalConfig(user.uid);
+    const hasPinLock = !!userProfile.pinLockEnabled || !!userProfile.securityPin || !!userLocalPin?.enabled;
+    if (!hasPinLock) {
+      setIsPinSessionUnlocked(true);
+    } else {
+      const alreadyPinUnlocked = SecurityPinService.isSessionUnlocked(user.uid);
+      setIsPinSessionUnlocked(alreadyPinUnlocked);
+    }
   }, [user?.uid, userProfile.twoFactorEnabled, userProfile.twoFactorPassword, userProfile.pinLockEnabled, userProfile.securityPin]);
 
   // Monitor trial expiration and ensure post-trial 100 credits are awarded
   useEffect(() => {
     if (!user || !userProfile.isRegisteredInFirestore) return;
-    const trialInfo = calculateTrialInfo(userProfile, user.uid);
-    if (trialInfo.isExpired && (!userProfile.planType || userProfile.planType === "Free")) {
-      const grantKey = `post_trial_credits_granted_${user.uid}`;
-      const alreadyAwarded = localStorage.getItem(grantKey) === "true";
-      if (!alreadyAwarded) {
-        localStorage.setItem(grantKey, "true");
-        const currentCredits = typeof userProfile.credits === "number" ? userProfile.credits : 0;
-        const newCredits = Math.max(100, currentCredits);
-        setUserProfile((prev) => ({
-          ...prev,
-          credits: newCredits,
-        }));
-        saveProfileToFirestore(user.uid, { credits: newCredits });
+    try {
+      const trialInfo = calculateTrialInfo(userProfile, user.uid);
+      if (trialInfo.isExpired && (!userProfile.planType || userProfile.planType === "Free")) {
+        const grantKey = `post_trial_credits_granted_${user.uid}`;
+        const alreadyAwarded = localStorage.getItem(grantKey) === "true";
+        if (!alreadyAwarded) {
+          localStorage.setItem(grantKey, "true");
+          const currentCredits = typeof userProfile.credits === "number" ? userProfile.credits : 0;
+          const newCredits = Math.max(100, currentCredits);
+          setUserProfile((prev) => ({
+            ...prev,
+            credits: newCredits,
+          }));
+          saveProfileToFirestore(user.uid, { credits: newCredits });
 
-        sendNotificationRef.current(
-          "100 Free Credits Awarded 🎁",
-          "Your 10-day unlimited trial has concluded. We've credited 100 free study credits to your account so you can continue learning!",
-          "Important Alerts",
-          user.uid
-        ).catch((e) => console.warn("Failed to send trial expiration notification:", e));
+          sendNotificationRef.current(
+            "100 Free Credits Awarded 🎁",
+            "Your 10-day unlimited trial has concluded. We've credited 100 free study credits to your account so you can continue learning!",
+            "Important Alerts",
+            user.uid
+          ).catch((e) => console.warn("Failed to send trial expiration notification:", e));
+        }
       }
+    } catch (trialErr) {
+      console.warn("Trial expiration monitor notice:", trialErr);
     }
   }, [userProfile.trialStartDate, user, userProfile.planType, userProfile.isRegisteredInFirestore]);
 
@@ -1681,7 +1753,12 @@ const App: React.FC = () => {
     let active = true;
     const loadAndSyncHistory = async () => {
       const storageKey = user ? `history_${user.uid}` : "history_guest";
-      const savedHistory = localStorage.getItem(storageKey);
+      let savedHistory: string | null = null;
+      try {
+        savedHistory = localStorage.getItem(storageKey);
+      } catch {
+        savedHistory = null;
+      }
       let initialHistory: HistoryItem[] = [];
       if (savedHistory) {
         try {
@@ -2502,6 +2579,8 @@ const App: React.FC = () => {
       localStorage.removeItem(`sjtutor_2step_verified_${currentUid}`);
     }
 
+    SettingsService.scrubLegacyGlobalSecrets();
+
     setUser(null);
     setUserProfile(initialProfileState);
     setIsTwoStepVerified(true);
@@ -2564,6 +2643,8 @@ const App: React.FC = () => {
       localStorage.removeItem(`sjtutor_pin_session_unlocked_${currentUid}`);
       localStorage.removeItem(`sjtutor_2step_verified_${currentUid}`);
     }
+
+    SettingsService.scrubLegacyGlobalSecrets();
 
     setUser(null);
     setUserProfile(initialProfileState);
@@ -3615,6 +3696,7 @@ const App: React.FC = () => {
           <div className="w-full max-w-7xl mx-auto h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
             <SettingsView
               userProfile={userProfile}
+              uid={user?.uid}
               onLogout={handleLogout}
               onNavigateToProfile={() => setMode(AppMode.PROFILE)}
               onOpenPremium={openPremiumModal}
@@ -4625,7 +4707,7 @@ const App: React.FC = () => {
       )}
 
       {/* 2. Security PIN Lock Screen on Refresh / Website Visit */}
-      {user && isTwoStepVerified && !isPinSessionUnlocked && (
+      {user && isTwoStepVerified && !isPinSessionUnlocked && (!!userProfile.pinLockEnabled || !!userProfile.securityPin || !!SecurityPinService.getLocalConfig(user.uid)?.enabled) && (
         <SecurityPinLockScreen
           userProfile={userProfile}
           uid={user.uid}

@@ -22,6 +22,7 @@ import { SUPPORTED_LANGUAGES } from '../services/languageService';
 
 interface SettingsViewProps {
   userProfile: UserProfile;
+  uid?: string;
   onLogout: () => void;
   onNavigateToProfile: () => void;
   onOpenPremium: () => void;
@@ -1226,9 +1227,11 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
         );
 
       case 'privacy': {
-        const is2FAActive = !!userProfile.twoFactorEnabled || !!settings.privacy.twoFactor || !!userProfile.twoFactorPassword;
-        const isPinActive = !!userProfile.pinLockEnabled || !!settings.privacy.pinLock || !!userProfile.securityPin;
-        const currentPinLength = userProfile.securityPinLength || settings.privacy.pinLength || 4;
+        const activeUid = props.uid || userProfile.uid || auth.currentUser?.uid;
+        const localPinConfig = activeUid ? SecurityPinService.getLocalConfig(activeUid) : null;
+        const is2FAActive = !!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword;
+        const isPinActive = !!userProfile.pinLockEnabled || !!userProfile.securityPin || !!localPinConfig?.enabled;
+        const currentPinLength = userProfile.securityPinLength || localPinConfig?.pinLength || 4;
 
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -1407,9 +1410,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                  <label className="relative inline-flex items-center cursor-pointer">
                     <input 
                       type="checkbox" 
-                      checked={!!settings.privacy.appLock || !!userProfile.biometricsEnabled} 
+                      checked={!!userProfile.biometricsEnabled} 
                       onChange={(e) => {
-                        handleSettingChange('privacy', 'appLock', e.target.checked);
                         if (props.onUpdateProfile) {
                           props.onUpdateProfile({
                             ...userProfile,
@@ -1435,7 +1437,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                          <span className="text-base font-bold text-slate-800 dark:text-white">
                            Security Recovery Question
                          </span>
-                         {(userProfile.securityQuestion || settings.privacy.securityQuestion) ? (
+                         {userProfile.securityQuestion ? (
                            <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 rounded-full border border-emerald-300 dark:border-emerald-800">
                              Configured
                            </span>
@@ -1446,8 +1448,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                          )}
                        </div>
                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                         {(userProfile.securityQuestion || settings.privacy.securityQuestion) ? (
-                           <span>Question: <em>&ldquo;{userProfile.securityQuestion || settings.privacy.securityQuestion}&rdquo;</em> — Allows instant password &amp; PIN recovery.</span>
+                         {userProfile.securityQuestion ? (
+                           <span>Question: <em>&ldquo;{userProfile.securityQuestion}&rdquo;</em> — Allows instant password &amp; PIN recovery.</span>
                          ) : (
                            <span>Choose from categorized templates or write a custom question with repeated answer confirmation to prevent 50-day reset holding delays.</span>
                          )}
@@ -1464,7 +1466,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                      className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-black transition flex items-center gap-1.5 shrink-0 shadow-sm"
                    >
                      <Sparkles className="w-3.5 h-3.5" />
-                     {(userProfile.securityQuestion || settings.privacy.securityQuestion) ? 'Update Question' : 'Set Question'}
+                     {userProfile.securityQuestion ? 'Update Question' : 'Set Question'}
                    </button>
                  </div>
                </div>
