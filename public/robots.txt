@@ -1,5 +1,11 @@
+User-agent: Google-Favicon
+Allow: /
+
 User-agent: Googlebot
 Allow: /
+Allow: /*.jpg$
+Allow: /*.png$
+Allow: /*.ico$
 Allow: /favicon*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
@@ -8,6 +14,9 @@ Allow: /manifest.json
 
 User-agent: Googlebot-Image
 Allow: /
+Allow: /*.jpg$
+Allow: /*.png$
+Allow: /*.ico$
 Allow: /favicon*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
@@ -15,6 +24,9 @@ Allow: /og-image.png
 
 User-agent: *
 Allow: /
+Allow: /*.jpg$
+Allow: /*.png$
+Allow: /*.ico$
 Allow: /favicon*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg

@@ -3,6 +3,7 @@ import { X, Search, CheckCircle2, Sparkles, ChevronDown, ChevronUp } from 'lucid
 import { SignUpFlow } from './auth/SignUpFlow';
 import { LoginFlow } from './auth/LoginFlow';
 import { AccountDetectorWidget } from './auth/AccountDetectorWidget';
+import Logo from './Logo';
 import { getDeviceRegisteredUser, saveDeviceRegisteredUser } from '../utils/registrationDetection';
 import type { UserProfile } from '../types';
 
@@ -91,15 +92,7 @@ const Auth: React.FC<AuthProps> = ({
         {/* Brand Header */}
         <div className="flex items-center justify-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-2xl bg-amber-500/10 dark:bg-amber-400/10 flex items-center justify-center border border-amber-500/20 overflow-hidden shadow-sm">
-            <img
-              src="/images/sjtutor-logo.png"
-              alt="SJ Tutor AI Logo"
-              className="w-8 h-8 object-contain"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.parentElement!.innerHTML = '<span class="text-amber-500"><svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg></span>';
-              }}
-            />
+            <Logo className="w-8 h-8" iconOnly noBorder />
           </div>
           <div>
             <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white">

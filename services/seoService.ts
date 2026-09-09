@@ -18,7 +18,7 @@ export interface SEOConfig {
 export const CANONICAL_BASE_URL = 'https://sj-tutorai.web.app';
 export const DEFAULT_LOGO_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
-export const DEFAULT_FAVICON_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
+export const DEFAULT_FAVICON_URL = '/favicon.ico';
 export const DEFAULT_TITLE = 'SJ Tutor AI - Your AI Study Buddy';
 export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion for students.';
 
@@ -51,20 +51,15 @@ function ensureCanonicalLink(href: string) {
 }
 
 function ensureFaviconLinks() {
-  // Purge any legacy favicon links from the document head
-  const legacyLinks = document.querySelectorAll('link[rel*="icon"]');
-  legacyLinks.forEach((link) => {
-    const href = link.getAttribute('href') || '';
-    if (href !== DEFAULT_FAVICON_URL && (href.includes('favicon') || href.includes('apple-touch-icon'))) {
-      link.remove();
-    }
-  });
-
   const icons = [
-    { rel: 'icon', type: 'image/jpeg', href: DEFAULT_FAVICON_URL },
-    { rel: 'shortcut icon', type: 'image/jpeg', href: DEFAULT_FAVICON_URL },
-    { rel: 'apple-touch-icon', href: DEFAULT_FAVICON_URL },
-    { rel: 'apple-touch-icon', sizes: '180x180', href: DEFAULT_FAVICON_URL },
+    { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+    { rel: 'shortcut icon', type: 'image/x-icon', href: '/favicon.ico' },
+    { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon-48x48.png' },
+    { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/favicon-96x96.png' },
+    { rel: 'icon', type: 'image/png', sizes: '144x144', href: '/favicon-144x144.png' },
+    { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/icon-192.png' },
+    { rel: 'icon', type: 'image/jpeg', sizes: '640x640', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
+    { rel: 'apple-touch-icon', sizes: '180x180', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
   ];
 
   icons.forEach(({ rel, type, href, sizes }) => {
@@ -103,8 +98,8 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
           "@type": "ImageObject",
           "url": DEFAULT_LOGO_URL,
           "contentUrl": DEFAULT_LOGO_URL,
-          "width": 512,
-          "height": 512,
+          "width": 640,
+          "height": 640,
           "caption": "SJ Tutor AI Logo"
         },
         "image": DEFAULT_LOGO_URL,

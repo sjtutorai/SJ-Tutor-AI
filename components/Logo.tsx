@@ -12,14 +12,12 @@ interface LogoProps {
 
 const FALLBACK_SOURCES = [
   "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+  "https://sj-tutorai.web.app/SJ-Tutor-AI-Logo.jpg",
   "/SJ-Tutor-AI-Logo.jpg",
-  "/logo.jpg",
-  "/logo.png",
-  "/images/sjtutor-logo.png",
   SJTUTOR_LOGO_URL,
-  SJTUTOR_AVATAR_IBB,
   SJTUTOR_AVATAR,
-  SJTUTOR_AVATAR_REMOTE
+  SJTUTOR_AVATAR_REMOTE,
+  SJTUTOR_AVATAR_IBB
 ];
 
 // Infallible High-Definition Vector SVG Logo Fallback (Gold ring, deep midnight blue, graduation cap & AI sparkle)
@@ -90,13 +88,15 @@ export default function Logo({
   src,
   noBorder = false
 }: LogoProps) {
+  const [useFallback, setUseFallback] = useState(!src);
   const [sourceIndex, setSourceIndex] = useState(0);
   const [hasAllFailed, setHasAllFailed] = useState(false);
 
-  const currentSrc = src || (sourceIndex < FALLBACK_SOURCES.length ? FALLBACK_SOURCES[sourceIndex] : null);
+  const currentSrc = !useFallback && src ? src : (sourceIndex < FALLBACK_SOURCES.length ? FALLBACK_SOURCES[sourceIndex] : null);
 
   const handleImageError = () => {
-    if (src) {
+    if (!useFallback && src) {
+      setUseFallback(true);
       setSourceIndex(0);
       return;
     }
