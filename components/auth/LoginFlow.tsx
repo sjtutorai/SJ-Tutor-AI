@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import { GoogleIcon, AppleIcon, YahooIcon } from './AuthIcons';
+import { UnauthorizedDomainModal } from './UnauthorizedDomainModal';
 import {
   handleSocialAuth,
   loginWithEmail,
@@ -58,6 +59,10 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
   const [activeView, setActiveView] = useState<LoginView>(initialView);
   const [loading, setLoading] = useState(false);
   const [errorAlert, setErrorAlert] = useState<string | null>(null);
+  const [unauthorizedDomainData, setUnauthorizedDomainData] = useState<{
+    domain?: string;
+    provider?: string;
+  } | null>(null);
 
   // Email form
   const [email, setEmail] = useState(isPrefilledEmail && prefilledIdentifier ? prefilledIdentifier : '');
@@ -184,6 +189,13 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
       const res = await handleSocialAuth(provider, 'signin');
       if (res.status === 'ACCOUNT_NOT_FOUND') {
         setActiveView('ACCOUNT_NOT_FOUND');
+        return;
+      }
+      if (res.status === 'UNAUTHORIZED_DOMAIN') {
+        setUnauthorizedDomainData({
+          domain: res.domain || (typeof window !== 'undefined' ? window.location.hostname : ''),
+          provider,
+        });
         return;
       }
       if (res.status === 'SUCCESS') {
@@ -1236,6 +1248,21 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
           </button>
         </div>
       )}
+
+      {/* Unauthorized Domain Guidance Modal */}
+      <UnauthorizedDomainModal
+        isOpen={!!unauthorizedDomainData}
+        onClose={() => setUnauthorizedDomainData(null)}
+        domain={unauthorizedDomainData?.domain}
+        provider={unauthorizedDomainData?.provider || 'Google'}
+        onRetry={() => {
+          if (unauthorizedDomainData?.provider) {
+            handleSocialLogin(unauthorizedDomainData.provider as any);
+          }
+        }}
+        onSwitchToEmail={() => setActiveView('EMAIL')}
+        onSwitchToId={() => setActiveView('SJTUTOR_ID')}
+      />
     </div>
   );
 };

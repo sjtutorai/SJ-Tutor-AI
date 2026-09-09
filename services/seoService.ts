@@ -20,7 +20,7 @@ export const DEFAULT_LOGO_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg'
 export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_FAVICON_URL = '/favicon.ico';
 export const DEFAULT_TITLE = 'SJ Tutor AI - Your AI Study Buddy';
-export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion for students.';
+export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion for students created by Sadanand Jyoti and Samanyu S Patil.';
 
 function ensureMetaTag(nameOrProperty: string, value: string, isProperty = false) {
   const selector = isProperty 
@@ -51,14 +51,19 @@ function ensureCanonicalLink(href: string) {
 }
 
 function ensureFaviconLinks() {
+  // Remove any legacy PNG or ICO icon links to avoid browser fallback to globe icon
+  if (typeof document !== 'undefined') {
+    document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      if (href.includes('.png') || href.includes('.ico')) {
+        link.remove();
+      }
+    });
+  }
+
   const icons = [
-    { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-    { rel: 'shortcut icon', type: 'image/x-icon', href: '/favicon.ico' },
-    { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon-48x48.png' },
-    { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/favicon-96x96.png' },
-    { rel: 'icon', type: 'image/png', sizes: '144x144', href: '/favicon-144x144.png' },
-    { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/icon-192.png' },
     { rel: 'icon', type: 'image/jpeg', sizes: '640x640', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
+    { rel: 'shortcut icon', type: 'image/jpeg', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
     { rel: 'apple-touch-icon', sizes: '180x180', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
   ];
 

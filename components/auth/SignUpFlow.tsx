@@ -19,6 +19,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { GoogleIcon, AppleIcon, YahooIcon } from './AuthIcons';
+import { UnauthorizedDomainModal } from './UnauthorizedDomainModal';
 import IdCardView from '../IdCardView';
 import {
   handleSocialAuth,
@@ -84,6 +85,10 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLog
   const [currentStep, setCurrentStep] = useState<StepType>('AUTH_METHOD');
   const [loading, setLoading] = useState(false);
   const [errorAlert, setErrorAlert] = useState<string | null>(null);
+  const [unauthorizedDomainData, setUnauthorizedDomainData] = useState<{
+    domain?: string;
+    provider?: string;
+  } | null>(null);
 
   // Auth Identity captured from Social popup or Email step
   const [authIdentity, setAuthIdentity] = useState<any>(null);
@@ -166,6 +171,13 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLog
       const res = await handleSocialAuth(provider, 'signup');
       if (res.status === 'ACCOUNT_ALREADY_EXISTS') {
         setCurrentStep('ACCOUNT_EXISTS');
+        return;
+      }
+      if (res.status === 'UNAUTHORIZED_DOMAIN') {
+        setUnauthorizedDomainData({
+          domain: res.domain || (typeof window !== 'undefined' ? window.location.hostname : ''),
+          provider,
+        });
         return;
       }
       if (res.status === 'PENDING_PROFILE') {
@@ -1418,6 +1430,22 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLog
           </div>
         </div>
       )}
+
+      {/* Unauthorized Domain Guidance Modal */}
+      <UnauthorizedDomainModal
+        isOpen={!!unauthorizedDomainData}
+        onClose={() => setUnauthorizedDomainData(null)}
+        domain={unauthorizedDomainData?.domain}
+        provider={unauthorizedDomainData?.provider || 'Google'}
+        onRetry={() => {
+          if (unauthorizedDomainData?.provider) {
+            handleSocialSignUp(unauthorizedDomainData.provider as any);
+          }
+        }}
+        onSwitchToEmail={() => {
+          setEmailMode(true);
+        }}
+      />
     </div>
   );
 };

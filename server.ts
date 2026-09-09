@@ -18,34 +18,26 @@ const PORT = 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
-// Favicon and brand assets directly served with HTTP 200 and proper MIME headers
-app.get('/favicon.ico', (req, res) => {
-  const filePath = path.resolve(process.cwd(), "public", "favicon.ico");
-  res.setHeader("Content-Type", "image/x-icon");
-  res.setHeader("Cache-Control", "public, max-age=86400");
-  res.sendFile(filePath);
-});
-
-app.get(['/favicon-48x48.png', '/favicon-96x96.png', '/favicon-144x144.png'], (req, res) => {
-  const file = req.path.replace('/', '');
-  const filePath = path.resolve(process.cwd(), "public", file);
-  res.setHeader("Content-Type", "image/png");
-  res.setHeader("Cache-Control", "public, max-age=86400");
-  res.sendFile(filePath);
-});
-
-app.get(['/favicon.png', '/favicon-32x32.png'], (req, res) => {
-  const filePath = path.resolve(process.cwd(), "public", "favicon-32x32.png");
-  res.setHeader("Content-Type", "image/png");
-  res.setHeader("Cache-Control", "public, max-age=86400");
-  res.sendFile(filePath);
-});
-
-app.get(['/apple-touch-icon.png', '/apple-touch-icon-180x180.png'], (req, res) => {
-  const filePath = path.resolve(process.cwd(), "public", "apple-touch-icon.png");
-  res.setHeader("Content-Type", "image/png");
-  res.setHeader("Cache-Control", "public, max-age=86400");
-  res.sendFile(filePath);
+// Favicon and brand assets redirected to canonical logo URL
+app.get([
+  '/favicon.ico',
+  '/favicon.png',
+  '/favicon-16x16.png',
+  '/favicon-32x32.png',
+  '/favicon-48x48.png',
+  '/favicon-96x96.png',
+  '/favicon-144x144.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
+  '/apple-touch-icon-180x180.png',
+  '/android-chrome-192x192.png',
+  '/android-chrome-512x512.png',
+  '/logo.png',
+  '/og-image.png',
+  '/images/sjtutor-logo.png'
+], (req, res) => {
+  res.redirect(302, 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg');
 });
 
 app.get(['/SJ-Tutor-AI-Logo.jpg', '/logo.jpg'], (req, res) => {

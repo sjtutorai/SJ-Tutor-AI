@@ -39,6 +39,7 @@ export type AuthResultStatus =
   | "TOO_MANY_ATTEMPTS"
   | "PIN_REQUIRED"
   | "PENDING_PROFILE"
+  | "UNAUTHORIZED_DOMAIN"
   | "ERROR";
 
 export interface AuthResult {
@@ -54,6 +55,8 @@ export interface AuthResult {
   authIdentity?: any;
   sjTutorId?: string;
   error?: any;
+  domain?: string;
+  consoleUrl?: string;
 }
 
 /**
@@ -229,6 +232,27 @@ export async function handleSocialAuth(
       message: "Welcome back to SJ Tutor AI!",
     };
   } catch (error: any) {
+    const errorCode = error?.code || "";
+    const errorMessage = error?.message || "";
+    const isUnauthorizedDomain =
+      errorCode === "auth/unauthorized-domain" ||
+      errorMessage.includes("auth/unauthorized-domain");
+
+    if (isUnauthorizedDomain) {
+      const currentHost = typeof window !== "undefined" ? window.location.hostname : "current domain";
+      const consoleUrl = "https://console.firebase.google.com/project/sj-tutorai/authentication/settings";
+      console.warn(
+        `[AUTH] Domain authorization required: "${currentHost}". Add to Firebase Console -> Authentication -> Settings -> Authorized domains (${consoleUrl}).`
+      );
+      return {
+        status: "UNAUTHORIZED_DOMAIN",
+        domain: currentHost,
+        consoleUrl,
+        message: `Domain authorization required: "${currentHost}" must be added to your Firebase Authentication Authorized Domains.`,
+        error,
+      };
+    }
+
     console.error(`Error during ${providerType} auth (${mode}):`, error);
 
     if (error.code === "auth/popup-closed-by-user" || error.code === "auth/cancelled-popup-request") {
