@@ -8,5 +8,7 @@
   "messagingSenderId": "215292591396",
   "measurementId": "",
   "oAuthClientId": "215292591396-uesb236uv19jtiap42rr4kf7qf4prfrr.apps.googleusercontent.com",
-  "recaptchaSiteKey": ""
+  "recaptchaSiteKey": "",
+  "hostingSite": "sj-tutorai",
+  "hostingUrl": "https://sj-tutorai.web.app"
 }

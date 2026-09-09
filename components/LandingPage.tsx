@@ -13,7 +13,6 @@ import {
   Star,
   ChevronRight,
   GraduationCap,
-  Play,
   Globe,
   Atom,
   Check,
@@ -27,13 +26,18 @@ import {
   Target,
   Lock,
   Lightbulb,
-  Shield
+  Shield,
+  UserCheck,
+  UserPlus,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
+import { getDeviceRegisteredUser } from '../utils/registrationDetection';
+import { AccountDetectorWidget } from './auth/AccountDetectorWidget';
 
 interface LandingPageProps {
-  onGetStarted: (mode?: 'signin' | 'signup') => void;
+  onGetStarted: (mode?: 'signin' | 'signup', prefilledIdentifier?: string) => void;
   countryCode?: string | null;
   onNavigateToLegal?: (mode: 'PRIVACY' | 'TERMS') => void;
 }
@@ -50,6 +54,17 @@ const CorrectGoogleLogo: React.FC<{ className?: string; noBg?: boolean }> = ({ c
 );
 
 export default function LandingPage({ onGetStarted, onNavigateToLegal }: LandingPageProps) {
+  // Device registration detection
+  const [deviceUser, setDeviceUser] = useState(() => getDeviceRegisteredUser());
+
+  useEffect(() => {
+    const handleDetection = () => {
+      setDeviceUser(getDeviceRegisteredUser());
+    };
+    window.addEventListener('sjtutor_registration_detected', handleDetection);
+    return () => window.removeEventListener('sjtutor_registration_detected', handleDetection);
+  }, []);
+
   // Canvas Animation Reference
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -360,19 +375,47 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
             <a href="#pricing" className="hover:text-blue-400 transition-colors">Pricing Plans</a>
           </div>
 
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => onGetStarted('signin')}
-              className="text-slate-300 hover:text-white transition-colors font-bold text-xs px-2 py-2"
-            >
-              Sign In
-            </button>
-            <button 
-              onClick={() => onGetStarted('signup')}
-              className="px-5 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 border border-blue-500/30 transition-all hover:scale-105 active:scale-95"
-            >
-              Start Learning Free
-            </button>
+          <div className="flex items-center gap-3">
+            {deviceUser.hasRegistered ? (
+              <>
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="truncate max-w-[120px]">{deviceUser.name || deviceUser.email || 'Registered'}</span>
+                </span>
+                <button
+                  onClick={() => onGetStarted('signup')}
+                  className="text-slate-400 hover:text-white transition-colors font-bold text-xs px-2 py-2"
+                >
+                  Register
+                </button>
+                <button 
+                  onClick={() => onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId)}
+                  className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/20 border border-emerald-500/30 transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                >
+                  <span>Log In</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20">
+                  <UserPlus className="w-3.5 h-3.5 text-blue-400" />
+                  <span>New Student</span>
+                </span>
+                <button
+                  onClick={() => onGetStarted('signin')}
+                  className="text-slate-300 hover:text-white transition-colors font-bold text-xs px-2 py-2"
+                >
+                  Log In
+                </button>
+                <button 
+                  onClick={() => onGetStarted('signup')}
+                  className="px-5 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 border border-blue-500/30 transition-all hover:scale-105 active:scale-95"
+                >
+                  Register Now
+                </button>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -383,7 +426,7 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
         <section className="max-w-7xl mx-auto px-6 pt-16 pb-24 lg:pt-28 lg:pb-32 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           
           {/* Left Side Content */}
-          <div className="lg:col-span-6 space-y-8 text-left">
+          <div className="lg:col-span-6 space-y-7 text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-950 to-purple-950 border border-blue-500/30 rounded-full text-blue-400 text-xs font-bold uppercase tracking-wider shadow-inner">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
               <span>🚀 Next Generation AI Learning Platform</span>
@@ -401,21 +444,103 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
               Master any subject with personalized AI-powered learning, instant explanations, adaptive practice, real-time feedback, and intelligent study guidance.
             </p>
 
+            {/* Smart Registration Detection Banner */}
+            {deviceUser.hasRegistered ? (
+              <div className="p-4 rounded-2xl bg-emerald-950/50 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl backdrop-blur-md">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                    <UserCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                      Detection: Registered User
+                    </span>
+                    <p className="text-sm font-bold text-white mt-1">
+                      Welcome back{deviceUser.name ? `, ${deviceUser.name}` : ''}!
+                    </p>
+                    <p className="text-xs text-slate-300">
+                      Based on your device records, please <strong>Log In</strong> to continue your studies.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId)}
+                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center gap-1.5 shrink-0 hover:scale-105"
+                >
+                  <span>Log In Now</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-blue-950/50 border border-blue-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl backdrop-blur-md">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/30">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">
+                      Detection: New Student
+                    </span>
+                    <p className="text-sm font-bold text-white mt-1">
+                      No account detected on this device
+                    </p>
+                    <p className="text-xs text-slate-300">
+                      Based on this, please <strong>Register (Sign Up)</strong> to get your personalized student ID.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onGetStarted('signup')}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 text-white font-black rounded-xl text-xs shadow-lg shadow-blue-500/25 transition-all flex items-center gap-1.5 shrink-0 hover:scale-105"
+                >
+                  <span>Register Free</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row gap-4">
-              <button 
-                onClick={() => onGetStarted('signup')}
-                className="px-8 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-505 hover:to-purple-500 text-white rounded-2xl font-bold text-base shadow-2xl shadow-blue-500/30 border border-blue-400/40 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 group"
-              >
-                <span>Start Learning Free</span>
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </button>
-              <a 
-                href="#demo"
-                className="px-8 py-4 bg-slate-900/40 hover:bg-slate-900/80 text-white rounded-2xl font-bold text-base border border-slate-700/60 transition-all hover:-translate-y-1 flex items-center justify-center gap-2"
-              >
-                <Play className="w-4 h-4 fill-white" />
-                <span>Watch Live Demo</span>
-              </a>
+              {deviceUser.hasRegistered ? (
+                <>
+                  <button 
+                    onClick={() => onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId)}
+                    className="px-8 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white rounded-2xl font-bold text-base shadow-2xl shadow-emerald-500/30 border border-emerald-400/40 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 group"
+                  >
+                    <span>Log In to Continue</span>
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                  <button 
+                    onClick={() => onGetStarted('signup')}
+                    className="px-8 py-4 bg-slate-900/40 hover:bg-slate-900/80 text-slate-300 hover:text-white rounded-2xl font-bold text-base border border-slate-700/60 transition-all hover:-translate-y-1 flex items-center justify-center gap-2"
+                  >
+                    <span>Register New Account</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => onGetStarted('signup')}
+                    className="px-8 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-505 hover:to-purple-500 text-white rounded-2xl font-bold text-base shadow-2xl shadow-blue-500/30 border border-blue-400/40 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 group"
+                  >
+                    <span>Start Learning Free (Register)</span>
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                  <button 
+                    onClick={() => onGetStarted('signin')}
+                    className="px-8 py-4 bg-slate-900/40 hover:bg-slate-900/80 text-white rounded-2xl font-bold text-base border border-slate-700/60 transition-all hover:-translate-y-1 flex items-center justify-center gap-2"
+                  >
+                    <span>Already Registered? Log In</span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Live Interactive Account Registration Detector */}
+            <div className="pt-2">
+              <AccountDetectorWidget
+                variant="landing"
+                onSelectAction={(mode, id) => onGetStarted(mode, id)}
+              />
             </div>
 
             {/* Trust Indicators */}
@@ -1595,12 +1720,34 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
               <div className="flex items-center gap-1.5 text-xs text-[#94A3B8] font-bold">
                 <CorrectGoogleLogo className="w-3.5 h-3.5" /> Checked for Google Compliance
               </div>
+              <div className="pt-2">
+                <a
+                  href="https://sj-tutorai.web.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all shadow-sm group"
+                >
+                  <Globe className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
+                  <span>Firebase Hosting: sj-tutorai.web.app</span>
+                </a>
+              </div>
             </div>
 
             {/* Product */}
             <div className="space-y-4 text-left">
               <h4 className="text-xs font-bold text-white uppercase tracking-wider">Product</h4>
               <ul className="space-y-2.5 text-xs text-slate-400">
+                <li>
+                  <a 
+                    href="https://sj-tutorai.web.app" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-amber-400 hover:text-amber-300 font-semibold transition-colors flex items-center gap-1"
+                  >
+                    <span>Firebase Hosting Site</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </li>
                 <li><a href="#features" className="hover:text-blue-400 transition-colors">Core Features</a></li>
                 <li><a href="#demo" className="hover:text-blue-400 transition-colors">Tutor Simulator</a></li>
                 <li><a href="#pricing" className="hover:text-blue-400 transition-colors">Pricing Options</a></li>

@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
 import { pushNotificationService } from "./server/services/pushNotificationService";
+import { getFirebaseBackendStatus, verifyFirebaseUserWithBackend, checkFirebaseEmailWithBackend } from "./server/services/firebaseBackendService";
 import path from "path";
 import fs from "fs";
 
@@ -175,6 +176,48 @@ app.get("/sitemap.xml", (req, res) => {
 // API routes
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Firebase Backend Status & Hosting Information
+app.get("/api/firebase/status", (_req, res) => {
+  res.json(getFirebaseBackendStatus());
+});
+
+app.get("/api/firebase/hosting-info", (_req, res) => {
+  const status = getFirebaseBackendStatus();
+  res.json({
+    site: status.hostingSite,
+    url: status.hostingUrl,
+    domains: status.hostingDomainAliases,
+    projectId: status.projectId,
+    status: "active"
+  });
+});
+
+app.post("/api/firebase/verify-token", async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ error: "idToken is required" });
+    }
+    const result = await verifyFirebaseUserWithBackend(idToken);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Internal server error" });
+  }
+});
+
+app.post("/api/firebase/check-email", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "email is required" });
+    }
+    const result = await checkFirebaseEmailWithBackend(email);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Internal server error" });
+  }
 });
 
 app.use("/api/auth", authRoutes);

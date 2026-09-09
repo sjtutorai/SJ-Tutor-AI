@@ -34,7 +34,8 @@ import { SecurityPinService } from '../../services/securityPinService';
 
 interface LoginFlowProps {
   onSuccess: (userData: any) => void;
-  onSwitchToSignUp: () => void;
+  onSwitchToSignUp: (prefilledEmail?: string) => void;
+  prefilledIdentifier?: string;
 }
 
 type LoginView =
@@ -48,18 +49,23 @@ type LoginView =
   | 'RECOVER_ANSWER'
   | 'RECOVER_SUCCESS';
 
-export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignUp }) => {
-  const [activeView, setActiveView] = useState<LoginView>('OVERVIEW');
+export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignUp, prefilledIdentifier }) => {
+  const isPrefilledEmail = prefilledIdentifier?.includes('@');
+  const initialView: LoginView = prefilledIdentifier
+    ? (isPrefilledEmail ? 'EMAIL' : 'SJTUTOR_ID')
+    : 'OVERVIEW';
+
+  const [activeView, setActiveView] = useState<LoginView>(initialView);
   const [loading, setLoading] = useState(false);
   const [errorAlert, setErrorAlert] = useState<string | null>(null);
 
   // Email form
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(isPrefilledEmail && prefilledIdentifier ? prefilledIdentifier : '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   // SJ Tutor AI ID login
-  const [sjTutorIdInput, setSjTutorIdInput] = useState('');
+  const [sjTutorIdInput, setSjTutorIdInput] = useState(!isPrefilledEmail && prefilledIdentifier ? prefilledIdentifier : '');
   const [sjTutorPassword, setSjTutorPassword] = useState('');
   const [showSjTutorPw, setShowSjTutorPw] = useState(false);
   const [challengeId, setChallengeId] = useState('');
@@ -762,24 +768,30 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
           <div className="w-16 h-16 bg-amber-100 dark:bg-amber-950/60 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600 dark:text-amber-400">
             <AlertCircle className="w-8 h-8" />
           </div>
+          <span className="inline-block text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-full mb-2 border border-amber-500/30">
+            Detection: Unregistered User
+          </span>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Account Not Found
+            Account Not Registered
           </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-xs mx-auto">
-            We couldn&apos;t find an SJ Tutor AI account associated with this login. Please try signing up first.
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-sm mx-auto leading-relaxed">
+            We detected that <strong className="text-slate-900 dark:text-white">{email || sjTutorIdInput || 'this account'}</strong> is not yet registered with SJ Tutor AI.
+            <br />
+            Based on this, you should <strong>Register (Sign Up)</strong> to create your student account.
           </p>
           <div className="mt-6 space-y-3">
             <button
-              onClick={onSwitchToSignUp}
-              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all shadow-sm shadow-amber-500/20"
+              onClick={() => onSwitchToSignUp(email || sjTutorIdInput)}
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all shadow-sm shadow-amber-500/20 flex items-center justify-center gap-2"
             >
-              Sign Up
+              <span>Register (Sign Up) Now</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
             <button
               onClick={() => setActiveView('OVERVIEW')}
               className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
-              Back
+              Try Another Account
             </button>
           </div>
         </div>

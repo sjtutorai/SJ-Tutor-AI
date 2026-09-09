@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Target, Zap, Mail, Phone, Lightbulb, Award, Sparkles, X, CheckCircle2 } from 'lucide-react';
+import { Target, Zap, Mail, Phone, Lightbulb, Award, Sparkles, X, CheckCircle2, Globe, ExternalLink } from 'lucide-react';
 import Logo from './Logo';
 
 interface AboutModalProps {
@@ -170,6 +170,35 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, onNavigateToLe
                 </li>
               </ul>
             </div>
+          </div>
+
+          {/* Cloud & Hosting Infrastructure */}
+          <div className="bg-amber-500/10 dark:bg-amber-500/5 rounded-2xl p-5 border border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <Globe className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full">
+                  Official Firebase Hosting
+                </span>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-1">
+                  sj-tutorai.web.app
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Global CDN with automated SSL, Firestore real-time persistence, and secure backend routing.
+                </p>
+              </div>
+            </div>
+            <a
+              href="https://sj-tutorai.web.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all shrink-0 hover:scale-105"
+            >
+              <span>Visit Live Site</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
           </div>
 
           {/* Contact Section */}

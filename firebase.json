@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "sj-tutorai",
     "public": "dist",
     "ignore": [
       "firebase.json",

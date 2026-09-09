@@ -1,5 +1,14 @@
 {
   "projects": {
     "default": "sj-tutorai"
+  },
+  "targets": {
+    "sj-tutorai": {
+      "hosting": {
+        "sj-tutorai": [
+          "sj-tutorai"
+        ]
+      }
+    }
   }
 }

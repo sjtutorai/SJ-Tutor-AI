@@ -30,7 +30,8 @@ import {
 
 interface SignUpFlowProps {
   onSuccess: (userData: any) => void;
-  onSwitchToLogin: () => void;
+  onSwitchToLogin: (prefilledEmail?: string) => void;
+  prefilledIdentifier?: string;
 }
 
 type StepType =
@@ -78,7 +79,8 @@ const PRESET_SECURITY_QUESTIONS = [
   'Create my own question'
 ];
 
-export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLogin }) => {
+export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLogin, prefilledIdentifier }) => {
+  const isPrefilledEmail = prefilledIdentifier?.includes('@');
   const [currentStep, setCurrentStep] = useState<StepType>('AUTH_METHOD');
   const [loading, setLoading] = useState(false);
   const [errorAlert, setErrorAlert] = useState<string | null>(null);
@@ -87,8 +89,8 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLog
   const [authIdentity, setAuthIdentity] = useState<any>(null);
 
   // Email form fields
-  const [emailMode, setEmailMode] = useState(false);
-  const [emailInput, setEmailInput] = useState('');
+  const [emailMode, setEmailMode] = useState(!!isPrefilledEmail);
+  const [emailInput, setEmailInput] = useState(isPrefilledEmail && prefilledIdentifier ? prefilledIdentifier : '');
   const [emailPassword, setEmailPassword] = useState('');
   const [emailConfirmPassword, setEmailConfirmPassword] = useState('');
   const [showEmailPw, setShowEmailPw] = useState(false);
@@ -568,27 +570,33 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLog
          ══════════════════════════════════════════════════════════ */}
       {currentStep === 'ACCOUNT_EXISTS' && (
         <div className="text-center py-4">
-          <div className="w-16 h-16 bg-amber-100 dark:bg-amber-950/60 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600 dark:text-amber-400">
-            <AlertCircle className="w-8 h-8" />
+          <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/60 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="w-8 h-8" />
           </div>
+          <span className="inline-block text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-full mb-2 border border-emerald-500/30">
+            Detection: Registered User
+          </span>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Account Already Exists
+            Account Already Registered!
           </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-xs mx-auto">
-            This account is already registered with SJ Tutor AI. Please try logging in instead.
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-sm mx-auto leading-relaxed">
+            We detected that <strong className="text-slate-900 dark:text-white">{emailInput || authIdentity?.email || 'this account'}</strong> is already registered with SJ Tutor AI.
+            <br />
+            Based on this, you should <strong>Log In</strong> with your credentials.
           </p>
           <div className="mt-6 space-y-3">
             <button
-              onClick={onSwitchToLogin}
-              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all shadow-sm shadow-amber-500/20"
+              onClick={() => onSwitchToLogin(emailInput || authIdentity?.email)}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-all shadow-sm shadow-emerald-600/20 flex items-center justify-center gap-2"
             >
-              Log In
+              <span>Log In to Your Account</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
             <button
               onClick={() => setCurrentStep('AUTH_METHOD')}
               className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
-              Back
+              Register with Another Email
             </button>
           </div>
         </div>

@@ -19,6 +19,7 @@ import QuizView from "./components/QuizView";
 import TutorChat from "./components/TutorChat";
 import ProfileView from "./components/ProfileView";
 import Auth from "./components/Auth";
+import { getDeviceRegisteredUser } from "./utils/registrationDetection";
 import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
 import LoadingState from "./components/LoadingState";
@@ -285,11 +286,14 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(initialRoute.isAuthModalOpen);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>(initialRoute.authModalMode);
+  const [authPrefilledIdentifier, setAuthPrefilledIdentifier] = useState<string>('');
 
-  const openAuthModal = (authMode: 'signin' | 'signup' = 'signin') => {
-    setAuthModalMode(authMode);
+  const openAuthModal = (authMode?: 'signin' | 'signup', prefilledId?: string) => {
+    const targetMode = authMode || (getDeviceRegisteredUser().hasRegistered ? 'signin' : 'signup');
+    setAuthModalMode(targetMode);
+    setAuthPrefilledIdentifier(prefilledId || '');
     setShowAuthModal(true);
-    syncBrowserUrl(mode || AppMode.DASHBOARD, { modal: authMode });
+    syncBrowserUrl(mode || AppMode.DASHBOARD, { modal: targetMode });
   };
   const closeAuthModal = () => {
     setShowAuthModal(false);
@@ -3848,6 +3852,7 @@ const App: React.FC = () => {
             onSignUpSuccess={handleSignUpSuccess}
             onCountryDetected={setDetectedCountry}
             initialMode={authModalMode}
+            prefilledIdentifier={authPrefilledIdentifier}
           />
         )}
       </div>
@@ -3934,6 +3939,7 @@ const App: React.FC = () => {
               onSignUpSuccess={handleSignUpSuccess}
               onCountryDetected={setDetectedCountry}
               initialMode={authModalMode}
+              prefilledIdentifier={authPrefilledIdentifier}
             />
           )}
         </div>
@@ -3943,7 +3949,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans selection:bg-primary-100 selection:text-primary-900 text-slate-900 dark:text-slate-100 transition-colors duration-300">
         <LandingPage
-          onGetStarted={(mode) => openAuthModal(mode)}
+          onGetStarted={(mode, id) => openAuthModal(mode, id)}
           countryCode={detectedCountry}
           onNavigateToLegal={(legalMode) => {
             setMode(legalMode as any);
@@ -3957,6 +3963,7 @@ const App: React.FC = () => {
             onCountryDetected={setDetectedCountry}
             initialCountry={detectedCountry}
             initialMode={authModalMode}
+            prefilledIdentifier={authPrefilledIdentifier}
           />
         )}
         {showPremiumModal && (
@@ -4419,6 +4426,7 @@ const App: React.FC = () => {
           onSignUpSuccess={handleSignUpSuccess}
           onCountryDetected={setDetectedCountry}
           initialMode={authModalMode}
+          prefilledIdentifier={authPrefilledIdentifier}
         />
       )}
 

@@ -10,7 +10,9 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "deploy": "firebase deploy",
-    "deploy:hosting": "firebase deploy --only hosting"
+    "deploy:hosting": "firebase deploy --only hosting",
+    "deploy:hosting:site": "firebase deploy --only hosting:sj-tutorai",
+    "deploy:rules": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
     "@google/genai": "^1.32.0",
