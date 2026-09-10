@@ -1,30 +1,34 @@
 {
+  "redirects": [
+    {
+      "source": "/favicon.ico",
+      "destination": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+      "permanent": false
+    },
+    {
+      "source": "/favicon.png",
+      "destination": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+      "permanent": false
+    },
+    {
+      "source": "/logo.png",
+      "destination": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!SJ-Tutor-AI-Logo\\.jpg|logo\\.jpg|manifest\\.json|robots\\.txt|sitemap\\.xml).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
     {
-      "source": "/favicon.ico",
+      "source": "/SJ-Tutor-AI-Logo.jpg",
       "headers": [
         {
           "key": "Content-Type",
-          "value": "image/x-icon"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=86400"
-        }
-      ]
-    },
-    {
-      "source": "/favicon-(.*).png",
-      "headers": [
-        {
-          "key": "Content-Type",
-          "value": "image/png"
+          "value": "image/jpeg"
         },
         {
           "key": "Cache-Control",
