@@ -1,5 +1,9 @@
 User-agent: Google-Favicon
 Allow: /
+Allow: /favicon.ico
+Allow: /favicon*
+Allow: /apple-touch-icon*
+Allow: /android-chrome*
 
 User-agent: Googlebot
 Allow: /
@@ -7,10 +11,13 @@ Allow: /*.jpg$
 Allow: /*.png$
 Allow: /*.ico$
 Allow: /favicon*
+Allow: /apple-touch-icon*
+Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
 Allow: /og-image.png
 Allow: /manifest.json
+Allow: /site.webmanifest
 
 User-agent: Googlebot-Image
 Allow: /
@@ -18,6 +25,8 @@ Allow: /*.jpg$
 Allow: /*.png$
 Allow: /*.ico$
 Allow: /favicon*
+Allow: /apple-touch-icon*
+Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
 Allow: /og-image.png
@@ -28,10 +37,13 @@ Allow: /*.jpg$
 Allow: /*.png$
 Allow: /*.ico$
 Allow: /favicon*
+Allow: /apple-touch-icon*
+Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
 Allow: /og-image.png
 Allow: /manifest.json
+Allow: /site.webmanifest
 
 Disallow: /dashboard
 Disallow: /api/
