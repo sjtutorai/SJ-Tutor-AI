@@ -8,7 +8,6 @@ export enum AppMode {
   TUTOR = 'TUTOR',
   PROFILE = 'PROFILE',
   NOTES = 'NOTES',
-  IMAGE_STUDIO = 'IMAGE_STUDIO',
   SETTINGS = 'SETTINGS',
   ABOUT = 'ABOUT',
   ID_CARD = 'ID_CARD',
@@ -19,18 +18,6 @@ export enum AppMode {
   SHARED_CONTENT = 'SHARED_CONTENT',
   GROUPS = 'GROUPS',
   GROUP_INVITE = 'GROUP_INVITE',
-}
-
-export interface GeneratedImageItem {
-  id: string;
-  url: string;
-  prompt: string;
-  originalUrl?: string;
-  isEdited?: boolean;
-  aspectRatio?: string;
-  style?: string;
-  model?: string;
-  createdAt: number;
 }
 
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';

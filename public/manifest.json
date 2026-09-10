@@ -1,30 +1,39 @@
 {
   "short_name": "SJ Tutor AI",
-  "name": "SJ Tutor AI",
-  "description": "An all-in-one AI study companion for students.",
+  "name": "SJ Tutor AI - Your AI Study Buddy",
+  "description": "SJ Tutor AI is an all-in-one AI study companion for students created by Sadanand Jyoti and Samanyu S Patil.",
   "icons": [
     {
-      "src": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
-      "sizes": "512x512",
-      "type": "image/jpeg",
-      "purpose": "any maskable"
+      "src": "/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png"
     },
     {
-      "src": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-192x192.png",
       "sizes": "192x192",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
-      "sizes": "640x640",
-      "type": "image/jpeg",
-      "purpose": "any"
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ],
   "start_url": "/",
   "scope": "/",
-  "background_color": "#111827",
+  "background_color": "#ffffff",
   "theme_color": "#D4AF37",
   "display": "standalone"
 }

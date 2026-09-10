@@ -26,7 +26,6 @@ import LoadingState from "./components/LoadingState";
 import SplashScreen from "./components/SplashScreen";
 import DashboardSkeleton from "./components/DashboardSkeleton";
 import NotesView from "./components/NotesView";
-import ImageStudioView from "./components/ImageStudioView";
 import GroupsView from "./components/GroupsView";
 import GroupInviteView from "./components/GroupInviteView";
 import { CallModal } from "./components/CallModal";
@@ -704,13 +703,6 @@ const App: React.FC = () => {
         break;
       case AppMode.NOTES:
         SEOService.updateSEO(SEOService.getPresetForRoute('/notes'));
-        break;
-      case AppMode.IMAGE_STUDIO:
-        SEOService.updateSEO({
-          title: 'AI Image Studio | SJ Tutor AI',
-          description: 'Generate educational diagrams and transform images with gemini-3.1-flash-image-preview.',
-          canonicalPath: '/images',
-        });
         break;
       case AppMode.TIMER:
         SEOService.updateSEO(SEOService.getPresetForRoute('/timer'));
@@ -2692,7 +2684,6 @@ const App: React.FC = () => {
     { id: AppMode.QUIZ, label: "Quiz Creator", icon: BrainCircuit },
     { id: AppMode.HOMEWORK, label: "Homework Solver", icon: BookOpen },
     { id: AppMode.TUTOR, label: "AI Tutor Sessions", icon: MessageCircle },
-    { id: AppMode.IMAGE_STUDIO, label: "AI Image Studio", icon: Sparkles },
     { id: AppMode.NOTES, label: "Notes & Schedule", icon: Calendar },
     { id: AppMode.TIMER, label: "Study Timer", icon: Clock },
     { id: AppMode.SETTINGS, label: "Settings", icon: Settings },
@@ -2802,14 +2793,6 @@ const App: React.FC = () => {
         icon: Calendar,
         color: "text-emerald-700 dark:text-emerald-400",
         bg: "bg-[#FDF5E6] dark:bg-emerald-900/30",
-      },
-      {
-        id: AppMode.IMAGE_STUDIO,
-        label: "Image Studio",
-        count: null,
-        icon: Sparkles,
-        color: "text-amber-500 dark:text-amber-400",
-        bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
       },
     ];
 
@@ -3093,8 +3076,6 @@ const App: React.FC = () => {
 
                 if (card.id === AppMode.NOTES) {
                   setMode(AppMode.NOTES);
-                } else if (card.id === AppMode.IMAGE_STUDIO) {
-                  setMode(AppMode.IMAGE_STUDIO);
                 } else if (card.id === AppMode.GROUPS) {
                   setMode(AppMode.GROUPS);
                 } else if (card.id === AppMode.ID_CARD) {
@@ -3660,22 +3641,6 @@ const App: React.FC = () => {
               onDeductCredit={deductCredit}
               userProfile={userProfile}
               onOpenUpgrade={openPremiumModal}
-            />
-          </div>
-        );
-
-      case AppMode.IMAGE_STUDIO:
-        return (
-          <div className="w-full max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <ImageStudioView
-              userId={user ? user.uid : undefined}
-              currentTheme={SettingsService.getSettings().appearance.theme}
-              onNavigateToNotes={() => {
-                setMode(AppMode.NOTES);
-              }}
-              onNavigateToTutor={() => {
-                setMode(AppMode.TUTOR);
-              }}
             />
           </div>
         );

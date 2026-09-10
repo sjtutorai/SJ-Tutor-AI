@@ -18,10 +18,15 @@ const PORT = 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
-// Favicon and brand assets redirected to canonical logo URL
+// Favicon and static icon endpoints served directly with proper MIME and caching headers
+app.get('/favicon.ico', (req, res) => {
+  const filePath = path.resolve(process.cwd(), "public", "favicon.ico");
+  res.setHeader("Content-Type", "image/x-icon");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.sendFile(filePath);
+});
+
 app.get([
-  '/favicon.ico',
-  '/favicon.png',
   '/favicon-16x16.png',
   '/favicon-32x32.png',
   '/favicon-48x48.png',
@@ -33,11 +38,21 @@ app.get([
   '/apple-touch-icon-180x180.png',
   '/android-chrome-192x192.png',
   '/android-chrome-512x512.png',
-  '/logo.png',
-  '/og-image.png',
-  '/images/sjtutor-logo.png'
+  '/og-image.png'
 ], (req, res) => {
-  res.redirect(302, 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg');
+  const filename = req.path.replace('/', '');
+  const filePath = path.resolve(process.cwd(), "public", filename);
+  res.setHeader("Content-Type", "image/png");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.sendFile(filePath);
+});
+
+app.get(['/manifest.json', '/site.webmanifest'], (req, res) => {
+  const filename = req.path.replace('/', '');
+  const filePath = path.resolve(process.cwd(), "public", filename);
+  res.setHeader("Content-Type", "application/manifest+json");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.sendFile(filePath);
 });
 
 app.get(['/SJ-Tutor-AI-Logo.jpg', '/logo.jpg'], (req, res) => {

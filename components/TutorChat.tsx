@@ -39,8 +39,7 @@ import {
   ChevronsDown,
   Maximize2,
   Minimize2,
-  Palette,
-  Wand2
+  Palette
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -50,8 +49,6 @@ import { ChatBackgroundModal, ChatBgSettings } from './ChatBackgroundModal';
 import { SettingsService } from '../services/settingsService';
 import { jsPDF } from 'jspdf';
 import { VoiceDictationSession } from '../services/audioService';
-import { ImageStudioView } from './ImageStudioView';
-import { useNotifications } from './NotificationContext';
 
 function getDynamicSampleQuestions(subject: string, grade: string): string[] {
   const normSubject = subject.toLowerCase().trim();
@@ -252,21 +249,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     activeSessionId, 
     onSelectSession,
     onCreateQuiz,
-    onDeleteSession,
-    userId,
-    currentTheme,
-    onNavigateToNotes
+    onDeleteSession
   } = props;
-
-  const { triggerToast } = useNotifications();
-
-  // In-Session Image AI Studio state
-  const [isImageStudioOpen, setIsImageStudioOpen] = useState(false);
-  const [imageStudioState, setImageStudioState] = useState<{
-    prompt?: string;
-    image?: string;
-    tab?: 'generate' | 'edit' | 'gallery';
-  }>({});
 
   const { subject, grade, sampleQuestions } = React.useMemo(() => {
     const settings = SettingsService.getSettings();
@@ -764,34 +748,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
   const clearAllBookmarks = () => {
     setStarredTimestamps([]);
-  };
-
-  // Image AI Studio In-Session handlers
-  const handleOpenImageStudio = (options?: { prompt?: string; image?: string; tab?: 'generate' | 'edit' | 'gallery' }) => {
-    const defaultPrompt = options?.prompt || (sessionTitle && sessionTitle !== `${subject} (${grade})` ? `Educational diagram explaining ${sessionTitle}` : `Diagram illustrating key concepts in ${subject} (${grade})`);
-    setImageStudioState({
-      prompt: defaultPrompt,
-      image: options?.image,
-      tab: options?.tab || (options?.image ? 'edit' : 'generate')
-    });
-    setIsImageStudioOpen(true);
-  };
-
-  const handleInsertFromImageStudio = (imageInfo: { url: string; prompt: string }) => {
-    setIsImageStudioOpen(false);
-    
-    // Add image as attachment to the chat
-    const imageAttachment: AttachedFile = {
-      name: `studio_visual_${Date.now()}.png`,
-      type: 'image/png',
-      dataUrl: imageInfo.url,
-    };
-
-    setAttachedFiles(prev => [...prev, imageAttachment]);
-    if (!input.trim()) {
-      setInput(`Here is a generated study diagram for "${imageInfo.prompt}". Please analyze this visual aid, explain the core concepts step-by-step, and quiz me on the key parts.`);
-    }
-    triggerToast('Diagram Attached to Session 🎨', 'The visual aid has been loaded. Click send or add more notes to discuss with SJ Tutor!', 'AI Tutor');
   };
 
   // Scroll to bottom on new message or during stream
@@ -1379,28 +1335,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Image AI Studio In-Session Switcher */}
-            <button 
-              onClick={() => {
-                if (isImageStudioOpen) {
-                  setIsImageStudioOpen(false);
-                } else {
-                  handleOpenImageStudio();
-                }
-              }}
-              className={`p-2 rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95 ${
-                isImageStudioOpen 
-                  ? 'bg-amber-500 text-white ring-2 ring-amber-400/70 font-black shadow-amber-500/30' 
-                  : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-amber-500/20'
-              }`}
-              title="Image AI Studio - Generate & Edit Visual Study Diagrams"
-            >
-              <Sparkles className="w-4 h-4 fill-white animate-pulse" />
-              <span className="text-xs font-black hidden sm:inline">
-                {isImageStudioOpen ? 'Back to Chat' : 'Image AI Studio'}
-              </span>
-            </button>
-
             {onCreateQuiz && (
               <button 
                 onClick={onCreateQuiz} 
@@ -1539,40 +1473,24 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           </div>
         </div>
 
-        {/* Message Thread Container or Embedded Image Studio */}
+        {/* Message Thread Container */}
         <div 
           className="flex-grow flex flex-col relative overflow-hidden"
           style={{
-            background: isImageStudioOpen ? undefined : (tutorBgSettings.bgColor || undefined)
+            background: tutorBgSettings.bgColor || undefined
           }}
         >
-          {isImageStudioOpen ? (
-            <div className="flex-grow overflow-y-auto custom-scrollbar relative z-10 p-2 sm:p-5 bg-slate-50/70 dark:bg-slate-950/70">
-              <ImageStudioView
-                userId={userId}
-                currentTheme={currentTheme}
-                isInTutorSession={true}
-                initialPrompt={imageStudioState.prompt}
-                initialImage={imageStudioState.image}
-                initialTab={imageStudioState.tab}
-                onCloseTutorStudio={() => setIsImageStudioOpen(false)}
-                onNavigateToTutor={handleInsertFromImageStudio}
-                onNavigateToNotes={onNavigateToNotes}
-              />
-            </div>
-          ) : (
-            <>
-              {/* Wallpaper Image Layer with Blur */}
-              {tutorBgSettings.imageUrl && (
-                <div 
-                  className="absolute inset-0 bg-cover bg-center pointer-events-none z-0 transition-all"
-                  style={{
-                    backgroundImage: `url(${tutorBgSettings.imageUrl})`,
-                    filter: (tutorBgSettings.blur || 0) > 0 ? `blur(${tutorBgSettings.blur}px)` : undefined,
-                    transform: (tutorBgSettings.blur || 0) > 0 ? 'scale(1.05)' : undefined,
-                  }}
-                />
-              )}
+          {/* Wallpaper Image Layer with Blur */}
+          {tutorBgSettings.imageUrl && (
+            <div 
+              className="absolute inset-0 bg-cover bg-center pointer-events-none z-0 transition-all"
+              style={{
+                backgroundImage: `url(${tutorBgSettings.imageUrl})`,
+                filter: (tutorBgSettings.blur || 0) > 0 ? `blur(${tutorBgSettings.blur}px)` : undefined,
+                transform: (tutorBgSettings.blur || 0) > 0 ? 'scale(1.05)' : undefined,
+              }}
+            />
+          )}
 
               {/* Overlay for text readability */}
               {(tutorBgSettings.imageUrl || tutorBgSettings.bgColor) && (
@@ -1684,7 +1602,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                         <div 
                           key={i} 
                           className="mb-3 max-w-sm overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 shadow-md group/img relative"
-                          title="Click image to enlarge, or edit in AI Studio"
+                          title="Click image to enlarge"
                         >
                           <img 
                             src={img} 
@@ -1692,18 +1610,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                             onClick={() => setEnlargedMessage(msg)}
                             className="w-full h-auto group-hover/img:scale-105 transition-transform cursor-pointer" 
                           />
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenImageStudio({ image: img, tab: 'edit' });
-                            }}
-                            className="absolute bottom-2 right-2 px-2.5 py-1 bg-slate-950/85 hover:bg-slate-950 text-white rounded-lg text-[11px] font-bold backdrop-blur-md border border-white/20 flex items-center gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity shadow-md cursor-pointer"
-                            title="Edit this diagram in AI Image Studio"
-                          >
-                            <Wand2 className="w-3 h-3 text-amber-400" />
-                            <span>Edit in AI Studio</span>
-                          </button>
                         </div>
                       ))}
 
@@ -1888,33 +1794,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                 <span>Recommended for your {subject} Syllabus ({grade})</span>
               </div>
 
-              {/* Interactive Visual AI & Quiz Recommendation Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mb-4">
-                {/* Image AI Studio Card */}
-                <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50/60 dark:from-slate-900/80 dark:to-slate-950/80 border border-amber-200/70 dark:border-slate-800 rounded-2xl flex flex-col justify-between gap-3 shadow-xs">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-amber-100 dark:bg-amber-950/50 rounded-xl text-amber-600 dark:text-amber-400 flex-shrink-0">
-                      <Sparkles className="w-5 h-5 fill-amber-500/20" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-slate-850 dark:text-white flex items-center gap-1.5">
-                        <span>AI Image Studio</span>
-                        <span className="text-[9px] px-1.5 py-0.2 bg-amber-500 text-white font-bold rounded-full">NEW</span>
-                      </h4>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Generate visual diagrams, flashcard illustrations, or edit study concept charts.</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleOpenImageStudio()}
-                    className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-black rounded-xl transition shadow-xs active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Wand2 className="w-3.5 h-3.5" />
-                    Open Image Studio
-                  </button>
-                </div>
-
-                {/* Quiz Challenge Card */}
-                {onCreateQuiz && (
+              {/* Quiz Challenge Card */}
+              {onCreateQuiz && (
+                <div className="max-w-md mb-4">
                   <div className="p-4 bg-gradient-to-br from-primary-50 to-amber-50/40 dark:from-slate-900/80 dark:to-slate-950/80 border border-primary-100/70 dark:border-slate-800 rounded-2xl flex flex-col justify-between gap-3 shadow-xs">
                     <div className="flex items-start gap-3">
                       <div className="p-2.5 bg-primary-100 dark:bg-primary-950/40 rounded-xl text-primary-600 dark:text-primary-400 flex-shrink-0">
@@ -1933,8 +1815,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl">
                 {sampleQuestions.map((q, idx) => (
@@ -1982,8 +1864,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             )}
           </AnimatePresence>
         </div>
-            </>
-          )}
         </div>
 
         {/* Input Control Console */}
@@ -2129,29 +2009,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               disabled={isTyping || thinkingStep !== null}
             >
               <Paperclip className="w-4 h-4" />
-            </button>
-
-            {/* Quick Image AI Studio Launch */}
-            <button
-              type="button"
-              onClick={() => {
-                if (isImageStudioOpen) {
-                  setIsImageStudioOpen(false);
-                } else {
-                  handleOpenImageStudio({
-                    prompt: input.trim() ? `Visual educational diagram explaining: ${input.trim()}` : undefined
-                  });
-                }
-              }}
-              className={`p-3 rounded-xl border transition-all duration-200 shadow-xs cursor-pointer ${
-                isImageStudioOpen
-                  ? 'bg-amber-500 border-amber-500 text-white shadow-md shadow-amber-500/20 font-bold'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 hover:bg-amber-50/70 dark:hover:bg-amber-950/30 hover:border-amber-300'
-              }`}
-              title={isImageStudioOpen ? "Close Image Studio and return to Chat" : "Image AI Studio (Generate & Edit Diagrams)"}
-              disabled={isTyping || thinkingStep !== null}
-            >
-              <Sparkles className="w-4 h-4" />
             </button>
  
             {/* Voice Input */}

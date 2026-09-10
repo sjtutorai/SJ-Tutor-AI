@@ -1,28 +1,50 @@
 {
-  "redirects": [
-    {
-      "source": "/favicon.ico",
-      "destination": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
-      "permanent": false
-    },
-    {
-      "source": "/favicon.png",
-      "destination": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
-      "permanent": false
-    },
-    {
-      "source": "/logo.png",
-      "destination": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
-      "permanent": false
-    }
-  ],
   "rewrites": [
     {
-      "source": "/((?!SJ-Tutor-AI-Logo\\.jpg|logo\\.jpg|manifest\\.json|robots\\.txt|sitemap\\.xml).*)",
+      "source": "/((?!favicon|android-chrome|apple-touch-icon|icon-|logo|SJ-Tutor-AI-Logo|manifest\\.json|site\\.webmanifest|robots\\.txt|sitemap\\.xml|sw\\.js|firebase-messaging-sw\\.js).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/favicon.ico",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "image/x-icon"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
+    {
+      "source": "/(favicon-.*\\.png|android-chrome-.*\\.png|apple-touch-icon.*\\.png|icon-.*\\.png)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "image/png"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
+    {
+      "source": "/(manifest\\.json|site\\.webmanifest)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
     {
       "source": "/SJ-Tutor-AI-Logo.jpg",
       "headers": [

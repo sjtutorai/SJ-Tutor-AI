@@ -51,20 +51,14 @@ function ensureCanonicalLink(href: string) {
 }
 
 function ensureFaviconLinks() {
-  // Remove any legacy PNG or ICO icon links to avoid browser fallback to globe icon
-  if (typeof document !== 'undefined') {
-    document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach((link) => {
-      const href = link.getAttribute('href') || '';
-      if (href.includes('.png') || href.includes('.ico')) {
-        link.remove();
-      }
-    });
-  }
-
   const icons = [
-    { rel: 'icon', type: 'image/jpeg', sizes: '640x640', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
-    { rel: 'shortcut icon', type: 'image/jpeg', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
-    { rel: 'apple-touch-icon', sizes: '180x180', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
+    { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+    { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
+    { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
+    { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/android-chrome-192x192.png' },
+    { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/android-chrome-512x512.png' },
+    { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+    { rel: 'shortcut icon', type: 'image/x-icon', href: '/favicon.ico' },
   ];
 
   icons.forEach(({ rel, type, href, sizes }) => {
