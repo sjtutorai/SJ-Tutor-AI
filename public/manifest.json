@@ -4,31 +4,22 @@
   "description": "SJ Tutor AI is an all-in-one AI study companion for students created by Sadanand Jyoti and Samanyu S Patil.",
   "icons": [
     {
-      "src": "/favicon-16x16.png",
-      "sizes": "16x16",
-      "type": "image/png"
-    },
-    {
-      "src": "/favicon-32x32.png",
-      "sizes": "32x32",
-      "type": "image/png"
-    },
-    {
-      "src": "/android-chrome-192x192.png",
+      "src": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
       "sizes": "192x192",
-      "type": "image/png",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     },
     {
-      "src": "/android-chrome-512x512.png",
+      "src": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
       "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/jpeg",
       "purpose": "any maskable"
     },
     {
-      "src": "/apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png"
+      "src": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+      "sizes": "640x640",
+      "type": "image/jpeg",
+      "purpose": "any"
     }
   ],
   "start_url": "/",

@@ -18,7 +18,7 @@ export interface SEOConfig {
 export const CANONICAL_BASE_URL = 'https://sj-tutorai.web.app';
 export const DEFAULT_LOGO_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
-export const DEFAULT_FAVICON_URL = '/favicon.ico';
+export const DEFAULT_FAVICON_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_TITLE = 'SJ Tutor AI - Your AI Study Buddy';
 export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion for students created by Sadanand Jyoti and Samanyu S Patil.';
 
@@ -51,28 +51,30 @@ function ensureCanonicalLink(href: string) {
 }
 
 function ensureFaviconLinks() {
+  // Clear any existing PNG/ICO links to ensure consistent logo display
+  if (typeof document !== 'undefined') {
+    document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel*="apple-touch-icon"]').forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      if (href.includes('.png') || href.includes('.ico')) {
+        link.remove();
+      }
+    });
+  }
+
   const icons = [
-    { rel: 'icon', sizes: 'any', href: '/favicon.ico' },
-    { rel: 'shortcut icon', type: 'image/x-icon', href: '/favicon.ico' },
-    { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
-    { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
-    { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon-48x48.png' },
-    { rel: 'icon', type: 'image/png', sizes: '96x96', href: '/favicon-96x96.png' },
-    { rel: 'icon', type: 'image/png', sizes: '144x144', href: '/favicon-144x144.png' },
-    { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/android-chrome-192x192.png' },
-    { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/android-chrome-512x512.png' },
-    { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+    { rel: 'icon', type: 'image/jpeg', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
+    { rel: 'shortcut icon', type: 'image/jpeg', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
+    { rel: 'apple-touch-icon', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
+    { rel: 'apple-touch-icon-precomposed', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
   ];
 
-  icons.forEach(({ rel, type, href, sizes }) => {
-    let selector = `link[rel="${rel}"][href="${href}"]`;
-    if (sizes) selector += `[sizes="${sizes}"]`;
+  icons.forEach(({ rel, type, href }) => {
+    const selector = `link[rel="${rel}"][href="${href}"]`;
     let el = document.querySelector(selector) as HTMLLinkElement | null;
     if (!el) {
       el = document.createElement('link');
       el.setAttribute('rel', rel);
       if (type) el.setAttribute('type', type);
-      if (sizes) el.setAttribute('sizes', sizes);
       el.setAttribute('href', href);
       document.head.appendChild(el);
     }

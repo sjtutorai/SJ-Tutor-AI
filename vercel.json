@@ -1,4 +1,26 @@
 {
+  "redirects": [
+    {
+      "source": "/favicon.ico",
+      "destination": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+      "permanent": false
+    },
+    {
+      "source": "/favicon.png",
+      "destination": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+      "permanent": false
+    },
+    {
+      "source": "/logo.png",
+      "destination": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+      "permanent": false
+    },
+    {
+      "source": "/apple-touch-icon.png",
+      "destination": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/((?!favicon|android-chrome|apple-touch-icon|icon-|logo|SJ-Tutor-AI-Logo|manifest\\.json|site\\.webmanifest|robots\\.txt|sitemap\\.xml|sw\\.js|firebase-messaging-sw\\.js).*)",
