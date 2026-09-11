@@ -1048,26 +1048,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         }));
       }
 
-      // Check if it's an image generation command
-      const imgMatch = accumulatedText.match(/<GENERATE_IMAGE:\s*"([^"]+)">/);
-      if (imgMatch) {
-        const imagePrompt = imgMatch[1];
-        setMessages(prev => prev.map(m => {
-          if (m.id === modelMessageId) {
-            return { ...m, text: accumulatedText.replace(imgMatch[0], "\n\n*Generating image... 🎨*\n\n") };
-          }
-          return m;
-        }));
-        
-        try {
-          const res = await GeminiService.generateImage(imagePrompt);
-          const imageUrl = typeof res === "string" ? res : res.imageUrl;
-          accumulatedText = accumulatedText.replace(imgMatch[0], `\n\n![Generated Image](${imageUrl})\n\n`);
-        } catch (e: any) {
-          accumulatedText = accumulatedText.replace(imgMatch[0], `\n\n⚠️ Failed to generate image: ${e.message}\n\n`);
-        }
-      }
-
       // Generation Complete: append custom smart suggestions
       const smartSuggestions = generateSmartSuggestionsForTopic(textToSend, accumulatedText);
       setMessages(prev => prev.map(m => {

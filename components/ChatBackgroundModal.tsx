@@ -1,14 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { 
   X, 
-  Sparkles, 
   Image as ImageIcon, 
   Upload, 
   Palette, 
   Sliders, 
   Check, 
-  Loader2, 
-  Wand2, 
   Eye, 
   Trash2,
   Brush
@@ -188,20 +185,9 @@ const GRADIENT_PRESETS = [
   { name: 'Slate Minimal', bg: 'linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%)' },
 ];
 
-const PROMPT_SUGGESTIONS = [
-  "Cozy anime study desk with warm desk lamp and rain outside the window",
-  "Futuristic cyberpunk quantum physics hologram lab with neon blue glow",
-  "Vintage dark academia library with ancient leather-bound books and warm light",
-  "Peaceful Japanese garden with cherry blossoms and a calm koi pond",
-  "Starry night sky over a misty alpine pine forest with aurora lights",
-  "Minimalist abstract watercolor pastel gradients for focus and relaxation",
-  "Chalkboard filled with elegant mathematical equations and glowing geometric diagrams",
-  "Coffee shop window table with notebook, latte, and autumn leaves falling"
-];
-
 export const ChatBackgroundModal: React.FC<ChatBackgroundModalProps> = ({
   title = "Chat Wallpaper & Background",
-  subtitle = "Personalize your chat environment with AI, templates, or custom images",
+  subtitle = "Personalize your chat environment with curated templates, uploads, or custom colors",
   currentBgImage = "",
   currentOverlayOpacity = 0.5,
   currentBlur = 0,
@@ -210,82 +196,16 @@ export const ChatBackgroundModal: React.FC<ChatBackgroundModalProps> = ({
   onClear,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<'ai' | 'templates' | 'upload' | 'colors'>('ai');
+  const [activeTab, setActiveTab] = useState<'templates' | 'upload' | 'colors'>('templates');
   const [bgImage, setBgImage] = useState<string>(currentBgImage);
   const [bgColor, setBgColor] = useState<string>(currentBgColor);
   const [overlayOpacity, setOverlayOpacity] = useState<number>(currentOverlayOpacity);
   const [blurAmount, setBlurAmount] = useState<number>(currentBlur);
   const [selectedTemplateCat, setSelectedTemplateCat] = useState<string>('lofi');
-
-  // AI Generation States
-  const [aiPrompt, setAiPrompt] = useState<string>('');
-  const [aiStyle, setAiStyle] = useState<string>('lofi');
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [customUrlInput, setCustomUrlInput] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { triggerToast } = useNotifications();
-
-  // Generate with AI Handler
-  const handleGenerateAI = async (promptToUse?: string) => {
-    const prompt = (promptToUse || aiPrompt).trim();
-    if (!prompt) {
-      triggerToast('Prompt Required', 'Please enter a description for the wallpaper.', 'Important Alerts');
-      return;
-    }
-
-    setIsGenerating(true);
-    try {
-      let enhancedPrompt = prompt;
-      if (aiStyle === 'lofi') {
-        enhancedPrompt = `Aesthetic cozy lofi illustration, detailed digital painting of ${prompt}, warm anime study atmosphere, high resolution wallpaper`;
-      } else if (aiStyle === 'cinematic') {
-        enhancedPrompt = `Cinematic photorealistic 8k wallpaper of ${prompt}, dramatic volumetric lighting, depth of field`;
-      } else if (aiStyle === 'cyber') {
-        enhancedPrompt = `Cyberpunk neon sci-fi scenery of ${prompt}, vibrant glow, high tech aesthetic`;
-      } else if (aiStyle === 'minimal') {
-        enhancedPrompt = `Minimalist aesthetic clean vector design of ${prompt}, subtle geometric composition, soothing pastel tones`;
-      }
-
-      let generatedUrl = '';
-
-      try {
-        const res = await fetch('/api/generate-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: enhancedPrompt, aspectRatio: '16:9' }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.imageUrl) {
-            generatedUrl = data.imageUrl;
-          }
-        }
-      } catch (fetchErr) {
-        console.warn('Backend image endpoint unreachable, using client-side AI synthesis:', fetchErr);
-      }
-
-      // Direct fallback to Pollinations AI synthesis if backend didn't return image
-      if (!generatedUrl) {
-        const seed = Math.floor(Math.random() * 1000000);
-        const encoded = encodeURIComponent(`${enhancedPrompt}, aesthetic wallpaper 4k`);
-        generatedUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1600&height=900&nologo=true&seed=${seed}&model=flux`;
-      }
-
-      setBgImage(generatedUrl);
-      setBgColor('');
-      triggerToast('AI Wallpaper Generated! ✨', 'Preview your custom generated background below or click Apply.', 'Important Alerts');
-    } catch (err: any) {
-      console.error('AI Wallpaper generation error:', err);
-      const fallbackUrl = 'https://images.unsplash.com/photo-1518655048521-f130df041f66?q=80&w=1600&auto=format&fit=crop';
-      setBgImage(fallbackUrl);
-      setBgColor('');
-      triggerToast('Generated Atmospheric Background ✨', 'Applied aesthetic study backdrop.', 'Important Alerts');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   // File Upload Handler
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -365,18 +285,6 @@ export const ChatBackgroundModal: React.FC<ChatBackgroundModalProps> = ({
         {/* Navigation Tabs */}
         <div className="flex border-b border-slate-100 dark:border-slate-800 p-2 gap-1 bg-slate-50 dark:bg-slate-800/40 overflow-x-auto custom-scrollbar">
           <button
-            onClick={() => setActiveTab('ai')}
-            className={`py-2 px-3.5 rounded-xl font-bold text-xs flex items-center gap-2 transition whitespace-nowrap ${
-              activeTab === 'ai'
-                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-            Generate with AI
-          </button>
-
-          <button
             onClick={() => setActiveTab('templates')}
             className={`py-2 px-3.5 rounded-xl font-bold text-xs flex items-center gap-2 transition whitespace-nowrap ${
               activeTab === 'templates'
@@ -415,130 +323,7 @@ export const ChatBackgroundModal: React.FC<ChatBackgroundModalProps> = ({
 
         {/* Modal Scrollable Body */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6 custom-scrollbar">
-          {/* TAB 1: GENERATE WITH AI */}
-          {activeTab === 'ai' && (
-            <div className="space-y-4">
-              <div className="p-4 bg-gradient-to-br from-indigo-50/80 via-purple-50/40 to-amber-50/60 dark:from-indigo-950/40 dark:via-purple-950/20 dark:to-amber-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/50">
-                <div className="flex items-center gap-2 mb-2">
-                  <Wand2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                  <span className="text-xs font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
-                    AI Wallpaper Synthesizer
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
-                  Describe your dream study vibe or aesthetic wallpaper and Gemini AI will generate it instantly for you.
-                </p>
-
-                {/* Prompt Input */}
-                <div className="relative">
-                  <textarea
-                    rows={3}
-                    placeholder="e.g. Cozy anime study room with rainy window, purple glowing keyboard, desk plants, and lofi mood..."
-                    value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
-                    className="w-full p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none shadow-sm"
-                  />
-                </div>
-
-                {/* Style Selector */}
-                <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
-                  <span className="text-[11px] font-bold text-slate-500 flex-shrink-0">Style:</span>
-                  {[
-                    { id: 'lofi', label: '☕ Lofi Anime' },
-                    { id: 'cinematic', label: '🎬 Realistic 8K' },
-                    { id: 'cyber', label: '⚡ Cyber Neon' },
-                    { id: 'minimal', label: '🎨 Pastel Minimal' },
-                  ].map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setAiStyle(s.id)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex-shrink-0 ${
-                        aiStyle === s.id
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Generate Button */}
-                <button
-                  type="button"
-                  onClick={() => handleGenerateAI()}
-                  disabled={isGenerating || !aiPrompt.trim()}
-                  className="mt-3 w-full py-2.5 px-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-600 hover:from-indigo-700 hover:to-amber-700 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Synthesizing with Gemini AI...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      Generate AI Background
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Quick Idea Chips */}
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                  ✨ Quick Inspiration Prompts
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {PROMPT_SUGGESTIONS.map((p, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setAiPrompt(p);
-                        handleGenerateAI(p);
-                      }}
-                      className="text-left text-[11px] font-medium px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/40 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl border border-slate-200 dark:border-slate-700 transition"
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Generated Result Action Card */}
-              {bgImage && (
-                <div className="p-3.5 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-2xl flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img 
-                      src={bgImage} 
-                      alt="AI Wallpaper" 
-                      className="w-14 h-10 object-cover rounded-lg border border-emerald-300 dark:border-emerald-700 flex-shrink-0"
-                    />
-                    <div className="truncate">
-                      <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-                        AI Wallpaper Ready ✨
-                      </p>
-                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400 truncate">
-                        {aiPrompt || "Aesthetic Study Atmosphere"}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleApply}
-                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1 flex-shrink-0 active:scale-95"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    Apply Now
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 2: TEMPLATES GALLERY */}
+          {/* TAB 1: TEMPLATES GALLERY */}
           {activeTab === 'templates' && (
             <div className="space-y-4">
               {/* Category Pills */}

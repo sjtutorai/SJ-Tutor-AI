@@ -590,7 +590,6 @@ Your mission:
 - Keep your tone positive, encouraging, patient, curious, and professional.
 - Render beautiful Markdown with clear headings, subheadings, lists, code blocks with copy buttons, horizontal lines, tables, block quotes, and LaTeX math.
 - Never show robotic statements like "Here is your answer". Be engaging!
-- If the user asks you to create, generate, or draw an image or picture, you MUST output a special markdown command in this exact format on a new line: <GENERATE_IMAGE: "detailed prompt for the image here">
 
       ${SettingsService.getTutorSystemInstruction()}` + (userContext ? `\n\nUser Context & Memory (Past Interactions):\n\n${userContext}` : '');
 
@@ -702,56 +701,6 @@ Your mission:
     });
 
     return response.text || "I'm here to help with your group study! What question do you have?";
-  },
-
-  generateImage: async (
-    params: string | { prompt: string; aspectRatio?: string; style?: string; imageSize?: string }
-  ): Promise<{ imageUrl: string; prompt: string; style?: string; aspectRatio?: string; model?: string }> => {
-    try {
-      const payload = typeof params === "string" ? { prompt: params } : params;
-      const response = await fetch("/api/generate-image", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to generate image from server");
-      }
-      const data = await response.json();
-      return data;
-    } catch (e) {
-      console.error("Image generation error:", e);
-      throw e;
-    }
-  },
-
-  editImage: async (params: {
-    prompt: string;
-    image: string;
-    mimeType?: string;
-    aspectRatio?: string;
-  }): Promise<{ imageUrl: string; prompt: string; originalUrl?: string; isEdited: boolean; model?: string }> => {
-    try {
-      const response = await fetch("/api/edit-image", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(params),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to edit image from server");
-      }
-      const data = await response.json();
-      return data;
-    } catch (e) {
-      console.error("Image edit error:", e);
-      throw e;
-    }
   },
 
   getKeyCount: () => keyManager.getKeyCount(),
