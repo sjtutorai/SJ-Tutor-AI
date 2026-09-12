@@ -48,6 +48,13 @@ app.get(['/manifest.json', '/site.webmanifest'], (req, res) => {
   res.sendFile(filePath);
 });
 
+app.get('/sj_tutor_bg.jpg', (req, res) => {
+  const filePath = path.resolve(process.cwd(), "public", "sj_tutor_bg.jpg");
+  res.setHeader("Content-Type", "image/jpeg");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.sendFile(filePath);
+});
+
 app.get(['/SJ-Tutor-AI-Logo.jpg', '/logo.jpg'], (req, res) => {
   res.redirect(302, 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg');
 });
