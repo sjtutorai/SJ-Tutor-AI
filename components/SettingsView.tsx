@@ -11,8 +11,10 @@ import {
   Smartphone, CreditCard, HelpCircle, FlaskConical, ChevronRight, ChevronDown, ChevronUp,
   Save, LogOut, Trash2, Shield, Activity, Type, Palette, Monitor, Zap,
   Volume2, Volume1, VolumeX, PhoneCall, Phone, Play, Square, AlertTriangle, CheckCircle2,
-  Terminal, Crown, Check, Clock, FileText, Keyboard, Command, Sparkles, KeyRound, Fingerprint, ShieldCheck
+  Terminal, Crown, Check, Clock, FileText, Keyboard, Command, Sparkles, KeyRound, Fingerprint, ShieldCheck,
+  RefreshCw, Cpu
 } from 'lucide-react';
+import { GeminiService } from '../services/geminiService';
 import { callAudio, RINGTONE_STYLES } from '../services/webrtcService';
 import { NotificationService } from '../services/notificationService';
 import { RingtoneStyle } from '../types';
@@ -80,6 +82,17 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [playingRingtoneId, setPlayingRingtoneId] = useState<string | null>(null);
   const [previewingChime, setPreviewingChime] = useState<string | null>(null);
+
+  // Gemini API Key rotation and high-demand failover monitoring state
+  const [geminiKeyStatus, setGeminiKeyStatus] = useState(() => GeminiService.getKeyStatus());
+  const [isRefreshingKeys, setIsRefreshingKeys] = useState(false);
+
+  const handleRefreshKeyPool = () => {
+    setIsRefreshingKeys(true);
+    GeminiService.refreshKeyPool();
+    setGeminiKeyStatus(GeminiService.getKeyStatus());
+    setTimeout(() => setIsRefreshingKeys(false), 600);
+  };
 
   // Stop any playing audio previews on unmount or tab change
   useEffect(() => {
@@ -549,6 +562,79 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                     <input type="checkbox" checked={settings.aiTutor.memory} onChange={(e) => handleSettingChange('aiTutor', 'memory', e.target.checked)} className="sr-only peer" />
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                  </label>
+              </div>
+
+              {/* Gemini Multi-Key Auto-Rotation & High Demand Failover Bench */}
+              <div className="pt-4 border-t border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-2 bg-primary-50 dark:bg-primary-950/40 rounded-lg text-primary-600 dark:text-primary-400 border border-primary-200/60 dark:border-primary-800/40 shrink-0 mt-0.5">
+                      <Cpu className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-slate-800 dark:text-white">
+                          Gemini API Multi-Key Auto-Rotation
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          <Check className="w-3 h-3 stroke-[3]" /> High Demand Auto-Switching Active
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Detects rate limits (429) and high traffic on GEMINI_API_KEY_1 and automatically switches to GEMINI_API_KEY_2 and rotates across all available keys.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRefreshKeyPool}
+                    disabled={isRefreshingKeys}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-650 flex items-center gap-1.5 transition-colors self-start sm:self-auto"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingKeys ? 'animate-spin' : ''}`} />
+                    Refresh Keys
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {geminiKeyStatus.keys.map((slot, idx) => {
+                    const isHighDemand = slot.status === 'HIGH_DEMAND' || slot.inCooldown;
+                    return (
+                      <div
+                        key={slot.id}
+                        className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 transition-all ${
+                          isHighDemand
+                            ? 'bg-amber-50/60 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700'
+                            : 'bg-slate-50/70 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-primary-500" />
+                            {slot.id}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              isHighDemand
+                                ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                                : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                            }`}
+                          >
+                            {isHighDemand
+                              ? `High Demand (${slot.cooldownRemainingSec}s)`
+                              : idx === 0
+                              ? 'Active / Primary'
+                              : 'Active / Secondary Auto-Failover'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                          <span>Key: <code className="font-mono text-[10px] bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">{slot.masked}</code></span>
+                          <span>Requests: <strong className="text-slate-700 dark:text-slate-200">{slot.totalRequests}</strong> ({slot.successCount} OK)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
             </div>
