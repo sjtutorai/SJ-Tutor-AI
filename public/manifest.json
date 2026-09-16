@@ -1,7 +1,8 @@
 {
   "short_name": "SJ Tutor AI",
-  "name": "SJ Tutor AI - Your AI Study Buddy",
-  "description": "SJ Tutor AI is an all-in-one AI study companion for students created by Sadanand Jyoti and Samanyu S Patil.",
+  "name": "SJ Tutor AI - Personalised AI Tutor for Students",
+  "description": "SJ Tutor AI is the leading personalised AI tutor for students. Scan and solve homework, generate summaries, and take practice quizzes.",
+  "categories": ["education", "productivity"],
   "icons": [
     {
       "src": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",

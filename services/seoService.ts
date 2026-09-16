@@ -19,8 +19,30 @@ export const CANONICAL_BASE_URL = 'https://sj-tutorai.web.app';
 export const DEFAULT_LOGO_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_FAVICON_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
-export const DEFAULT_TITLE = 'SJ Tutor AI - Your AI Study Buddy';
-export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an all-in-one AI study companion for students created by Sadanand Jyoti and Samanyu S Patil.';
+export const DEFAULT_TITLE = 'SJ Tutor AI - Personalised AI Tutor for Students';
+export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is the premier personalised AI tutor for students. Scan and solve homework, generate curriculum summaries, practice quizzes, and learn 1-on-1 with your intelligent AI study companion.';
+
+export const DEFAULT_KEYWORDS = [
+  'SJ Tutor AI',
+  'Personalised AI Tutor for Students',
+  'Personalized AI Tutor for Students',
+  'AI Tutor for Students',
+  'Personalised AI Tutor',
+  'Personalized AI Tutor',
+  'AI Study Buddy',
+  'AI Study Companion',
+  'Homework Helper',
+  'Scan to Solve AI',
+  'SJTutor',
+  'SJ Tutor',
+  'AI Homework Solver',
+  'Student AI Tutor',
+  'CBSE AI Tutor',
+  'ICSE AI Tutor',
+  'College AI Tutor',
+  'Sadanand Jyoti',
+  'Samanyu S Patil'
+];
 
 function ensureMetaTag(nameOrProperty: string, value: string, isProperty = false) {
   const selector = isProperty 
@@ -96,7 +118,7 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
         "@type": "Organization",
         "@id": `${CANONICAL_BASE_URL}/#organization`,
         "name": "SJ Tutor AI",
-        "alternateName": ["SJ Tutor", "SJTutorAI"],
+        "alternateName": ["SJ Tutor", "SJTutorAI", "Personalised AI Tutor for Students", "Personalized AI Tutor for Students"],
         "url": `${CANONICAL_BASE_URL}/`,
         "logo": {
           "@type": "ImageObject",
@@ -104,10 +126,10 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
           "contentUrl": DEFAULT_LOGO_URL,
           "width": 640,
           "height": 640,
-          "caption": "SJ Tutor AI Logo"
+          "caption": "SJ Tutor AI Logo - Personalised AI Tutor for Students"
         },
         "image": DEFAULT_LOGO_URL,
-        "description": "SJ Tutor AI is an all-in-one AI study companion for students."
+        "description": "SJ Tutor AI is an all-in-one personalised AI tutor for students, empowering learners worldwide with curriculum-aligned study materials."
       },
       {
         "@type": "EducationalOrganization",
@@ -116,32 +138,77 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
         "url": `${CANONICAL_BASE_URL}/`,
         "logo": DEFAULT_LOGO_URL,
         "image": DEFAULT_LOGO_URL,
-        "description": "An all-in-one AI study companion that empowers students with interactive AI tutoring, instant quizzes, and homework solving."
+        "description": "Leading personalised AI tutor for students providing interactive AI tutoring, instant practice quizzes, and scan-to-solve homework help."
       },
       {
         "@type": "WebSite",
         "@id": `${CANONICAL_BASE_URL}/#website`,
         "url": `${CANONICAL_BASE_URL}/`,
-        "name": "SJ Tutor AI",
-        "alternateName": "SJ Tutor",
+        "name": "SJ Tutor AI - Personalised AI Tutor for Students",
+        "alternateName": ["SJ Tutor AI", "SJ Tutor", "SJTutorAI", "Personalised AI Tutor for Students"],
         "description": DEFAULT_DESCRIPTION,
         "publisher": {
           "@id": `${CANONICAL_BASE_URL}/#organization`
         }
       },
       {
-        "@type": "EducationalApplication",
+        "@type": "SoftwareApplication",
         "@id": `${canonicalUrl}#application`,
-        "name": title || "SJ Tutor AI",
-        "alternateName": "SJ Tutor",
+        "name": "SJ Tutor AI",
+        "alternateName": ["SJ Tutor", "Personalised AI Tutor for Students", "SJTutor"],
+        "headline": "SJ Tutor AI - Personalised AI Tutor for Students",
         "description": description || DEFAULT_DESCRIPTION,
         "url": canonicalUrl,
         "image": DEFAULT_LOGO_URL,
         "applicationCategory": "EducationalApplication",
-        "operatingSystem": "All",
+        "operatingSystem": "Web, Android, iOS, Windows, macOS",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "availability": "https://schema.org/InStock"
+        },
+        "keywords": DEFAULT_KEYWORDS.join(', '),
         "publisher": {
           "@id": `${CANONICAL_BASE_URL}/#organization`
-        }
+        },
+        "featureList": [
+          "Personalised 1-on-1 AI Tutoring for Students",
+          "Scan to Solve Instant Homework Solver",
+          "Curriculum-Aligned Notes & Summary Generator",
+          "Interactive Practice Quizzes and Flashcards",
+          "Voice-Enabled Study Sessions"
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "@id": `${CANONICAL_BASE_URL}/#faq`,
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is SJ Tutor AI?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "SJ Tutor AI is a personalised AI tutor for students that provides interactive study sessions, instant scan-to-solve homework assistance, curriculum-aligned notes summaries, and practice quizzes."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does SJ Tutor AI work as a personalised AI tutor for students?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "SJ Tutor AI adapts to each student's grade, learning style, and curriculum. It explains complex concepts step-by-step, tests comprehension with adaptive quizzes, and answers academic questions 24/7."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What keywords find SJ Tutor AI on Google?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Students can search for 'SJ Tutor AI', 'Personalised AI Tutor for Students', 'Personalized AI Tutor for Students', 'AI Tutor for Students', or 'AI Study Companion' to find the SJ Tutor AI app."
+            }
+          }
+        ]
       }
     ]
   };
@@ -177,15 +244,16 @@ export const SEOService = {
 
       // 2. Standard Meta
       ensureMetaTag('description', description);
-      if (config.keywords && config.keywords.length > 0) {
-        ensureMetaTag('keywords', config.keywords.join(', '));
-      }
+      const keywords = config.keywords && config.keywords.length > 0 
+        ? Array.from(new Set([...config.keywords, ...DEFAULT_KEYWORDS]))
+        : DEFAULT_KEYWORDS;
+      ensureMetaTag('keywords', keywords.join(', '));
 
       // 3. Robots indexing
       if (config.noindex) {
         ensureMetaTag('robots', 'noindex, nofollow');
       } else {
-        ensureMetaTag('robots', 'index, follow');
+        ensureMetaTag('robots', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
       }
 
       // 4. Canonical Tag
@@ -228,22 +296,23 @@ export const SEOService = {
           title: DEFAULT_TITLE,
           description: DEFAULT_DESCRIPTION,
           canonicalPath: '/',
+          keywords: DEFAULT_KEYWORDS,
         };
       case '/about':
         return {
-          title: 'About Us - SJ Tutor AI | Empowering Students with Intelligent Learning',
-          description: 'Learn about SJ Tutor AI, our mission to democratize quality education, and the team pioneered by Sadanand Jyoti & Samanyu S Patil.',
+          title: 'About Us - SJ Tutor AI | Personalised AI Tutor for Students',
+          description: 'Learn about SJ Tutor AI, the premier personalised AI tutor for students founded by Sadanand Jyoti & Samanyu S Patil.',
           canonicalPath: '/about',
         };
       case '/features':
         return {
-          title: 'Features & Tools - SJ Tutor AI | AI Study Companion',
-          description: 'Explore instant chapter summaries, interactive practice quizzes, scan-to-solve homework help, and 24/7 AI tutor assistance.',
+          title: 'Features - SJ Tutor AI | Personalised AI Tutor for Students',
+          description: 'Explore instant chapter summaries, interactive practice quizzes, scan-to-solve homework help, and 24/7 personalised AI tutoring for students.',
           canonicalPath: '/features',
         };
       case '/contact':
         return {
-          title: 'Contact Us - SJ Tutor AI | Student Support & Inquiries',
+          title: 'Contact Us - SJ Tutor AI | Personalised AI Tutor for Students Support',
           description: 'Get in touch with the SJ Tutor AI team for inquiries, feedback, or support at sadanandj2011@gmail.com.',
           canonicalPath: '/contact',
         };
@@ -261,7 +330,7 @@ export const SEOService = {
         };
       case '/dashboard':
         return {
-          title: 'Dashboard - SJ Tutor AI | Your AI Study Companion',
+          title: 'Dashboard - SJ Tutor AI | Personalised AI Tutor for Students',
           description: 'Access your personalized learning dashboard, recent study history, quick study tools, and academic streak.',
           canonicalPath: '/dashboard',
           noindex: true,
@@ -269,7 +338,7 @@ export const SEOService = {
       case '/tutor':
       case '/chat':
         return {
-          title: 'AI Tutor Chat - 24/7 Academic Study Buddy | SJ Tutor AI',
+          title: 'AI Tutor Chat - 24/7 Personalised AI Tutor | SJ Tutor AI',
           description: 'Ask any academic question, solve complex problems, and get step-by-step guidance from your personal AI tutor.',
           canonicalPath: '/tutor',
           noindex: true,
@@ -321,6 +390,7 @@ export const SEOService = {
           title: DEFAULT_TITLE,
           description: DEFAULT_DESCRIPTION,
           canonicalPath: clean,
+          keywords: DEFAULT_KEYWORDS,
         };
     }
   }

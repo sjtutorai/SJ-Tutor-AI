@@ -429,19 +429,19 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
           <div className="lg:col-span-6 space-y-7 text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-950 to-purple-950 border border-blue-500/30 rounded-full text-blue-400 text-xs font-bold uppercase tracking-wider shadow-inner">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-              <span>🚀 Next Generation AI Learning Platform</span>
+              <span>🚀 Personalised AI Tutor for Students</span>
             </div>
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight tracking-tight">
-              Your Personal <br />
+              Personalised <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400">
-                AI Tutor,
+                AI Tutor for Students,
               </span> <br />
               Available 24/7
             </h1>
 
             <p className="text-slate-300 md:text-lg max-w-xl leading-relaxed">
-              Master any subject with personalized AI-powered learning, instant explanations, adaptive practice, real-time feedback, and intelligent study guidance.
+              SJ Tutor AI is the ultimate personalised AI tutor for students. Master any curriculum with interactive 1-on-1 tutoring, scan-to-solve homework help, instant revision notes, and adaptive practice quizzes.
             </p>
 
             {/* Smart Registration Detection Banner */}

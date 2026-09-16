@@ -582,7 +582,7 @@ async function startServer() {
       } else {
          const indexPath = path.resolve(process.cwd(), "dist", "index.html");
          let html = await fs.promises.readFile(indexPath, 'utf-8');
-         html = html.replace('<title>SJ Tutor AI - Your AI Study Buddy</title>', metaTags);
+         html = html.replace(/<title>.*?<\/title>/i, metaTags);
          res.send(html);
       }
     } catch (e) {
@@ -594,7 +594,7 @@ async function startServer() {
   app.get(["/share/:shareId", "/shared/:shareId"], async (req, res, next) => {
     try {
       const { shareId } = req.params;
-      const title = `Shared Study Material | SJ Tutor AI`;
+      const title = `Shared Study Material | SJ Tutor AI - Personalised AI Tutor for Students`;
       const desc = `Access interactive practice quizzes, comprehensive chapter summaries, and AI homework solutions on SJ Tutor AI.`;
 
       const metaTags = `
@@ -615,7 +615,7 @@ async function startServer() {
         const indexPath = path.resolve(process.cwd(), "dist", "index.html");
         if (fs.existsSync(indexPath)) {
           let html = await fs.promises.readFile(indexPath, 'utf-8');
-          html = html.replace('<title>SJ Tutor AI - Your AI Study Buddy</title>', metaTags);
+          html = html.replace(/<title>.*?<\/title>/i, metaTags);
           res.send(html);
         } else {
           next();
