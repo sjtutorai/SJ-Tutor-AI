@@ -1,6 +1,6 @@
 /**
  * SJ Tutor AI - SEO Service & Dynamic Metadata Engine
- * Ensures canonical consistency (https://sj-tutorai.web.app), dynamic title/meta synchronization,
+ * Ensures canonical consistency (https://sjtutorai.vercel.app), dynamic title/meta synchronization,
  * Open Graph, Twitter cards, and Schema.org JSON-LD structured data.
  */
 
@@ -15,31 +15,16 @@ export interface SEOConfig {
   noindex?: boolean;
 }
 
+export const CANONICAL_BASE_URL = 'https://sjtutorai.vercel.app';
 export const getCanonicalBaseUrl = (): string => {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    const origin = window.location.origin;
-    if (origin.includes('sjtutorai.vercel.app') || origin.includes('sjtuorai.vercel.app')) {
-      return origin;
-    }
-    if (origin.includes('vercel.app')) {
-      return origin;
-    }
-    if (origin.includes('sj-tutorai.web.app')) {
-      return origin;
-    }
-    if (!origin.includes('localhost') && !origin.includes('127.0.0.1')) {
-      return origin;
-    }
-  }
-  return 'https://sjtutorai.vercel.app';
+  return CANONICAL_BASE_URL;
 };
 
-export const CANONICAL_BASE_URL = 'https://sjtutorai.vercel.app';
 export const DEFAULT_LOGO_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_FAVICON_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
-export const DEFAULT_TITLE = 'SJ Tutor AI - Personalised AI Tutor for Students';
-export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is the premier personalised AI tutor for students. Scan and solve homework, generate curriculum summaries, practice quizzes, and learn 1-on-1 with your intelligent AI study companion.';
+export const DEFAULT_TITLE = 'SJ Tutor AI – AI-Powered Learning Assistant for Students';
+export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an AI-powered learning assistant that helps students understand concepts, solve doubts, practice questions, revise lessons, and prepare for exams.';
 
 export const DEFAULT_KEYWORDS = [
   'SJ Tutor AI',
@@ -343,14 +328,12 @@ export const SEOService = {
           title: 'Privacy Policy - SJ Tutor AI | Student Safety & Data Protection',
           description: 'Read the SJ Tutor AI privacy policy. Learn how we safeguard student information with encrypted storage and zero third-party data sales.',
           canonicalPath: '/privacy',
-          noindex: true,
         };
       case '/terms':
         return {
           title: 'Terms of Service - SJ Tutor AI | User Agreement',
           description: 'Read our terms of service governing the use of SJ Tutor AI educational services, study tools, and AI learning features.',
           canonicalPath: '/terms',
-          noindex: true,
         };
       case '/dashboard':
         return {

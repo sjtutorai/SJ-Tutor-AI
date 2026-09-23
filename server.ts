@@ -248,6 +248,11 @@ Allow: /android-chrome*
 
 User-agent: Googlebot
 Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /about
+Allow: /features
+Allow: /contact
 Allow: /*.jpg$
 Allow: /*.png$
 Allow: /*.ico$
@@ -260,8 +265,6 @@ Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest
 
-Disallow: /privacy
-Disallow: /terms
 Disallow: /dashboard
 Disallow: /api/
 Disallow: /admin
@@ -288,6 +291,11 @@ Allow: /og-image.png
 
 User-agent: *
 Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /about
+Allow: /features
+Allow: /contact
 Allow: /*.jpg$
 Allow: /*.png$
 Allow: /*.ico$
@@ -300,8 +308,6 @@ Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest
 
-Disallow: /privacy
-Disallow: /terms
 Disallow: /dashboard
 Disallow: /api/
 Disallow: /admin
@@ -314,9 +320,7 @@ Disallow: /notifications
 Disallow: /history
 Disallow: /auth
 
-Sitemap: https://sjtutorai.vercel.app/sitemap.xml
-Sitemap: https://sjtuorai.vercel.app/sitemap.xml
-Sitemap: https://sj-tutorai.web.app/sitemap.xml`);
+Sitemap: https://sjtutorai.vercel.app/sitemap.xml`);
   }
 });
 
@@ -345,34 +349,19 @@ app.get("/sitemap.xml", (req, res) => {
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://sjtutorai.vercel.app/privacy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://sjtutorai.vercel.app/terms</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://sjtutorai.vercel.app/contact</loc>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://sjtuorai.vercel.app/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://sj-tutorai.web.app/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://sj-tutorai.web.app/about</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://sj-tutorai.web.app/features</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://sj-tutorai.web.app/contact</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.6</priority>
   </url>
 </urlset>`);
   }
@@ -648,7 +637,7 @@ async function startServer() {
         <meta name="twitter:card" content="summary_large_image">
         <meta name="twitter:title" content="${title}">
         <meta name="twitter:description" content="${desc}">
-        <link rel="canonical" href="https://sj-tutorai.web.app/quiz/${classSlug}/${subjectSlug}/${chapterSlug}">
+        <link rel="canonical" href="https://sjtutorai.vercel.app/quiz/${classSlug}/${subjectSlug}/${chapterSlug}">
       `;
 
       if (process.env.NODE_ENV !== "production") {
@@ -680,7 +669,7 @@ async function startServer() {
         <meta name="twitter:card" content="summary_large_image">
         <meta name="twitter:title" content="${title}">
         <meta name="twitter:description" content="${desc}">
-        <link rel="canonical" href="https://sj-tutorai.web.app/share/${shareId}">
+        <link rel="canonical" href="https://sjtutorai.vercel.app/share/${shareId}">
       `;
 
       if (process.env.NODE_ENV !== "production") {

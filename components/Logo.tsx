@@ -12,7 +12,7 @@ interface LogoProps {
 
 const FALLBACK_SOURCES = [
   "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
-  "https://sj-tutorai.web.app/SJ-Tutor-AI-Logo.jpg",
+  "https://sjtutorai.vercel.app/SJ-Tutor-AI-Logo.jpg",
   "/SJ-Tutor-AI-Logo.jpg",
   SJTUTOR_LOGO_URL,
   SJTUTOR_AVATAR,

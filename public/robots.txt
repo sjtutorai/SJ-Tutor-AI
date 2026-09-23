@@ -7,6 +7,11 @@ Allow: /android-chrome*
 
 User-agent: Googlebot
 Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /about
+Allow: /features
+Allow: /contact
 Allow: /*.jpg$
 Allow: /*.png$
 Allow: /*.ico$
@@ -19,8 +24,6 @@ Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest
 
-Disallow: /privacy
-Disallow: /terms
 Disallow: /dashboard
 Disallow: /api/
 Disallow: /admin
@@ -47,6 +50,11 @@ Allow: /og-image.png
 
 User-agent: *
 Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /about
+Allow: /features
+Allow: /contact
 Allow: /*.jpg$
 Allow: /*.png$
 Allow: /*.ico$
@@ -59,8 +67,6 @@ Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest
 
-Disallow: /privacy
-Disallow: /terms
 Disallow: /dashboard
 Disallow: /api/
 Disallow: /admin
@@ -74,5 +80,3 @@ Disallow: /history
 Disallow: /auth
 
 Sitemap: https://sjtutorai.vercel.app/sitemap.xml
-Sitemap: https://sjtuorai.vercel.app/sitemap.xml
-Sitemap: https://sj-tutorai.web.app/sitemap.xml

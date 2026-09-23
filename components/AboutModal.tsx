@@ -180,10 +180,10 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, onNavigateToLe
               </div>
               <div>
                 <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full">
-                  Official Firebase Hosting
+                  Official Web Platform
                 </span>
                 <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-1">
-                  sj-tutorai.web.app
+                  sjtutorai.vercel.app
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Global CDN with automated SSL, Firestore real-time persistence, and secure backend routing.
@@ -191,7 +191,7 @@ const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, onNavigateToLe
               </div>
             </div>
             <a
-              href="https://sj-tutorai.web.app"
+              href="https://sjtutorai.vercel.app"
               target="_blank"
               rel="noopener noreferrer"
               className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all shrink-0 hover:scale-105"

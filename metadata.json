@@ -1,6 +1,6 @@
 {
   "name": "SJ Tutor AI",
-  "description": "Personalised AI tutor for students that generates curriculum-aligned summaries, practice quizzes, homework solutions, and real-time scan-to-solve doubt assistance.",
+  "description": "SJ Tutor AI is an AI-powered learning assistant that helps students understand concepts, solve doubts, practice questions, revise lessons, and prepare for exams.",
   "requestFramePermissions": [
     "microphone",
     "camera"

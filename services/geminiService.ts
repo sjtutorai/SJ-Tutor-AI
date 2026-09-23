@@ -362,6 +362,7 @@ class GeminiKeyManager {
     customModels?: string[]
   ): Promise<AsyncIterable<any>> {
     const modelsToTry = customModels || ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
 
     async function* resilientGenerator() {
