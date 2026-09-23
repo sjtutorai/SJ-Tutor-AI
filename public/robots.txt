@@ -19,6 +19,20 @@ Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest
 
+Disallow: /privacy
+Disallow: /terms
+Disallow: /dashboard
+Disallow: /api/
+Disallow: /admin
+Disallow: /profile
+Disallow: /notes
+Disallow: /quiz
+Disallow: /chat
+Disallow: /groups
+Disallow: /notifications
+Disallow: /history
+Disallow: /auth
+
 User-agent: Googlebot-Image
 Allow: /
 Allow: /*.jpg$
@@ -45,6 +59,8 @@ Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest
 
+Disallow: /privacy
+Disallow: /terms
 Disallow: /dashboard
 Disallow: /api/
 Disallow: /admin
@@ -57,5 +73,6 @@ Disallow: /notifications
 Disallow: /history
 Disallow: /auth
 
+Sitemap: https://sjtutorai.vercel.app/sitemap.xml
+Sitemap: https://sjtuorai.vercel.app/sitemap.xml
 Sitemap: https://sj-tutorai.web.app/sitemap.xml
-

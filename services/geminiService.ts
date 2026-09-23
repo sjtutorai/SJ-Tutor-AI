@@ -119,6 +119,9 @@ class GeminiKeyManager {
       msg.includes("ratelimit") ||
       msg.includes("rate_limit") ||
       msg.includes("high demand") ||
+      msg.includes("spikes in demand") ||
+      msg.includes("currently experiencing") ||
+      msg.includes("temporary") ||
       msg.includes("overloaded") ||
       msg.includes("model is overloaded") ||
       msg.includes("capacity") ||
@@ -250,11 +253,12 @@ class GeminiKeyManager {
 
   /**
    * Executes an asynchronous AI task with round-robin key rotation
-   * and automatic failover across all keys in the pool if high demand (429, RESOURCE_EXHAUSTED, 503)
-   * or other rate-limit errors are encountered.
+   * and automatic multi-model failover across healthy keys and fallback models
+   * if high demand (503, RESOURCE_EXHAUSTED, 429) spikes occur.
    */
   public async executeWithRotation<T>(
-    operation: (ai: GoogleGenAI, slot: KeySlot, attempt: number) => Promise<T>
+    operation: (ai: GoogleGenAI, slot: KeySlot, attempt: number, model: string) => Promise<T>,
+    customModels?: string[]
   ): Promise<T> {
     this.refreshKeys();
     if (this.slots.length === 0) {
@@ -264,88 +268,183 @@ class GeminiKeyManager {
     }
 
     this.checkCooldowns();
-    const totalSlots = this.slots.length;
+    const modelsToTry = customModels || ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
     let lastError: any = null;
 
-    const initialSlot = this.getNextSlot();
-    const startIndex = Math.max(0, this.slots.findIndex((s) => s.key === initialSlot.key));
+    for (let mIdx = 0; mIdx < modelsToTry.length; mIdx++) {
+      const currentModel = modelsToTry[mIdx];
+      const totalSlots = this.slots.length;
+      const initialSlot = this.getNextSlot();
+      const startIndex = Math.max(0, this.slots.findIndex((s) => s.key === initialSlot.key));
 
-    for (let attempt = 0; attempt < totalSlots; attempt++) {
-      const slotIndex = (startIndex + attempt) % totalSlots;
-      const currentSlot = this.slots[slotIndex];
+      for (let attempt = 0; attempt < totalSlots; attempt++) {
+        const slotIndex = (startIndex + attempt) % totalSlots;
+        const currentSlot = this.slots[slotIndex];
 
-      if (currentSlot.status === 'INVALID' && totalSlots > 1) {
-        continue;
+        if (currentSlot.status === 'INVALID' && totalSlots > 1) {
+          continue;
+        }
+
+        const ai = new GoogleGenAI({
+          apiKey: currentSlot.key,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            },
+          },
+        });
+
+        try {
+          currentSlot.totalRequests++;
+          currentSlot.lastUsedAt = Date.now();
+
+          const result = await operation(ai, currentSlot, attempt + 1, currentModel);
+
+          // Success recorded
+          currentSlot.status = 'ACTIVE';
+          currentSlot.successCount++;
+          currentSlot.cooldownUntil = 0;
+
+          if (mIdx > 0 || attempt > 0) {
+            console.log(
+              `[Gemini Rotation & Fallback] ✅ Successfully fulfilled request using model "${currentModel}" on ${currentSlot.id} (${currentSlot.masked}).`
+            );
+          }
+
+          return result;
+        } catch (err: any) {
+          lastError = err;
+          currentSlot.failureCount++;
+          currentSlot.lastError = String(err?.message || err || "");
+
+          const isHighDemand = this.isHighDemandError(err);
+          if (isHighDemand) {
+            currentSlot.status = 'HIGH_DEMAND';
+            currentSlot.highDemandCount++;
+            currentSlot.cooldownUntil = Date.now() + this.COOLDOWN_MS;
+
+            const nextIndex = (slotIndex + 1) % totalSlots;
+            const nextSlot = this.slots[nextIndex];
+
+            console.warn(
+              `[Gemini Rotation] ⚠️ High Demand on model "${currentModel}" (${currentSlot.id}). ` +
+              (attempt + 1 < totalSlots ? `Rotating to next key ${nextSlot.id}...` : `All keys tried for this model.`)
+            );
+          } else {
+            console.warn(
+              `[Gemini Rotation] Key ${currentSlot.id} encountered an error: ${currentSlot.lastError.substring(0, 100)}. ` +
+              (attempt + 1 < totalSlots ? `Rotating to next key...` : `All keys in rotation pool tried.`)
+            );
+          }
+        }
       }
 
-      const ai = new GoogleGenAI({
-        apiKey: currentSlot.key,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
-
-      try {
-        currentSlot.totalRequests++;
-        currentSlot.lastUsedAt = Date.now();
-
-        const result = await operation(ai, currentSlot, attempt + 1);
-
-        // Success recorded
-        currentSlot.status = 'ACTIVE';
-        currentSlot.successCount++;
-        currentSlot.cooldownUntil = 0;
-
-        if (attempt > 0) {
-          console.log(
-            `[Gemini Rotation] ✅ Successfully handled request using ${currentSlot.id} (${currentSlot.masked}) after automatic switch.`
-          );
-        }
-
-        return result;
-      } catch (err: any) {
-        lastError = err;
-        currentSlot.failureCount++;
-        currentSlot.lastError = String(err?.message || err || "");
-
-        const isHighDemand = this.isHighDemandError(err);
-        if (isHighDemand) {
-          currentSlot.status = 'HIGH_DEMAND';
-          currentSlot.highDemandCount++;
-          currentSlot.cooldownUntil = Date.now() + this.COOLDOWN_MS;
-
-          const nextIndex = (slotIndex + 1) % totalSlots;
-          const nextSlot = this.slots[nextIndex];
-
-          console.warn(
-            `[Gemini Rotation] ⚠️ High Demand / Rate limit detected on ${currentSlot.id} (${currentSlot.masked})! ` +
-            `Automatically switching to ${nextSlot.id} (${nextSlot.masked})... (Attempt ${attempt + 1}/${totalSlots})`
-          );
-        } else {
-          console.warn(
-            `[Gemini Rotation] Key ${currentSlot.id} encountered an error: ${currentSlot.lastError.substring(0, 100)}. ` +
-            (attempt + 1 < totalSlots ? `Rotating to next key...` : `All keys in rotation pool tried.`)
-          );
-        }
-
-        if (attempt === totalSlots - 1) {
-          throw lastError;
-        }
+      // If high demand occurred and another fallback model is available, switch models!
+      if (mIdx < modelsToTry.length - 1 && this.isHighDemandError(lastError)) {
+        const nextModel = modelsToTry[mIdx + 1];
+        console.warn(
+          `[Gemini Model Fallback] 🔄 Automatic failover: switching from ${currentModel} to ${nextModel} due to temporary server load...`
+        );
+        await new Promise((r) => setTimeout(r, 600));
       }
     }
 
-    throw lastError || new Error("All configured Gemini API keys failed after rotation.");
+    throw lastError || new Error("All configured Gemini API keys and models experienced high demand. Please try again shortly.");
   }
 
   /**
-   * Executes streaming operations with intelligent high-demand detection and automatic key failover.
+   * Executes streaming operations with intelligent high-demand detection and automatic model/key failover.
+   * If the primary model hits temporary high demand spikes, it seamlessly initiates the stream
+   * on the backup model so the student never experiences a drop in service.
    */
-  public async executeStreamWithRotation<T>(
-    operation: (ai: GoogleGenAI, slot: KeySlot, attempt: number) => Promise<T>
-  ): Promise<T> {
-    return this.executeWithRotation(operation);
+  public async executeStreamWithRotation<T extends AsyncIterable<any>>(
+    streamBuilder: (ai: GoogleGenAI, slot: KeySlot, attempt: number, model: string) => Promise<T>,
+    customModels?: string[]
+  ): Promise<AsyncIterable<any>> {
+    const modelsToTry = customModels || ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+    const self = this;
+
+    async function* resilientGenerator() {
+      let lastError: any = null;
+      let hasYielded = false;
+
+      for (let mIdx = 0; mIdx < modelsToTry.length; mIdx++) {
+        const currentModel = modelsToTry[mIdx];
+        self.refreshKeys();
+        const totalSlots = Math.max(1, self.slots.length);
+        const startSlot = self.getNextSlot();
+        const startIndex = Math.max(0, self.slots.findIndex((s) => s.key === startSlot.key));
+
+        for (let attempt = 0; attempt < totalSlots; attempt++) {
+          const slot = self.slots[(startIndex + attempt) % totalSlots];
+          if (slot.status === 'INVALID' && totalSlots > 1) continue;
+
+          const ai = new GoogleGenAI({
+            apiKey: slot.key,
+            httpOptions: {
+              headers: {
+                'User-Agent': 'aistudio-build',
+              },
+            },
+          });
+
+          try {
+            slot.totalRequests++;
+            slot.lastUsedAt = Date.now();
+
+            const stream = await streamBuilder(ai, slot, attempt + 1, currentModel);
+
+            for await (const chunk of stream) {
+              hasYielded = true;
+              yield chunk;
+            }
+
+            // Successfully finished streaming
+            slot.status = 'ACTIVE';
+            slot.successCount++;
+            slot.cooldownUntil = 0;
+            return;
+          } catch (err: any) {
+            lastError = err;
+            slot.failureCount++;
+            slot.lastError = String(err?.message || err || "");
+
+            const isHighDemand = self.isHighDemandError(err);
+            if (isHighDemand) {
+              slot.status = 'HIGH_DEMAND';
+              slot.highDemandCount++;
+              slot.cooldownUntil = Date.now() + self.COOLDOWN_MS;
+            }
+
+            console.warn(
+              `[Gemini Resilient Stream] Notice on model "${currentModel}" (${slot.id}): ${err?.message || err}`
+            );
+
+            // If we have already started printing text to the screen, we cannot restart without duplicate text
+            if (hasYielded) {
+              throw err;
+            }
+
+            if (attempt < totalSlots - 1) {
+              continue;
+            }
+          }
+        }
+
+        // If high demand occurred before streaming started, switch to fallback model!
+        if (mIdx < modelsToTry.length - 1 && self.isHighDemandError(lastError)) {
+          const fallbackModel = modelsToTry[mIdx + 1];
+          console.warn(
+            `[Gemini Resilient Stream] 🔄 Model "${currentModel}" is experiencing high demand. Seamlessly falling back to "${fallbackModel}"...`
+          );
+          await new Promise((r) => setTimeout(r, 600));
+        }
+      }
+
+      throw lastError || new Error("This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again in a moment.");
+    }
+
+    return resilientGenerator();
   }
 }
 
@@ -374,7 +473,7 @@ export const GeminiService = {
    * Enhances existing note content based on specific tasks.
    */
   processNoteAI: async (content: string, task: 'summarize' | 'simplify' | 'mcq' | 'translate', targetLang?: string) => {
-    return keyManager.executeWithRotation(async (ai) => {
+    return keyManager.executeWithRotation(async (ai, _slot, _attempt, model) => {
       const settings = SettingsService.getSettings();
       const language = targetLang || settings.learning.language;
 
@@ -386,7 +485,7 @@ export const GeminiService = {
       };
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model,
         contents: `${taskPrompts[task]}\n\nNOTE CONTENT:\n${content}`,
         config: {
           systemInstruction: `You are an AI study assistant. You must communicate and generate content strictly in ${language}.`
@@ -401,7 +500,7 @@ export const GeminiService = {
    * Generates a structural template for a specific topic.
    */
   generateNoteTemplate: async (subject: string, chapter: string, templateType: NoteTemplate) => {
-    return keyManager.executeWithRotation(async (ai) => {
+    return keyManager.executeWithRotation(async (ai, _slot, _attempt, model) => {
       const settings = SettingsService.getSettings();
       const language = settings.learning.language;
       
@@ -421,7 +520,7 @@ export const GeminiService = {
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model,
         contents: prompt,
       });
 
@@ -442,7 +541,7 @@ export const GeminiService = {
     maxCharacters: number;
     difficulty?: DifficultyLevel;
   }) => {
-    return keyManager.executeWithRotation(async (ai) => {
+    return keyManager.executeWithRotation(async (ai, _slot, _attempt, model) => {
       const systemInstruction = `You are SJ Tutor AI Notes Generator, an expert AI teacher that creates high-quality, syllabus-aligned notes for students.`;
       
       const prompt = `
@@ -507,7 +606,7 @@ Generate notes based on:
 `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model,
         contents: prompt,
         config: {
           systemInstruction,
@@ -519,7 +618,7 @@ Generate notes based on:
   },
 
   generateSummaryStream: async (data: StudyRequestData) => {
-    return keyManager.executeStreamWithRotation(async (ai) => {
+    return keyManager.executeStreamWithRotation(async (ai, _slot, _attempt, model) => {
       const settings = SettingsService.getSettings();
       const language = data.language || settings.learning.language;
       const maxChars = data.maxCharacters || 5000;
@@ -550,7 +649,7 @@ Generate notes based on:
       `;
 
       const response = await ai.models.generateContentStream({
-        model: 'gemini-3.8-flash',
+        model,
         contents: prompt,
         config: {
           systemInstruction: `You are an expert academic tutor and notes creator. Personality: ${settings.aiTutor.personality}. You generate high quality, structured syllabus-aligned notes only in ${language}.`,
@@ -562,7 +661,7 @@ Generate notes based on:
   },
 
   solveHomeworkStream: async (data: StudyRequestData, files: HomeworkFile[] = []) => {
-    return keyManager.executeStreamWithRotation(async (ai) => {
+    return keyManager.executeStreamWithRotation(async (ai, _slot, _attempt, model) => {
       const settings = SettingsService.getSettings();
       const language = data.language || settings.learning.language;
 
@@ -601,7 +700,7 @@ Generate notes based on:
       });
 
       const response = await ai.models.generateContentStream({
-        model: 'gemini-3.8-flash',
+        model,
         contents: {
           parts: contents
         },
@@ -615,7 +714,7 @@ Generate notes based on:
   },
 
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
-    return keyManager.executeWithRotation(async (ai) => {
+    return keyManager.executeWithRotation(async (ai, _slot, _attempt, model) => {
       const settings = SettingsService.getSettings();
       const language = data.language || settings.learning.language;
       const count = data.questionCount || 5;
@@ -638,7 +737,7 @@ Generate notes based on:
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model,
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -667,7 +766,7 @@ Generate notes based on:
   },
 
   generateStudyTimetable: async (examDate: string, subjects: string, hoursPerDay: number): Promise<TimetableEntry[]> => {
-    return keyManager.executeWithRotation(async (ai) => {
+    return keyManager.executeWithRotation(async (ai, _slot, _attempt, model) => {
       const settings = SettingsService.getSettings();
       const language = settings.learning.language;
       const today = new Date().toDateString();
@@ -675,7 +774,7 @@ Generate notes based on:
       const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model,
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -711,13 +810,13 @@ Generate notes based on:
   },
 
   updateStudyTimetable: async (currentTimetable: TimetableEntry[], instruction: string): Promise<TimetableEntry[]> => {
-    return keyManager.executeWithRotation(async (ai) => {
+    return keyManager.executeWithRotation(async (ai, _slot, _attempt, model) => {
       const settings = SettingsService.getSettings();
       const language = settings.learning.language;
       
       const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model,
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -761,7 +860,7 @@ Generate notes based on:
   },
 
   chatWithTutor: async (text: string, history: any[], imagesBase64: string[] = []) => {
-    return keyManager.executeWithRotation(async (ai) => {
+    return keyManager.executeWithRotation(async (ai, _slot, _attempt, model) => {
       const systemInstruction = SettingsService.getTutorSystemInstruction();
       
       const formattedHistory = history.map(msg => ({
@@ -781,7 +880,7 @@ Generate notes based on:
       });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model,
         contents: [...formattedHistory, { role: 'user', parts: currentParts }],
         config: { systemInstruction }
       });
@@ -861,9 +960,9 @@ Your mission:
 
     currentParts.push({ text: finalPrompt });
 
-    return keyManager.executeStreamWithRotation(async (ai) => {
+    return keyManager.executeStreamWithRotation(async (ai, _slot, _attempt, model) => {
       const response = await ai.models.generateContentStream({
-        model: 'gemini-3.8-flash',
+        model,
         contents: [...formattedHistory, { role: 'user', parts: currentParts }],
         config: { systemInstruction }
       });
@@ -873,14 +972,14 @@ Your mission:
   },
 
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number) => {
-    return keyManager.executeWithRotation(async (ai) => {
+    return keyManager.executeWithRotation(async (ai, _slot, _attempt, model) => {
       const parsed = parseDataUrl(imageBase64);
       const cleanData = parsed ? parsed.data : imageBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, "");
       const mimeType = parsed ? parsed.mimeType : 'image/jpeg';
 
       const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model,
         contents: {
           parts: [
             { inlineData: { mimeType, data: cleanData } },
@@ -905,7 +1004,7 @@ Your mission:
   },
 
   askGroupAiTutor: async (groupName: string, subject: string, prompt: string) => {
-    return keyManager.executeWithRotation(async (ai) => {
+    return keyManager.executeWithRotation(async (ai, _slot, _attempt, model) => {
       const settings = SettingsService.getSettings();
       const language = settings.learning.language || "English";
 
@@ -913,7 +1012,7 @@ Your mission:
       Your responses should be concise, helpful, friendly, and formatted nicely with clear explanations or bullet points. Keep it engaging like a group message. Respond in ${language}.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model,
         contents: prompt,
         config: { systemInstruction }
       });

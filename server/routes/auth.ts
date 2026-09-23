@@ -188,6 +188,18 @@ loadPersistedData();
       providerEmail: "sadanandj2011@gmail.com",
       verified: true,
     });
+    linkedIdentitiesStore.set("google_channabasavajyoti@gmail.com", {
+      userId: "NL2WojxLh4UNN5tnFiWeJz3EAge2",
+      provider: "google",
+      providerEmail: "channabasavajyoti@gmail.com",
+      verified: true,
+    });
+    linkedIdentitiesStore.set("sj_tutor_ai_id_SJTA-ACHIEVER02", {
+      userId: "NL2WojxLh4UNN5tnFiWeJz3EAge2",
+      provider: "sj_tutor_ai_id",
+      providerEmail: "channabasavajyoti@gmail.com",
+      verified: true,
+    });
 
     persistAccounts();
     persistIdentities();
@@ -904,6 +916,35 @@ router.post("/login-with-id-card", async (req, res) => {
       } as any;
     }
 
+    // Special match for channabasavajyoti@gmail.com / Achiever
+    if (!matchedAccount && (cleanEmail === "channabasavajyoti@gmail.com" || cleanId === "SJTA-ACHIEVER02" || cleanId === "NL2WojxLh4UNN5tnFiWeJz3EAge2")) {
+      matchedAccount = {
+        uid: "NL2WojxLh4UNN5tnFiWeJz3EAge2",
+        userId: "NL2WojxLh4UNN5tnFiWeJz3EAge2",
+        sjTutorId: "SJTA-ACHIEVER02",
+        username: "channabasavaj",
+        email: "channabasavajyoti@gmail.com",
+        firstName: "Channabasava",
+        lastName: "Jyoti",
+        displayName: "Channabasava Jyoti",
+        classGrade: "6th Grade",
+        subjects: ["Science", "Mathematics", "Social Studies"],
+        learningPreferences: ["Visual", "Interactive"],
+        preferredLanguage: "English",
+        pinLength: 4,
+        salt: "seeded_salt",
+        passwordHash: "seeded_hash",
+        pinHash: "seeded_pin",
+        securityQuestion: "What is your dream goal?",
+        securityAnswerHash: "seeded_answer",
+        hasEmail: true,
+        twoStepEnabled: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lastLoginAt: Date.now(),
+      } as any;
+    }
+
     if (!matchedAccount) {
       return res.status(404).json({
         error: "ACCOUNT_NOT_FOUND",
@@ -911,9 +952,11 @@ router.post("/login-with-id-card", async (req, res) => {
       });
     }
 
-    const isSadanand = matchedAccount.email?.toLowerCase() === "sadanandj2011@gmail.com";
-    const planType = isSadanand ? "Achiever" : "Scholar";
-    const credits = isSadanand ? 99999 : 2000;
+    const isAchiever = matchedAccount.email?.toLowerCase() === "sadanandj2011@gmail.com" ||
+                       matchedAccount.email?.toLowerCase() === "channabasavajyoti@gmail.com" ||
+                       matchedAccount.email?.toLowerCase() === "sjtutorai@gmail.com";
+    const planType = isAchiever ? "Achiever" : "Scholar";
+    const credits = isAchiever ? 99999 : 2000;
 
     const userProfile = {
       uid: matchedAccount.uid,

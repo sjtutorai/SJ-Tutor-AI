@@ -28,5 +28,17 @@
     "provider": "sj_tutor_ai_id",
     "providerEmail": "sadanandj2011@gmail.com",
     "verified": true
+  },
+  "google_channabasavajyoti@gmail.com": {
+    "userId": "NL2WojxLh4UNN5tnFiWeJz3EAge2",
+    "provider": "google",
+    "providerEmail": "channabasavajyoti@gmail.com",
+    "verified": true
+  },
+  "sj_tutor_ai_id_SJTA-ACHIEVER02": {
+    "userId": "NL2WojxLh4UNN5tnFiWeJz3EAge2",
+    "provider": "sj_tutor_ai_id",
+    "providerEmail": "channabasavajyoti@gmail.com",
+    "verified": true
   }
 }

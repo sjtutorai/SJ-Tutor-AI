@@ -239,29 +239,29 @@ app.get("/robots.txt", (req, res) => {
     res.sendFile(robotsPath);
   } else {
     res.setHeader("Content-Type", "text/plain");
-    res.send(`User-agent: Googlebot
+    res.send(`User-agent: Google-Favicon
 Allow: /
+Allow: /favicon.ico
 Allow: /favicon*
+Allow: /apple-touch-icon*
+Allow: /android-chrome*
+
+User-agent: Googlebot
+Allow: /
+Allow: /*.jpg$
+Allow: /*.png$
+Allow: /*.ico$
+Allow: /favicon*
+Allow: /apple-touch-icon*
+Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
 Allow: /og-image.png
 Allow: /manifest.json
+Allow: /site.webmanifest
 
-User-agent: Googlebot-Image
-Allow: /
-Allow: /favicon*
-Allow: /logo*
-Allow: /SJ-Tutor-AI-Logo.jpg
-Allow: /og-image.png
-
-User-agent: *
-Allow: /
-Allow: /favicon*
-Allow: /logo*
-Allow: /SJ-Tutor-AI-Logo.jpg
-Allow: /og-image.png
-Allow: /manifest.json
-
+Disallow: /privacy
+Disallow: /terms
 Disallow: /dashboard
 Disallow: /api/
 Disallow: /admin
@@ -274,6 +274,48 @@ Disallow: /notifications
 Disallow: /history
 Disallow: /auth
 
+User-agent: Googlebot-Image
+Allow: /
+Allow: /*.jpg$
+Allow: /*.png$
+Allow: /*.ico$
+Allow: /favicon*
+Allow: /apple-touch-icon*
+Allow: /android-chrome*
+Allow: /logo*
+Allow: /SJ-Tutor-AI-Logo.jpg
+Allow: /og-image.png
+
+User-agent: *
+Allow: /
+Allow: /*.jpg$
+Allow: /*.png$
+Allow: /*.ico$
+Allow: /favicon*
+Allow: /apple-touch-icon*
+Allow: /android-chrome*
+Allow: /logo*
+Allow: /SJ-Tutor-AI-Logo.jpg
+Allow: /og-image.png
+Allow: /manifest.json
+Allow: /site.webmanifest
+
+Disallow: /privacy
+Disallow: /terms
+Disallow: /dashboard
+Disallow: /api/
+Disallow: /admin
+Disallow: /profile
+Disallow: /notes
+Disallow: /quiz
+Disallow: /chat
+Disallow: /groups
+Disallow: /notifications
+Disallow: /history
+Disallow: /auth
+
+Sitemap: https://sjtutorai.vercel.app/sitemap.xml
+Sitemap: https://sjtuorai.vercel.app/sitemap.xml
 Sitemap: https://sj-tutorai.web.app/sitemap.xml`);
   }
 });
@@ -287,6 +329,31 @@ app.get("/sitemap.xml", (req, res) => {
     res.setHeader("Content-Type", "application/xml");
     res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://sjtutorai.vercel.app/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://sjtutorai.vercel.app/about</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sjtutorai.vercel.app/features</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sjtutorai.vercel.app/contact</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://sjtuorai.vercel.app/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
   <url>
     <loc>https://sj-tutorai.web.app/</loc>
     <changefreq>daily</changefreq>
@@ -306,16 +373,6 @@ app.get("/sitemap.xml", (req, res) => {
     <loc>https://sj-tutorai.web.app/contact</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://sj-tutorai.web.app/privacy</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://sj-tutorai.web.app/terms</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
   </url>
 </urlset>`);
   }
@@ -516,22 +573,39 @@ If the audio is completely silent or contains no discernible speech, return an e
         }
       });
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: [
-          {
-            inlineData: {
-              mimeType: finalMimeType || 'audio/webm',
-              data: cleanBase64,
-            }
-          },
-          {
-            text: prompt
-          }
-        ]
-      });
+      const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+      let lastGenErr: any = null;
 
-      return response.text?.trim() || "";
+      for (let i = 0; i < modelsToTry.length; i++) {
+        const modelName = modelsToTry[i];
+        try {
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: [
+              {
+                inlineData: {
+                  mimeType: finalMimeType || 'audio/webm',
+                  data: cleanBase64,
+                }
+              },
+              {
+                text: prompt
+              }
+            ]
+          });
+
+          return response.text?.trim() || "";
+        } catch (mErr: any) {
+          lastGenErr = mErr;
+          console.warn(`[Server Audio Transcription] Notice on ${modelName}:`, mErr?.message || mErr);
+          if (i < modelsToTry.length - 1) {
+            await new Promise((r) => setTimeout(r, 400));
+            continue;
+          }
+        }
+      }
+
+      throw lastGenErr;
     });
 
     res.json({ success: true, transcript });

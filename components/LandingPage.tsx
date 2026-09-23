@@ -1720,15 +1720,24 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
               <div className="flex items-center gap-1.5 text-xs text-[#94A3B8] font-bold">
                 <CorrectGoogleLogo className="w-3.5 h-3.5" /> Checked for Google Compliance
               </div>
-              <div className="pt-2">
+              <div className="pt-2 flex flex-col gap-2">
                 <a
-                  href="https://sj-tutorai.web.app"
+                  href="https://sjtutorai.vercel.app"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all shadow-sm group"
                 >
                   <Globe className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
-                  <span>Firebase Hosting: sj-tutorai.web.app</span>
+                  <span>Vercel App: sjtutorai.vercel.app</span>
+                </a>
+                <a
+                  href="https://sj-tutorai.web.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 text-xs font-medium transition-all shadow-sm group"
+                >
+                  <Globe className="w-3.5 h-3.5 text-slate-400 group-hover:rotate-12 transition-transform" />
+                  <span>Firebase: sj-tutorai.web.app</span>
                 </a>
               </div>
             </div>
@@ -1739,12 +1748,23 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
               <ul className="space-y-2.5 text-xs text-slate-400">
                 <li>
                   <a 
-                    href="https://sj-tutorai.web.app" 
+                    href="https://sjtutorai.vercel.app" 
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="text-amber-400 hover:text-amber-300 font-semibold transition-colors flex items-center gap-1"
                   >
-                    <span>Firebase Hosting Site</span>
+                    <span>Vercel Primary Web App</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </li>
+                <li>
+                  <a 
+                    href="https://sj-tutorai.web.app" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1"
+                  >
+                    <span>Firebase Mirror</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </li>

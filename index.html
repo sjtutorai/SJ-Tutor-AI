@@ -51,8 +51,25 @@
     <meta name="topic" content="Personalised AI Tutor for Students" />
     <meta name="classification" content="Education, AI Tutor, Personalised Learning, Homework Helper" />
 
-    <!-- Canonical URL -->
-    <link rel="canonical" href="https://sj-tutorai.web.app/" />
+    <!-- Canonical URL with dynamic domain fallback -->
+    <link rel="canonical" id="canonical-link" href="https://sjtutorai.vercel.app/" />
+    <script>
+      (function() {
+        try {
+          var origin = window.location.origin;
+          if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+            var canonicalEl = document.getElementById('canonical-link');
+            if (canonicalEl) {
+              canonicalEl.setAttribute('href', origin + (window.location.pathname === '/' ? '/' : window.location.pathname));
+            }
+            var ogUrlEl = document.querySelector('meta[property="og:url"]');
+            if (ogUrlEl) {
+              ogUrlEl.setAttribute('content', origin + (window.location.pathname === '/' ? '/' : window.location.pathname));
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
 
     <!-- Favicons & App Icons pointing to direct official logo link -->
     <link rel="icon" type="image/jpeg" href="https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg" />
@@ -398,15 +415,24 @@
       </div>
     </noscript>
     <div id="root">
-      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0b1120; color: #f8fafc; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; text-align: center;">
+      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0b1120; color: #f8fafc; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; padding: 24px 20px; text-align: center;">
         <div style="position: relative; width: 88px; height: 88px; margin-bottom: 20px;">
           <img src="https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg" alt="SJ Tutor AI - Personalised AI Tutor for Students Logo" style="width: 88px; height: 88px; border-radius: 22px; box-shadow: 0 12px 30px -6px rgba(212, 175, 55, 0.45); object-fit: cover; border: 2px solid rgba(212, 175, 55, 0.5);" />
         </div>
-        <h1 style="font-size: 26px; font-weight: 800; letter-spacing: -0.03em; margin: 0; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <h1 style="font-size: 28px; font-weight: 800; letter-spacing: -0.03em; margin: 0; display: flex; align-items: center; justify-content: center; gap: 8px;">
           SJ Tutor <span style="background: linear-gradient(135deg, #d4af37, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">AI</span>
         </h1>
-        <h2 style="font-size: 14px; color: #94a3b8; margin: 8px 0 0 0; font-weight: 500;">Personalised AI Tutor for Students</h2>
-        <div style="margin-top: 28px; width: 32px; height: 32px; border: 3px solid rgba(212, 175, 55, 0.2); border-top-color: #d4af37; border-radius: 50%; animation: sjtutor-spin 0.9s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;"></div>
+        <h2 style="font-size: 16px; color: #e2e8f0; margin: 8px 0 0 0; font-weight: 600;">Personalised AI Tutor for Students</h2>
+        <p style="max-width: 600px; font-size: 14px; color: #94a3b8; margin: 12px auto 0 auto; line-height: 1.5;">
+          The all-in-one AI study platform for CBSE, ICSE, State Boards &amp; College Students. Scan-to-solve homework, generate chapter summaries, practice adaptive quizzes, and learn 1-on-1 with an intelligent 24/7 AI tutor.
+        </p>
+        <div style="margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
+          <span style="background: rgba(212, 175, 55, 0.15); border: 1px solid rgba(212, 175, 55, 0.3); color: #d4af37; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">Personalised AI Tutor</span>
+          <span style="background: rgba(212, 175, 55, 0.15); border: 1px solid rgba(212, 175, 55, 0.3); color: #d4af37; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">Scan to Solve Homework</span>
+          <span style="background: rgba(212, 175, 55, 0.15); border: 1px solid rgba(212, 175, 55, 0.3); color: #d4af37; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">Notes &amp; Summaries</span>
+          <span style="background: rgba(212, 175, 55, 0.15); border: 1px solid rgba(212, 175, 55, 0.3); color: #d4af37; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">Adaptive Quizzes</span>
+        </div>
+        <div style="margin-top: 24px; width: 32px; height: 32px; border: 3px solid rgba(212, 175, 55, 0.2); border-top-color: #d4af37; border-radius: 50%; animation: sjtutor-spin 0.9s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;"></div>
         <style>
           @keyframes sjtutor-spin {
             0% { transform: rotate(0deg); }

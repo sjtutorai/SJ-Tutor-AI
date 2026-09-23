@@ -2417,6 +2417,13 @@ const App: React.FC = () => {
       ) {
         errorMessage = "QUOTA_EXHAUSTED";
       } else if (
+        errorMessage.toLowerCase().includes("high demand") ||
+        errorMessage.toLowerCase().includes("spikes in demand") ||
+        errorMessage.toLowerCase().includes("overloaded") ||
+        errorMessage.toLowerCase().includes("temporary")
+      ) {
+        errorMessage = "The AI server is experiencing temporary traffic. Backup failover is engaged—click Retry below to proceed immediately.";
+      } else if (
         errorMessage.includes("Generative Language API has not been used") ||
         errorMessage.includes("PERMISSION_DENIED")
       ) {
@@ -3355,9 +3362,18 @@ const App: React.FC = () => {
               onOpenUpgrade={openPremiumModal}
             />
             {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center justify-between gap-3 animate-in slide-in-from-top-2 border border-red-100">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <p className="text-sm font-medium">{error}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-semibold shrink-0 transition flex items-center gap-1 shadow-sm"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Retry
+                </button>
               </div>
             )}
             <button
@@ -3422,9 +3438,18 @@ const App: React.FC = () => {
               homeworkFiles={homeworkFiles}
             />
             {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center justify-between gap-3 animate-in slide-in-from-top-2 border border-red-100">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <p className="text-sm font-medium">{error}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-semibold shrink-0 transition flex items-center gap-1 shadow-sm"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Retry
+                </button>
               </div>
             )}
             <button
@@ -3514,9 +3539,18 @@ const App: React.FC = () => {
               onOpenUpgrade={openPremiumModal}
             />
             {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center gap-2 animate-in slide-in-from-top-2 border border-red-100">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="text-sm">{error}</p>
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center justify-between gap-3 animate-in slide-in-from-top-2 border border-red-100">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <p className="text-sm font-medium">{error}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-semibold shrink-0 transition flex items-center gap-1 shadow-sm"
+                >
+                  <BrainCircuit className="w-3.5 h-3.5" /> Retry
+                </button>
               </div>
             )}
             <button

@@ -15,7 +15,26 @@ export interface SEOConfig {
   noindex?: boolean;
 }
 
-export const CANONICAL_BASE_URL = 'https://sj-tutorai.web.app';
+export const getCanonicalBaseUrl = (): string => {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    const origin = window.location.origin;
+    if (origin.includes('sjtutorai.vercel.app') || origin.includes('sjtuorai.vercel.app')) {
+      return origin;
+    }
+    if (origin.includes('vercel.app')) {
+      return origin;
+    }
+    if (origin.includes('sj-tutorai.web.app')) {
+      return origin;
+    }
+    if (!origin.includes('localhost') && !origin.includes('127.0.0.1')) {
+      return origin;
+    }
+  }
+  return 'https://sjtutorai.vercel.app';
+};
+
+export const CANONICAL_BASE_URL = 'https://sjtutorai.vercel.app';
 export const DEFAULT_LOGO_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
 export const DEFAULT_FAVICON_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
@@ -111,15 +130,17 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
     document.head.appendChild(scriptEl);
   }
 
+  const baseUrl = getCanonicalBaseUrl();
+
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "Organization",
-        "@id": `${CANONICAL_BASE_URL}/#organization`,
+        "@id": `${baseUrl}/#organization`,
         "name": "SJ Tutor AI",
         "alternateName": ["SJ Tutor", "SJTutorAI", "Personalised AI Tutor for Students", "Personalized AI Tutor for Students"],
-        "url": `${CANONICAL_BASE_URL}/`,
+        "url": `${baseUrl}/`,
         "logo": {
           "@type": "ImageObject",
           "url": DEFAULT_LOGO_URL,
@@ -133,22 +154,22 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
       },
       {
         "@type": "EducationalOrganization",
-        "@id": `${CANONICAL_BASE_URL}/#educational-organization`,
+        "@id": `${baseUrl}/#educational-organization`,
         "name": "SJ Tutor AI",
-        "url": `${CANONICAL_BASE_URL}/`,
+        "url": `${baseUrl}/`,
         "logo": DEFAULT_LOGO_URL,
         "image": DEFAULT_LOGO_URL,
         "description": "Leading personalised AI tutor for students providing interactive AI tutoring, instant practice quizzes, and scan-to-solve homework help."
       },
       {
         "@type": "WebSite",
-        "@id": `${CANONICAL_BASE_URL}/#website`,
-        "url": `${CANONICAL_BASE_URL}/`,
+        "@id": `${baseUrl}/#website`,
+        "url": `${baseUrl}/`,
         "name": "SJ Tutor AI - Personalised AI Tutor for Students",
         "alternateName": ["SJ Tutor AI", "SJ Tutor", "SJTutorAI", "Personalised AI Tutor for Students"],
         "description": DEFAULT_DESCRIPTION,
         "publisher": {
-          "@id": `${CANONICAL_BASE_URL}/#organization`
+          "@id": `${baseUrl}/#organization`
         }
       },
       {
@@ -170,7 +191,7 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
         },
         "keywords": DEFAULT_KEYWORDS.join(', '),
         "publisher": {
-          "@id": `${CANONICAL_BASE_URL}/#organization`
+          "@id": `${baseUrl}/#organization`
         },
         "featureList": [
           "Personalised 1-on-1 AI Tutoring for Students",
@@ -182,7 +203,7 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
       },
       {
         "@type": "FAQPage",
-        "@id": `${CANONICAL_BASE_URL}/#faq`,
+        "@id": `${baseUrl}/#faq`,
         "mainEntity": [
           {
             "@type": "Question",
@@ -233,7 +254,8 @@ export const SEOService = {
       if (cleanPath === '/') {
         cleanPath = '/';
       }
-      const canonicalUrl = `${CANONICAL_BASE_URL}${cleanPath === '/' ? '/' : cleanPath}`;
+      const baseUrl = getCanonicalBaseUrl();
+      const canonicalUrl = `${baseUrl}${cleanPath === '/' ? '/' : cleanPath}`;
       const image = config.image || DEFAULT_LOGO_URL;
       const imageAlt = config.imageAlt || 'SJ Tutor AI Logo';
       const ogType = config.ogType || 'website';
@@ -321,12 +343,14 @@ export const SEOService = {
           title: 'Privacy Policy - SJ Tutor AI | Student Safety & Data Protection',
           description: 'Read the SJ Tutor AI privacy policy. Learn how we safeguard student information with encrypted storage and zero third-party data sales.',
           canonicalPath: '/privacy',
+          noindex: true,
         };
       case '/terms':
         return {
           title: 'Terms of Service - SJ Tutor AI | User Agreement',
           description: 'Read our terms of service governing the use of SJ Tutor AI educational services, study tools, and AI learning features.',
           canonicalPath: '/terms',
+          noindex: true,
         };
       case '/dashboard':
         return {
