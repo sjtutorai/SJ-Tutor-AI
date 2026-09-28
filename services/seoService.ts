@@ -20,9 +20,9 @@ export const getCanonicalBaseUrl = (): string => {
   return CANONICAL_BASE_URL;
 };
 
-export const DEFAULT_LOGO_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
-export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
-export const DEFAULT_FAVICON_URL = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
+export const DEFAULT_LOGO_URL = 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png';
+export const DEFAULT_OG_IMAGE = 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png';
+export const DEFAULT_FAVICON_URL = 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png';
 export const DEFAULT_TITLE = 'SJ Tutor AI – AI-Powered Learning Assistant for Students';
 export const DEFAULT_DESCRIPTION = 'SJ Tutor AI is an AI-powered learning assistant that helps students understand concepts, solve doubts, practice questions, revise lessons, and prepare for exams.';
 
@@ -88,10 +88,10 @@ function ensureFaviconLinks() {
   }
 
   const icons = [
-    { rel: 'icon', type: 'image/jpeg', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
-    { rel: 'shortcut icon', type: 'image/jpeg', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
-    { rel: 'apple-touch-icon', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
-    { rel: 'apple-touch-icon-precomposed', href: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg' },
+    { rel: 'icon', type: 'image/png', href: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png' },
+    { rel: 'shortcut icon', type: 'image/png', href: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png' },
+    { rel: 'apple-touch-icon', href: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png' },
+    { rel: 'apple-touch-icon-precomposed', href: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png' },
   ];
 
   icons.forEach(({ rel, type, href }) => {
@@ -130,8 +130,8 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
           "@type": "ImageObject",
           "url": DEFAULT_LOGO_URL,
           "contentUrl": DEFAULT_LOGO_URL,
-          "width": 640,
-          "height": 640,
+          "width": 1254,
+          "height": 1254,
           "caption": "SJ Tutor AI Logo - Personalised AI Tutor for Students"
         },
         "image": DEFAULT_LOGO_URL,

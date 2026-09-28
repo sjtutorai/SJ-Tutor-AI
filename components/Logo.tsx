@@ -11,7 +11,9 @@ interface LogoProps {
 }
 
 const FALLBACK_SOURCES = [
-  "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+  "https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png",
+  "/logo.png",
+  "https://sjtutorai.vercel.app/logo.png",
   "https://sjtutorai.vercel.app/SJ-Tutor-AI-Logo.jpg",
   "/SJ-Tutor-AI-Logo.jpg",
   SJTUTOR_LOGO_URL,

@@ -188,8 +188,8 @@ class PushNotificationService {
       notification: {
         title: `📞 Incoming ${callTypeLabel} Call`,
         body: `${callData.callerName || "A Scholar"} is calling you on SJ Tutor AI. Tap Accept to connect.`,
-        icon: callData.callerAvatar || "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
-        badge: "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+        icon: callData.callerAvatar || "https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png",
+        badge: "https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png",
         tag: `call_${callData.callId}`,
       },
       data: {
@@ -197,7 +197,7 @@ class PushNotificationService {
         callId: callData.callId,
         callerId: callData.callerId || "",
         callerName: callData.callerName,
-        callerAvatar: callData.callerAvatar || "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
+        callerAvatar: callData.callerAvatar || "https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png",
         callType: callData.type,
         url: `/?action=accept_call&callId=${encodeURIComponent(callData.callId)}`,
         category: "Important Alerts",

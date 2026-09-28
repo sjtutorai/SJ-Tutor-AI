@@ -303,21 +303,21 @@ export class NotificationService {
         if (registration) {
           registration.showNotification(title, {
             body,
-            icon: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
-            badge: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
+            icon: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png',
+            badge: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png',
             vibrate: [200, 100, 200],
             data: { category, url: window.location.origin }
           } as NotificationOptions & { vibrate?: number[] });
         } else {
           new Notification(title, {
             body,
-            icon: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg'
+            icon: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png'
           });
         }
       } catch {
         new Notification(title, {
           body,
-          icon: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg'
+          icon: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png'
         });
       }
     }
@@ -355,7 +355,7 @@ export class NotificationService {
       const callTypeLabel = call.type === 'video' ? 'Video' : 'Voice';
       const title = `📞 Incoming ${callTypeLabel} Call`;
       const body = `${call.callerName || 'Scholar'} is calling you on SJ Tutor AI. Tap Accept to connect.`;
-      const avatar = call.callerAvatar || 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
+      const avatar = call.callerAvatar || 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png';
 
       try {
         let registration = await navigator.serviceWorker?.getRegistration();
@@ -368,7 +368,7 @@ export class NotificationService {
           await registration.showNotification(title, {
             body,
             icon: avatar,
-            badge: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
+            badge: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png',
             tag: `call_${call.id}`,
             renotify: true,
             requireInteraction: true, // Keep notification pinned like a real incoming phone call

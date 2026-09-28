@@ -120,8 +120,8 @@ self.addEventListener('push', (event) => {
     body = `${callerName} is calling you on SJ Tutor AI. Tap Accept to connect.`;
     options = {
       body: body,
-      icon: rawData.callerAvatar || 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
-      badge: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
+      icon: rawData.callerAvatar || 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png',
+      badge: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png',
       tag: `call_${callId}`,
       renotify: true,
       requireInteraction: true, // Keeps call notification persistent on screen until answered or declined like a phone call
@@ -144,8 +144,8 @@ self.addEventListener('push', (event) => {
   } else {
     options = {
       body: body,
-      icon: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
-      badge: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
+      icon: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png',
+      badge: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png',
       vibrate: [100, 50, 100],
       data: {
         url: self.location.origin,
@@ -253,8 +253,8 @@ self.addEventListener('message', (event) => {
     const title = `📞 Incoming ${callType} Call`;
     const options = {
       body: `${call.callerName || 'Scholar'} is calling you on SJ Tutor AI. Tap to answer.`,
-      icon: call.callerAvatar || 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
-      badge: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
+      icon: call.callerAvatar || 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png',
+      badge: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png',
       tag: `call_${call.id}`,
       renotify: true,
       requireInteraction: true,
