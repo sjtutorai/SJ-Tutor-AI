@@ -328,11 +328,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   },
 };
 
-export const SJTUTOR_LOGO_URL = "https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png";
-export const SJTUTOR_AVATAR = "https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png";
-export const SJTUTOR_AVATAR_REMOTE = "https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png";
-export const SJTUTOR_AVATAR_IBB = "https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png";
-export const SJTUTOR_LOGO_PAGE_LINK = "https://ibb.co/k2m5r09h";
+export const SJTUTOR_LOGO_URL = "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg";
+export const SJTUTOR_AVATAR = "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg";
+export const SJTUTOR_AVATAR_REMOTE = "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg";
+export const SJTUTOR_AVATAR_IBB = "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg";
+export const SJTUTOR_LOGO_PAGE_LINK = "https://ibb.co/JwjQxgfg";
 
 export interface GroupPollOption {
   id: string;

@@ -339,8 +339,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                    alt="Profile" 
                    className="w-full h-full object-cover" 
                    onError={(e) => {
-                     if (e.currentTarget.src !== 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png') {
-                       e.currentTarget.src = 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png';
+                     if (e.currentTarget.src !== 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg') {
+                       e.currentTarget.src = 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg';
                      }
                    }}
                  />
@@ -1106,7 +1106,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                          id: `test_${Date.now()}`,
                          callerName: "SJ Tutor AI Study Buddy",
                          type: "audio",
-                         callerAvatar: "https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png"
+                         callerAvatar: "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg"
                        });
                        callAudio.previewRingtone(settings.calls?.ringtone || 'Modern Chime', settings.calls?.ringtoneVolume);
                      }}

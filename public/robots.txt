@@ -20,7 +20,6 @@ Allow: /apple-touch-icon*
 Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
-Allow: /SJ-Tutor-AI-Logo.png
 Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest
@@ -47,7 +46,6 @@ Allow: /apple-touch-icon*
 Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
-Allow: /SJ-Tutor-AI-Logo.png
 Allow: /og-image.png
 
 User-agent: *
@@ -65,7 +63,6 @@ Allow: /apple-touch-icon*
 Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
-Allow: /SJ-Tutor-AI-Logo.png
 Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest

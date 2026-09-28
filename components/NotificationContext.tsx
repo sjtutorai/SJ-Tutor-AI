@@ -600,8 +600,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if ('Notification' in window && Notification.permission === 'granted') {
       const options = {
         body,
-        icon: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png',
-        badge: 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png',
+        icon: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
+        badge: 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg',
         data: { url }
       };
 

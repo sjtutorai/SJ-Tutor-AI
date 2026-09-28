@@ -242,7 +242,7 @@ export const GroupQRModal: React.FC<GroupQRModalProps> = ({
                 marginSize={2}
                 fgColor="#0f172a"
                 imageSettings={{
-                  src: "https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png",
+                  src: "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
                   x: undefined,
                   y: undefined,
                   height: 38,

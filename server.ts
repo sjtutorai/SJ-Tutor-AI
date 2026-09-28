@@ -37,7 +37,7 @@ app.get([
   '/og-image.png',
   '/images/sjtutor-logo.png'
 ], (req, res) => {
-  res.redirect(302, 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png');
+  res.redirect(302, 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg');
 });
 
 app.get(['/manifest.json', '/site.webmanifest'], (req, res) => {
@@ -55,8 +55,8 @@ app.get('/sj_tutor_bg.jpg', (req, res) => {
   res.sendFile(filePath);
 });
 
-app.get(['/SJ-Tutor-AI-Logo.jpg', '/logo.jpg', '/SJ-Tutor-AI-Logo.png', '/logo.png'], (req, res) => {
-  res.redirect(302, 'https://i.ibb.co/XxYjdp3z/Chat-GPT-Image-Sep-28-2026-02-54-27-PM.png');
+app.get(['/SJ-Tutor-AI-Logo.jpg', '/logo.jpg'], (req, res) => {
+  res.redirect(302, 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg');
 });
 
 // Serve static public assets (favicons, logos, manifests, robots.txt, etc.)
@@ -261,7 +261,6 @@ Allow: /apple-touch-icon*
 Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
-Allow: /SJ-Tutor-AI-Logo.png
 Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest
@@ -288,7 +287,6 @@ Allow: /apple-touch-icon*
 Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
-Allow: /SJ-Tutor-AI-Logo.png
 Allow: /og-image.png
 
 User-agent: *
@@ -306,7 +304,6 @@ Allow: /apple-touch-icon*
 Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
-Allow: /SJ-Tutor-AI-Logo.png
 Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest
