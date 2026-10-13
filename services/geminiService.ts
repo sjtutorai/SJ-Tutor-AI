@@ -268,7 +268,7 @@ class GeminiKeyManager {
     }
 
     this.checkCooldowns();
-    const modelsToTry = customModels || ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+    const modelsToTry = customModels || ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
     let lastError: any = null;
 
     for (let mIdx = 0; mIdx < modelsToTry.length; mIdx++) {
@@ -361,7 +361,7 @@ class GeminiKeyManager {
     streamBuilder: (ai: GoogleGenAI, slot: KeySlot, attempt: number, model: string) => Promise<T>,
     customModels?: string[]
   ): Promise<AsyncIterable<any>> {
-    const modelsToTry = customModels || ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+    const modelsToTry = customModels || ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
 
@@ -863,29 +863,50 @@ Generate notes based on:
   chatWithTutor: async (text: string, history: any[], imagesBase64: string[] = []) => {
     return keyManager.executeWithRotation(async (ai, _slot, _attempt, model) => {
       const systemInstruction = SettingsService.getTutorSystemInstruction();
-      
-      const rawHistory = (history || [])
-        .map(msg => ({
-          role: msg.role === 'model' ? 'model' : 'user',
-          parts: msg.images && Array.isArray(msg.images) && msg.images.length > 0 ? [
-            ...msg.images.map((img: string) => ({
-              inlineData: { mimeType: 'image/jpeg', data: img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "") }
-            })),
-            { text: msg.text && msg.text.trim() ? msg.text : " " }
-          ] : [{ text: msg.text && msg.text.trim() ? msg.text : " " }]
-        }));
 
-      // Filter out leading model messages (Gemini multiturn conversations MUST start with role 'user')
-      const firstUserIdx = rawHistory.findIndex(m => m.role === 'user');
-      const validHistory = firstUserIdx >= 0 ? rawHistory.slice(firstUserIdx) : [];
+      const currentParts: any[] = [{ text: text.trim() || "Hello" }];
+      imagesBase64.forEach(img => {
+        const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+        currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
+      });
 
-      // Avoid duplicate consecutive user turn at the end if history already contained the prompt
-      if (validHistory.length > 0 && validHistory[validHistory.length - 1].role === 'user') {
-        const lastPart = validHistory[validHistory.length - 1].parts.find((p: any) => p.text);
-        if (lastPart && (lastPart.text === text.trim() || !lastPart.text || lastPart.text === ' ')) {
-          validHistory.pop();
+      // Filter and sanitize history: exclude empty messages and streaming placeholders
+      const cleanHistory: { role: string; parts: any[] }[] = [];
+      for (const msg of history || []) {
+        if (!msg || msg.isStreaming) continue;
+        const parts: any[] = [];
+        if (msg.images && Array.isArray(msg.images) && msg.images.length > 0) {
+          msg.images.forEach((img: string) => {
+            const parsed = parseDataUrl(img);
+            if (parsed) {
+              parts.push({ inlineData: { mimeType: parsed.mimeType, data: parsed.data } });
+            }
+          });
+        }
+        if (msg.text && typeof msg.text === 'string' && msg.text.trim()) {
+          parts.push({ text: msg.text.trim() });
+        }
+        if (parts.length > 0) {
+          cleanHistory.push({
+            role: msg.role === 'model' ? 'model' : 'user',
+            parts
+          });
         }
       }
+
+      // If the last history turn is a user turn matching or preceding this prompt, trim it
+      while (cleanHistory.length > 0 && cleanHistory[cleanHistory.length - 1].role === 'user') {
+        const lastPart = cleanHistory[cleanHistory.length - 1].parts.find((p: any) => p.text);
+        if (!lastPart || lastPart.text === text.trim() || cleanHistory.length === 1) {
+          cleanHistory.pop();
+        } else {
+          break;
+        }
+      }
+
+      // Multiturn must start with 'user'
+      const firstUserIdx = cleanHistory.findIndex(m => m.role === 'user');
+      const validHistory = firstUserIdx >= 0 ? cleanHistory.slice(firstUserIdx) : [];
 
       // Combine consecutive turns of the same role
       const alternatingHistory: { role: string; parts: any[] }[] = [];
@@ -897,11 +918,10 @@ Generate notes based on:
         }
       }
 
-      const currentParts: any[] = [{ text: text.trim() || "Hello" }];
-      imagesBase64.forEach(img => {
-        const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-        currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
-      });
+      // Ensure alternating history ends in 'model' so appending user prompt strictly alternates
+      if (alternatingHistory.length > 0 && alternatingHistory[alternatingHistory.length - 1].role === 'user') {
+        alternatingHistory.pop();
+      }
 
       const response = await ai.models.generateContent({
         model,
@@ -931,26 +951,6 @@ Your mission:
 - Never show robotic statements like "Here is your answer". Be engaging!
 
       ${SettingsService.getTutorSystemInstruction()}` + (userContext ? `\n\nUser Context & Memory (Past Interactions):\n\n${userContext}` : '');
-
-    // Process raw chat history
-    const rawHistory = (history || []).map(msg => {
-      const parts: any[] = [];
-      if (msg.images && Array.isArray(msg.images)) {
-        msg.images.forEach((img: string) => {
-          const parsed = parseDataUrl(img);
-          if (parsed) {
-            parts.push({ inlineData: { mimeType: parsed.mimeType, data: parsed.data } });
-          }
-        });
-      }
-      if (msg.text && msg.text.trim()) {
-        parts.push({ text: msg.text.trim() });
-      }
-      return {
-        role: msg.role === 'model' ? 'model' : 'user',
-        parts: parts.length > 0 ? parts : [{ text: ' ' }]
-      };
-    }).filter(msg => msg.parts.length > 0);
 
     // Build current prompt parts
     const currentParts: any[] = [];
@@ -986,19 +986,44 @@ Your mission:
 
     currentParts.push({ text: finalPrompt });
 
-    // Filter out leading model messages (Gemini multiturn conversations MUST start with role 'user')
-    const firstUserIdx = rawHistory.findIndex(m => m.role === 'user');
-    const validHistory = firstUserIdx >= 0 ? rawHistory.slice(firstUserIdx) : [];
-
-    // If the last turn in validHistory is already a user message that matches finalPrompt (because it was optimistically added),
-    // pop it so we do not send duplicate consecutive user turns
-    if (validHistory.length > 0 && validHistory[validHistory.length - 1].role === 'user') {
-      const lastTurn = validHistory[validHistory.length - 1];
-      const lastText = lastTurn.parts.find((p: any) => p.text)?.text || '';
-      if (lastText === finalPrompt || lastText === text.trim() || !lastText || lastText === ' ') {
-        validHistory.pop();
+    // Filter and sanitize history: exclude empty messages and streaming placeholders
+    const cleanHistory: { role: string; parts: any[] }[] = [];
+    for (const msg of history || []) {
+      if (!msg || msg.isStreaming) continue;
+      const parts: any[] = [];
+      if (msg.images && Array.isArray(msg.images) && msg.images.length > 0) {
+        msg.images.forEach((img: string) => {
+          const parsed = parseDataUrl(img);
+          if (parsed) {
+            parts.push({ inlineData: { mimeType: parsed.mimeType, data: parsed.data } });
+          }
+        });
+      }
+      if (msg.text && typeof msg.text === 'string' && msg.text.trim()) {
+        parts.push({ text: msg.text.trim() });
+      }
+      if (parts.length > 0) {
+        cleanHistory.push({
+          role: msg.role === 'model' ? 'model' : 'user',
+          parts
+        });
       }
     }
+
+    // Trim trailing user message if it duplicates the optimistic prompt or is trailing
+    while (cleanHistory.length > 0 && cleanHistory[cleanHistory.length - 1].role === 'user') {
+      const lastTurn = cleanHistory[cleanHistory.length - 1];
+      const lastText = lastTurn.parts.find((p: any) => p.text)?.text || '';
+      if (!lastText || lastText === finalPrompt || lastText === text.trim() || cleanHistory.length === 1) {
+        cleanHistory.pop();
+      } else {
+        break;
+      }
+    }
+
+    // Filter out leading model messages (Gemini multiturn conversations MUST start with role 'user')
+    const firstUserIdx = cleanHistory.findIndex(m => m.role === 'user');
+    const validHistory = firstUserIdx >= 0 ? cleanHistory.slice(firstUserIdx) : [];
 
     // Combine consecutive turns of the same role to guarantee strict alternation
     const alternatingHistory: { role: string; parts: any[] }[] = [];
@@ -1008,6 +1033,11 @@ Your mission:
       } else {
         alternatingHistory.push({ role: turn.role, parts: [...turn.parts] });
       }
+    }
+
+    // Ensure alternating history ends in 'model' so that appending the new user prompt strictly alternates
+    if (alternatingHistory.length > 0 && alternatingHistory[alternatingHistory.length - 1].role === 'user') {
+      alternatingHistory.pop();
     }
 
     const contents = [...alternatingHistory, { role: 'user', parts: currentParts }];

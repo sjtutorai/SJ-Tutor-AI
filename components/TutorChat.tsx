@@ -404,8 +404,14 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         setSessionTitle(matched.title);
         sessionTitleRef.current = matched.title;
       }
-      if (matched?.content?.messages && Array.isArray(matched.content.messages)) {
-        setMessages(matched.content.messages.map((m: any, i: number) => ({
+      const rawMsgs = (matched?.content?.messages && Array.isArray(matched.content.messages))
+        ? matched.content.messages
+        : (Array.isArray(matched?.content)
+          ? matched.content
+          : (initialMessages && initialMessages.length > 0 ? initialMessages : null));
+
+      if (rawMsgs && rawMsgs.length > 0) {
+        setMessages(rawMsgs.map((m: any, i: number) => ({
           id: m.id || `msg-${i}-${Date.now()}`,
           role: m.role,
           text: m.text,
@@ -414,15 +420,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           suggestions: m.suggestions,
           liked: m.liked,
           disliked: m.disliked,
-        })));
-      } else if (initialMessages && initialMessages.length > 0) {
-        setMessages(initialMessages.map((m, i) => ({
-          id: m.id || `msg-${i}-${Date.now()}`,
-          role: m.role,
-          text: m.text,
-          images: m.images,
-          timestamp: m.timestamp || Date.now(),
-          suggestions: m.suggestions
         })));
       }
       setShowResumePrompt(false);
@@ -976,22 +973,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
     setIsTyping(true);
     isGeneratingRef.current = true;
-
-    // STEP-BY-STEP STAGGERED THINKING STEP TRANSITIONS
     setThinkingStep('thinking');
-    await new Promise(r => setTimeout(r, 1000));
-    if (!isGeneratingRef.current) return;
-
-    setThinkingStep('analyzing');
-    await new Promise(r => setTimeout(r, 1000));
-    if (!isGeneratingRef.current) return;
-
-    setThinkingStep('generating');
-    await new Promise(r => setTimeout(r, 800));
-    if (!isGeneratingRef.current) return;
-
-    // Hide thinking indicator once we initiate streaming
-    setThinkingStep(null);
 
     // Initial placeholder model response
     if (isRegeneratingMessageId) {
@@ -1015,12 +997,14 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       // Prepare image base64 elements separately if needed
       const imgDataList = activeFiles.filter(f => f.type.startsWith('image/')).map(f => f.dataUrl);
       
-      // Get conversation history up to the current point
-      const activeHistory = isRegeneratingMessageId
-        ? messagesRef.current.filter(m => m.id !== isRegeneratingMessageId)
-        : messagesRef.current;
+      // Get conversation history strictly prior to the current turn
+      const activeHistory = messagesRef.current.filter(m => 
+        m.id !== modelMessageId && 
+        m.id !== userMessageId && 
+        (isRegeneratingMessageId ? m.id !== isRegeneratingMessageId : true) &&
+        !m.isStreaming
+      );
 
-      
       let userContext = "";
       if (fullHistory && fullHistory.length > 0) {
         userContext = fullHistory.slice(0, 10).map((h: any) => {
@@ -1036,14 +1020,16 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         }).join("\n");
       }
       
+      setThinkingStep('generating');
       const stream = await GeminiService.chatWithTutorStream(textToSend, activeHistory, imgDataList, activeFiles, userContext);
-
+      setThinkingStep(null);
       
       let accumulatedText = "";
       for await (const chunk of stream) {
         if (!isGeneratingRef.current) {
           break; // User stopped generation
         }
+        setThinkingStep(null);
         const chunkText = chunk.text || "";
         accumulatedText += chunkText;
 

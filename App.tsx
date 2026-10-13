@@ -3036,7 +3036,7 @@ const App: React.FC = () => {
 
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="mb-6">
           <div>
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
               Welcome back, {userProfile.displayName || "Scholar"}! 👋
@@ -3045,21 +3045,6 @@ const App: React.FC = () => {
               Ready to learn something new today?
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsDeepWorkActive(true)}
-            className="flex items-center gap-2.5 px-4 py-2.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-2xl text-xs font-bold border border-slate-700/80 shadow-md transition-all hover:scale-105 active:scale-95 group select-none self-start sm:self-auto cursor-pointer"
-            title="Enter 25-minute Pomodoro Deep Work Focus Mode (Alt+F)"
-          >
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-            </span>
-            <span>Deep Work Focus (25m Pomodoro)</span>
-            <span className="text-[10px] bg-slate-800 dark:bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-slate-300">
-              Alt+F
-            </span>
-          </button>
         </div>
 
         <TrialBannerCard 
@@ -3660,7 +3645,10 @@ const App: React.FC = () => {
               }}
               initialMessages={
                 currentHistoryId
-                  ? history.find((h) => h.id === currentHistoryId && h.type === AppMode.TUTOR)?.content?.messages
+                  ? (() => {
+                      const found = history.find((h) => h.id === currentHistoryId && h.type === AppMode.TUTOR);
+                      return found?.content?.messages || (Array.isArray(found?.content) ? found.content : undefined);
+                    })()
                   : undefined
               }
               recentSessions={history.filter((h) => h.type === AppMode.TUTOR)}
