@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Laptop, 
   Smartphone, 
@@ -17,7 +17,8 @@ import {
   Sparkles,
   Power
 } from "lucide-react";
-import { DeviceSession, DeviceService } from "../services/deviceService";
+import { DeviceSession, DeviceService, getCurrentDeviceId, detectDeviceInfo } from "../services/deviceService";
+import { auth } from "../firebaseConfig";
 
 interface DevicesModalProps {
   isOpen: boolean;
@@ -45,10 +46,50 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
   const [confirmRevokeAllOthers, setConfirmRevokeAllOthers] = useState(false);
   const [confirmRevokeEntireAccount, setConfirmRevokeEntireAccount] = useState(false);
 
+  // Optimistic local device list synchronized with prop
+  const [localDevices, setLocalDevices] = useState<DeviceSession[]>(devices);
+
+  useEffect(() => {
+    setLocalDevices(devices);
+  }, [devices]);
+
   if (!isOpen) return null;
 
-  const currentDevice = devices.find((d) => d.isCurrentDevice);
-  const otherDevices = devices.filter((d) => !d.isCurrentDevice);
+  // Resolve active userId from prop, auth, or stored profile
+  const resolvedUserId = userId || auth.currentUser?.uid || (() => {
+    try {
+      const saved = localStorage.getItem("sjtutor_authenticated_user");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed?.uid || parsed?.sjTutorId || null;
+      }
+    } catch (e) {
+      console.debug("User ID resolution notice:", e);
+    }
+    return null;
+  })();
+
+  // Current and other devices with synthesized fallback for current device
+  const currentDeviceId = getCurrentDeviceId();
+  let currentDevice = localDevices.find((d) => d.isCurrentDevice || d.deviceId === currentDeviceId);
+  
+  if (!currentDevice) {
+    const info = detectDeviceInfo();
+    currentDevice = {
+      deviceId: currentDeviceId,
+      deviceName: info.deviceName,
+      deviceType: info.deviceType,
+      os: info.os,
+      browser: info.browser,
+      timezone: info.timezone,
+      loginTime: Date.now(),
+      lastActive: Date.now(),
+      status: 'active',
+      isCurrentDevice: true,
+    };
+  }
+
+  const otherDevices = localDevices.filter((d) => !d.isCurrentDevice && d.deviceId !== currentDeviceId);
 
   const getDeviceIcon = (type: string, os: string) => {
     if (type === 'mobile' || os.includes('iPhone') || os.includes('Android')) {
@@ -64,26 +105,31 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
   };
 
   const handleLogoutSingleDevice = async (device: DeviceSession) => {
-    if (!userId) return;
-
     setLoggingOutId(device.deviceId);
     try {
-      if (device.isCurrentDevice) {
+      if (device.isCurrentDevice || device.deviceId === currentDeviceId) {
+        // Terminate current device session
         onClose();
         await onLogoutCurrentDevice();
       } else {
-        const success = await DeviceService.logoutDevice(userId, device.deviceId);
-        if (success) {
-          onTriggerToast?.(
-            "Device Logged Out", 
-            `Successfully terminated session for ${device.deviceName}.`, 
-            "Important Alerts"
-          );
+        // Optimistically remove from modal view immediately
+        setLocalDevices((prev) => prev.filter((d) => d.deviceId !== device.deviceId));
+
+        if (resolvedUserId) {
+          await DeviceService.logoutDevice(resolvedUserId, device.deviceId);
         }
+
+        onTriggerToast?.(
+          "Session Terminated 🔒", 
+          `Successfully terminated active session for ${device.deviceName}.`, 
+          "Important Alerts"
+        );
       }
     } catch (err: any) {
-      console.error("Failed to logout device:", err);
-      onTriggerToast?.("Error", "Could not log out device. Please try again.", "Important Alerts");
+      console.error("Failed to terminate device session:", err);
+      // Restore on failure
+      setLocalDevices(devices);
+      onTriggerToast?.("Error", "Could not terminate session. Please try again.", "Important Alerts");
     } finally {
       setLoggingOutId(null);
       setConfirmRevokeId(null);
@@ -91,39 +137,45 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
   };
 
   const handleLogoutAllOtherDevices = async () => {
-    if (!userId) return;
-
     setIsLoggingOutAll(true);
+    const countBefore = otherDevices.length;
     try {
-      const count = await DeviceService.logoutAllOtherDevices(userId);
+      // Optimistically remove all other devices immediately
+      setLocalDevices((prev) => prev.filter((d) => d.isCurrentDevice || d.deviceId === currentDeviceId));
+
+      if (resolvedUserId) {
+        await DeviceService.logoutAllOtherDevices(resolvedUserId);
+      }
+
       onTriggerToast?.(
-        "Other Devices Logged Out", 
-        `Successfully logged out ${count} remote device${count !== 1 ? 's' : ''}.`, 
+        "Other Sessions Terminated 🔒", 
+        `Successfully terminated ${countBefore} remote device session${countBefore !== 1 ? 's' : ''}.`, 
         "Important Alerts"
       );
       setConfirmRevokeAllOthers(false);
     } catch (err) {
-      console.error("Failed to logout all other devices:", err);
-      onTriggerToast?.("Error", "Could not log out other devices. Please try again.", "Important Alerts");
+      console.error("Failed to terminate all other device sessions:", err);
+      setLocalDevices(devices);
+      onTriggerToast?.("Error", "Could not terminate remote sessions. Please try again.", "Important Alerts");
     } finally {
       setIsLoggingOutAll(false);
     }
   };
 
   const handleLogoutAllDevicesEntirely = async () => {
-    if (!userId) return;
-
     setIsLoggingOutEntireAccount(true);
     try {
       onClose();
       if (onLogoutAllDevices) {
         await onLogoutAllDevices();
+      } else if (resolvedUserId) {
+        await DeviceService.logoutAllDevices(resolvedUserId);
       } else {
-        await DeviceService.logoutAllDevices(userId);
+        await onLogoutCurrentDevice();
       }
     } catch (err) {
-      console.error("Failed to logout from all devices:", err);
-      onTriggerToast?.("Error", "Failed to complete global logout.", "Important Alerts");
+      console.error("Failed to terminate all device sessions:", err);
+      onTriggerToast?.("Error", "Failed to terminate all sessions.", "Important Alerts");
     } finally {
       setIsLoggingOutEntireAccount(false);
       setConfirmRevokeEntireAccount(false);
@@ -181,6 +233,7 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               {otherDevices.length > 0 && (
                 <button
+                  id="btn-terminate-other-sessions"
                   onClick={() => {
                     setConfirmRevokeAllOthers(true);
                     setConfirmRevokeEntireAccount(false);
@@ -189,11 +242,12 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
                   className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  Logout Other Devices ({otherDevices.length})
+                  Terminate Other Sessions ({otherDevices.length})
                 </button>
               )}
 
               <button
+                id="btn-terminate-all-sessions"
                 onClick={() => {
                   setConfirmRevokeEntireAccount(true);
                   setConfirmRevokeAllOthers(false);
@@ -202,7 +256,7 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
                 className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
               >
                 <Power className="w-3.5 h-3.5" />
-                Logout from ALL Devices
+                Terminate ALL Sessions Everywhere
               </button>
             </div>
           </div>
@@ -214,13 +268,14 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
                 <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <h5 className="text-sm font-bold text-rose-900 dark:text-rose-100">
-                    Log out from ALL devices (including this current one)?
+                    Terminate ALL Sessions (including this device)?
                   </h5>
                   <p className="text-xs text-rose-700 dark:text-rose-300 mt-1">
                     This will immediately revoke active sessions across all your phones, laptops, and browsers. You will be signed out right now and will need to log back in.
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     <button
+                      id="btn-confirm-terminate-all-everywhere"
                       onClick={handleLogoutAllDevicesEntirely}
                       disabled={isLoggingOutEntireAccount}
                       className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
@@ -228,12 +283,12 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
                       {isLoggingOutEntireAccount ? (
                         <>
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          Logging Out Everywhere...
+                          Terminating All Sessions...
                         </>
                       ) : (
                         <>
                           <Power className="w-3.5 h-3.5" />
-                          Yes, Logout from ALL Devices
+                          Yes, Terminate ALL Sessions
                         </>
                       )}
                     </button>
@@ -256,19 +311,20 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
                 <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <h5 className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                    Sign out of all other {otherDevices.length} remote devices?
+                    Terminate all other {otherDevices.length} remote device sessions?
                   </h5>
                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
                     This will revoke active logins across all your other computers and phones. You will remain signed in on this current device.
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     <button
+                      id="btn-confirm-terminate-all-others"
                       onClick={handleLogoutAllOtherDevices}
                       disabled={isLoggingOutAll}
                       className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
                     >
                       {isLoggingOutAll && <RefreshCw className="w-3 h-3 animate-spin" />}
-                      Yes, Logout All Others
+                      Yes, Terminate Other Sessions
                     </button>
                     <button
                       onClick={() => setConfirmRevokeAllOthers(false)}
@@ -343,6 +399,7 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
 
                   <div className="flex sm:flex-col items-center sm:items-end justify-end flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-emerald-200 dark:border-emerald-800/40">
                     <button
+                      id="btn-terminate-current-session"
                       onClick={() => handleLogoutSingleDevice(currentDevice)}
                       disabled={loggingOutId === currentDevice.deviceId}
                       className="w-full sm:w-auto px-4 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
@@ -350,12 +407,12 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
                       {loggingOutId === currentDevice.deviceId ? (
                         <>
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          Signing Out...
+                          Terminating Session...
                         </>
                       ) : (
                         <>
-                          <LogOut className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                          Logout from this device
+                          <Power className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                          Terminate This Session
                         </>
                       )}
                     </button>
@@ -432,12 +489,17 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
                           {isConfirming ? (
                             <div className="flex items-center gap-1.5">
                               <button
+                                id={`btn-confirm-terminate-${device.deviceId}`}
                                 onClick={() => handleLogoutSingleDevice(device)}
                                 disabled={loggingOutId === device.deviceId}
                                 className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1"
                               >
-                                {loggingOutId === device.deviceId && <RefreshCw className="w-3 h-3 animate-spin" />}
-                                Confirm Logout
+                                {loggingOutId === device.deviceId ? (
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Power className="w-3 h-3" />
+                                )}
+                                Terminate Now
                               </button>
                               <button
                                 onClick={() => setConfirmRevokeId(null)}
@@ -448,12 +510,13 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
                             </div>
                           ) : (
                             <button
+                              id={`btn-terminate-session-${device.deviceId}`}
                               onClick={() => setConfirmRevokeId(device.deviceId)}
                               disabled={loggingOutId === device.deviceId}
-                              className="w-full sm:w-auto px-3.5 py-1.5 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700 hover:border-rose-200 dark:hover:border-rose-800 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                              className="w-full sm:w-auto px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95"
                             >
-                              <LogOut className="w-3.5 h-3.5" />
-                              Logout from this device
+                              <Power className="w-3.5 h-3.5" />
+                              Terminate Session
                             </button>
                           )}
                         </div>
@@ -483,7 +546,7 @@ export const DevicesModal: React.FC<DevicesModalProps> = ({
               <Lock className="w-4 h-4" />
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              <strong>Account Security Tip:</strong> If you spot a device or location you don&apos;t recognize, click <strong>Logout from this device</strong> or <strong>Logout from ALL Devices</strong> immediately to secure your account.
+              <strong>Account Security Tip:</strong> If you spot a device or location you don&apos;t recognize, click <strong>Terminate Session</strong> or <strong>Terminate ALL Sessions Everywhere</strong> immediately to secure your account.
             </p>
           </div>
         </div>

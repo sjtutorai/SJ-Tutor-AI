@@ -1,8 +1,10 @@
 import React from 'react';
 import { 
+  Sprout,
   Flame, 
-  Sparkles, 
   Zap, 
+  Shield,
+  Rocket,
   Crown, 
   Gem, 
   Star, 
@@ -16,7 +18,7 @@ export interface StreakTier {
   name: string;
   title: string;
   emoji: string;
-  iconType: 'sparkles' | 'flame' | 'zap' | 'plasma' | 'astral' | 'diamond' | 'crown' | 'supernova' | 'infinity';
+  iconType: 'sprout' | 'flame' | 'zap' | 'shield' | 'rocket' | 'gem' | 'crown' | 'star' | 'infinity';
   gradient: string;
   lightBg: string;
   darkBg: string;
@@ -26,27 +28,29 @@ export interface StreakTier {
   ringColor: string;
   fillColor: string;
   description: string;
+  perk: string;
   tierRank: number;
 }
 
 export const STREAK_TIERS: StreakTier[] = [
   {
-    id: 'ember-spark',
+    id: 'ember-sprout',
     minDays: 0,
     maxDays: 2,
-    name: 'Ember Spark',
-    title: 'Spark Starter',
+    name: 'Ember Sprout',
+    title: 'Seedling Starter',
     emoji: '🌱',
-    iconType: 'sparkles',
-    gradient: 'from-amber-400 to-orange-500',
-    lightBg: 'bg-amber-50 text-amber-800',
-    darkBg: 'dark:bg-amber-950/40 dark:text-amber-300',
-    borderColor: 'border-amber-300 dark:border-amber-800',
-    textColor: 'text-amber-500 dark:text-amber-400',
-    glowColor: 'shadow-amber-500/30',
-    ringColor: 'ring-amber-400',
-    fillColor: 'fill-amber-400 text-amber-100',
-    description: 'The spark of a lifelong learning journey',
+    iconType: 'sprout',
+    gradient: 'from-emerald-500 via-teal-500 to-amber-500',
+    lightBg: 'bg-emerald-50 text-emerald-800',
+    darkBg: 'dark:bg-emerald-950/40 dark:text-emerald-300',
+    borderColor: 'border-emerald-300 dark:border-emerald-800',
+    textColor: 'text-emerald-600 dark:text-emerald-400',
+    glowColor: 'shadow-emerald-500/30',
+    ringColor: 'ring-emerald-400',
+    fillColor: 'fill-emerald-400 text-emerald-100',
+    description: 'The green seedling spark of a lifelong learning commitment',
+    perk: 'Daily Spark Bonus • 1x Learning Momentum',
     tierRank: 1
   },
   {
@@ -65,7 +69,8 @@ export const STREAK_TIERS: StreakTier[] = [
     glowColor: 'shadow-orange-500/40',
     ringColor: 'ring-amber-400',
     fillColor: 'fill-amber-400 text-amber-100',
-    description: '3+ Days of continuous daily focus',
+    description: '3+ Days of continuous daily focus and heat',
+    perk: 'Ignited Momentum • 1.2x Credit Multiplier',
     tierRank: 2
   },
   {
@@ -76,7 +81,7 @@ export const STREAK_TIERS: StreakTier[] = [
     title: '7-Day Scholar Torch',
     emoji: '⚡',
     iconType: 'zap',
-    gradient: 'from-amber-500 via-orange-500 to-amber-600',
+    gradient: 'from-amber-500 via-yellow-500 to-orange-500',
     lightBg: 'bg-amber-50 text-amber-900',
     darkBg: 'dark:bg-amber-950/40 dark:text-amber-300',
     borderColor: 'border-amber-300 dark:border-amber-800',
@@ -84,64 +89,68 @@ export const STREAK_TIERS: StreakTier[] = [
     glowColor: 'shadow-amber-500/40',
     ringColor: 'ring-amber-400',
     fillColor: 'fill-amber-400 text-amber-100',
-    description: '1 full week of dedicated daily study',
+    description: '1 full week of dedicated daily study electricity',
+    perk: 'Weekly Scholar Badge • +25 Bonus Credits',
     tierRank: 3
   },
   {
-    id: 'cobalt-plasma',
+    id: 'cobalt-shield',
     minDays: 14,
     maxDays: 20,
-    name: 'Cobalt Flame',
-    title: '14-Day Fortnight Flame',
-    emoji: '🔥',
-    iconType: 'plasma',
-    gradient: 'from-amber-500 via-orange-600 to-amber-600',
-    lightBg: 'bg-amber-50 text-amber-900',
-    darkBg: 'dark:bg-amber-950/40 dark:text-amber-300',
-    borderColor: 'border-amber-400 dark:border-amber-800',
-    textColor: 'text-amber-500 dark:text-amber-400',
-    glowColor: 'shadow-amber-500/40',
-    ringColor: 'ring-amber-400',
-    fillColor: 'fill-amber-400 text-amber-100',
-    description: '2 weeks of fortified discipline and momentum',
+    name: 'Cobalt Shield',
+    title: '14-Day Fortnight Guard',
+    emoji: '🛡️',
+    iconType: 'shield',
+    gradient: 'from-blue-600 via-indigo-600 to-amber-500',
+    lightBg: 'bg-indigo-50 text-indigo-900',
+    darkBg: 'dark:bg-indigo-950/40 dark:text-indigo-300',
+    borderColor: 'border-indigo-400 dark:border-indigo-800',
+    textColor: 'text-indigo-600 dark:text-indigo-400',
+    glowColor: 'shadow-indigo-500/40',
+    ringColor: 'ring-indigo-400',
+    fillColor: 'fill-indigo-400 text-indigo-100',
+    description: '2 weeks of fortified discipline and learning armor',
+    perk: 'Fortified Shield • Permanent Streak Freeze Buffer',
     tierRank: 4
   },
   {
-    id: 'astral-violet',
+    id: 'astral-rocket',
     minDays: 21,
     maxDays: 29,
-    name: 'Habit Spark',
-    title: '21-Day Habit Master',
-    emoji: '✨',
-    iconType: 'astral',
-    gradient: 'from-amber-500 via-orange-500 to-amber-600',
-    lightBg: 'bg-amber-50 text-amber-900',
-    darkBg: 'dark:bg-amber-950/40 dark:text-amber-300',
-    borderColor: 'border-amber-400 dark:border-amber-800',
-    textColor: 'text-amber-500 dark:text-amber-400',
-    glowColor: 'shadow-amber-500/40',
-    ringColor: 'ring-amber-400',
-    fillColor: 'fill-amber-400 text-amber-100',
-    description: '21 days to form an unbreakable learning habit',
+    name: 'Astral Rocket',
+    title: '21-Day Habit Catalyst',
+    emoji: '🚀',
+    iconType: 'rocket',
+    gradient: 'from-purple-600 via-violet-600 to-pink-500',
+    lightBg: 'bg-purple-50 text-purple-900',
+    darkBg: 'dark:bg-purple-950/40 dark:text-purple-300',
+    borderColor: 'border-purple-400 dark:border-purple-800',
+    textColor: 'text-purple-600 dark:text-purple-400',
+    glowColor: 'shadow-purple-500/40',
+    ringColor: 'ring-purple-400',
+    fillColor: 'fill-purple-400 text-purple-100',
+    description: '21 days to launch an unbreakable learning habit into orbit',
+    perk: 'Habit Orbit • High-Priority AI Tutor Speed',
     tierRank: 5
   },
   {
-    id: 'diamond-inferno',
+    id: 'diamond-legend',
     minDays: 30,
     maxDays: 49,
-    name: 'Diamond Flame',
+    name: 'Diamond Legend',
     title: '30-Day Monthly Legend',
     emoji: '💎',
-    iconType: 'diamond',
-    gradient: 'from-amber-500 via-orange-500 to-amber-600',
-    lightBg: 'bg-amber-50 text-amber-950',
-    darkBg: 'dark:bg-amber-950/40 dark:text-amber-300',
-    borderColor: 'border-amber-400 dark:border-amber-800',
-    textColor: 'text-amber-500 dark:text-amber-400',
-    glowColor: 'shadow-amber-500/50',
-    ringColor: 'ring-amber-400',
-    fillColor: 'fill-amber-400 text-amber-100',
-    description: '1 continuous month of elite academic dedication',
+    iconType: 'gem',
+    gradient: 'from-cyan-500 via-blue-500 to-amber-500',
+    lightBg: 'bg-cyan-50 text-cyan-950',
+    darkBg: 'dark:bg-cyan-950/40 dark:text-cyan-300',
+    borderColor: 'border-cyan-400 dark:border-cyan-800',
+    textColor: 'text-cyan-600 dark:text-cyan-400',
+    glowColor: 'shadow-cyan-500/50',
+    ringColor: 'ring-cyan-400',
+    fillColor: 'fill-cyan-400 text-cyan-100',
+    description: '1 continuous month of elite crystalline academic dedication',
+    perk: 'Elite Diamond Status • +100 Bonus Credits',
     tierRank: 6
   },
   {
@@ -152,7 +161,7 @@ export const STREAK_TIERS: StreakTier[] = [
     title: '50-Day Phoenix Crown',
     emoji: '👑',
     iconType: 'crown',
-    gradient: 'from-amber-500 via-orange-500 to-amber-600',
+    gradient: 'from-amber-500 via-orange-500 to-red-500',
     lightBg: 'bg-amber-50 text-amber-950',
     darkBg: 'dark:bg-amber-950/40 dark:text-amber-300',
     borderColor: 'border-amber-400 dark:border-amber-800',
@@ -160,18 +169,19 @@ export const STREAK_TIERS: StreakTier[] = [
     glowColor: 'shadow-amber-500/50',
     ringColor: 'ring-amber-400',
     fillColor: 'fill-amber-400 text-amber-100',
-    description: 'Half-century milestone of outstanding mastery',
+    description: 'Half-century milestone of outstanding scholastic royalty',
+    perk: 'Royalty Rank • Exclusive ID Card Gold Border',
     tierRank: 7
   },
   {
-    id: 'cosmic-supernova',
+    id: 'century-star',
     minDays: 100,
     maxDays: 364,
     name: 'Century Star',
-    title: '100-Day Century Supernova',
+    title: '100-Day Supernova',
     emoji: '🌟',
-    iconType: 'supernova',
-    gradient: 'from-amber-400 via-orange-500 to-amber-600',
+    iconType: 'star',
+    gradient: 'from-yellow-400 via-amber-500 to-rose-500',
     lightBg: 'bg-amber-50 text-amber-950',
     darkBg: 'dark:bg-amber-950/40 dark:text-amber-300',
     borderColor: 'border-amber-400 dark:border-amber-800',
@@ -179,7 +189,8 @@ export const STREAK_TIERS: StreakTier[] = [
     glowColor: 'shadow-amber-500/50',
     ringColor: 'ring-amber-400',
     fillColor: 'fill-amber-400 text-amber-100',
-    description: 'Triple-digit century milestone of extraordinary excellence',
+    description: 'Triple-digit century milestone of extraordinary supernova excellence',
+    perk: 'Triple-Digit Master • +250 Lifetime Credits',
     tierRank: 8
   },
   {
@@ -190,7 +201,7 @@ export const STREAK_TIERS: StreakTier[] = [
     title: '365-Day Grand Sage',
     emoji: '♾️',
     iconType: 'infinity',
-    gradient: 'from-amber-400 via-orange-500 to-amber-600',
+    gradient: 'from-violet-600 via-amber-500 to-emerald-500',
     lightBg: 'bg-amber-50 text-amber-950',
     darkBg: 'dark:bg-amber-950/40 dark:text-amber-300',
     borderColor: 'border-amber-400 dark:border-amber-800',
@@ -198,7 +209,8 @@ export const STREAK_TIERS: StreakTier[] = [
     glowColor: 'shadow-amber-500/60',
     ringColor: 'ring-amber-400',
     fillColor: 'fill-amber-400 text-amber-100',
-    description: '1 full year of continuous unstoppable learning',
+    description: '1 full year of continuous unstoppable learning immortality',
+    perk: 'Immortal Grand Sage • Unlimited AI Tutor Access',
     tierRank: 9
   }
 ];
@@ -284,24 +296,24 @@ export const StreakTierIcon: React.FC<StreakTierIconProps> = ({
   const animClass = animate ? 'animate-pulse' : '';
 
   switch (tier.iconType) {
-    case 'sparkles':
-      return <Sparkles className={`${currentSizeClass} ${tier.textColor} ${animClass} ${className}`} />;
+    case 'sprout':
+      return <Sprout className={`${currentSizeClass} ${tier.textColor} ${animClass} ${className}`} />;
     case 'flame':
       return <Flame className={`${currentSizeClass} ${tier.textColor} ${animClass} ${className}`} />;
     case 'zap':
       return <Zap className={`${currentSizeClass} ${tier.textColor} ${animClass} ${className}`} />;
-    case 'plasma':
-      return <Flame className={`${currentSizeClass} text-amber-500 dark:text-amber-400 fill-amber-400/30 drop-shadow-sm ${animClass} ${className}`} />;
-    case 'astral':
-      return <Sparkles className={`${currentSizeClass} text-amber-500 dark:text-amber-400 drop-shadow-sm ${animClass} ${className}`} />;
-    case 'diamond':
-      return <Gem className={`${currentSizeClass} text-amber-500 dark:text-amber-400 drop-shadow-sm ${animClass} ${className}`} />;
+    case 'shield':
+      return <Shield className={`${currentSizeClass} ${tier.textColor} ${animClass} ${className}`} />;
+    case 'rocket':
+      return <Rocket className={`${currentSizeClass} ${tier.textColor} ${animClass} ${className}`} />;
+    case 'gem':
+      return <Gem className={`${currentSizeClass} ${tier.textColor} ${animClass} ${className}`} />;
     case 'crown':
-      return <Crown className={`${currentSizeClass} text-amber-500 dark:text-amber-300 drop-shadow-md ${animClass} ${className}`} />;
-    case 'supernova':
-      return <Star className={`${currentSizeClass} text-amber-500 fill-amber-400 drop-shadow-md ${animClass} ${className}`} />;
+      return <Crown className={`${currentSizeClass} ${tier.textColor} ${animClass} ${className}`} />;
+    case 'star':
+      return <Star className={`${currentSizeClass} ${tier.textColor} ${animClass} ${className}`} />;
     case 'infinity':
-      return <InfinityIcon className={`${currentSizeClass} text-amber-500 dark:text-amber-300 drop-shadow-lg ${animClass} ${className}`} />;
+      return <InfinityIcon className={`${currentSizeClass} ${tier.textColor} ${animClass} ${className}`} />;
     default:
       return <Flame className={`${currentSizeClass} ${tier.textColor} ${className}`} />;
   }

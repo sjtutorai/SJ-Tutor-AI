@@ -226,6 +226,23 @@ export interface UserSettings {
 export type NoteStatus = 'New' | 'Revised' | 'Mastered';
 export type NoteTemplate = 'Theory' | 'Formula' | 'Q&A' | 'Revision' | 'Blank';
 
+export interface NoteFolder {
+  id: string;
+  name: string;
+  color: string; // e.g. 'indigo' | 'emerald' | 'amber' | 'rose' | 'sky' | 'violet' | 'teal'
+  icon: string; // emoji e.g. '📁' | '📐' | '🔬' | '📖' | '🧪' | '🎯' | '💡'
+  description?: string;
+  createdAt: number;
+}
+
+export const DEFAULT_NOTE_FOLDERS: NoteFolder[] = [
+  { id: 'folder-general', name: 'General Notes', color: 'indigo', icon: '📁', description: 'Quick notes, ideas, and general study material', createdAt: 1 },
+  { id: 'folder-math', name: 'Mathematics & Formulas', color: 'sky', icon: '📐', description: 'Theorems, algebra formulas, calculus steps', createdAt: 2 },
+  { id: 'folder-science', name: 'Science & Lab', color: 'emerald', icon: '🔬', description: 'Physics, chemistry, biology concepts and diagrams', createdAt: 3 },
+  { id: 'folder-humanities', name: 'History & Literature', color: 'amber', icon: '📖', description: 'Chronologies, essay outlines, book analyses', createdAt: 4 },
+  { id: 'folder-revision', name: 'Exam Revision', color: 'rose', icon: '🎯', description: 'High-yield flashnotes, key questions, cheat sheets', createdAt: 5 },
+];
+
 export interface NoteItem {
   id: string;
   title: string;

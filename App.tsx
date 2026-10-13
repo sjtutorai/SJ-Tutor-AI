@@ -46,6 +46,8 @@ import NotificationDropdown from "./components/NotificationDropdown";
 import Tutorial from "./components/Tutorial";
 import { useStreak } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
+import { DeepWorkFocusMode } from "./components/DeepWorkFocusMode";
+import { FloatingDeepWorkButton } from "./components/FloatingDeepWorkButton";
 import { StreakRewardModal } from "./components/StreakRewardModal";
 import { TrialBannerCard, calculateTrialInfo } from "./components/TrialTimerWidget";
 import { SharedContentView } from "./components/SharedContentView";
@@ -340,6 +342,7 @@ const App: React.FC = () => {
   const [settingsInitialTab, setSettingsInitialTab] = useState<any>('account');
   const [settingsOpenPinTab, setSettingsOpenPinTab] = useState<'twostep' | 'pin' | undefined>(undefined);
   const [dismissed2faReminder, setDismissed2faReminder] = useState<boolean>(false);
+  const [isDeepWorkActive, setIsDeepWorkActive] = useState<boolean>(false);
   const [hasSeenTutorial, setHasSeenTutorial] = useState(() => {
     try {
       return localStorage.getItem("hasSeenTutorial") === "true";
@@ -2568,7 +2571,7 @@ const App: React.FC = () => {
     setShowDevicesModal(false);
     setShowNotifDropdown(false);
 
-    const currentUid = user?.uid;
+    const currentUid = user?.uid || userProfile?.uid || auth.currentUser?.uid;
     localStorage.removeItem("sjtutor_authenticated_user");
     localStorage.removeItem("sjtutor_active_user");
     localStorage.removeItem("sjtutor_device_login_time");
@@ -2633,7 +2636,7 @@ const App: React.FC = () => {
     setShowDevicesModal(false);
     setShowNotifDropdown(false);
 
-    const currentUid = user?.uid;
+    const currentUid = user?.uid || userProfile?.uid || auth.currentUser?.uid;
     localStorage.removeItem("sjtutor_authenticated_user");
     localStorage.removeItem("sjtutor_active_user");
     localStorage.removeItem("sjtutor_device_login_time");
@@ -3042,6 +3045,21 @@ const App: React.FC = () => {
               Ready to learn something new today?
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsDeepWorkActive(true)}
+            className="flex items-center gap-2.5 px-4 py-2.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-2xl text-xs font-bold border border-slate-700/80 shadow-md transition-all hover:scale-105 active:scale-95 group select-none self-start sm:self-auto cursor-pointer"
+            title="Enter 25-minute Pomodoro Deep Work Focus Mode (Alt+F)"
+          >
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+            </span>
+            <span>Deep Work Focus (25m Pomodoro)</span>
+            <span className="text-[10px] bg-slate-800 dark:bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded text-slate-300">
+              Alt+F
+            </span>
+          </button>
         </div>
 
         <TrialBannerCard 
@@ -3567,6 +3585,7 @@ const App: React.FC = () => {
         return (
           <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex-1 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
             <TutorChat
+              key={currentHistoryId || 'new_tutor_session'}
               onDeductCredit={deductCredit}
               currentCredits={userProfile.credits}
               onSharePublicLink={async (type, title, content) => {
@@ -3640,14 +3659,15 @@ const App: React.FC = () => {
                 }
               }}
               initialMessages={
-                history.find(
-                  (h) => (h.id === currentHistoryId || (!currentHistoryId && h.type === AppMode.TUTOR)) && h.type === AppMode.TUTOR,
-                )?.content?.messages
+                currentHistoryId
+                  ? history.find((h) => h.id === currentHistoryId && h.type === AppMode.TUTOR)?.content?.messages
+                  : undefined
               }
               recentSessions={history.filter((h) => h.type === AppMode.TUTOR)}
               fullHistory={history}
               activeSessionId={currentHistoryId}
               onSelectSession={(id) => setCurrentHistoryId(id)}
+              onNewSession={() => setCurrentHistoryId(null)}
               onDeleteSession={async (sessionId) => {
                 const updatedHistory = history.filter(h => h.id !== sessionId);
                 setHistory(updatedHistory);
@@ -4357,6 +4377,7 @@ const App: React.FC = () => {
 
                     <button
                       type="button"
+                      id="header-devices-btn"
                       onClick={() => {
                         setShowUserDropdown(false);
                         setShowDevicesModal(true);
@@ -4364,9 +4385,9 @@ const App: React.FC = () => {
                       className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors text-left"
                     >
                       <Laptop className="w-4 h-4 text-slate-400" />
-                      <span>Active Devices</span>
+                      <span>Active Sessions &amp; Devices</span>
                       {loggedInDevices.length > 0 && (
-                        <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md">
+                        <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 bg-primary-100 dark:bg-primary-950 text-primary-700 dark:text-primary-300 rounded-md">
                           {loggedInDevices.length}
                         </span>
                       )}
@@ -4384,7 +4405,7 @@ const App: React.FC = () => {
                       className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors text-left"
                     >
                       <LogOut className="w-4 h-4 text-red-500" />
-                      <span>Sign Out</span>
+                      <span>Terminate Session (Sign Out)</span>
                     </button>
                   </div>
                 )}
@@ -4438,11 +4459,51 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Floating Daily Streak Hub Widget */}
-      <FloatingStreakWidget
-        userProfile={userProfile}
-        onProfileUpdate={handleProfileSave}
-      />
+      {/* Floating Daily Streak Hub Widget (hidden during Deep Work Focus) */}
+      {!isDeepWorkActive && (
+        <FloatingStreakWidget
+          userProfile={userProfile}
+          onProfileUpdate={handleProfileSave}
+        />
+      )}
+
+      {/* Floating Deep Work Focus Mode Button on Dashboard */}
+      {mode === AppMode.DASHBOARD && !isDeepWorkActive && (
+        <FloatingDeepWorkButton
+          onEnterFocus={() => setIsDeepWorkActive(true)}
+        />
+      )}
+
+      {/* Deep Work Focus Mode Full-Screen Immersion (Hides non-essential UI, mutes notifications, 25m Pomodoro) */}
+      {isDeepWorkActive && (
+        <DeepWorkFocusMode
+          onExit={() => setIsDeepWorkActive(false)}
+          userId={user ? user.uid : null}
+          userProfile={userProfile}
+          onSaveQuickNote={async (noteData) => {
+            const key = user ? user.uid : 'guest';
+            const local = JSON.parse(localStorage.getItem(`notes_${key}`) || '[]');
+            const item: NoteItem = {
+              id: `note-${Date.now()}`,
+              title: noteData.title || 'Focus Note',
+              content: noteData.content || '',
+              subject: noteData.subject || 'General Notes',
+              chapter: noteData.chapter || 'Deep Work Session',
+              template: 'Blank',
+              status: 'New',
+              isFavorite: true,
+              date: Date.now(),
+              tags: ['deep-work', 'pomodoro'],
+              folder: noteData.folder || 'General Notes',
+            };
+            const updated = [item, ...local];
+            localStorage.setItem(`notes_${key}`, JSON.stringify(updated));
+            if (user) {
+              saveNotesToFirestore(user.uid, updated);
+            }
+          }}
+        />
+      )}
 
       <AnimatePresence>
         {showTutorial && !userProfile.isRegisteredInFirestore && <Tutorial onClose={handleTutorialClose} />}
@@ -4662,7 +4723,7 @@ const App: React.FC = () => {
         isOpen={showDevicesModal}
         onClose={() => setShowDevicesModal(false)}
         devices={loggedInDevices}
-        userId={user ? user.uid : null}
+        userId={user ? user.uid : (userProfile?.uid || auth.currentUser?.uid || null)}
         onLogoutCurrentDevice={handleLogout}
         onLogoutAllDevices={handleLogoutAllDevices}
         onTriggerToast={triggerToast}

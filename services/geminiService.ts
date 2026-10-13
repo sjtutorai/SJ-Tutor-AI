@@ -268,7 +268,7 @@ class GeminiKeyManager {
     }
 
     this.checkCooldowns();
-    const modelsToTry = customModels || ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+    const modelsToTry = customModels || ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
     let lastError: any = null;
 
     for (let mIdx = 0; mIdx < modelsToTry.length; mIdx++) {
@@ -361,7 +361,7 @@ class GeminiKeyManager {
     streamBuilder: (ai: GoogleGenAI, slot: KeySlot, attempt: number, model: string) => Promise<T>,
     customModels?: string[]
   ): Promise<AsyncIterable<any>> {
-    const modelsToTry = customModels || ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+    const modelsToTry = customModels || ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'];
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const self = this;
 
@@ -864,17 +864,40 @@ Generate notes based on:
     return keyManager.executeWithRotation(async (ai, _slot, _attempt, model) => {
       const systemInstruction = SettingsService.getTutorSystemInstruction();
       
-      const formattedHistory = history.map(msg => ({
-        role: msg.role === 'model' ? 'model' : 'user',
-        parts: msg.images ? [
-          ...msg.images.map((img: string) => ({
-            inlineData: { mimeType: 'image/jpeg', data: img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "") }
-          })),
-          { text: msg.text }
-        ] : [{ text: msg.text }]
-      }));
+      const rawHistory = (history || [])
+        .map(msg => ({
+          role: msg.role === 'model' ? 'model' : 'user',
+          parts: msg.images && Array.isArray(msg.images) && msg.images.length > 0 ? [
+            ...msg.images.map((img: string) => ({
+              inlineData: { mimeType: 'image/jpeg', data: img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "") }
+            })),
+            { text: msg.text && msg.text.trim() ? msg.text : " " }
+          ] : [{ text: msg.text && msg.text.trim() ? msg.text : " " }]
+        }));
 
-      const currentParts: any[] = [{ text }];
+      // Filter out leading model messages (Gemini multiturn conversations MUST start with role 'user')
+      const firstUserIdx = rawHistory.findIndex(m => m.role === 'user');
+      const validHistory = firstUserIdx >= 0 ? rawHistory.slice(firstUserIdx) : [];
+
+      // Avoid duplicate consecutive user turn at the end if history already contained the prompt
+      if (validHistory.length > 0 && validHistory[validHistory.length - 1].role === 'user') {
+        const lastPart = validHistory[validHistory.length - 1].parts.find((p: any) => p.text);
+        if (lastPart && (lastPart.text === text.trim() || !lastPart.text || lastPart.text === ' ')) {
+          validHistory.pop();
+        }
+      }
+
+      // Combine consecutive turns of the same role
+      const alternatingHistory: { role: string; parts: any[] }[] = [];
+      for (const turn of validHistory) {
+        if (alternatingHistory.length > 0 && alternatingHistory[alternatingHistory.length - 1].role === turn.role) {
+          alternatingHistory[alternatingHistory.length - 1].parts.push(...turn.parts);
+        } else {
+          alternatingHistory.push({ role: turn.role, parts: [...turn.parts] });
+        }
+      }
+
+      const currentParts: any[] = [{ text: text.trim() || "Hello" }];
       imagesBase64.forEach(img => {
         const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
         currentParts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } });
@@ -882,7 +905,7 @@ Generate notes based on:
 
       const response = await ai.models.generateContent({
         model,
-        contents: [...formattedHistory, { role: 'user', parts: currentParts }],
+        contents: [...alternatingHistory, { role: 'user', parts: currentParts }],
         config: { systemInstruction }
       });
 
@@ -909,8 +932,8 @@ Your mission:
 
       ${SettingsService.getTutorSystemInstruction()}` + (userContext ? `\n\nUser Context & Memory (Past Interactions):\n\n${userContext}` : '');
 
-    // Process chat history safely
-    const formattedHistory = history.map(msg => {
+    // Process raw chat history
+    const rawHistory = (history || []).map(msg => {
       const parts: any[] = [];
       if (msg.images && Array.isArray(msg.images)) {
         msg.images.forEach((img: string) => {
@@ -920,12 +943,14 @@ Your mission:
           }
         });
       }
-      parts.push({ text: msg.text && msg.text.trim() ? msg.text : " " });
+      if (msg.text && msg.text.trim()) {
+        parts.push({ text: msg.text.trim() });
+      }
       return {
         role: msg.role === 'model' ? 'model' : 'user',
-        parts
+        parts: parts.length > 0 ? parts : [{ text: ' ' }]
       };
-    });
+    }).filter(msg => msg.parts.length > 0);
 
     // Build current prompt parts
     const currentParts: any[] = [];
@@ -961,10 +986,36 @@ Your mission:
 
     currentParts.push({ text: finalPrompt });
 
+    // Filter out leading model messages (Gemini multiturn conversations MUST start with role 'user')
+    const firstUserIdx = rawHistory.findIndex(m => m.role === 'user');
+    const validHistory = firstUserIdx >= 0 ? rawHistory.slice(firstUserIdx) : [];
+
+    // If the last turn in validHistory is already a user message that matches finalPrompt (because it was optimistically added),
+    // pop it so we do not send duplicate consecutive user turns
+    if (validHistory.length > 0 && validHistory[validHistory.length - 1].role === 'user') {
+      const lastTurn = validHistory[validHistory.length - 1];
+      const lastText = lastTurn.parts.find((p: any) => p.text)?.text || '';
+      if (lastText === finalPrompt || lastText === text.trim() || !lastText || lastText === ' ') {
+        validHistory.pop();
+      }
+    }
+
+    // Combine consecutive turns of the same role to guarantee strict alternation
+    const alternatingHistory: { role: string; parts: any[] }[] = [];
+    for (const turn of validHistory) {
+      if (alternatingHistory.length > 0 && alternatingHistory[alternatingHistory.length - 1].role === turn.role) {
+        alternatingHistory[alternatingHistory.length - 1].parts.push(...turn.parts);
+      } else {
+        alternatingHistory.push({ role: turn.role, parts: [...turn.parts] });
+      }
+    }
+
+    const contents = [...alternatingHistory, { role: 'user', parts: currentParts }];
+
     return keyManager.executeStreamWithRotation(async (ai, _slot, _attempt, model) => {
       const response = await ai.models.generateContentStream({
         model,
-        contents: [...formattedHistory, { role: 'user', parts: currentParts }],
+        contents,
         config: { systemInstruction }
       });
 

@@ -59,10 +59,10 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
   }));
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-gradient-to-tr from-slate-950 via-slate-900 to-blue-950 text-white">
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-gradient-to-tr from-slate-950 via-[#061435] to-[#042459] text-white">
       {/* Floating Ambient Light Blobs */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-blue-600/10 blur-[120px] animate-pulse pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-purple-600/10 blur-[120px] animate-pulse pointer-events-none" style={{ animationDelay: "1s" }} />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-[#0564E8]/20 blur-[120px] animate-pulse pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-[#46D8D1]/15 blur-[120px] animate-pulse pointer-events-none" style={{ animationDelay: "1s" }} />
 
       {/* Floating Particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -71,7 +71,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
             key={p.id}
             initial={{ opacity: 0, y: `${p.y + 10}%` }}
             animate={{ 
-              opacity: [0, 0.4, 0.4, 0],
+              opacity: [0, 0.5, 0.5, 0],
               y: [`${p.y}%`, `${p.y - 30}%`]
             }}
             transition={{
@@ -80,7 +80,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
               delay: p.delay,
               ease: "easeInOut"
             }}
-            className="absolute bg-blue-400 rounded-full"
+            className="absolute bg-cyan-300 rounded-full"
             style={{
               left: `${p.x}%`,
               width: `${p.size}px`,
@@ -94,28 +94,30 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
         {/* Logo and Rotating Ring Container */}
         <div className="relative mb-10 flex items-center justify-center">
           {/* Outer glowing pulsing aura */}
-          <div className="absolute w-40 h-40 bg-blue-500/20 rounded-full blur-2xl animate-pulse" />
+          <div className="absolute w-44 h-44 bg-[#0564E8]/30 rounded-full blur-2xl animate-pulse" />
 
           {/* Rotating AI Rings */}
           <motion.div
             animate={{ rotate: 360 }}
-            transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
-            className="absolute w-32 h-32 rounded-full border border-dashed border-blue-400/40 p-1"
+            transition={{ duration: 7, repeat: Infinity, ease: "linear" }}
+            className="absolute w-36 h-36 rounded-full border border-dashed border-[#46D8D1]/50 p-1"
           />
           <motion.div
             animate={{ rotate: -360 }}
-            transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-            className="absolute w-[140px] h-[140px] rounded-full border border-dashed border-purple-400/20"
+            transition={{ duration: 11, repeat: Infinity, ease: "linear" }}
+            className="absolute w-[150px] h-[150px] rounded-full border border-dashed border-[#0564E8]/40"
           />
 
           {/* Premium Logo Wrapper */}
           <motion.div
             initial={{ scale: 0.88, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-28 h-28 flex items-center justify-center"
+            transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+            className="relative w-28 h-28 rounded-full p-1 bg-gradient-to-tr from-[#0564E8] via-[#0C9DDB] to-[#46D8D1] shadow-[0_0_30px_rgba(5,100,232,0.5)] flex items-center justify-center overflow-hidden"
           >
-            <Logo className="w-full h-full text-blue-500" iconOnly />
+            <div className="w-full h-full rounded-full overflow-hidden bg-slate-950 flex items-center justify-center">
+              <Logo className="w-full h-full" iconOnly noBorder />
+            </div>
           </motion.div>
         </div>
 
@@ -126,7 +128,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
           transition={{ delay: 0.3, duration: 0.8 }}
           className="text-2xl font-black tracking-tight text-white mb-2"
         >
-          SJ Tutor <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">AI</span>
+          SJ Tutor <span className="bg-gradient-to-r from-[#46D8D1] via-[#38BDF8] to-[#0564E8] bg-clip-text text-transparent">AI</span>
         </motion.h1>
 
         {/* Dynamic cycling status messages */}
@@ -144,9 +146,9 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
         </div>
 
         {/* Glassmorphic progress bar */}
-        <div className="w-full h-1.5 bg-slate-950/40 rounded-full border border-white/5 overflow-hidden backdrop-blur-sm shadow-inner relative">
+        <div className="w-full h-1.5 bg-slate-950/60 rounded-full border border-white/10 overflow-hidden backdrop-blur-sm shadow-inner relative">
           <motion.div
-            className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.6)]"
+            className="h-full bg-gradient-to-r from-[#0564E8] via-[#0C9DDB] to-[#46D8D1] rounded-full shadow-[0_0_12px_rgba(5,100,232,0.7)]"
             style={{ width: `${progress}%` }}
             transition={{ ease: "linear" }}
           />

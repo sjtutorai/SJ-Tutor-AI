@@ -48,6 +48,15 @@ export const SettingsService = {
       if (stored) {
         // Merge stored settings with defaults to ensure new fields are present
         const parsed = JSON.parse(stored);
+        
+        // Migrate legacy default Gold to new official Sapphire visual identity if not explicitly chosen
+        if (parsed.appearance && parsed.appearance.primaryColor === 'Gold') {
+          const explicitlyCustomized = localStorage.getItem('sjtutor_theme_color_customized');
+          if (!explicitlyCustomized) {
+            parsed.appearance.primaryColor = 'Sapphire';
+          }
+        }
+
         return {
           ...DEFAULT_SETTINGS,
           ...parsed,

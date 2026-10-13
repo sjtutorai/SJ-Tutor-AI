@@ -319,7 +319,7 @@ export class DeviceService {
   }
 
   /**
-   * Logout/Revoke a specific device.
+   * Logout/Revoke a specific device session.
    */
   static async logoutDevice(userId: string, targetDeviceId: string): Promise<boolean> {
     const currentDeviceId = getCurrentDeviceId();
@@ -328,19 +328,29 @@ export class DeviceService {
     try {
       if (userId && targetDeviceId) {
         const deviceRef = doc(db, "users", userId, "devices", targetDeviceId);
-        // Set revoked first so remote listeners react instantly, then delete
-        await setDoc(deviceRef, { status: 'revoked' }, { merge: true }).catch(() => {});
-        await deleteDoc(deviceRef).catch(() => {});
+        // Explicitly set status to 'revoked' so remote listeners instantly receive the termination snapshot
+        await setDoc(deviceRef, { 
+          status: 'revoked',
+          revokedAt: Date.now(),
+          lastActive: Date.now() 
+        }, { merge: true });
+
+        // Schedule delayed cleanup of the revoked document (15 seconds) so remote clients reliably trigger revocation
+        setTimeout(async () => {
+          try {
+            await deleteDoc(deviceRef);
+          } catch {
+            // Silently ignore cleanup errors
+          }
+        }, 15000);
       }
     } catch (error) {
-      console.warn("[DeviceService] Notice deleting device document from Firestore:", error);
+      console.warn("[DeviceService] Notice revoking device document from Firestore:", error);
     } finally {
       if (isCurrent) {
+        this.cleanupLocalDeviceState();
         localStorage.removeItem("sjtutor_authenticated_user");
         localStorage.removeItem("sjtutor_active_user");
-        localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
-        localStorage.removeItem(DEVICE_ID_KEY);
-        this.stopHeartbeat();
         try {
           await signOut(auth);
         } catch (authErr) {
@@ -363,27 +373,40 @@ export class DeviceService {
         const snapshot = await getDocs(devicesColRef).catch(() => null);
 
         if (snapshot && !snapshot.empty) {
-          const deletePromises: Promise<any>[] = [];
+          const updatePromises: Promise<any>[] = [];
+          const docsToDelete: any[] = [];
+
           snapshot.forEach((docSnap) => {
             const devRef = doc(db, "users", userId, "devices", docSnap.id);
-            // Mark revoked and delete
-            deletePromises.push(
-              setDoc(devRef, { status: 'revoked' }, { merge: true })
-                .then(() => deleteDoc(devRef))
-                .catch((err) => console.warn("Error deleting device doc:", err))
+            // Mark revoked first so remote listeners react immediately
+            updatePromises.push(
+              setDoc(devRef, { 
+                status: 'revoked', 
+                revokedAt: Date.now(),
+                lastActive: Date.now()
+              }, { merge: true }).catch((err) => console.warn("Error marking device revoked:", err))
             );
+            docsToDelete.push(devRef);
           });
-          await Promise.all(deletePromises);
+          
+          await Promise.all(updatePromises);
+
+          // Schedule delayed cleanup
+          setTimeout(async () => {
+            try {
+              await Promise.all(docsToDelete.map(ref => deleteDoc(ref).catch(() => {})));
+            } catch {
+              // Ignore
+            }
+          }, 15000);
         }
       }
     } catch (error) {
       console.error("[DeviceService] Error revoking all devices:", error);
     } finally {
+      this.cleanupLocalDeviceState();
       localStorage.removeItem("sjtutor_authenticated_user");
       localStorage.removeItem("sjtutor_active_user");
-      localStorage.removeItem(DEVICE_LOGIN_TIME_KEY);
-      localStorage.removeItem(DEVICE_ID_KEY);
-      this.stopHeartbeat();
       try {
         await signOut(auth);
       } catch (authErr) {
@@ -395,7 +418,7 @@ export class DeviceService {
   }
 
   /**
-   * Logout from all other devices except this current one.
+   * Logout/Terminate all other device sessions except this current one.
    */
   static async logoutAllOtherDevices(userId: string): Promise<number> {
     try {
@@ -406,21 +429,35 @@ export class DeviceService {
       const snapshot = await getDocs(devicesColRef);
 
       let removedCount = 0;
-      const deletePromises: Promise<any>[] = [];
+      const updatePromises: Promise<any>[] = [];
+      const docsToDelete: any[] = [];
 
       snapshot.forEach((docSnap) => {
         if (docSnap.id !== currentDeviceId) {
           removedCount++;
           const devRef = doc(db, "users", userId, "devices", docSnap.id);
-          deletePromises.push(
-            setDoc(devRef, { status: 'revoked' }, { merge: true })
-              .then(() => deleteDoc(devRef))
-              .catch((err) => console.warn("Error deleting other device doc:", err))
+          updatePromises.push(
+            setDoc(devRef, { 
+              status: 'revoked', 
+              revokedAt: Date.now(),
+              lastActive: Date.now()
+            }, { merge: true }).catch((err) => console.warn("Error marking other device revoked:", err))
           );
+          docsToDelete.push(devRef);
         }
       });
 
-      await Promise.all(deletePromises);
+      await Promise.all(updatePromises);
+
+      // Delayed cleanup
+      setTimeout(async () => {
+        try {
+          await Promise.all(docsToDelete.map(ref => deleteDoc(ref).catch(() => {})));
+        } catch {
+          // Ignore
+        }
+      }, 15000);
+
       return removedCount;
     } catch (error) {
       console.error("[DeviceService] Failed to logout other devices:", error);

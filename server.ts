@@ -55,7 +55,7 @@ app.get('/sj_tutor_bg.jpg', (req, res) => {
   res.sendFile(filePath);
 });
 
-app.get(['/SJ-Tutor-AI-Logo.jpg', '/logo.jpg'], (req, res) => {
+app.get(['/SJ-Tutor-AI-Logo.jpg', '/logo.jpg', '/SJ-Tutor-AI-Logo.png', '/logo.png'], (req, res) => {
   res.redirect(302, 'https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg');
 });
 
@@ -261,6 +261,7 @@ Allow: /apple-touch-icon*
 Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
+Allow: /SJ-Tutor-AI-Logo.png
 Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest
@@ -287,6 +288,7 @@ Allow: /apple-touch-icon*
 Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
+Allow: /SJ-Tutor-AI-Logo.png
 Allow: /og-image.png
 
 User-agent: *
@@ -304,6 +306,7 @@ Allow: /apple-touch-icon*
 Allow: /android-chrome*
 Allow: /logo*
 Allow: /SJ-Tutor-AI-Logo.jpg
+Allow: /SJ-Tutor-AI-Logo.png
 Allow: /og-image.png
 Allow: /manifest.json
 Allow: /site.webmanifest

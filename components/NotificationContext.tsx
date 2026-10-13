@@ -94,6 +94,8 @@ interface NotificationContextProps {
   triggerToast: (title: string, body: string, category?: string) => void;
   isAdminUser: boolean;
   setupFCM: (user: User) => Promise<void>;
+  isNotificationsMuted: boolean;
+  setNotificationsMuted: (muted: boolean) => void;
 }
 
 const NotificationContext = createContext<NotificationContextProps | undefined>(undefined);
@@ -218,8 +220,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   });
 
   const [activeToasts, setActiveToasts] = useState<ActiveToast[]>([]);
+  const [isNotificationsMuted, setNotificationsMuted] = useState<boolean>(false);
+  const isMutedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    isMutedRef.current = isNotificationsMuted;
+  }, [isNotificationsMuted]);
 
   const triggerToast = (title: string, body: string, category = 'Important Alerts') => {
+    if (isMutedRef.current) {
+      return; // Do not disturb during Deep Work Focus Mode
+    }
     const id = `toast-${Date.now()}-${Math.random()}`;
     const newToast: ActiveToast = { id, title, body, category };
     setActiveToasts((prev) => [...prev, newToast]);
@@ -597,6 +608,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Trigger system notification
   const triggerSystemNotification = (title: string, body: string, url = '/') => {
+    if (isMutedRef.current) {
+      return; // Do not disturb during Deep Work Focus Mode
+    }
     if ('Notification' in window && Notification.permission === 'granted') {
       const options = {
         body,
@@ -1023,6 +1037,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         triggerToast,
         isAdminUser,
         setupFCM,
+        isNotificationsMuted,
+        setNotificationsMuted,
       }}
     >
       {children}

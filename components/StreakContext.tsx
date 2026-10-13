@@ -95,6 +95,76 @@ export const getTimeUntilNextStreakClaim = (streak: { lastStudyTimestamp?: numbe
   };
 };
 
+export interface StreakCycleProgress {
+  progressPercent: number; // 0 to 100
+  elapsedMs: number;
+  remainingMs: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  canClaim: boolean;
+  lastStudyTimestamp?: number;
+  lastStudyDate: string | null;
+  formattedRemaining: string;
+  statusLabel: string;
+}
+
+export const get24HourStreakProgress = (streak: { lastStudyTimestamp?: number; lastStudyDate?: string | null }): StreakCycleProgress => {
+  if (canClaimStreakIncrease(streak)) {
+    return {
+      progressPercent: 100,
+      elapsedMs: TWENTY_FOUR_HOURS_MS,
+      remainingMs: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      canClaim: true,
+      lastStudyTimestamp: streak.lastStudyTimestamp,
+      lastStudyDate: streak.lastStudyDate || null,
+      formattedRemaining: 'Ready Now',
+      statusLabel: '24 Hours Completed! Ready to Increment Streak',
+    };
+  }
+
+  const now = Date.now();
+  let timestamp = streak.lastStudyTimestamp || 0;
+  if (!timestamp && streak.lastStudyDate === getLocalDateString()) {
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    timestamp = todayMidnight.getTime();
+  }
+
+  const elapsed = Math.max(0, now - timestamp);
+  const remainingMs = Math.max(0, TWENTY_FOUR_HOURS_MS - elapsed);
+  const rawPercent = (elapsed / TWENTY_FOUR_HOURS_MS) * 100;
+  const progressPercent = Math.min(100, Math.max(0, Math.round(rawPercent * 10) / 10));
+
+  const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+  const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+
+  let formattedRemaining = `${hours}h ${minutes}m`;
+  if (hours === 0 && minutes > 0) {
+    formattedRemaining = `${minutes}m ${seconds}s`;
+  } else if (hours === 0 && minutes === 0) {
+    formattedRemaining = `${seconds}s`;
+  }
+
+  return {
+    progressPercent: remainingMs === 0 ? 100 : progressPercent,
+    elapsedMs: elapsed,
+    remainingMs,
+    hours,
+    minutes,
+    seconds,
+    canClaim: remainingMs === 0,
+    lastStudyTimestamp: streak.lastStudyTimestamp,
+    lastStudyDate: streak.lastStudyDate || null,
+    formattedRemaining,
+    statusLabel: `${hours}h ${minutes}m until next streak increment`,
+  };
+};
+
 export interface LeaderboardEntry {
   uid: string;
   displayName: string;

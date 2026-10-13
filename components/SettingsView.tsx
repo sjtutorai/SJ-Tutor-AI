@@ -12,7 +12,7 @@ import {
   Save, LogOut, Trash2, Shield, Activity, Type, Palette, Monitor, Zap,
   Volume2, Volume1, VolumeX, PhoneCall, Phone, Play, Square, AlertTriangle, CheckCircle2,
   Terminal, Crown, Check, Clock, FileText, Keyboard, Command, Sparkles, KeyRound, Fingerprint, ShieldCheck,
-  RefreshCw, Cpu
+  RefreshCw, Cpu, Laptop, Power
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 import { callAudio, RINGTONE_STYLES } from '../services/webrtcService';
@@ -280,7 +280,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'privacy', label: 'Privacy', icon: Lock },
-    { id: 'shortcuts', label: 'Keyboard Shortcuts', icon: Keyboard },
+    { id: 'shortcuts', label: 'Shortcuts & Voice', icon: Keyboard },
     { id: 'system', label: 'App & System', icon: Smartphone },
     { id: 'billing', label: 'Subscription', icon: CreditCard },
     { id: 'help', label: 'Help & Support', icon: HelpCircle },
@@ -384,10 +384,14 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                </div>
 
                {onOpenDevices && (
-                 <div className="p-4 flex justify-between items-center hover:bg-white dark:hover:bg-slate-700/50 cursor-pointer" onClick={onOpenDevices}>
+                 <div 
+                   id="settings-manage-devices-row"
+                   className="p-4 flex justify-between items-center hover:bg-white dark:hover:bg-slate-700/50 cursor-pointer" 
+                   onClick={onOpenDevices}
+                 >
                     <div>
-                      <p className="font-medium text-slate-700 dark:text-slate-200">Logged-in Devices</p>
-                      <p className="text-xs text-slate-400">View active login sessions, dates, and sign out</p>
+                      <p className="font-medium text-slate-700 dark:text-slate-200">Active Login Sessions &amp; Devices</p>
+                      <p className="text-xs text-slate-400">View active logins and terminate device sessions</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="px-2.5 py-0.5 text-xs font-bold bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 rounded-full border border-primary-200 dark:border-primary-800">
@@ -1557,6 +1561,37 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                  </div>
                </div>
 
+               {/* 4. Active Sessions & Remote Device Termination */}
+               {onOpenDevices && (
+                 <div className="p-5 rounded-2xl border bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                   <div className="flex items-start gap-3.5">
+                     <div className="p-2.5 rounded-xl bg-slate-800 text-white shadow-sm shrink-0">
+                       <Laptop className="w-5 h-5 text-primary-400" />
+                     </div>
+                     <div>
+                       <div className="flex items-center gap-2">
+                         <span className="text-base font-bold text-slate-800 dark:text-white">
+                           Active Login Sessions &amp; Devices
+                         </span>
+                         <span className="px-2.5 py-0.5 text-xs font-bold bg-primary-100 dark:bg-primary-950/80 text-primary-700 dark:text-primary-300 rounded-full border border-primary-200 dark:border-primary-800">
+                           {devicesCount || 1} Active
+                         </span>
+                       </div>
+                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                         Review all computers and mobile browsers logged into your account. Terminate active sessions remotely to secure your account.
+                       </p>
+                     </div>
+                   </div>
+                   <button
+                     id="settings-privacy-terminate-sessions-btn"
+                     onClick={onOpenDevices}
+                     className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0 shadow-sm active:scale-95"
+                   >
+                     <Power className="w-3.5 h-3.5" /> Manage &amp; Terminate Sessions
+                   </button>
+                 </div>
+               )}
+
                <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-3">
                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Data Management</h4>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1836,6 +1871,17 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
               { key: `${modKey} + K`, label: 'Interactive Shortcuts', desc: 'Toggle keyboard shortcut cheat sheet' },
               { key: `${modKey} + Shift + A`, label: 'About Us Modal', desc: 'View creator details & academic mission' },
               { key: 'Esc', label: 'Close Active Modal', desc: 'Dismiss any open dialog or full-screen viewer' },
+            ]
+          },
+          {
+            category: 'Hands-Free Voice Navigation (Mic)',
+            items: [
+              { key: 'Alt + V', label: 'Toggle Voice Listening', desc: 'Activate or pause hands-free microphone listening' },
+              { key: '"Open Summary"', label: 'Instant Summary', desc: 'Hands-free voice command to open summary generator' },
+              { key: '"Ask Tutor"', label: 'AI Tutor Chat', desc: 'Hands-free voice command to open conversational AI tutor' },
+              { key: '"Generate"', label: 'Generate / Solve', desc: 'Hands-free voice command to trigger active generation' },
+              { key: '"Open Quiz"', label: 'Quiz Creator', desc: 'Hands-free voice command to jump to quiz creator' },
+              { key: '"Voice Help"', label: 'Voice Commands Help', desc: 'Opens interactive voice commands tester dialog' },
             ]
           }
         ];

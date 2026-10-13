@@ -17,7 +17,8 @@ import {
   Info,
   ChevronRight,
   Award,
-  Crown
+  Crown,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -25,7 +26,8 @@ import {
   STREAK_MILESTONES, 
   LeaderboardEntry, 
   getLocalDateString,
-  getTimeUntilNextStreakClaim
+  get24HourStreakProgress,
+  StreakCycleProgress
 } from './StreakContext';
 import { 
   STREAK_TIERS, 
@@ -67,14 +69,15 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     milestone: number | null;
   } | null>(null);
 
-  // Realtime 24-hour streak claim countdown
-  const [claimCountdown, setClaimCountdown] = useState(() => getTimeUntilNextStreakClaim(streak));
+  // Realtime 24-hour streak cycle visual progress and countdown
+  const [cycleProgress, setCycleProgress] = useState<StreakCycleProgress>(() => get24HourStreakProgress(streak));
 
   useEffect(() => {
-    setClaimCountdown(getTimeUntilNextStreakClaim(streak));
-    const interval = setInterval(() => {
-      setClaimCountdown(getTimeUntilNextStreakClaim(streak));
-    }, 10000);
+    const updateProgress = () => {
+      setCycleProgress(get24HourStreakProgress(streak));
+    };
+    updateProgress();
+    const interval = setInterval(updateProgress, 1000);
     return () => clearInterval(interval);
   }, [streak.lastStudyTimestamp, streak.lastStudyDate]);
 
@@ -398,48 +401,155 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
         }
         className={`fixed ${!position ? 'bottom-6 right-6' : ''} z-40 select-none touch-none`}
       >
-        <div
-          ref={badgeRef}
-          id="floating-streak-badge"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerCancel}
-          role="button"
-          tabIndex={0}
-          title={`${userTier.emoji} ${currentStreak} Day Streak (${userTier.name}) • Drag anywhere to place • Click to open Streak Hub`}
-          className={`group relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr ${userTier.gradient} text-white shadow-xl ${userTier.glowColor} hover:shadow-2xl border-2 ${userTier.borderColor} backdrop-blur-md transition-all ${
-            isDraggingActive 
-              ? 'cursor-grabbing scale-110 shadow-2xl' 
-              : isNewlyAchievedPulse
-              ? `cursor-grab scale-105 ring-4 ${userTier.ringColor} ring-offset-2 ring-offset-slate-900 animate-pulse shadow-2xl`
-              : 'cursor-grab hover:scale-105 active:scale-95'
-          }`}
-        >
-          {/* Outer Pulsing Glow Ring */}
-          <span className={`absolute -inset-1 rounded-full bg-white/30 dark:bg-white/20 pointer-events-none ${
-            isNewlyAchievedPulse ? `animate-ping opacity-100 ring-2 ${userTier.ringColor}` : 'animate-ping opacity-70'
-          }`} />
-          
-          {/* Inner Surrounded Circular Border */}
-          <div className="absolute inset-1 rounded-full border border-white/40 dark:border-white/20 pointer-events-none" />
+        <div className="relative group">
+          {/* Floating Hover Card with 24-Hour Progress Bar */}
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap z-50 transform scale-95 group-hover:scale-100">
+            <div className="px-3 py-2 bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/80 text-white min-w-[190px]">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-amber-400" /> 24h Cycle
+                </span>
+                <span className={`text-[11px] font-black font-mono ${cycleProgress.canClaim ? 'text-emerald-400' : 'text-amber-300'}`}>
+                  {cycleProgress.canClaim ? '✨ 100%' : `${cycleProgress.progressPercent}%`}
+                </span>
+              </div>
+              
+              {/* Mini visual progress bar */}
+              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/60 mb-1.5">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    cycleProgress.canClaim
+                      ? 'bg-gradient-to-r from-emerald-400 via-amber-300 to-emerald-400'
+                      : 'bg-gradient-to-r from-sky-400 via-amber-400 to-emerald-400'
+                  }`}
+                  style={{ width: `${Math.max(4, cycleProgress.progressPercent)}%` }}
+                />
+              </div>
 
-          {/* Dynamic Tier Streak Icon */}
-          <div className="relative flex flex-col items-center justify-center">
-            <StreakTierIcon tier={userTier} size="lg" animate={true} className="text-white fill-white/80 drop-shadow-md" />
-          </div>
-
-          {/* Floating Number Badge on Circle with Tier Styling */}
-          <div className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 min-w-[22px] h-[22px] bg-slate-950/95 text-white font-mono font-black text-[11px] rounded-full border border-white/50 flex items-center justify-center shadow-lg">
-            {currentStreak}
-          </div>
-
-          {/* Learned Today Check Indicator */}
-          {isStudiedToday && (
-            <div className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold shadow-md border-2 border-slate-900">
-              ✓
+              <div className="text-[10px] text-slate-300 flex items-center justify-between font-medium">
+                <span>Next Streak:</span>
+                <span className={`font-mono font-bold ${cycleProgress.canClaim ? 'text-emerald-300' : 'text-white'}`}>
+                  {cycleProgress.canClaim ? `Claim Day ${currentStreak + 1}!` : cycleProgress.formattedRemaining}
+                </span>
+              </div>
             </div>
-          )}
+            {/* Tooltip Arrow */}
+            <div className="w-2.5 h-2.5 bg-slate-900/95 border-r border-b border-slate-700/80 rotate-45 mx-auto -mt-1.5" />
+          </div>
+
+          <div
+            ref={badgeRef}
+            id="floating-streak-badge"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
+            role="button"
+            tabIndex={0}
+            title={`${userTier.emoji} ${currentStreak} Day Streak (${userTier.name}) • 24h Progress: ${cycleProgress.progressPercent}% (${cycleProgress.formattedRemaining}) • Drag to move, Click to view Streak Hub`}
+            className={`relative flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr ${userTier.gradient} text-white shadow-xl ${userTier.glowColor} hover:shadow-2xl border-2 ${userTier.borderColor} backdrop-blur-md transition-all ${
+              isDraggingActive 
+                ? 'cursor-grabbing scale-110 shadow-2xl' 
+                : isNewlyAchievedPulse
+                ? `cursor-grab scale-105 ring-4 ${userTier.ringColor} ring-offset-2 ring-offset-slate-900 animate-pulse shadow-2xl`
+                : 'cursor-grab hover:scale-105 active:scale-95'
+            }`}
+          >
+            {/* 24-Hour Circular SVG Progress Ring (Visual feedback indicating progress to 24h mark) */}
+            <svg 
+              className="absolute -inset-1.5 w-[68px] h-[68px] -rotate-90 pointer-events-none overflow-visible z-10"
+              viewBox="0 0 68 68"
+            >
+              <defs>
+                <linearGradient id="streak24hProgressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={cycleProgress.canClaim ? '#34D399' : '#38BDF8'} />
+                  <stop offset="50%" stopColor={cycleProgress.canClaim ? '#FBBF24' : '#F59E0B'} />
+                  <stop offset="100%" stopColor={cycleProgress.canClaim ? '#10B981' : '#10B981'} />
+                </linearGradient>
+              </defs>
+              {/* Outer track background */}
+              <circle
+                cx="34"
+                cy="34"
+                r="31"
+                fill="none"
+                stroke="rgba(0, 0, 0, 0.45)"
+                strokeWidth="3.5"
+              />
+              <circle
+                cx="34"
+                cy="34"
+                r="31"
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.25)"
+                strokeWidth="2.5"
+              />
+              {/* Active 24-Hour Progress Fill Stroke */}
+              <circle
+                cx="34"
+                cy="34"
+                r="31"
+                fill="none"
+                stroke="url(#streak24hProgressGradient)"
+                strokeWidth="3.5"
+                strokeDasharray={194.78}
+                strokeDashoffset={194.78 - (194.78 * cycleProgress.progressPercent) / 100}
+                strokeLinecap="round"
+                className="transition-[stroke-dashoffset] duration-700 ease-out"
+              />
+            </svg>
+
+            {/* Outer Pulsing Glow Ring */}
+            <span className={`absolute -inset-1 rounded-full bg-white/30 dark:bg-white/20 pointer-events-none ${
+              isNewlyAchievedPulse || cycleProgress.canClaim 
+                ? `animate-ping opacity-100 ring-2 ${userTier.ringColor}` 
+                : 'animate-ping opacity-60'
+            }`} />
+            
+            {/* Inner Surrounded Circular Border */}
+            <div className="absolute inset-1 rounded-full border border-white/40 dark:border-white/20 pointer-events-none" />
+
+            {/* Dynamic Tier Streak Icon */}
+            <div className="relative flex flex-col items-center justify-center">
+              <StreakTierIcon tier={userTier} size="lg" animate={true} className="text-white fill-white/80 drop-shadow-md" />
+            </div>
+
+            {/* Floating Number Badge on Circle with Tier Styling */}
+            <div className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 min-w-[22px] h-[22px] bg-slate-950/95 text-white font-mono font-black text-[11px] rounded-full border border-white/50 flex items-center justify-center shadow-lg z-20">
+              {currentStreak}
+            </div>
+
+            {/* Learned Today Check Indicator */}
+            {isStudiedToday && (
+              <div className="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold shadow-md border-2 border-slate-900 z-20">
+                ✓
+              </div>
+            )}
+
+            {/* 24h Ready Indicator Pill */}
+            {cycleProgress.canClaim && (
+              <div className="absolute -bottom-2.5 right-1/2 translate-x-1/2 px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-emerald-400 text-slate-950 font-black text-[9px] rounded-full tracking-wider uppercase shadow-md border border-white flex items-center gap-0.5 z-20 animate-bounce pointer-events-none">
+                <Sparkles className="w-2.5 h-2.5" /> READY
+              </div>
+            )}
+          </div>
+
+          {/* Visual 24-Hour Progress Bar Mini Pill underneath widget for immediate feedback */}
+          <div className="mt-1 flex flex-col items-center pointer-events-none select-none">
+            <div className="w-[62px] h-2 bg-slate-950/90 backdrop-blur-md rounded-full p-0.5 border border-white/40 shadow-lg overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all duration-700 ${
+                  cycleProgress.canClaim
+                    ? 'bg-gradient-to-r from-emerald-400 to-amber-300 animate-pulse'
+                    : 'bg-gradient-to-r from-sky-400 via-amber-400 to-emerald-400'
+                }`}
+                style={{ width: `${Math.max(6, cycleProgress.progressPercent)}%` }}
+              />
+            </div>
+            <span className="text-[9px] font-mono font-black text-white bg-slate-950/85 px-1.5 py-0.5 rounded-md shadow-md mt-0.5 border border-white/20 whitespace-nowrap">
+              {cycleProgress.canClaim ? '24h Unlocked 🎯' : `${cycleProgress.progressPercent}% to 24h`}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -588,28 +698,68 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                   </div>
                 </div>
 
-                {/* 24-Hour Streak Claim Status Banner */}
-                <div className="mt-3.5 p-2.5 rounded-xl bg-black/25 backdrop-blur-xs border border-white/20 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">{claimCountdown.canClaim ? '✨' : '⏳'}</span>
-                    <div>
-                      <div className="font-bold text-white">
-                        {claimCountdown.canClaim
-                          ? '24 Hours Completed! Ready to Claim'
-                          : `Next Streak Increase in ${claimCountdown.hours}h ${claimCountdown.minutes}m`}
-                      </div>
-                      <div className="text-[11px] text-white/80 font-medium">
-                        {claimCountdown.canClaim
-                          ? `Complete any study activity (quiz, tutor question, study timer) to claim Day ${currentStreak + 1}!`
-                          : 'Streak secured for this 24h cycle. Keep studying to maintain mastery!'}
-                      </div>
+                {/* 24-Hour Next Streak Increment Progress Card */}
+                <div className="mt-3.5 p-3.5 rounded-2xl bg-black/35 backdrop-blur-md border border-white/25 shadow-lg">
+                  {/* Card Title & Percentage */}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-white">
+                      <Clock className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                      <span>24-Hour Next Streak Increment</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-xs text-amber-200">
+                        {cycleProgress.progressPercent}%
+                      </span>
+                      {cycleProgress.canClaim ? (
+                        <span className="px-2.5 py-0.5 bg-emerald-400 text-emerald-950 font-black text-[10px] rounded-full uppercase tracking-wider shadow-xs animate-pulse flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> Ready to Claim
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-white/15 text-white/90 font-mono text-[10px] font-bold rounded-md">
+                          {cycleProgress.formattedRemaining} left
+                        </span>
+                      )}
                     </div>
                   </div>
-                  {claimCountdown.canClaim && (
-                    <span className="px-2.5 py-1 bg-amber-300 text-amber-950 font-black text-[10px] rounded-lg tracking-wider uppercase shadow-xs">
-                      Ready
+
+                  {/* Visual Progress Bar with Multi-stop Gradient & Shimmer */}
+                  <div className="relative w-full h-3 bg-black/40 rounded-full p-0.5 border border-white/20 overflow-hidden shadow-inner">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ease-out shadow-xs relative overflow-hidden ${
+                        cycleProgress.canClaim
+                          ? 'bg-gradient-to-r from-emerald-400 via-amber-300 to-emerald-400 animate-pulse'
+                          : 'bg-gradient-to-r from-sky-400 via-amber-400 to-emerald-400'
+                      }`}
+                      style={{ width: `${Math.max(4, cycleProgress.progressPercent)}%` }}
+                    />
+                  </div>
+
+                  {/* 24-Hour Milestone Ticks */}
+                  <div className="flex justify-between items-center text-[10px] font-semibold text-white/70 mt-1.5 px-0.5">
+                    <span>0h (Start)</span>
+                    <span className="hidden sm:inline">6h (25%)</span>
+                    <span>12h (Halfway)</span>
+                    <span className="hidden sm:inline">18h (75%)</span>
+                    <span className={cycleProgress.canClaim ? 'text-emerald-300 font-bold' : ''}>
+                      24h ({cycleProgress.canClaim ? 'Unlocked! 🎯' : 'Increment'})
                     </span>
-                  )}
+                  </div>
+
+                  {/* Explanatory Educational Feedback */}
+                  <div className="mt-2.5 pt-2 border-t border-white/15 flex items-start gap-2 text-[11px] text-white/90 leading-tight">
+                    <span className="text-sm shrink-0">{cycleProgress.canClaim ? '🚀' : '💡'}</span>
+                    <p>
+                      {cycleProgress.canClaim ? (
+                        <span>
+                          <strong className="text-emerald-300 font-bold">24-hour cycle completed!</strong> Complete any study activity (quiz, AI Tutor query, study timer, or flashcards) now to claim <strong className="text-amber-200">Day {currentStreak + 1}</strong>!
+                        </span>
+                      ) : (
+                        <span>
+                          <strong className="text-amber-200">Current cycle in progress:</strong> Next streak increase unlocks in <strong className="font-mono text-white">{cycleProgress.hours}h {cycleProgress.minutes}m {cycleProgress.seconds}s</strong>. Study anytime to maintain continuous learning!
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -779,6 +929,86 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                             <span className="text-[10px] font-medium opacity-80">{day.shortDate.split(' ')[1]}</span>
                           </div>
                         ))}
+                      </div>
+                    </div>
+
+                    {/* 24-Hour Streak Increment Detailed Tracker */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white border border-slate-700/80 shadow-md">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                            cycleProgress.canClaim 
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-400/40' 
+                              : 'bg-amber-500/20 text-amber-400 border border-amber-400/40'
+                          }`}>
+                            <Clock className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                              <span>24-Hour Streak Increment Tracker</span>
+                              {cycleProgress.canClaim ? (
+                                <span className="px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-black rounded-full uppercase tracking-wider animate-pulse">
+                                  Ready
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded-md font-mono">
+                                  {cycleProgress.formattedRemaining}
+                                </span>
+                              )}
+                            </h4>
+                            <p className="text-xs text-slate-300 mt-0.5">
+                              {cycleProgress.canClaim 
+                                ? `24h mark achieved! Day ${currentStreak + 1} is ready to be locked in.` 
+                                : `Visual indicator of elapsed time towards your next streak increment.`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right sm:text-right">
+                          <span className="text-2xl font-black font-mono text-amber-300">
+                            {cycleProgress.progressPercent}%
+                          </span>
+                          <span className="text-[11px] text-slate-400 block font-medium">to Day {currentStreak + 1}</span>
+                        </div>
+                      </div>
+
+                      {/* Visual progress bar */}
+                      <div className="space-y-1.5 pt-1">
+                        <div className="w-full h-3 bg-slate-950/80 rounded-full overflow-hidden p-0.5 border border-slate-700">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              cycleProgress.canClaim
+                                ? 'bg-gradient-to-r from-emerald-400 via-amber-300 to-emerald-400 animate-pulse'
+                                : 'bg-gradient-to-r from-sky-400 via-amber-400 to-emerald-400'
+                            }`}
+                            style={{ width: `${Math.max(4, cycleProgress.progressPercent)}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                          <span>0h (Cycle Started)</span>
+                          <span>12h (Halfway)</span>
+                          <span className={cycleProgress.canClaim ? 'text-emerald-400 font-bold' : ''}>
+                            24h Mark {cycleProgress.canClaim ? '(Completed! ✨)' : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Info grid */}
+                      <div className="mt-3.5 pt-3 border-t border-slate-700/60 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/40">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Status:</span>
+                          <span className={`font-semibold ${cycleProgress.canClaim ? 'text-emerald-300' : 'text-amber-300'}`}>
+                            {cycleProgress.canClaim 
+                              ? `Ready to increment to Day ${currentStreak + 1}!` 
+                              : `${cycleProgress.hours}h ${cycleProgress.minutes}m ${cycleProgress.seconds}s remaining`}
+                          </span>
+                        </div>
+                        <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/40">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">How to Claim:</span>
+                          <span className="text-slate-200">
+                            Ask AI Tutor, Take Quiz, or Start Study Timer
+                          </span>
+                        </div>
                       </div>
                     </div>
 

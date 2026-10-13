@@ -461,12 +461,25 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
           <div className="text-6xl font-mono font-bold text-white mb-12 tabular-nums tracking-tighter">
             {dH}:{dM}:{dS}
           </div>
-          <button 
-            onClick={() => setShowBlockingOverlay(false)}
-            className="px-8 py-4 bg-primary-600 hover:bg-primary-500 text-white rounded-2xl font-bold text-lg shadow-lg shadow-primary-500/30 transition-all active:scale-95"
-          >
-            Return to SJ Tutor AI
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md">
+            <button 
+              onClick={() => setShowBlockingOverlay(false)}
+              className="w-full sm:flex-1 px-6 py-4 bg-primary-600 hover:bg-primary-500 text-white rounded-2xl font-bold text-base shadow-lg shadow-primary-500/30 transition-all active:scale-95"
+            >
+              Return to SJ Tutor AI
+            </button>
+            <button
+              id="btn-terminate-study-session-overlay"
+              onClick={() => {
+                setShowBlockingOverlay(false);
+                confirmStop();
+              }}
+              className="w-full sm:flex-1 px-6 py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold text-base transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20"
+            >
+              <Square className="w-5 h-5 fill-current" />
+              Terminate Session
+            </button>
+          </div>
         </div>
       )}
 
@@ -565,17 +578,22 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
       {showStopConfirm && (
         <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-sm w-full p-6 text-center animate-in zoom-in-95">
-            <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Stop Session?</h3>
+            <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Terminate Study Session?</h3>
             <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
-              Are you sure you want to stop this study session? Your progress so far will be saved as interrupted.
+              Are you sure you want to terminate this study session? Your focus time so far will be recorded.
             </p>
             <div className="flex gap-3">
               <button onClick={cancelStop} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-white rounded-xl font-bold">
-                Cancel
+                Continue Studying
               </button>
-              <button onClick={confirmStop} className="flex-1 py-3 bg-amber-500 text-white rounded-xl font-bold shadow-md shadow-amber-500/20">
-                Stop Timer
+              <button 
+                id="btn-terminate-study-session-confirm"
+                onClick={confirmStop} 
+                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-md shadow-rose-600/20 flex items-center justify-center gap-1.5"
+              >
+                <Square className="w-4 h-4 fill-current" />
+                Terminate Session
               </button>
             </div>
           </div>

@@ -130,8 +130,8 @@ function updateStructuredData(canonicalUrl: string, title: string, description: 
           "@type": "ImageObject",
           "url": DEFAULT_LOGO_URL,
           "contentUrl": DEFAULT_LOGO_URL,
-          "width": 640,
-          "height": 640,
+          "width": 1254,
+          "height": 1254,
           "caption": "SJ Tutor AI Logo - Personalised AI Tutor for Students"
         },
         "image": DEFAULT_LOGO_URL,

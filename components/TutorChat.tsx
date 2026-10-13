@@ -39,7 +39,8 @@ import {
   ChevronsDown,
   Maximize2,
   Minimize2,
-  Palette
+  Palette,
+  Power
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
@@ -224,6 +225,7 @@ interface TutorChatProps {
   onSelectSession?: (id: string | null) => void;
   onCreateQuiz?: () => void;
   onDeleteSession?: (sessionId: string) => Promise<void> | void;
+  onNewSession?: () => void;
   userId?: string;
   currentTheme?: string;
   onNavigateToNotes?: (imageInfo?: { url: string; prompt: string }) => void;
@@ -249,7 +251,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     activeSessionId, 
     onSelectSession,
     onCreateQuiz,
-    onDeleteSession
+    onDeleteSession,
+    onNewSession
   } = props;
 
   const { subject, grade, sampleQuestions } = React.useMemo(() => {
@@ -538,6 +541,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
   // Start a fresh, clean chat session
   const handleStartNewSession = () => {
+    if (messagesRef.current.length > 1) {
+      performAutoSave(messagesRef.current);
+    }
     const newId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     setCurrentSessionId(newId);
     currentSessionIdRef.current = newId;
@@ -561,6 +567,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     }
 
     if (onSelectSession) onSelectSession(null);
+    if (onNewSession) onNewSession();
     setIsSessionsOpen(false);
     setShowResumePrompt(false);
   };
@@ -1325,6 +1332,15 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                 <span className="text-xs font-black hidden md:inline">Create Quiz</span>
               </button>
             )}
+            <button 
+              id="btn-terminate-tutor-session"
+              onClick={handleStartNewSession} 
+              className="p-2 rounded-xl transition-all flex items-center gap-1.5 text-rose-600 dark:text-rose-400 bg-rose-50/80 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 shadow-xs cursor-pointer active:scale-95 border border-rose-200/50 dark:border-rose-800/40" 
+              title="End / Terminate this AI Tutor Session & Start Fresh"
+            >
+              <Power className="w-4 h-4" />
+              <span className="text-xs font-black hidden lg:inline">End Session</span>
+            </button>
             <button 
               onClick={handleSave} 
               className={`p-2 rounded-xl transition-all flex items-center gap-1.5 ${isSaved ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20' : 'text-slate-500 dark:text-slate-400 hover:text-primary-600 hover:bg-slate-100 dark:hover:bg-slate-800'}`} 

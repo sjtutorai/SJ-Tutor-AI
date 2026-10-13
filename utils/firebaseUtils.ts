@@ -553,6 +553,34 @@ export const getNotesFromFirestore = async (uid: string): Promise<any[]> => {
   }
 };
 
+export const saveNoteFoldersToFirestore = async (uid: string, folders: any[]) => {
+  if (!uid || uid === "guest") return false;
+  try {
+    const docRef = doc(db, "users", uid, "notes", "folders");
+    await setDoc(docRef, { folders }, { merge: true });
+    return true;
+  } catch (error: any) {
+    console.error("Error saving note folders to Firestore:", error);
+    return false;
+  }
+};
+
+export const getNoteFoldersFromFirestore = async (uid: string): Promise<any[]> => {
+  if (!uid || uid === "guest") return [];
+  try {
+    const docRef = doc(db, "users", uid, "notes", "folders");
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return data.folders || [];
+    }
+    return [];
+  } catch (error: any) {
+    console.error("Error getting note folders from Firestore:", error);
+    return [];
+  }
+};
+
 // Helper to clean undefined properties before passing objects to Firestore
 export const removeUndefinedFields = <T>(obj: T): T => {
   if (obj === null || obj === undefined || typeof obj !== "object") return obj;

@@ -12,15 +12,17 @@ interface LogoProps {
 
 const FALLBACK_SOURCES = [
   "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
-  "https://sjtutorai.vercel.app/SJ-Tutor-AI-Logo.jpg",
   "/SJ-Tutor-AI-Logo.jpg",
+  "https://sjtutorai.vercel.app/SJ-Tutor-AI-Logo.jpg",
+  "/logo.png",
+  "https://sjtutorai.vercel.app/logo.png",
   SJTUTOR_LOGO_URL,
   SJTUTOR_AVATAR,
   SJTUTOR_AVATAR_REMOTE,
   SJTUTOR_AVATAR_IBB
 ];
 
-// Infallible High-Definition Vector SVG Logo Fallback (Gold ring, deep midnight blue, graduation cap & AI sparkle)
+// Infallible High-Definition Vector SVG Logo Fallback (Sapphire Blue & Glowing Teal gradient, graduation cap & AI neural sparkle)
 export const BrandSvgLogo: React.FC<{ className?: string }> = ({ className = "w-full h-full" }) => (
   <svg 
     viewBox="0 0 512 512" 
@@ -31,36 +33,51 @@ export const BrandSvgLogo: React.FC<{ className?: string }> = ({ className = "w-
     role="img"
     aria-label="SJ Tutor AI Logo"
   >
-    {/* Outer Gold Border Ring */}
-    <circle cx="256" cy="256" r="250" fill="#D4AF37" />
-    <circle cx="256" cy="256" r="236" fill="#0F172A" />
+    <defs>
+      <linearGradient id="brandRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#46D8D1" />
+        <stop offset="50%" stopColor="#0564E8" />
+        <stop offset="100%" stopColor="#0C9DDB" />
+      </linearGradient>
+      <radialGradient id="brandBgGrad" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#08235C" />
+        <stop offset="100%" stopColor="#040F28" />
+      </radialGradient>
+      <linearGradient id="brandCapGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#46D8D1" />
+        <stop offset="100%" stopColor="#0564E8" />
+      </linearGradient>
+    </defs>
+    {/* Outer Sapphire/Teal Gradient Border Ring */}
+    <circle cx="256" cy="256" r="250" fill="url(#brandRingGrad)" />
+    <circle cx="256" cy="256" r="236" fill="url(#brandBgGrad)" />
     
-    {/* Inner Gold Ambient Dotted Accent Ring */}
-    <circle cx="256" cy="256" r="210" stroke="#F59E0B" strokeWidth="6" strokeDasharray="16 8" opacity="0.75" />
+    {/* Inner Ambient Dotted Accent Ring */}
+    <circle cx="256" cy="256" r="212" stroke="#46D8D1" strokeWidth="5" strokeDasharray="14 8" opacity="0.6" />
     
     {/* Graduation Academic Cap */}
     <path 
       d="M256 120 L400 190 L256 260 L112 190 Z" 
-      fill="#FBBF24" 
-      stroke="#D4AF37" 
-      strokeWidth="8" 
+      fill="url(#brandCapGrad)" 
+      stroke="#46D8D1" 
+      strokeWidth="6" 
       strokeLinejoin="round" 
     />
     <path 
       d="M170 220 V310 C170 355 342 355 342 310 V220" 
-      stroke="#FBBF24" 
-      strokeWidth="12" 
+      stroke="#38BDF8" 
+      strokeWidth="10" 
       strokeLinecap="round" 
       fill="none" 
     />
     {/* Academic Tassel */}
-    <path d="M380 200 V300" stroke="#EF4444" strokeWidth="10" strokeLinecap="round" />
-    <circle cx="380" cy="305" r="10" fill="#EF4444" />
+    <path d="M380 200 V300" stroke="#F59E0B" strokeWidth="8" strokeLinecap="round" />
+    <circle cx="380" cy="305" r="9" fill="#F59E0B" />
     
     {/* AI Sparkle / Brain Neural Star */}
     <path 
       d="M256 350 Q256 390 290 390 Q256 390 256 430 Q256 390 222 390 Q256 390 256 350 Z" 
-      fill="#38BDF8" 
+      fill="#46D8D1" 
     />
     <circle cx="256" cy="390" r="8" fill="#FFFFFF" />
     

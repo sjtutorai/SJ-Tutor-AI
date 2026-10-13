@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary-50: #FFFAF0;
-  --color-primary-100: #FDF5E6;
-  --color-primary-200: #FEEBC8;
-  --color-primary-300: #FBD38D;
-  --color-primary-400: #F6AD55;
-  --color-primary-500: #D4AF37;
-  --color-primary-600: #B7950B;
-  --color-primary-700: #975A16;
-  --color-primary-800: #744210;
-  --color-primary-900: #742A2A;
+  --color-primary-50: #F0F7FF;
+  --color-primary-100: #E0EFFF;
+  --color-primary-200: #BAE0FD;
+  --color-primary-300: #7CC6FB;
+  --color-primary-400: #38A7F6;
+  --color-primary-500: #0564E8;
+  --color-primary-600: #044EC2;
+  --color-primary-700: #033B9B;
+  --color-primary-800: #042D75;
+  --color-primary-900: #061D4C;
 
   --color-slate-850: #1a202c;
   --color-slate-900: #111827;
@@ -19,16 +19,16 @@
 /* Base Global Styles */
 :root {
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  --color-primary-50: #FFFAF0;
-  --color-primary-100: #FDF5E6;
-  --color-primary-200: #FEEBC8;
-  --color-primary-300: #FBD38D;
-  --color-primary-400: #F6AD55;
-  --color-primary-500: #D4AF37;
-  --color-primary-600: #B7950B;
-  --color-primary-700: #975A16;
-  --color-primary-800: #744210;
-  --color-primary-900: #742A2A;
+  --color-primary-50: #F0F7FF;
+  --color-primary-100: #E0EFFF;
+  --color-primary-200: #BAE0FD;
+  --color-primary-300: #7CC6FB;
+  --color-primary-400: #38A7F6;
+  --color-primary-500: #0564E8;
+  --color-primary-600: #044EC2;
+  --color-primary-700: #033B9B;
+  --color-primary-800: #042D75;
+  --color-primary-900: #061D4C;
 }
 
 @keyframes blob {

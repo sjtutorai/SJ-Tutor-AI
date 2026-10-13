@@ -18,7 +18,7 @@
     },
     {
       "src": "https://i.ibb.co/KpxwNSMS/SJ-Tutor-AI-Logo.jpg",
-      "sizes": "640x640",
+      "sizes": "1254x1254",
       "type": "image/jpeg",
       "purpose": "any"
     }
@@ -26,6 +26,6 @@
   "start_url": "/",
   "scope": "/",
   "background_color": "#ffffff",
-  "theme_color": "#D4AF37",
+  "theme_color": "#0564E8",
   "display": "standalone"
 }
