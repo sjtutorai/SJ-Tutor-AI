@@ -3,6 +3,7 @@ import { X, Search, CheckCircle2, Sparkles, ChevronDown, ChevronUp } from 'lucid
 import { SignUpFlow } from './auth/SignUpFlow';
 import { LoginFlow } from './auth/LoginFlow';
 import { AccountDetectorWidget } from './auth/AccountDetectorWidget';
+import { BigScreenSignUpPage } from './auth/BigScreenSignUpPage';
 import Logo from './Logo';
 import { getDeviceRegisteredUser, saveDeviceRegisteredUser } from '../utils/registrationDetection';
 import type { UserProfile } from '../types';
@@ -31,6 +32,7 @@ const Auth: React.FC<AuthProps> = ({
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>(defaultMode);
   const [prefilledIdentifier, setPrefilledIdentifier] = useState<string>(propPrefilledIdentifier);
   const [showDetector, setShowDetector] = useState(false);
+  const [bigScreenIdentity, setBigScreenIdentity] = useState<any | null>(null);
 
   // Sync URL for direct link bookmarking / routing
   useEffect(() => {
@@ -73,6 +75,17 @@ const Auth: React.FC<AuthProps> = ({
     }
     setShowDetector(false);
   };
+
+  // If user selected a sign up method, redirect to the full-screen big screen registration page
+  if (bigScreenIdentity) {
+    return (
+      <BigScreenSignUpPage
+        authIdentity={bigScreenIdentity}
+        onSuccess={handleSuccess}
+        onCancel={() => setBigScreenIdentity(null)}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
@@ -213,6 +226,7 @@ const Auth: React.FC<AuthProps> = ({
               setAuthMode('signin');
             }}
             prefilledIdentifier={prefilledIdentifier}
+            onRedirectToBigScreen={(identity) => setBigScreenIdentity(identity)}
           />
         ) : (
           <LoginFlow

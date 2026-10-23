@@ -59,18 +59,35 @@ export const SecurityPinService = {
     salt: string = 'sjtutor_salt_v1'
   ): Promise<boolean> => {
     if (!enteredSecret || !storedSecretOrHash) return false;
+    const cleanEntered = enteredSecret.trim();
+    const cleanStored = storedSecretOrHash.trim();
     
-    if (enteredSecret.trim() === storedSecretOrHash.trim()) {
+    // 1. Direct plain match
+    if (cleanEntered === cleanStored) {
       return true;
     }
 
-    const computed = await SecurityPinService.hashSecret(enteredSecret.trim(), salt);
-    if (computed === storedSecretOrHash.trim()) {
+    // 2. Hash match with specified salt
+    if (salt) {
+      const computed = await SecurityPinService.hashSecret(cleanEntered, salt);
+      if (computed === cleanStored) {
+        return true;
+      }
+    }
+
+    // 3. Hash match with default salt v1
+    const computedDefault = await SecurityPinService.hashSecret(cleanEntered, 'sjtutor_salt_v1');
+    if (computedDefault === cleanStored) {
       return true;
     }
 
-    const computedDefault = await SecurityPinService.hashSecret(enteredSecret.trim(), 'sjtutor_salt_v1');
-    return computedDefault === storedSecretOrHash.trim();
+    // 4. Hash match with fallback 'sjtutor_user' salt
+    const computedUser = await SecurityPinService.hashSecret(cleanEntered, 'sjtutor_user');
+    if (computedUser === cleanStored) {
+      return true;
+    }
+
+    return false;
   },
 
   /**
@@ -318,15 +335,27 @@ export const SecurityPinService = {
       return true;
     }
 
-    // Hash match with user salt
-    const computed = await SecurityPinService.hashSecurityAnswer(enteredAnswer, salt);
-    if (computed === storedAnswerOrHash.trim()) {
-      return true;
+    // Hash match with provided salt
+    if (salt) {
+      const computed = await SecurityPinService.hashSecurityAnswer(enteredAnswer, salt);
+      if (computed === storedAnswerOrHash.trim()) {
+        return true;
+      }
     }
 
     // Hash match with default salt
     const computedDefault = await SecurityPinService.hashSecurityAnswer(enteredAnswer, 'sjtutor_security_q');
-    return computedDefault === storedAnswerOrHash.trim();
+    if (computedDefault === storedAnswerOrHash.trim()) {
+      return true;
+    }
+
+    // Hash match with fallback user salt
+    const computedUser = await SecurityPinService.hashSecurityAnswer(enteredAnswer, 'sjtutor_user');
+    if (computedUser === storedAnswerOrHash.trim()) {
+      return true;
+    }
+
+    return false;
   },
 
   /**

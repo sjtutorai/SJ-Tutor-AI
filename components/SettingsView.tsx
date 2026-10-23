@@ -2097,9 +2097,9 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
              isOpen={showPinSetupModal}
              onClose={() => setShowPinSetupModal(false)}
              userProfile={userProfile}
-             uid={auth.currentUser?.uid}
+             uid={props.uid || userProfile.uid || auth.currentUser?.uid}
              isDisabling={isDisablingPin}
-              initialTab={pinSetupTab}
+             initialTab={pinSetupTab}
              onSuccess={(updatedProfile) => {
                if (props.onUpdateProfile) {
                  props.onUpdateProfile({
@@ -2107,10 +2107,27 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                    ...updatedProfile,
                  });
                }
+               if (updatedProfile.twoFactorEnabled !== undefined || updatedProfile.twoFactorPassword !== undefined) {
+                 SettingsService.updateSettings({
+                   privacy: {
+                     ...SettingsService.getSettings().privacy,
+                     twoFactor: !!updatedProfile.twoFactorEnabled,
+                     twoFactorPassword: updatedProfile.twoFactorPassword || '',
+                   }
+                 });
+               }
+               if (updatedProfile.pinLockEnabled !== undefined || updatedProfile.securityPin !== undefined) {
+                 SettingsService.updateSettings({
+                   privacy: {
+                     ...SettingsService.getSettings().privacy,
+                     pin: !!updatedProfile.pinLockEnabled,
+                   }
+                 });
+               }
                setSettings(SettingsService.getSettings());
                setFeedbackMessage(
                  isDisablingPin
-                   ? 'Two-step verification has been disabled.'
+                   ? 'Security feature has been disabled.'
                    : 'Security PIN and Two-step verification updated successfully!'
                );
                setTimeout(() => setFeedbackMessage(null), 4000);

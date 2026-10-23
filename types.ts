@@ -91,6 +91,7 @@ export interface UserProfile {
   email?: string;
   emailVerified?: boolean;
   sjTutorId?: string;
+  username?: string;
   linkedProviders?: string[];
   displayName: string;
   phoneNumber: string;
@@ -107,8 +108,13 @@ export interface UserProfile {
   phoneVerified?: boolean;
   registrationNumber?: string;
   dob?: string;
+  country?: string;
   state?: string;
   district?: string;
+  streetAddress?: string;
+  zipCode?: string;
+  hearAboutUs?: string;
+  hearAboutUsDetail?: string;
   claimedOffers?: number[];
   emblems?: string[];
   hasCompletedOnboarding?: boolean;

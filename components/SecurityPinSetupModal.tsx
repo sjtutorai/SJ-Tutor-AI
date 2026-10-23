@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { SecurityPinService } from '../services/securityPinService';
+import { updateSecurityPin, updateTwoStepPassword, disableSecuritySetting } from '../services/authService';
 
 export interface SecurityPinSetupModalProps {
   isOpen: boolean;
@@ -46,8 +47,9 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
   const [confirmTwoStepPassword, setConfirmTwoStepPassword] = useState('');
   const [currentTwoStepPassword, setCurrentTwoStepPassword] = useState('');
 
-  // PIN States
-  const localConfig = uid ? SecurityPinService.getLocalConfig(uid) : null;
+  // PIN & Identity States
+  const effectiveUid = uid || userProfile.uid || userProfile.sjTutorId || 'sjtutor_user';
+  const localConfig = SecurityPinService.getLocalConfig(effectiveUid) || (uid ? SecurityPinService.getLocalConfig(uid) : null);
   const existingTwoFactor = !!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword;
   const existingPin = userProfile.securityPin || localConfig?.pinHash || '';
   const [pinLength, setPinLength] = useState<4 | 6>(userProfile.securityPinLength || localConfig?.pinLength || 4);
@@ -116,19 +118,33 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
     setError(null);
     setIsProcessing(true);
 
-    const salt = uid || 'sjtutor_user';
+    const salt = effectiveUid;
 
     try {
+      const targetIdentifier = userProfile.sjTutorId || userProfile.email || effectiveUid;
+
       if (activeTab === 'twostep') {
         // --- TWO-STEP VERIFICATION (ON LOGIN) ---
         if (isDisabling) {
+          let canDisable = false;
           if (userProfile.twoFactorPassword) {
-            const isValid = await SecurityPinService.verifySecret(currentTwoStepPassword, userProfile.twoFactorPassword, salt);
-            if (!isValid) {
-              setError('Current 2-Step password is incorrect.');
-              setIsProcessing(false);
-              return;
-            }
+            const isLocalValid = await SecurityPinService.verifySecret(currentTwoStepPassword, userProfile.twoFactorPassword, salt);
+            if (isLocalValid) canDisable = true;
+          }
+
+          const disableRes = await disableSecuritySetting({
+            identifier: targetIdentifier,
+            type: 'twostep',
+            currentSecret: currentTwoStepPassword,
+          });
+          if (disableRes.status === 'SUCCESS') {
+            canDisable = true;
+          }
+
+          if (!canDisable && userProfile.twoFactorPassword) {
+            setError('Current 2-Step password is incorrect.');
+            setIsProcessing(false);
+            return;
           }
 
           const updated: Partial<UserProfile> = {
@@ -136,7 +152,8 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
             twoFactorPassword: '',
           };
 
-          if (uid) {
+          SecurityPinService.clearTwoStepVerified(effectiveUid);
+          if (uid && uid !== effectiveUid) {
             SecurityPinService.clearTwoStepVerified(uid);
           }
 
@@ -145,24 +162,8 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           return;
         }
 
-        // Validate new 2-step password
-        if (userProfile.twoFactorPassword && !currentTwoStepPassword) {
-          setError('Please enter your current 2-Step password first.');
-          setIsProcessing(false);
-          return;
-        }
-
-        if (userProfile.twoFactorPassword) {
-          const isValid = await SecurityPinService.verifySecret(currentTwoStepPassword, userProfile.twoFactorPassword, salt);
-          if (!isValid) {
-            setError('Current 2-Step password is incorrect.');
-            setIsProcessing(false);
-            return;
-          }
-        }
-
         if (twoStepPassword.length < 4) {
-          setError('2-Step Password must be at least 4 characters long.');
+          setError('New 2-Step Password must be at least 4 characters long.');
           setIsProcessing(false);
           return;
         }
@@ -173,49 +174,69 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           return;
         }
 
-        // Validate Security Question & Double Answer
-        if (!securityQuestion.trim()) {
-          setError('Please select or write a Security Question for account recovery.');
-          setIsProcessing(false);
-          return;
+        // Validate Security Question & Answer if provided
+        let finalHashedAnswer = userProfile.securityAnswer || '';
+        const finalQuestion = securityQuestion.trim() || userProfile.securityQuestion || SecurityPinService.DEFAULT_SECURITY_QUESTIONS[0];
+
+        if (securityAnswer.trim()) {
+          if (securityAnswer.trim().length < 2) {
+            setError('Security Answer must be at least 2 characters.');
+            setIsProcessing(false);
+            return;
+          }
+
+          if (!confirmSecurityAnswer.trim()) {
+            setError('Please repeat your Security Answer in the confirmation field.');
+            setIsProcessing(false);
+            return;
+          }
+
+          if (securityAnswer.trim().toLowerCase() !== confirmSecurityAnswer.trim().toLowerCase()) {
+            setError('Security Answer and Confirmation Answer do not match. Please verify.');
+            setIsProcessing(false);
+            return;
+          }
+
+          finalHashedAnswer = await SecurityPinService.hashSecurityAnswer(securityAnswer.trim(), salt);
         }
 
-        if (!securityAnswer.trim()) {
-          setError('Please enter your secret Security Answer.');
-          setIsProcessing(false);
-          return;
+        // Call server to persist 2-step verification change
+        if (userProfile.twoFactorPassword) {
+          const isLocalValid = await SecurityPinService.verifySecret(currentTwoStepPassword, userProfile.twoFactorPassword, salt);
+          const serverRes = await updateTwoStepPassword({
+            identifier: targetIdentifier,
+            currentPassword: currentTwoStepPassword,
+            newPassword: twoStepPassword.trim(),
+            securityQuestion: finalQuestion,
+            securityAnswer: securityAnswer.trim() || undefined,
+          });
+
+          if (!isLocalValid && serverRes.status === 'ERROR') {
+            setError(serverRes.message || 'Current 2-Step password is incorrect.');
+            setIsProcessing(false);
+            return;
+          }
+        } else {
+          await updateTwoStepPassword({
+            identifier: targetIdentifier,
+            newPassword: twoStepPassword.trim(),
+            securityQuestion: finalQuestion,
+            securityAnswer: securityAnswer.trim() || undefined,
+          }).catch(() => {});
         }
 
-        if (securityAnswer.trim().length < 2) {
-          setError('Security Answer must be at least 2 characters.');
-          setIsProcessing(false);
-          return;
-        }
-
-        if (!confirmSecurityAnswer.trim()) {
-          setError('Please repeat your Security Answer in the confirmation field.');
-          setIsProcessing(false);
-          return;
-        }
-
-        if (securityAnswer.trim().toLowerCase() !== confirmSecurityAnswer.trim().toLowerCase()) {
-          setError('Security Answer and Confirmation Answer do not match. Please verify.');
-          setIsProcessing(false);
-          return;
-        }
-
-        const hashedAnswer = await SecurityPinService.hashSecurityAnswer(securityAnswer.trim(), salt);
         const hashed = await SecurityPinService.hashSecret(twoStepPassword.trim(), salt);
 
         const updated: Partial<UserProfile> = {
           twoFactorEnabled: true,
           twoFactorPassword: hashed,
-          securityQuestion: securityQuestion.trim(),
-          securityAnswer: hashedAnswer,
+          securityQuestion: finalQuestion,
+          securityAnswer: finalHashedAnswer,
           securityQuestionSetAt: Date.now(),
         };
 
-        if (uid) {
+        SecurityPinService.setTwoStepVerified(effectiveUid);
+        if (uid && uid !== effectiveUid) {
           SecurityPinService.setTwoStepVerified(uid);
         }
 
@@ -224,13 +245,25 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
       } else {
         // --- PIN LOCK (ON REFRESH / VISITS) ---
         if (isDisabling) {
-          if (existingPin) {
-            const isValid = await SecurityPinService.verifyPin(currentPin, existingPin, salt);
-            if (!isValid) {
-              setError('Current Security PIN is incorrect.');
-              setIsProcessing(false);
-              return;
-            }
+          let canDisablePin = false;
+          if (userProfile.securityPin) {
+            const isLocalValid = await SecurityPinService.verifyPin(currentPin.trim(), userProfile.securityPin, salt);
+            if (isLocalValid) canDisablePin = true;
+          }
+
+          const disableRes = await disableSecuritySetting({
+            identifier: targetIdentifier,
+            type: 'pin',
+            currentSecret: currentPin,
+          });
+          if (disableRes.status === 'SUCCESS') {
+            canDisablePin = true;
+          }
+
+          if (!canDisablePin && userProfile.securityPin) {
+            setError('Current Security PIN is incorrect.');
+            setIsProcessing(false);
+            return;
           }
 
           const updated: Partial<UserProfile> = {
@@ -239,7 +272,9 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
             securityPinLength: 4,
           };
 
-          if (uid) {
+          SecurityPinService.clearLocalConfig(effectiveUid);
+          SecurityPinService.setSessionUnlocked(effectiveUid);
+          if (uid && uid !== effectiveUid) {
             SecurityPinService.clearLocalConfig(uid);
             SecurityPinService.setSessionUnlocked(uid);
           }
@@ -247,21 +282,6 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           onSuccess(updated);
           onClose();
           return;
-        }
-
-        if (existingPin && !currentPin) {
-          setError('Please enter your current PIN first.');
-          setIsProcessing(false);
-          return;
-        }
-
-        if (existingPin) {
-          const isValid = await SecurityPinService.verifyPin(currentPin, existingPin, salt);
-          if (!isValid) {
-            setError('Current Security PIN is incorrect.');
-            setIsProcessing(false);
-            return;
-          }
         }
 
         const cleanNewPin = newPin.trim();
@@ -285,38 +305,59 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           return;
         }
 
-        // Validate Security Question & Double Answer
-        if (!securityQuestion.trim()) {
-          setError('Please select or write a Security Question for account recovery.');
-          setIsProcessing(false);
-          return;
+        // Validate Security Question & Answer if provided
+        let finalHashedAnswer = userProfile.securityAnswer || '';
+        const finalQuestion = securityQuestion.trim() || userProfile.securityQuestion || SecurityPinService.DEFAULT_SECURITY_QUESTIONS[0];
+
+        if (securityAnswer.trim()) {
+          if (securityAnswer.trim().length < 2) {
+            setError('Security Answer must be at least 2 characters.');
+            setIsProcessing(false);
+            return;
+          }
+
+          if (!confirmSecurityAnswer.trim()) {
+            setError('Please repeat your Security Answer in the confirmation field.');
+            setIsProcessing(false);
+            return;
+          }
+
+          if (securityAnswer.trim().toLowerCase() !== confirmSecurityAnswer.trim().toLowerCase()) {
+            setError('Security Answer and Confirmation Answer do not match. Please verify.');
+            setIsProcessing(false);
+            return;
+          }
+
+          finalHashedAnswer = await SecurityPinService.hashSecurityAnswer(securityAnswer.trim(), salt);
         }
 
-        if (!securityAnswer.trim()) {
-          setError('Please enter your secret Security Answer.');
-          setIsProcessing(false);
-          return;
+        // Call server to update PIN
+        if (userProfile.securityPin) {
+          const isLocalValid = await SecurityPinService.verifyPin(currentPin.trim(), userProfile.securityPin, salt);
+          const serverRes = await updateSecurityPin({
+            identifier: targetIdentifier,
+            currentPin: currentPin.trim() || undefined,
+            newPin: cleanNewPin,
+            pinLength,
+            securityQuestion: finalQuestion,
+            securityAnswer: securityAnswer.trim() || undefined,
+          });
+
+          if (!isLocalValid && serverRes.status === 'ERROR') {
+            setError(serverRes.message || 'Current Security PIN is incorrect.');
+            setIsProcessing(false);
+            return;
+          }
+        } else {
+          await updateSecurityPin({
+            identifier: targetIdentifier,
+            newPin: cleanNewPin,
+            pinLength,
+            securityQuestion: finalQuestion,
+            securityAnswer: securityAnswer.trim() || undefined,
+          }).catch(() => {});
         }
 
-        if (securityAnswer.trim().length < 2) {
-          setError('Security Answer must be at least 2 characters.');
-          setIsProcessing(false);
-          return;
-        }
-
-        if (!confirmSecurityAnswer.trim()) {
-          setError('Please repeat your Security Answer in the confirmation field.');
-          setIsProcessing(false);
-          return;
-        }
-
-        if (securityAnswer.trim().toLowerCase() !== confirmSecurityAnswer.trim().toLowerCase()) {
-          setError('Security Answer and Confirmation Answer do not match. Please verify.');
-          setIsProcessing(false);
-          return;
-        }
-
-        const hashedAnswer = await SecurityPinService.hashSecurityAnswer(securityAnswer.trim(), salt);
         const pinHash = await SecurityPinService.hashPin(cleanNewPin, salt);
 
         const updated: Partial<UserProfile> = {
@@ -324,20 +365,24 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
           securityPin: pinHash,
           securityPinLength: pinLength,
           biometricsEnabled: enableBiometrics && isBiometricsAvailable,
-          securityQuestion: securityQuestion.trim(),
-          securityAnswer: hashedAnswer,
+          securityQuestion: finalQuestion,
+          securityAnswer: finalHashedAnswer,
           securityQuestionSetAt: Date.now(),
         };
 
-        if (uid) {
-          SecurityPinService.saveLocalConfig(uid, {
-            enabled: true,
-            pinHash,
-            pinLength,
-            salt,
-            biometricsEnabled: enableBiometrics && isBiometricsAvailable,
-            updatedAt: Date.now(),
-          });
+        const configToSave: SecurityPinConfig = {
+          enabled: true,
+          pinHash,
+          pinLength,
+          salt,
+          biometricsEnabled: enableBiometrics && isBiometricsAvailable,
+          updatedAt: Date.now(),
+        };
+
+        SecurityPinService.saveLocalConfig(effectiveUid, configToSave);
+        SecurityPinService.setSessionUnlocked(effectiveUid);
+        if (uid && uid !== effectiveUid) {
+          SecurityPinService.saveLocalConfig(uid, configToSave);
           SecurityPinService.setSessionUnlocked(uid);
         }
 
@@ -715,9 +760,15 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
               {/* Double-Entry Security Answer Section */}
               <div className="pt-2 border-t border-amber-500/20 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                  <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5 flex-wrap">
                     <span>Secret Recovery Answer</span>
-                    <span className="text-amber-500 font-bold">*</span>
+                    {!userProfile.securityAnswer ? (
+                      <span className="text-amber-500 font-bold">*</span>
+                    ) : (
+                      <span className="text-slate-500 dark:text-slate-400 font-normal text-[10px] normal-case tracking-normal">
+                        (Leave blank to keep existing answer)
+                      </span>
+                    )}
                   </label>
 
                   <button
@@ -736,9 +787,9 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
                     type={showAnswers ? 'text' : 'password'}
                     value={securityAnswer}
                     onChange={(e) => setSecurityAnswer(e.target.value)}
-                    placeholder="Enter secret answer"
+                    placeholder={userProfile.securityAnswer ? "Leave blank to keep current answer" : "Enter secret answer"}
                     className="w-full px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 font-medium"
-                    required
+                    required={!userProfile.securityAnswer}
                   />
                 </div>
 
@@ -751,7 +802,7 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
                     type={showAnswers ? 'text' : 'password'}
                     value={confirmSecurityAnswer}
                     onChange={(e) => setConfirmSecurityAnswer(e.target.value)}
-                    placeholder="Repeat answer exact match"
+                    placeholder={userProfile.securityAnswer ? "Leave blank to keep current answer" : "Repeat answer exact match"}
                     className={`w-full px-3.5 py-2 bg-white dark:bg-slate-800 border rounded-xl text-xs text-slate-900 dark:text-white outline-none font-medium transition ${
                       answersMatch
                         ? 'border-emerald-500 focus:ring-2 focus:ring-emerald-500'
@@ -759,7 +810,7 @@ export const SecurityPinSetupModal: React.FC<SecurityPinSetupModalProps> = ({
                         ? 'border-rose-400 focus:ring-2 focus:ring-rose-400'
                         : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-amber-500'
                     }`}
-                    required
+                    required={!userProfile.securityAnswer || securityAnswer.trim().length > 0}
                   />
                 </div>
 

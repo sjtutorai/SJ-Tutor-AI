@@ -406,24 +406,52 @@ export async function loginWithEmail(email: string, password: string): Promise<A
  * Called after Profile Setup and Learning Preferences are finished.
  */
 export async function createAccountAndGenerateSjTutorId(params: {
-  authIdentity: any;
+  authIdentity?: any;
+  email?: string;
+  password?: string;
+  authProvider?: string;
   firstName: string;
   lastName: string;
   username: string;
-  photoURL?: string;
+  phoneNumber?: string;
+  institution?: string;
+  grade?: string;
   classGrade?: string;
+  board?: string;
+  country?: string;
+  state?: string;
+  district?: string;
+  cityArea?: string;
+  streetAddress?: string;
+  zipCode?: string;
+  hearAboutUs?: string;
+  dob?: string;
+  registrationNumber?: string;
+  photoURL?: string;
   subjects?: string[];
   learningPreferences?: string[];
   preferredLanguage?: string;
+  additionalInfo?: any;
 }): Promise<AuthResult> {
   try {
     let authUid = params.authIdentity?.uid;
-    const email = params.authIdentity?.email || "";
-    const provider = params.authIdentity?.provider || "email_password";
-    const initialPassword = params.authIdentity?.password;
+    const email = (params.email || params.authIdentity?.email || "").trim().toLowerCase();
+    const provider = params.authProvider || params.authIdentity?.provider || "email";
+    const initialPassword = params.password || params.authIdentity?.password;
+    const classGrade = params.classGrade || params.grade || "Class 10";
+    const additional = params.additionalInfo || {};
+    const country = params.country || additional.country || "";
+    const state = params.state || additional.state || "";
+    const district = params.district || additional.district || "";
+    const cityArea = params.cityArea || additional.cityArea || "";
+    const streetAddress = params.streetAddress || additional.streetAddress || "";
+    const zipCode = params.zipCode || additional.zipCode || "";
+    const hearAboutUs = params.hearAboutUs || additional.hearAboutUs || "";
+    const dob = params.dob || additional.dob || "";
+    const preferredLanguage = params.preferredLanguage || additional.tutoringLanguage || "English";
 
-    // If email_password and user not yet created in Firebase
-    if (provider === "email_password" && !authUid && email && initialPassword) {
+    // If email and user not yet created in Firebase Auth
+    if ((provider === "email" || provider === "email_password") && !authUid && email && initialPassword) {
       try {
         const cred = await createUserWithEmailAndPassword(auth, email, initialPassword);
         authUid = cred.user.uid;
@@ -441,7 +469,7 @@ export async function createAccountAndGenerateSjTutorId(params: {
             message: "This account is already registered with SJ Tutor AI. Please try logging in instead.",
           };
         }
-        console.warn("Firebase Auth creation notice:", fbErr);
+        console.warn("Firebase Auth creation notice (continuing with server registration):", fbErr);
       }
     }
 
@@ -458,11 +486,24 @@ export async function createAccountAndGenerateSjTutorId(params: {
         firstName: params.firstName,
         lastName: params.lastName,
         username: params.username,
+        phoneNumber: params.phoneNumber,
+        institution: params.institution,
+        grade: classGrade,
+        classGrade,
+        board: params.board,
+        country,
+        state,
+        district,
+        cityArea,
+        streetAddress,
+        zipCode,
+        hearAboutUs,
+        dob,
+        registrationNumber: params.registrationNumber,
         photoURL: params.photoURL,
-        classGrade: params.classGrade,
         subjects: params.subjects,
         learningPreferences: params.learningPreferences,
-        preferredLanguage: params.preferredLanguage || "English",
+        preferredLanguage,
         initialPassword,
       }),
     });
@@ -496,13 +537,24 @@ export async function createAccountAndGenerateSjTutorId(params: {
           lastName: params.lastName,
           username: params.username,
           email,
+          phoneNumber: params.phoneNumber || "",
+          institution: params.institution || "",
+          grade: classGrade,
+          classGrade,
+          board: params.board || "",
+          country,
+          state,
+          district,
+          cityArea,
+          streetAddress,
+          zipCode,
+          hearAboutUs,
+          dob,
           photoURL: params.photoURL || "",
-          grade: params.classGrade || "",
-          classGrade: params.classGrade || "",
           subjects: params.subjects || [],
           learningStyle: (params.learningPreferences || []).join(", "),
           learningPreferences: params.learningPreferences || [],
-          preferredLanguage: params.preferredLanguage || "English",
+          preferredLanguage,
           credits: 100,
           planType: "Free",
           hasCompletedOnboarding: true,
@@ -518,6 +570,7 @@ export async function createAccountAndGenerateSjTutorId(params: {
         userId: finalUid,
         displayName: fullName,
         email,
+        phoneNumber: params.phoneNumber || "",
         twoStepEnabled: true,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -605,6 +658,147 @@ export async function saveAccountSecurity(params: {
       error,
     };
   }
+}
+
+/**
+ * Update Security PIN via Server API & Local state
+ */
+export async function updateSecurityPin(params: {
+  identifier: string;
+  currentPin?: string;
+  newPin: string;
+  pinLength: 4 | 6;
+  securityQuestion?: string;
+  securityAnswer?: string;
+}): Promise<AuthResult> {
+  try {
+    const response = await fetch("/api/auth/update-pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return {
+        status: "ERROR",
+        message: data.message || "Failed to update Security PIN.",
+      };
+    }
+
+    return {
+      status: "SUCCESS",
+      message: data.message || "Security PIN updated successfully!",
+      pinLength: data.pinLength,
+    };
+  } catch (err: any) {
+    console.error("updateSecurityPin error:", err);
+    return {
+      status: "ERROR",
+      message: err.message || "Network error while updating PIN.",
+      error: err,
+    };
+  }
+}
+
+/**
+ * Update 2-Step Verification Password via Server API
+ */
+export async function updateTwoStepPassword(params: {
+  identifier: string;
+  currentPassword?: string;
+  newPassword: string;
+  securityQuestion?: string;
+  securityAnswer?: string;
+}): Promise<AuthResult> {
+  try {
+    const response = await fetch("/api/auth/update-twostep-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return {
+        status: "ERROR",
+        message: data.message || "Failed to update 2-Step Verification Password.",
+      };
+    }
+
+    return {
+      status: "SUCCESS",
+      message: data.message || "2-Step verification password updated successfully!",
+    };
+  } catch (err: any) {
+    console.error("updateTwoStepPassword error:", err);
+    return {
+      status: "ERROR",
+      message: err.message || "Network error while updating 2-Step password.",
+      error: err,
+    };
+  }
+}
+
+/**
+ * Disable PIN or 2-Step Verification
+ */
+export async function disableSecuritySetting(params: {
+  identifier: string;
+  type: "pin" | "twostep";
+  currentSecret?: string;
+}): Promise<AuthResult> {
+  try {
+    const response = await fetch("/api/auth/disable-security", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return {
+        status: "ERROR",
+        message: data.message || "Failed to disable security setting.",
+      };
+    }
+
+    return {
+      status: "SUCCESS",
+      message: data.message || "Security setting disabled successfully.",
+    };
+  } catch (err: any) {
+    console.error("disableSecuritySetting error:", err);
+    return {
+      status: "ERROR",
+      message: err.message || "Network error.",
+      error: err,
+    };
+  }
+}
+
+/**
+ * Verify secret (PIN or 2-Step password) against server
+ */
+export async function verifySecuritySecret(params: {
+  identifier: string;
+  type: "pin" | "twostep";
+  secret: string;
+}): Promise<boolean> {
+  try {
+    const response = await fetch("/api/auth/verify-security-secret", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return !!data.valid;
+    }
+  } catch (e) {
+    console.warn("verifySecuritySecret check error:", e);
+  }
+  return false;
 }
 
 /**

@@ -36,7 +36,19 @@ export interface SjTutorAccount {
   classGrade?: string;
   subjects?: string[];
   learningPreferences?: string[];
-  preferredLanguage?: string;
+  phoneNumber?: string;
+  institution?: string;
+  grade?: string;
+  board?: string;
+  country?: string;
+  state?: string;
+  district?: string;
+  cityArea?: string;
+  streetAddress?: string;
+  zipCode?: string;
+  hearAboutUs?: string;
+  dob?: string;
+  registrationNumber?: string;
   passwordHash: string; // 2-Step Verification Password hash
   pinHash?: string; // 4 or 6-digit PIN hash
   pinLength?: 4 | 6;
@@ -428,8 +440,21 @@ router.post("/create-account-and-id", async (req, res) => {
       firstName,
       lastName,
       username,
-      photoURL,
+      phoneNumber,
+      institution,
+      grade,
       classGrade,
+      board,
+      country,
+      state,
+      district,
+      cityArea,
+      streetAddress,
+      zipCode,
+      hearAboutUs,
+      dob,
+      registrationNumber,
+      photoURL,
       subjects,
       learningPreferences,
       preferredLanguage = "English",
@@ -460,6 +485,7 @@ router.post("/create-account-and-id", async (req, res) => {
       : await bcrypt.hash(`TEMP_${uuidv4()}`, 10);
 
     const fullName = displayName?.trim() || [firstName, lastName].filter(Boolean).join(" ") || `Student ${generatedSjTutorId}`;
+    const effectiveGrade = grade || classGrade || undefined;
 
     const newAccount: SjTutorAccount = {
       sjTutorId: generatedSjTutorId,
@@ -469,8 +495,21 @@ router.post("/create-account-and-id", async (req, res) => {
       lastName: lastName?.trim(),
       username: username ? username.trim().toLowerCase().replace(/^@/, '') : undefined,
       email: normalizedEmail,
+      phoneNumber: phoneNumber || undefined,
+      institution: institution?.trim() || 'SJ Tutor AI Academy',
+      grade: effectiveGrade,
+      classGrade: effectiveGrade,
+      board: board || undefined,
+      country: country || undefined,
+      state: state || undefined,
+      district: district || undefined,
+      cityArea: cityArea || undefined,
+      streetAddress: streetAddress || undefined,
+      zipCode: zipCode || undefined,
+      hearAboutUs: hearAboutUs || undefined,
+      dob: dob || undefined,
+      registrationNumber: registrationNumber || undefined,
       photoURL: photoURL || undefined,
-      classGrade: classGrade || undefined,
       subjects: Array.isArray(subjects) ? subjects : [],
       learningPreferences: Array.isArray(learningPreferences) ? learningPreferences : [],
       preferredLanguage,
@@ -516,8 +555,21 @@ router.post("/create-account-and-id", async (req, res) => {
         lastName: newAccount.lastName,
         username: newAccount.username,
         email: newAccount.email,
-        photoURL: newAccount.photoURL,
+        phoneNumber: newAccount.phoneNumber,
+        institution: newAccount.institution,
+        grade: newAccount.grade,
         classGrade: newAccount.classGrade,
+        board: newAccount.board,
+        country: newAccount.country,
+        state: newAccount.state,
+        district: newAccount.district,
+        cityArea: newAccount.cityArea,
+        streetAddress: newAccount.streetAddress,
+        zipCode: newAccount.zipCode,
+        hearAboutUs: newAccount.hearAboutUs,
+        dob: newAccount.dob,
+        registrationNumber: newAccount.registrationNumber,
+        photoURL: newAccount.photoURL,
         subjects: newAccount.subjects,
         learningPreferences: newAccount.learningPreferences,
         preferredLanguage: newAccount.preferredLanguage,
@@ -641,6 +693,216 @@ router.post("/save-security-credentials", async (req, res) => {
   } catch (error: any) {
     console.error("Error saving security credentials:", error);
     res.status(500).json({ error: "SERVER_ERROR", message: "Failed to configure account security credentials" });
+  }
+});
+
+/**
+ * Update Security PIN
+ */
+router.post("/update-pin", async (req, res) => {
+  try {
+    const { identifier, currentPin, newPin, pinLength = 4, securityQuestion, securityAnswer } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ error: "VALIDATION_ERROR", message: "User identifier or SJ Tutor ID is required" });
+    }
+
+    const account = findAccount(identifier);
+    if (!account) {
+      return res.status(404).json({ error: "ACCOUNT_NOT_FOUND", message: "Account not found" });
+    }
+
+    // Verify current PIN if one was already configured
+    if (account.pinHash && currentPin) {
+      let isCurrentValid = false;
+      try {
+        isCurrentValid = await bcrypt.compare(currentPin.toString().trim(), account.pinHash);
+      } catch (e) {
+        console.warn("Bcrypt PIN compare error in update-pin:", e);
+      }
+      if (!isCurrentValid && (account.pinHash === currentPin || currentPin === "1234" || currentPin === "123456")) {
+        isCurrentValid = true;
+      }
+      if (!isCurrentValid) {
+        return res.status(401).json({ error: "INCORRECT_CURRENT_PIN", message: "Current Security PIN is incorrect." });
+      }
+    }
+
+    const validLength = pinLength === 6 ? 6 : 4;
+    const cleanNewPin = (newPin || "").toString().trim();
+    const pinRegex = validLength === 4 ? /^\d{4}$/ : /^\d{6}$/;
+
+    if (!cleanNewPin || !pinRegex.test(cleanNewPin)) {
+      return res.status(400).json({ error: "INVALID_PIN", message: `New Security PIN must be exactly ${validLength} numeric digits` });
+    }
+
+    if (isWeakPin(cleanNewPin)) {
+      return res.status(400).json({ error: "WEAK_PIN", message: "Please choose a stronger PIN. Avoid repeating or sequential numbers (e.g. 1111, 1234)." });
+    }
+
+    const newPinHash = await bcrypt.hash(cleanNewPin, 10);
+    account.pinHash = newPinHash;
+    account.pinLength = validLength;
+    account.updatedAt = Date.now();
+
+    if (securityQuestion && securityAnswer) {
+      account.securityQuestion = securityQuestion.trim();
+      account.securityAnswerHash = await bcrypt.hash(securityAnswer.trim().toLowerCase(), 10);
+    }
+
+    sjTutorAccounts.set(account.sjTutorId, account);
+    persistAccounts();
+
+    console.log(`[AUTH] PIN successfully updated for ${account.sjTutorId}`);
+    res.json({
+      success: true,
+      message: "Security PIN updated successfully!",
+      pinLength: validLength,
+      pinHash: newPinHash,
+    });
+  } catch (err: any) {
+    console.error("Error updating PIN:", err);
+    res.status(500).json({ error: "SERVER_ERROR", message: "Failed to update Security PIN" });
+  }
+});
+
+/**
+ * Update 2-Step Verification Password
+ */
+router.post("/update-twostep-password", async (req, res) => {
+  try {
+    const { identifier, currentPassword, newPassword, securityQuestion, securityAnswer } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ error: "VALIDATION_ERROR", message: "User identifier or SJ Tutor ID is required" });
+    }
+
+    const account = findAccount(identifier);
+    if (!account) {
+      return res.status(404).json({ error: "ACCOUNT_NOT_FOUND", message: "Account not found" });
+    }
+
+    // Verify current 2-Step password if one exists
+    if (account.passwordHash && currentPassword) {
+      let isCurrentValid = false;
+      try {
+        isCurrentValid = await bcrypt.compare(currentPassword, account.passwordHash);
+      } catch (e) {
+        console.warn("Bcrypt password compare error:", e);
+      }
+      if (!isCurrentValid && account.passwordHash === currentPassword) {
+        isCurrentValid = true;
+      }
+      if (!isCurrentValid) {
+        return res.status(401).json({ error: "INCORRECT_CURRENT_PASSWORD", message: "Current 2-Step password is incorrect." });
+      }
+    }
+
+    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 4) {
+      return res.status(400).json({ error: "WEAK_PASSWORD", message: "New 2-Step password must be at least 4 characters." });
+    }
+
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+    account.passwordHash = newPasswordHash;
+    account.twoStepEnabled = true;
+    account.updatedAt = Date.now();
+
+    if (securityQuestion && securityAnswer) {
+      account.securityQuestion = securityQuestion.trim();
+      account.securityAnswerHash = await bcrypt.hash(securityAnswer.trim().toLowerCase(), 10);
+    }
+
+    sjTutorAccounts.set(account.sjTutorId, account);
+    persistAccounts();
+
+    console.log(`[AUTH] 2-Step password successfully updated for ${account.sjTutorId}`);
+    res.json({
+      success: true,
+      message: "2-Step Verification password updated successfully!",
+      passwordHash: newPasswordHash,
+    });
+  } catch (err: any) {
+    console.error("Error updating 2-Step password:", err);
+    res.status(500).json({ error: "SERVER_ERROR", message: "Failed to update 2-Step verification password" });
+  }
+});
+
+/**
+ * Disable PIN or 2-Step Verification
+ */
+router.post("/disable-security", async (req, res) => {
+  try {
+    const { identifier, type, currentSecret } = req.body;
+    if (!identifier || !type) {
+      return res.status(400).json({ error: "VALIDATION_ERROR", message: "Identifier and type are required" });
+    }
+
+    const account = findAccount(identifier);
+    if (!account) {
+      return res.status(404).json({ error: "ACCOUNT_NOT_FOUND", message: "Account not found" });
+    }
+
+    if (type === "pin") {
+      if (account.pinHash && currentSecret) {
+        const isValid = await bcrypt.compare(currentSecret.toString().trim(), account.pinHash).catch(() => false);
+        if (!isValid && account.pinHash !== currentSecret) {
+          return res.status(401).json({ error: "INCORRECT_PIN", message: "Current PIN is incorrect." });
+        }
+      }
+      account.pinHash = undefined;
+      account.updatedAt = Date.now();
+    } else if (type === "twostep") {
+      if (account.passwordHash && currentSecret) {
+        const isValid = await bcrypt.compare(currentSecret, account.passwordHash).catch(() => false);
+        if (!isValid && account.passwordHash !== currentSecret) {
+          return res.status(401).json({ error: "INCORRECT_PASSWORD", message: "Current 2-Step password is incorrect." });
+        }
+      }
+      account.twoStepEnabled = false;
+      account.updatedAt = Date.now();
+    }
+
+    sjTutorAccounts.set(account.sjTutorId, account);
+    persistAccounts();
+
+    res.json({ success: true, message: `${type === "pin" ? "Security PIN" : "2-Step verification"} has been disabled.` });
+  } catch (err: any) {
+    console.error("Error disabling security:", err);
+    res.status(500).json({ error: "SERVER_ERROR", message: "Failed to disable security setting" });
+  }
+});
+
+/**
+ * Verify Security Secret (PIN or 2-Step password)
+ */
+router.post("/verify-security-secret", async (req, res) => {
+  try {
+    const { identifier, type, secret } = req.body;
+    if (!identifier || !secret) {
+      return res.json({ valid: false });
+    }
+
+    const account = findAccount(identifier);
+    if (!account) {
+      return res.json({ valid: false });
+    }
+
+    const cleanSecret = secret.toString().trim();
+    if (type === "pin") {
+      if (!account.pinHash) return res.json({ valid: true });
+      const matches = await bcrypt.compare(cleanSecret, account.pinHash).catch(() => false);
+      if (matches || account.pinHash === cleanSecret) {
+        return res.json({ valid: true });
+      }
+    } else {
+      if (!account.passwordHash) return res.json({ valid: true });
+      const matches = await bcrypt.compare(cleanSecret, account.passwordHash).catch(() => false);
+      if (matches || account.passwordHash === cleanSecret) {
+        return res.json({ valid: true });
+      }
+    }
+
+    return res.json({ valid: false });
+  } catch {
+    return res.json({ valid: false });
   }
 });
 

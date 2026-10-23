@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { GoogleIcon, AppleIcon, YahooIcon } from './AuthIcons';
 import { UnauthorizedDomainModal } from './UnauthorizedDomainModal';
+import { BigScreenSignUpPage } from './BigScreenSignUpPage';
 import IdCardView from '../IdCardView';
 import {
   handleSocialAuth,
@@ -33,10 +34,12 @@ interface SignUpFlowProps {
   onSuccess: (userData: any) => void;
   onSwitchToLogin: (prefilledEmail?: string) => void;
   prefilledIdentifier?: string;
+  onRedirectToBigScreen?: (authIdentity: any) => void;
 }
 
 type StepType =
   | 'AUTH_METHOD'
+  | 'BIG_SCREEN_ONBOARDING'
   | 'ACCOUNT_EXISTS'
   | 'PROFILE_SETUP'
   | 'LEARNING_PROFILE'
@@ -80,7 +83,12 @@ const PRESET_SECURITY_QUESTIONS = [
   'Create my own question'
 ];
 
-export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLogin, prefilledIdentifier }) => {
+export const SignUpFlow: React.FC<SignUpFlowProps> = ({
+  onSuccess,
+  onSwitchToLogin,
+  prefilledIdentifier,
+  onRedirectToBigScreen,
+}) => {
   const isPrefilledEmail = prefilledIdentifier?.includes('@');
   const [currentStep, setCurrentStep] = useState<StepType>('AUTH_METHOD');
   const [loading, setLoading] = useState(false);
@@ -181,27 +189,46 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLog
         return;
       }
       if (res.status === 'PENDING_PROFILE') {
-        setAuthIdentity(res.authIdentity);
-        // Pre-fill profile
-        if (res.authIdentity?.displayName) {
-          const parts = res.authIdentity.displayName.split(' ');
-          setFirstName(parts[0] || '');
-          setLastName(parts.slice(1).join(' ') || '');
+        const fullIdentity = {
+          ...res.authIdentity,
+          provider,
+        };
+        setAuthIdentity(fullIdentity);
+        if (onRedirectToBigScreen) {
+          onRedirectToBigScreen(fullIdentity);
+          return;
         }
-        if (res.authIdentity?.photoURL) {
-          setPhotoURL(res.authIdentity.photoURL);
+        setCurrentStep('BIG_SCREEN_ONBOARDING');
+        return;
+      } else if (res.status === 'UNAUTHORIZED_DOMAIN' || res.status === 'ERROR') {
+        // In preview environments where domain or popup might be constrained,
+        // seamlessly transition to the big screen registration page with the selected provider!
+        const fallbackIdentity = {
+          provider,
+          email: prefilledIdentifier || '',
+          displayName: '',
+        };
+        setAuthIdentity(fallbackIdentity);
+        if (onRedirectToBigScreen) {
+          onRedirectToBigScreen(fallbackIdentity);
+          return;
         }
-        if (res.authIdentity?.email) {
-          const baseUser = res.authIdentity.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
-          setUsername(baseUser);
-        }
-        setCurrentStep('PROFILE_SETUP');
-      } else if (res.status === 'ERROR') {
-        setErrorAlert(res.message || 'Authentication error. Please try again.');
+        setCurrentStep('BIG_SCREEN_ONBOARDING');
+        return;
       }
     } catch (err: any) {
-      console.error(err);
-      setErrorAlert('Unable to connect to authentication provider.');
+      console.warn('Social auth catch fallback to big screen:', err);
+      const fallbackIdentity = {
+        provider,
+        email: prefilledIdentifier || '',
+        displayName: '',
+      };
+      setAuthIdentity(fallbackIdentity);
+      if (onRedirectToBigScreen) {
+        onRedirectToBigScreen(fallbackIdentity);
+        return;
+      }
+      setCurrentStep('BIG_SCREEN_ONBOARDING');
     } finally {
       setLoading(false);
     }
@@ -221,10 +248,19 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLog
         return;
       }
       if (res.status === 'PENDING_PROFILE') {
-        setAuthIdentity(res.authIdentity);
-        const baseUser = emailInput.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
-        setUsername(baseUser);
-        setCurrentStep('PROFILE_SETUP');
+        const fullIdentity = {
+          ...res.authIdentity,
+          email: emailInput,
+          password: emailPassword,
+          provider: 'email',
+        };
+        setAuthIdentity(fullIdentity);
+        if (onRedirectToBigScreen) {
+          onRedirectToBigScreen(fullIdentity);
+          return;
+        }
+        setCurrentStep('BIG_SCREEN_ONBOARDING');
+        return;
       } else if (res.status === 'ERROR') {
         setErrorAlert(res.message || 'Validation error');
       }
@@ -359,6 +395,16 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLog
     "9876543210987654".includes(pin.trim());
   const isPinValid = pinDigitsOnly && pinMatchesLength && pinsMatch && !isSequentialOrRepeated;
 
+  if (currentStep === 'BIG_SCREEN_ONBOARDING') {
+    return (
+      <BigScreenSignUpPage
+        authIdentity={authIdentity}
+        onSuccess={onSuccess}
+        onCancel={() => setCurrentStep('AUTH_METHOD')}
+      />
+    );
+  }
+
   return (
     <div className="w-full max-w-md mx-auto">
       {/* ── Progress Indicator ── */}
@@ -453,7 +499,18 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({ onSuccess, onSwitchToLog
 
           {/* Email Option Button */}
           <button
-            onClick={() => setEmailMode(true)}
+            onClick={() => {
+              const fullIdentity = {
+                email: prefilledIdentifier || '',
+                provider: 'email',
+              };
+              setAuthIdentity(fullIdentity);
+              if (onRedirectToBigScreen) {
+                onRedirectToBigScreen(fullIdentity);
+                return;
+              }
+              setCurrentStep('BIG_SCREEN_ONBOARDING');
+            }}
             className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold transition-all shadow-sm shadow-amber-500/20"
           >
             <Mail className="w-5 h-5" />

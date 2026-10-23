@@ -47,36 +47,48 @@ export const getMissingProfileFields = (profile?: UserProfile | null): string[] 
   return missing;
 };
 
-export const generateRegistrationNumber = (profile: UserProfile): string => {
-  if (!profile.displayName) return '';
-  
-  const names = profile.displayName.trim().split(/\s+/).filter(Boolean);
-  const firstName = names[0] || '';
+export const generateRegistrationNumber = (profileOrName: any, optionalDob?: string): string => {
+  let displayName = '';
+  let dob = optionalDob || '';
+
+  if (typeof profileOrName === 'string') {
+    displayName = profileOrName;
+  } else if (profileOrName && typeof profileOrName === 'object') {
+    displayName = profileOrName.displayName || `${profileOrName.firstName || ''} ${profileOrName.lastName || ''}`.trim();
+    if (!dob && profileOrName.dob) {
+      dob = profileOrName.dob;
+    }
+  }
+
+  const names = (displayName || 'Student').trim().split(/\s+/).filter(Boolean);
+  const firstName = names[0] || 'S';
   const lastName = names.length > 1 ? names[names.length - 1] : '';
-  
-  const firstLetter = firstName ? (firstName.charAt(0).toUpperCase() || 'X') : 'X';
-  const surnameLetter = lastName ? (lastName.charAt(0).toUpperCase() || firstLetter) : firstLetter; 
-  
+
+  const firstLetter = firstName.charAt(0).toUpperCase() || 'S';
+  const surnameLetter = lastName ? (lastName.charAt(0).toUpperCase() || 'J') : 'J';
+
   // Format DOB: YYYY-MM-DD -> DDMMYYYY
-  let dobString = '00000000';
-  if (profile.dob) {
-    const cleanDob = profile.dob.replace(/[^0-9]/g, '');
-    if (profile.dob.includes('-')) {
-      const parts = profile.dob.split('-');
+  let dobString = '20070615';
+  if (dob) {
+    const cleanDob = dob.replace(/[^0-9]/g, '');
+    if (dob.includes('-')) {
+      const parts = dob.split('-');
       if (parts.length === 3) {
-        // Assuming YYYY-MM-DD (standard for <input type="date">)
         const year = parts[0];
         const month = parts[1];
         const day = parts[2];
         dobString = `${day}${month}${year}`;
       } else {
-        dobString = cleanDob;
+        dobString = cleanDob || '20070615';
       }
-    } else {
+    } else if (cleanDob) {
       dobString = cleanDob;
     }
+  } else {
+    // Generate 8-digit deterministic or random code
+    dobString = `${Math.floor(10000000 + Math.random() * 90000000)}`;
   }
-  
+
   return `SJ-${firstLetter}${surnameLetter}-${dobString}`.trim();
 };
 
