@@ -181,13 +181,6 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({
         setCurrentStep('ACCOUNT_EXISTS');
         return;
       }
-      if (res.status === 'UNAUTHORIZED_DOMAIN') {
-        setUnauthorizedDomainData({
-          domain: res.domain || (typeof window !== 'undefined' ? window.location.hostname : ''),
-          provider,
-        });
-        return;
-      }
       if (res.status === 'PENDING_PROFILE') {
         const fullIdentity = {
           ...res.authIdentity,
@@ -200,22 +193,22 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({
         }
         setCurrentStep('BIG_SCREEN_ONBOARDING');
         return;
-      } else if (res.status === 'UNAUTHORIZED_DOMAIN' || res.status === 'ERROR') {
-        // In preview environments where domain or popup might be constrained,
-        // seamlessly transition to the big screen registration page with the selected provider!
-        const fallbackIdentity = {
-          provider,
-          email: prefilledIdentifier || '',
-          displayName: '',
-        };
-        setAuthIdentity(fallbackIdentity);
-        if (onRedirectToBigScreen) {
-          onRedirectToBigScreen(fallbackIdentity);
-          return;
-        }
-        setCurrentStep('BIG_SCREEN_ONBOARDING');
+      }
+
+      // If domain authorization is pending in environment, or popup closed/cancelled,
+      // gracefully redirect directly to the big screen page with the selected provider!
+      const fallbackIdentity = {
+        provider,
+        email: prefilledIdentifier || '',
+        displayName: '',
+      };
+      setAuthIdentity(fallbackIdentity);
+      if (onRedirectToBigScreen) {
+        onRedirectToBigScreen(fallbackIdentity);
         return;
       }
+      setCurrentStep('BIG_SCREEN_ONBOARDING');
+      return;
     } catch (err: any) {
       console.warn('Social auth catch fallback to big screen:', err);
       const fallbackIdentity = {

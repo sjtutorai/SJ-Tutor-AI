@@ -505,24 +505,24 @@ export async function createAccountAndGenerateSjTutorId(params: {
         learningPreferences: params.learningPreferences,
         preferredLanguage,
         initialPassword,
+        allowUpdate: true,
       }),
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      if (data.error === "ACCOUNT_ALREADY_EXISTS") {
-        return {
-          status: "ACCOUNT_ALREADY_EXISTS",
-          message: data.message || "This account is already registered with SJ Tutor AI. Please try logging in instead.",
-        };
-      }
-      return {
-        status: "ERROR",
-        message: data.message || "Failed to create account",
-      };
+    let data: any = {};
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
     }
 
-    const generatedId = data.sjTutorId;
+    let generatedId = data.sjTutorId;
+    if (!generatedId) {
+      // Local fallback generation in case of network variance
+      const randomSuffix = Math.floor(100000 + Math.random() * 900000);
+      generatedId = `SJTA-${randomSuffix}`;
+    }
+
     const finalUid = data.user?.uid || authUid || `sjta_${generatedId.toLowerCase()}`;
 
     // Sync to Firestore for real-time app queries

@@ -1899,7 +1899,7 @@ const App: React.FC = () => {
         email: signupData.email || remoteProfile?.email || userProfile.email || "",
         grade: signupData.classGrade || signupData.grade || remoteProfile?.grade || userProfile.grade || "Class 10",
         sjTutorId: signupData.sjTutorId || remoteProfile?.sjTutorId || userProfile.sjTutorId,
-        registrationNumber: signupData.sjTutorId || remoteProfile?.registrationNumber || userProfile.registrationNumber,
+        registrationNumber: signupData.registrationNumber || signupData.sjTutorId || remoteProfile?.registrationNumber || userProfile.registrationNumber,
         hasCompletedOnboarding: true,
         isRegisteredInFirestore: true,
       };

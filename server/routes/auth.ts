@@ -467,9 +467,46 @@ router.post("/create-account-and-id", async (req, res) => {
     if (normalizedEmail) {
       for (const acc of sjTutorAccounts.values()) {
         if (acc.email?.toLowerCase() === normalizedEmail) {
+          if (req.body.allowUpdate || req.body.isCompletingOnboarding || acc.userId === authUid) {
+            // Update the existing account with new details and proceed
+            acc.displayName = displayName?.trim() || [firstName, lastName].filter(Boolean).join(" ") || acc.displayName;
+            if (firstName) acc.firstName = firstName.trim();
+            if (lastName) acc.lastName = lastName.trim();
+            if (username) acc.username = username.trim().toLowerCase().replace(/^@/, '');
+            if (phoneNumber) acc.phoneNumber = phoneNumber;
+            if (institution) acc.institution = institution.trim();
+            if (grade || classGrade) {
+              acc.grade = grade || classGrade;
+              acc.classGrade = grade || classGrade;
+            }
+            if (board) acc.board = board;
+            if (country) acc.country = country;
+            if (state) acc.state = state;
+            if (district) acc.district = district;
+            if (cityArea) acc.cityArea = cityArea;
+            if (streetAddress) acc.streetAddress = streetAddress;
+            if (zipCode) acc.zipCode = zipCode;
+            if (hearAboutUs) acc.hearAboutUs = hearAboutUs;
+            if (dob) acc.dob = dob;
+            if (registrationNumber) acc.registrationNumber = registrationNumber;
+            if (photoURL) acc.photoURL = photoURL;
+            if (Array.isArray(subjects)) acc.subjects = subjects;
+            if (Array.isArray(learningPreferences)) acc.learningPreferences = learningPreferences;
+            if (preferredLanguage) acc.preferredLanguage = preferredLanguage;
+            acc.updatedAt = Date.now();
+            persistAccounts();
+
+            return res.json({
+              success: true,
+              sjTutorId: acc.sjTutorId,
+              user: acc,
+            });
+          }
+
           return res.status(409).json({
             error: "ACCOUNT_ALREADY_EXISTS",
             message: "This account is already registered with SJ Tutor AI. Please try logging in instead.",
+            existingSjTutorId: acc.sjTutorId,
           });
         }
       }

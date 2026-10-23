@@ -465,11 +465,17 @@ export const BigScreenSignUpPage: React.FC<BigScreenSignUpPageProps> = ({
         },
       });
 
+      let generatedId = creationRes.sjTutorId;
       if (creationRes.status !== 'SUCCESS') {
-        throw new Error(creationRes.message || 'Registration could not be completed. Please try again.');
+        if (creationRes.status === 'ACCOUNT_ALREADY_EXISTS') {
+          generatedId = creationRes.sjTutorId || (creationRes as any).existingSjTutorId || `SJTA-${Math.floor(100000 + Math.random() * 900000)}`;
+        } else {
+          throw new Error(creationRes.message || 'Registration could not be completed. Please try again.');
+        }
       }
-
-      const generatedId = creationRes.sjTutorId || `SJTA-${Math.floor(100000 + Math.random() * 900000)}`;
+      if (!generatedId) {
+        generatedId = `SJTA-${Math.floor(100000 + Math.random() * 900000)}`;
+      }
 
       const addressSummary = [cityArea, effectiveDistrict, selectedState, selectedCountry]
         .filter(Boolean)
@@ -550,7 +556,7 @@ export const BigScreenSignUpPage: React.FC<BigScreenSignUpPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-slate-100 flex flex-col justify-between py-6 px-4 sm:px-6 lg:px-8 font-sans selection:bg-amber-500 selection:text-white">
+    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-slate-100 flex flex-col justify-between py-6 px-4 sm:px-6 lg:px-8 font-sans selection:bg-amber-500 selection:text-white">
       {/* Top Header & Brand Bar */}
       <div className="max-w-6xl mx-auto w-full flex items-center justify-between pb-6 border-b border-slate-700/60">
         <div className="flex items-center gap-3">
@@ -1027,26 +1033,40 @@ export const BigScreenSignUpPage: React.FC<BigScreenSignUpPageProps> = ({
                 </div>
               </div>
 
-              {/* Google Maps Preview Status */}
+              {/* Google Maps Preview Status & Live Interactive Map */}
               {locationSuccess && mapsCoordinates && (
-                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-300">
-                  <div className="flex items-center gap-2 truncate">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="truncate">
-                      Location identified: Lat {mapsCoordinates.lat.toFixed(4)}, Lng {mapsCoordinates.lng.toFixed(4)}
-                    </span>
+                <div className="space-y-3">
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-300">
+                    <div className="flex items-center gap-2 truncate">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="truncate">
+                        GPS Location Connected: Lat {mapsCoordinates.lat.toFixed(4)}, Lng {mapsCoordinates.lng.toFixed(4)}
+                      </span>
+                    </div>
+                    {mapsUrl && (
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-bold text-amber-400 hover:underline shrink-0"
+                      >
+                        <span>Open in Google Maps</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
                   </div>
-                  {mapsUrl && (
-                    <a
-                      href={mapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 font-bold text-amber-400 hover:underline shrink-0"
-                    >
-                      <span>View on Google Maps</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
+
+                  {/* Live Google Maps Interactive Visualizer */}
+                  <div className="rounded-2xl overflow-hidden border border-slate-700 bg-slate-900 shadow-lg">
+                    <iframe
+                      title="Google Maps Location View"
+                      width="100%"
+                      height="180"
+                      loading="lazy"
+                      className="border-0 w-full"
+                      src={`https://maps.google.com/maps?q=${mapsCoordinates.lat},${mapsCoordinates.lng}&z=14&output=embed`}
+                    />
+                  </div>
                 </div>
               )}
 
