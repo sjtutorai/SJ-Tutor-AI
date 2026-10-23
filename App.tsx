@@ -47,7 +47,6 @@ import Tutorial from "./components/Tutorial";
 import { useStreak } from "./components/StreakContext";
 import { FloatingStreakWidget } from "./components/FloatingStreakWidget";
 import { DeepWorkFocusMode } from "./components/DeepWorkFocusMode";
-import { FloatingDeepWorkButton } from "./components/FloatingDeepWorkButton";
 import { StreakRewardModal } from "./components/StreakRewardModal";
 import { TrialBannerCard, calculateTrialInfo } from "./components/TrialTimerWidget";
 import { SharedContentView } from "./components/SharedContentView";
@@ -4452,13 +4451,6 @@ const App: React.FC = () => {
         <FloatingStreakWidget
           userProfile={userProfile}
           onProfileUpdate={handleProfileSave}
-        />
-      )}
-
-      {/* Floating Deep Work Focus Mode Button on Dashboard */}
-      {mode === AppMode.DASHBOARD && !isDeepWorkActive && (
-        <FloatingDeepWorkButton
-          onEnterFocus={() => setIsDeepWorkActive(true)}
         />
       )}
 
