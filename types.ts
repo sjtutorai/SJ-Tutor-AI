@@ -413,6 +413,7 @@ export interface StudyGroup {
   createdAt: number;
   updatedAt: number;
   members: Record<string, GroupMember>;
+  invitedMembers?: Record<string, { uid: string; displayName: string; photoURL?: string; invitedAt: number; invitedBy: string; isFriend?: boolean }>;
   memberCount: number;
   isPublic: boolean;
   onlyAdminsCanMessage?: boolean;

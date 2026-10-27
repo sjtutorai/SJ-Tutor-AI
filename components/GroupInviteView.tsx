@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Users, CheckCircle, ArrowLeft, ShieldAlert, XCircle, Check, ArrowRight } from 'lucide-react';
+import { Users, CheckCircle, ArrowLeft, ShieldAlert, XCircle, Check, ArrowRight, Clock, Lock, Send } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useNotifications } from './NotificationContext';
-import { StudyGroup, GroupMember } from '../types';
-import { joinGroupInFirestore } from '../utils/firebaseUtils';
+import { StudyGroup } from '../types';
+import { requestJoinGroupInFirestore } from '../utils/firebaseUtils';
 
 interface GroupInviteViewProps {
   groupId: string;
@@ -30,6 +30,8 @@ export const GroupInviteView: React.FC<GroupInviteViewProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDeclined, setIsDeclined] = useState(false);
+  const [isPendingApproval, setIsPendingApproval] = useState(false);
+  const [isAlreadyMember, setIsAlreadyMember] = useState(false);
   const [groupOwnerName, setGroupOwnerName] = useState<string>('Group Admin');
   const [groupSubject, setGroupSubject] = useState<string>('');
   const [memberCount, setMemberCount] = useState<number>(1);
@@ -45,15 +47,26 @@ export const GroupInviteView: React.FC<GroupInviteViewProps> = ({
           if (data.creatorName) setGroupOwnerName(data.creatorName);
           if (data.subject) setGroupSubject(data.subject);
           if (data.memberCount) setMemberCount(data.memberCount);
+
+          if (data.members && data.members[currentUserId]) {
+            setIsAlreadyMember(true);
+          } else if (data.joinRequests && data.joinRequests[currentUserId]) {
+            setIsPendingApproval(true);
+          }
         }
       } catch (e) {
         console.warn('Could not fetch group details:', e);
       }
     };
     fetchGroupInfo();
-  }, [groupId]);
+  }, [groupId, currentUserId]);
 
   const handleAccept = async () => {
+    if (isAlreadyMember) {
+      onAccept();
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -64,34 +77,44 @@ export const GroupInviteView: React.FC<GroupInviteViewProps> = ({
       }
       
       const groupData = groupSnap.data() as StudyGroup;
-      
-      const newMember: GroupMember = {
-        uid: currentUserId,
-        displayName: currentUserDisplayName,
-        role: 'member',
-        joinedAt: Date.now()
-      };
 
-      const success = await joinGroupInFirestore(groupId, newMember);
+      // Submit join request to group admin instead of auto-joining
+      const success = await requestJoinGroupInFirestore(groupId, {
+        uid: currentUserId,
+        displayName: currentUserDisplayName || 'Student',
+        photoURL: '',
+      });
+
       if (!success) {
-        throw new Error('Failed to update group membership.');
+        throw new Error('Failed to send join request to the group admin.');
       }
 
       // Notify the group creator / admin
       if (groupData.createdBy) {
         await sendNotification(
-          'Group Invite Accepted 🎉',
-          `${currentUserDisplayName} accepted your invitation and joined "${groupName}".`,
+          'New Join Request 📩',
+          `${currentUserDisplayName} requested to join your group "${groupName}". Please review and approve in Group Settings.`,
           'Important Alerts',
-          groupData.createdBy
+          groupData.createdBy,
+          undefined,
+          {
+            type: 'group_join_request',
+            groupId: groupId,
+            requesterUid: currentUserId,
+            requesterName: currentUserDisplayName
+          }
         );
       }
 
-      triggerToast('Joined Group! 🎉', `Welcome to ${groupName}! You can now see all messages.`, 'Important Alerts');
-      onAccept();
+      setIsPendingApproval(true);
+      triggerToast(
+        'Request Sent to Admin! 📩',
+        `Your request to join "${groupName}" was sent to the group admin (${groupOwnerName}).`,
+        'Important Alerts'
+      );
     } catch (err: any) {
-      console.error('Failed to accept group invite:', err);
-      setError(err.message || 'Failed to join group. Please try again.');
+      console.error('Failed to request group join:', err);
+      setError(err.message || 'Failed to submit join request. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -160,7 +183,7 @@ export const GroupInviteView: React.FC<GroupInviteViewProps> = ({
             <div className="p-4 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 text-sm font-medium mb-8 max-w-md mx-auto flex items-center gap-3 text-left">
               <Check className="w-5 h-5 text-amber-600 flex-shrink-0" />
               <span>
-                The group owner (<strong className="text-amber-950 dark:text-amber-100">{groupOwnerName}</strong>) has been informed of your response.
+                The group admin (<strong className="text-amber-950 dark:text-amber-100">{groupOwnerName}</strong>) has been informed of your response.
               </span>
             </div>
 
@@ -170,6 +193,55 @@ export const GroupInviteView: React.FC<GroupInviteViewProps> = ({
                 className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
               >
                 Go to Dashboard
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isPendingApproval) {
+    return (
+      <div className="w-full max-w-2xl mx-auto py-12 px-4 md:px-6">
+        <button
+          onClick={onBack}
+          className="mb-8 flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Dashboard
+        </button>
+
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 md:p-12 shadow-xl border border-slate-200/60 dark:border-slate-800/60 text-center relative overflow-hidden">
+          <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-amber-50/50 dark:from-amber-950/20 to-transparent pointer-events-none" />
+          
+          <div className="relative">
+            <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/40 rounded-2xl mx-auto flex items-center justify-center mb-6 shadow-inner ring-4 ring-white dark:ring-slate-900 animate-pulse">
+              <Clock className="w-10 h-10 text-amber-600 dark:text-amber-400" />
+            </div>
+
+            <h2 className="text-2xl md:text-3xl font-black text-slate-800 dark:text-white mb-3">
+              Request Sent to Group Admin ⏳
+            </h2>
+            
+            <p className="text-base md:text-lg text-slate-600 dark:text-slate-300 mb-6 max-w-lg mx-auto leading-relaxed">
+              Your request to join <span className="font-bold text-slate-800 dark:text-white">&quot;{groupName}&quot;</span> has been submitted to the group admin (<span className="font-bold text-indigo-600 dark:text-indigo-400">{groupOwnerName}</span>).
+            </p>
+
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 text-sm font-medium mb-8 max-w-md mx-auto flex items-start gap-3 text-left">
+              <Lock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                <strong>Admin Approval Required:</strong> In accordance with group rules, nobody can join or send messages in this group without the group admin&apos;s direct approval. You will receive an alert as soon as you are approved!
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <button
+                onClick={onBack}
+                className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-bold transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
+              >
+                Back to Dashboard
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -202,9 +274,14 @@ export const GroupInviteView: React.FC<GroupInviteViewProps> = ({
             Group Invitation
           </h2>
           
-          <p className="text-base md:text-lg text-slate-600 dark:text-slate-300 mb-6 max-w-lg mx-auto leading-relaxed">
+          <p className="text-base md:text-lg text-slate-600 dark:text-slate-300 mb-4 max-w-lg mx-auto leading-relaxed">
             <span className="font-bold text-slate-800 dark:text-white">{inviterName}</span> has invited you to join the study group <span className="font-bold text-indigo-600 dark:text-indigo-400">&quot;{groupName}&quot;</span>.
           </p>
+
+          <div className="p-3.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 max-w-md mx-auto mb-6 text-xs text-slate-600 dark:text-slate-300 flex items-center justify-center gap-2">
+            <Lock className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <span>Admin approval is required to join and send messages.</span>
+          </div>
 
           {(groupSubject || memberCount) && (
             <div className="inline-flex items-center gap-3 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 mb-8">
@@ -222,20 +299,31 @@ export const GroupInviteView: React.FC<GroupInviteViewProps> = ({
           )}
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-4">
-            <button
-              onClick={handleDecline}
-              disabled={loading}
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all focus:ring-4 focus:ring-slate-100 dark:focus:ring-slate-800 disabled:opacity-50"
-            >
-              Decline Invite
-            </button>
+            {!isAlreadyMember && (
+              <button
+                onClick={handleDecline}
+                disabled={loading}
+                className="w-full sm:w-auto px-8 py-3.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all focus:ring-4 focus:ring-slate-100 dark:focus:ring-slate-800 disabled:opacity-50"
+              >
+                Decline Invite
+              </button>
+            )}
             <button
               onClick={handleAccept}
               disabled={loading}
               className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-500/25 transition-all focus:ring-4 focus:ring-indigo-500/20 active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <CheckCircle className="w-5 h-5" />
-              {loading ? 'Joining...' : 'Accept & Join'}
+              {isAlreadyMember ? (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  Open Group Chat
+                </>
+              ) : (
+                <>
+                  <Send className="w-5 h-5" />
+                  {loading ? 'Submitting Request...' : 'Ask Group Admin to Join 📩'}
+                </>
+              )}
             </button>
           </div>
         </div>

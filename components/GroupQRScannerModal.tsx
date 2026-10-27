@@ -17,8 +17,8 @@ import {
 import { motion } from 'motion/react';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { StudyGroup, GroupMember, UserProfile } from '../types';
-import { joinGroupInFirestore } from '../utils/firebaseUtils';
+import { StudyGroup, UserProfile } from '../types';
+import { requestJoinGroupInFirestore } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
 
 interface GroupQRScannerModalProps {
@@ -225,59 +225,74 @@ export const GroupQRScannerModal: React.FC<GroupQRScannerModalProps> = ({
     }
   };
 
-  // Handle Joining Group
+  // Handle Requesting to Join Group via QR
   const handleConfirmJoin = async () => {
     if (!scannedGroup || isJoining) return;
     setIsJoining(true);
     try {
-      const alreadyMember = scannedGroup.members && scannedGroup.members[currentUserId];
+      const alreadyMember = scannedGroup.members && (scannedGroup.members[currentUserId] || scannedGroup.members[userProfile?.uid || '']);
       if (alreadyMember) {
-        triggerToast('Already a Member!', `You are already part of "${scannedGroup.name}".`, 'Important Alerts');
+        triggerToast('Already a Member!', `You are already part of "${scannedGroup.name}". Opened chat.`, 'Important Alerts');
         onJoinedGroup(scannedGroup);
         onClose();
         return;
       }
 
-      const newMember: GroupMember = {
+      if (scannedGroup.joinRequests && scannedGroup.joinRequests[currentUserId]) {
+        triggerToast('Request Pending ⏳', `You have already requested to join "${scannedGroup.name}". Waiting for group admin approval.`, 'Important Alerts');
+        onClose();
+        return;
+      }
+
+      const success = await requestJoinGroupInFirestore(scannedGroup.id, {
         uid: currentUserId,
         displayName: currentUserName,
         photoURL: userProfile?.photoURL || '',
-        role: 'member',
-        joinedAt: Date.now(),
-        canMessage: true,
-      };
+      });
 
-      const success = await joinGroupInFirestore(scannedGroup.id, newMember);
       if (success) {
-        // Send notification to group creator
+        // Send notification to group creator / admin
         if (scannedGroup.createdBy && scannedGroup.createdBy !== currentUserId) {
           await sendNotification(
-            'New Member Joined via QR! 🎉',
-            `${currentUserName} scanned the QR code and joined your group "${scannedGroup.name}".`,
+            'New Join Request via QR 📩',
+            `${currentUserName} scanned the group QR code and requested to join "${scannedGroup.name}". Please review and approve in Group Settings.`,
             'Important Alerts',
-            scannedGroup.createdBy
+            scannedGroup.createdBy,
+            undefined,
+            {
+              type: 'group_join_request',
+              groupId: scannedGroup.id,
+              requesterUid: currentUserId,
+              requesterName: currentUserName
+            }
           );
         }
 
-        triggerToast('Joined Group Successfully! 🎉', `You are now a member of ${scannedGroup.name}!`, 'Important Alerts');
+        triggerToast('Join Request Sent! 📩', `Your request was sent to the group admin. You can join and message once approved.`, 'Important Alerts');
         
         const updatedGroup = {
           ...scannedGroup,
-          members: {
-            ...(scannedGroup.members || {}),
-            [currentUserId]: newMember,
-          },
-          memberCount: (scannedGroup.memberCount || 1) + 1,
+          joinRequests: {
+            ...(scannedGroup.joinRequests || {}),
+            [currentUserId]: {
+              uid: currentUserId,
+              displayName: currentUserName,
+              photoURL: userProfile?.photoURL || '',
+              requestedAt: Date.now()
+            }
+          }
         };
 
-        onJoinedGroup(updatedGroup);
-        onClose();
+        setScannedGroup(updatedGroup);
+        setTimeout(() => {
+          onClose();
+        }, 1500);
       } else {
-        throw new Error('Failed to update group membership.');
+        throw new Error('Failed to submit join request.');
       }
     } catch (e: any) {
-      console.error('Join error:', e);
-      setErrorMessage(e?.message || 'Could not join group. Please try again.');
+      console.error('Join request error:', e);
+      setErrorMessage(e?.message || 'Could not send join request. Please try again.');
     } finally {
       setIsJoining(false);
     }
@@ -414,11 +429,16 @@ export const GroupQRScannerModal: React.FC<GroupQRScannerModalProps> = ({
                 </div>
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-400 block">Access Mode</span>
-                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    Instant Join
+                    Admin Approval
                   </span>
                 </div>
+              </div>
+
+              {/* Security notice */}
+              <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-2xl border border-indigo-100 dark:border-indigo-900/50 text-[11px] text-slate-600 dark:text-slate-300 text-left">
+                <strong>Admin Protected Group:</strong> Members cannot message without joining, and admin approval is required before joining.
               </div>
 
               {/* Buttons */}
@@ -433,17 +453,26 @@ export const GroupQRScannerModal: React.FC<GroupQRScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={handleConfirmJoin}
-                  disabled={isJoining}
+                  disabled={isJoining || Boolean(scannedGroup.joinRequests && scannedGroup.joinRequests[currentUserId])}
                   className="flex-2 py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-2xl shadow-xl shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
                 >
                   {isJoining ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Joining...
+                      Submitting Request...
+                    </>
+                  ) : scannedGroup.members && (scannedGroup.members[currentUserId] || scannedGroup.members[userProfile?.uid || '']) ? (
+                    <>
+                      Open Group Chat
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  ) : scannedGroup.joinRequests && scannedGroup.joinRequests[currentUserId] ? (
+                    <>
+                      Request Pending Approval ⏳
                     </>
                   ) : (
                     <>
-                      Join Group Now
+                      Ask Admin to Join 📩
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}

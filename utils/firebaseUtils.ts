@@ -933,6 +933,74 @@ export const handleJoinRequestInFirestore = async (
   }
 };
 
+export const acceptGroupInvitationInFirestore = async (
+  groupId: string,
+  member: GroupMember
+): Promise<boolean> => {
+  try {
+    const groupDocRef = doc(db, "groups", groupId);
+    const groupSnap = await getDoc(groupDocRef);
+    if (!groupSnap.exists()) return false;
+
+    const groupData = groupSnap.data() as StudyGroup;
+    const currentInvited = { ...(groupData.invitedMembers || {}) };
+    delete currentInvited[member.uid];
+
+    const currentMembers = {
+      ...(groupData.members || {}),
+      [member.uid]: member
+    };
+
+    await updateDoc(groupDocRef, {
+      members: currentMembers,
+      invitedMembers: currentInvited,
+      memberCount: Object.keys(currentMembers).length,
+      updatedAt: Date.now()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error accepting group invitation in Firestore:", error);
+    return false;
+  }
+};
+
+export const declineGroupInvitationInFirestore = async (
+  groupId: string,
+  userUid: string
+): Promise<boolean> => {
+  try {
+    const groupDocRef = doc(db, "groups", groupId);
+    const groupSnap = await getDoc(groupDocRef);
+    if (!groupSnap.exists()) return false;
+
+    const groupData = groupSnap.data() as StudyGroup;
+    const currentInvited = { ...(groupData.invitedMembers || {}) };
+    delete currentInvited[userUid];
+
+    const currentMembers = { ...(groupData.members || {}) };
+    let memberRemoved = false;
+    if (currentMembers[userUid]) {
+      delete currentMembers[userUid];
+      memberRemoved = true;
+    }
+
+    const updates: any = {
+      invitedMembers: currentInvited,
+      updatedAt: Date.now()
+    };
+    if (memberRemoved) {
+      updates.members = currentMembers;
+      updates.memberCount = Object.keys(currentMembers).length;
+    }
+
+    await updateDoc(groupDocRef, updates);
+    return true;
+  } catch (error) {
+    console.error("Error declining group invitation in Firestore:", error);
+    return false;
+  }
+};
+
 export const deleteGroupInFirestore = async (groupId: string): Promise<boolean> => {
   try {
     const messagesRef = collection(db, "groups", groupId, "messages");

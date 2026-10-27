@@ -181,6 +181,8 @@
         "createdAt": { "type": "number" },
         "updatedAt": { "type": "number" },
         "members": { "type": "object" },
+        "invitedMembers": { "type": "object" },
+        "joinRequests": { "type": "object" },
         "memberCount": { "type": "number" },
         "isPublic": { "type": "boolean" },
         "inviteCode": { "type": "string" }

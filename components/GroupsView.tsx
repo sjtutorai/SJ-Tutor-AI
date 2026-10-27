@@ -10,6 +10,7 @@ import {
   Mic,
   Check,
   CheckCheck,
+  CheckCircle,
   ChevronLeft,
   Copy,
   LogOut,
@@ -44,6 +45,8 @@ import {
   Video,
   Sparkles,
   Download,
+  Mail,
+  UserCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from "qrcode.react";
@@ -72,7 +75,6 @@ import {
   subscribeToAllGroups,
   subscribeToGroupMessages,
   sendGroupMessageInFirestore,
-  joinGroupInFirestore,
   leaveGroupInFirestore,
   toggleGroupMessageReactionInFirestore,
   voteGroupPollInFirestore,
@@ -80,8 +82,13 @@ import {
   deleteGroupMessageInFirestore,
   updateGroupMemberRoleInFirestore,
   updateGroupMemberMessagingInFirestore,
-  updateMemberLastActiveInFirestore
+  updateMemberLastActiveInFirestore,
+  acceptGroupInvitationInFirestore,
+  declineGroupInvitationInFirestore,
+  subscribeToUserFriendships,
+  searchUsersInFirestore
 } from '../utils/firebaseUtils';
+import { NotificationService } from '../services/notificationService';
 import { useNotifications } from './NotificationContext';
 import { DirectChatView } from './DirectChatView';
 import { requestMicrophoneStream, blobToDataUrl } from '../services/audioService';
@@ -233,9 +240,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const isMemberOf = (g: StudyGroup) =>
     Boolean(g.members && (!!g.members[currentUid] || (userUid && !!g.members[userUid])));
 
+  // Helper check for pending invitation
+  const isInvitedTo = (g: StudyGroup) =>
+    Boolean(g.invitedMembers && (!!g.invitedMembers[currentUid] || (userUid && !!g.invitedMembers[userUid])));
+
   // Active group object
   const activeGroup = groups.find((g) => g.id === activeGroupId) || null;
   const isMemberOfActive = activeGroup ? isMemberOf(activeGroup) : false;
+  const isInvitedToActive = activeGroup ? isInvitedTo(activeGroup) : false;
 
   // Helper check for active / online status (active currently or within last 5 minutes = 300,000 ms)
   const isMemberOnline = (m?: GroupMember) => {
@@ -553,35 +565,65 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
         setShowMobileChat(true);
         triggerToast('Already Joined! 🎉', `You are already a member of "${groupToJoin.name}". Opened chat.`, 'Important Alerts');
       } else {
-        const newMember: GroupMember = {
-          uid: currentUid,
-          displayName: currentName,
-          photoURL: userProfile.photoURL,
-          role: 'member',
-          joinedAt: Date.now()
-        };
+        // Enforce admin approval requirement: users cannot join without group admin approval
+        const alreadyRequested = groupToJoin.joinRequests && !!groupToJoin.joinRequests[currentUid];
+        if (alreadyRequested) {
+          setActiveGroupId(groupToJoin.id);
+          setActiveTab('explore');
+          setShowMobileChat(true);
+          triggerToast('Request Pending ⏳', `You have already requested to join "${groupToJoin.name}". Waiting for group admin approval.`, 'Important Alerts');
+        } else {
+          const userReq = {
+            uid: currentUid,
+            displayName: currentName,
+            photoURL: userProfile.photoURL || '',
+          };
 
-        await joinGroupInFirestore(groupToJoin.id, newMember);
+          await requestJoinGroupInFirestore(groupToJoin.id, userReq);
 
-        const updatedMembers = { ...(groupToJoin.members || {}), [currentUid]: newMember };
-        const updatedGroup = {
-          ...groupToJoin,
-          members: updatedMembers,
-          memberCount: Object.keys(updatedMembers).length,
-        };
-
-        setGroups((prev) => {
-          const exists = prev.some((g) => g.id === groupToJoin.id);
-          if (exists) {
-            return prev.map((g) => (g.id === groupToJoin.id ? updatedGroup : g));
+          if (groupToJoin.createdBy) {
+            await sendNotification(
+              'New Join Request 📩',
+              `${currentName} requested to join your group "${groupToJoin.name}". Please review and approve in Group Settings.`,
+              'Important Alerts',
+              groupToJoin.createdBy,
+              undefined,
+              {
+                type: 'group_join_request',
+                groupId: groupToJoin.id,
+                requesterUid: currentUid,
+                requesterName: currentName
+              }
+            );
           }
-          return [updatedGroup, ...prev];
-        });
 
-        setActiveGroupId(groupToJoin.id);
-        setActiveTab('my');
-        setShowMobileChat(true);
-        triggerToast('Joined Group! 🎉', `Welcome to "${groupToJoin.name}"!`, 'Important Alerts');
+          const updatedReqs = {
+            ...(groupToJoin.joinRequests || {}),
+            [currentUid]: {
+              uid: currentUid,
+              displayName: currentName,
+              photoURL: userProfile.photoURL || '',
+              requestedAt: Date.now()
+            }
+          };
+          const updatedGroup = {
+            ...groupToJoin,
+            joinRequests: updatedReqs,
+          };
+
+          setGroups((prev) => {
+            const exists = prev.some((g) => g.id === groupToJoin.id);
+            if (exists) {
+              return prev.map((g) => (g.id === groupToJoin.id ? updatedGroup : g));
+            }
+            return [updatedGroup, ...prev];
+          });
+
+          setActiveGroupId(groupToJoin.id);
+          setActiveTab('explore');
+          setShowMobileChat(true);
+          triggerToast('Join Request Sent! 📩', `Your request to join "${groupToJoin.name}" was sent to the group admin. You will be able to message once approved.`, 'Important Alerts');
+        }
       }
 
       setJoinInput('');
@@ -624,6 +666,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Handle Send Text Message
   const handleSendMessage = async (textToSend?: string, typeOverride?: 'text' | 'image' | 'poll' | 'voice', extraData?: any) => {
+    if (!activeGroup || !isMemberOfActive) {
+      triggerToast('Cannot Send Message 🔒', 'You cannot send messages without joining this group and receiving approval from the group admin.', 'Important Alerts');
+      return;
+    }
     if (isPostingRestricted) {
       triggerToast('Posting Restricted 🔒', 'Only group admins can send messages in this group.', 'Important Alerts');
       return;
@@ -963,21 +1009,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       setShowGroupInfo(false);
       triggerToast('Left Group', `You have left "${group.name}".`, 'Important Alerts');
     } else {
-      // Join group
-      const newMember: GroupMember = {
-        uid: currentUid,
-        displayName: currentName,
-        photoURL: userProfile.photoURL,
-        role: 'member',
-        joinedAt: Date.now()
-      };
-      await joinGroupInFirestore(group.id, newMember);
-      const updatedMembers = { ...group.members, [currentUid]: newMember };
-      setGroups((prev) =>
-        prev.map((g) => (g.id === group.id ? { ...g, members: updatedMembers, memberCount: Object.keys(updatedMembers).length } : g))
-      );
-      setActiveGroupId(group.id);
-      triggerToast('Joined Group! 🎉', `Welcome to "${group.name}"!`, 'Important Alerts');
+      // Admin approval is strictly required to join any study group
+      handleRequestToJoinGroup(group);
     }
   };
 
@@ -1145,6 +1178,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Start or Join Group Live Audio / Video Call
   const handleStartOrJoinGroupCall = async (group: StudyGroup, type: 'audio' | 'video') => {
+    if (!isMemberOf(group)) {
+      triggerToast('Members Only 🔒', 'You must be an approved group member to join live study rooms.', 'Important Alerts');
+      return;
+    }
     if (!userUid) {
       onOpenAuthModal?.();
       return;
@@ -1211,6 +1248,52 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [newGroupIconUrl, setNewGroupIconUrl] = useState('');
   const [newGroupColor] = useState('from-primary-500 to-amber-600');
   const [newGroupIsPublic, setNewGroupIsPublic] = useState(true);
+
+  // Group Creation Member Selection States
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState<Record<string, { uid: string; displayName: string; photoURL?: string; isFriend: boolean }>>({});
+  const [memberPickerTab, setMemberPickerTab] = useState<'friends' | 'all_members'>('friends');
+  const [memberPickerSearch, setMemberPickerSearch] = useState('');
+  const [friendsList, setFriendsList] = useState<{ uid: string; displayName: string; photoURL?: string; email?: string }[]>([]);
+  const [appUsersList, setAppUsersList] = useState<{ uid: string; displayName: string; photoURL?: string; email?: string; registrationNumber?: string; institution?: string }[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  // Subscribe to user friends & fetch app users when Create Group modal opens
+  useEffect(() => {
+    if (!showCreateModal || !currentUid) return;
+
+    // 1. Subscribe to friends list
+    const unsub = subscribeToUserFriendships(currentUid, (friendships) => {
+      const friends: { uid: string; displayName: string; photoURL?: string; email?: string }[] = [];
+      friendships.forEach((f) => {
+        if (f.status === 'accepted') {
+          const friendUid = f.users.find((u) => u !== currentUid);
+          if (friendUid && f.userProfiles && f.userProfiles[friendUid]) {
+            friends.push({
+              uid: friendUid,
+              displayName: f.userProfiles[friendUid].displayName || 'Scholar Friend',
+              photoURL: f.userProfiles[friendUid].photoURL,
+              email: f.userProfiles[friendUid].email,
+            });
+          }
+        }
+      });
+      setFriendsList(friends);
+    });
+
+    // 2. Fetch registered app users
+    setLoadingMembers(true);
+    searchUsersInFirestore('', currentUid)
+      .then((users) => {
+        setAppUsersList(users);
+        setLoadingMembers(false);
+      })
+      .catch((e) => {
+        console.warn('Error loading app users for group creation:', e);
+        setLoadingMembers(false);
+      });
+
+    return () => unsub();
+  }, [showCreateModal, currentUid]);
 
   // Edit Group Modal States
   const [showEditModal, setShowEditModal] = useState(false);
@@ -1506,6 +1589,45 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     const groupId = 'group_' + Date.now();
     const finalIconUrl = newGroupIconType !== 'emoji' && newGroupIconUrl.trim() ? newGroupIconUrl.trim() : undefined;
 
+    // Separate selected members: Friends (direct join, no permission required) vs Other App Scholars (invited)
+    const selectedList = Object.values(selectedGroupMembers);
+    const directFriends = selectedList.filter((m) => m.isFriend);
+    const invitedScholars = selectedList.filter((m) => !m.isFriend);
+
+    // Initial members: Creator + Friends
+    const initialMembers: Record<string, GroupMember> = {
+      [currentUid]: {
+        uid: currentUid,
+        displayName: currentName,
+        role: 'admin',
+        photoURL: userProfile.photoURL,
+        joinedAt: Date.now()
+      },
+    };
+
+    directFriends.forEach((f) => {
+      initialMembers[f.uid] = {
+        uid: f.uid,
+        displayName: f.displayName,
+        photoURL: f.photoURL,
+        role: 'member',
+        joinedAt: Date.now()
+      };
+    });
+
+    // Initial invited members: Non-friend app scholars
+    const initialInvited: Record<string, { uid: string; displayName: string; photoURL?: string; invitedAt: number; invitedBy: string; isFriend?: boolean }> = {};
+    invitedScholars.forEach((s) => {
+      initialInvited[s.uid] = {
+        uid: s.uid,
+        displayName: s.displayName,
+        photoURL: s.photoURL,
+        invitedAt: Date.now(),
+        invitedBy: currentUid,
+        isFriend: false
+      };
+    });
+
     const newGroup: StudyGroup = {
       id: groupId,
       name: newGroupName.trim(),
@@ -1519,10 +1641,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       creatorName: currentName,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      members: {
-        [currentUid]: { uid: currentUid, displayName: currentName, role: 'admin', photoURL: userProfile.photoURL, joinedAt: Date.now() },
-      },
-      memberCount: 1,
+      members: initialMembers,
+      invitedMembers: initialInvited,
+      memberCount: Object.keys(initialMembers).length,
       isPublic: newGroupIsPublic,
       inviteCode: 'JOIN' + Math.random().toString(36).substring(2, 6).toUpperCase(),
       lastMessage: { text: 'Group created! Welcome members!', senderName: currentName, timestamp: Date.now() }
@@ -1533,7 +1654,60 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
     await createGroupInFirestore(newGroup);
 
-    triggerToast('Group Created! 🚀', `Successfully created ${newGroupIsPublic ? 'public' : 'private'} group "${newGroup.name}"!`, 'Important Alerts');
+    // Send notifications to friends added directly (no permission required)
+    directFriends.forEach(async (f) => {
+      await sendNotification(
+        'Added to Study Group 🎉',
+        `${currentName} added you directly to the study group "${newGroup.name}". You have full access to chat and study rooms.`,
+        'Important Alerts',
+        f.uid,
+        undefined,
+        {
+          type: 'group_added',
+          groupId: newGroup.id,
+          groupName: newGroup.name,
+          addedBy: currentName
+        }
+      ).catch((e) => console.warn('Direct friend notif error:', e));
+    });
+
+    // Send notifications to invited scholars (both in-app and outside the app)
+    invitedScholars.forEach(async (inv) => {
+      // 1. In-app notification
+      await sendNotification(
+        'Study Group Invitation 📨',
+        `${currentName} invited you to join "${newGroup.name}". You can Accept or Decline in My Groups.`,
+        'Important Alerts',
+        inv.uid,
+        undefined,
+        {
+          type: 'group_invite',
+          groupId: newGroup.id,
+          groupName: newGroup.name,
+          inviterName: currentName
+        }
+      ).catch((e) => console.warn('Invited scholar in-app notif error:', e));
+
+      // 2. Outside-app browser/system notification
+      try {
+        NotificationService.showLocalNotification(
+          'Study Group Invitation 📨',
+          `${currentName} invited you to join "${newGroup.name}" on SJ Tutor AI.`,
+          'Important Alerts'
+        );
+      } catch (err) {
+        console.warn('Outside-app notification error:', err);
+      }
+    });
+
+    const membersAddedCount = directFriends.length;
+    const membersInvitedCount = invitedScholars.length;
+    let toastSummary = `Successfully created ${newGroupIsPublic ? 'public' : 'private'} group "${newGroup.name}"!`;
+    if (membersAddedCount > 0 || membersInvitedCount > 0) {
+      toastSummary += ` Added ${membersAddedCount} friend${membersAddedCount === 1 ? '' : 's'} & invited ${membersInvitedCount} scholar${membersInvitedCount === 1 ? '' : 's'}.`;
+    }
+
+    triggerToast('Group Created! 🚀', toastSummary, 'Important Alerts');
 
     // Reset Form
     setNewGroupName('');
@@ -1541,13 +1715,138 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     setNewGroupDescription('');
     setNewGroupIconUrl('');
     setNewGroupIconType('emoji');
+    setSelectedGroupMembers({});
+    setMemberPickerSearch('');
     setShowCreateModal(false);
+  };
+
+  // Accept Group Invitation
+  const handleAcceptInvitation = async (group: StudyGroup) => {
+    const newMember: GroupMember = {
+      uid: currentUid,
+      displayName: currentName,
+      photoURL: userProfile.photoURL,
+      role: 'member',
+      joinedAt: Date.now()
+    };
+
+    // 1. Update in Firestore
+    await acceptGroupInvitationInFirestore(group.id, newMember);
+
+    // 2. Post welcome message to group
+    const welcomeMsg: GroupMessage = {
+      id: 'msg_sys_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      groupId: group.id,
+      senderId: 'system',
+      senderName: 'System',
+      text: `🎉 ${currentName} accepted the invitation and joined the group!`,
+      timestamp: Date.now(),
+      type: 'text',
+      status: 'delivered'
+    };
+    await sendGroupMessageInFirestore(group.id, welcomeMsg);
+
+    // 3. Update local state
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== group.id) return g;
+        const updatedInvited = { ...(g.invitedMembers || {}) };
+        delete updatedInvited[currentUid];
+        if (userUid) delete updatedInvited[userUid];
+
+        const updatedMembers = {
+          ...(g.members || {}),
+          [currentUid]: newMember
+        };
+
+        return {
+          ...g,
+          invitedMembers: updatedInvited,
+          members: updatedMembers,
+          memberCount: Object.keys(updatedMembers).length,
+          lastMessage: { text: welcomeMsg.text, senderName: 'System', timestamp: Date.now() }
+        };
+      })
+    );
+
+    setActiveGroupId(group.id);
+    setActiveTab('my');
+    setShowMobileChat(true);
+
+    // 4. Notify group creator
+    if (group.createdBy) {
+      await sendNotification(
+        'Invitation Accepted! 🎉',
+        `${currentName} accepted the invitation and joined your group "${group.name}".`,
+        'Important Alerts',
+        group.createdBy
+      ).catch((e) => console.warn('Accept notif error:', e));
+    }
+
+    triggerToast('Joined Group! 🎉', `You have accepted the invitation and joined "${group.name}".`, 'Important Alerts');
+  };
+
+  // Decline Group Invitation
+  const handleDeclineInvitation = async (group: StudyGroup) => {
+    // 1. Update in Firestore
+    await declineGroupInvitationInFirestore(group.id, currentUid);
+    if (userUid && userUid !== currentUid) {
+      await declineGroupInvitationInFirestore(group.id, userUid);
+    }
+
+    // 2. Send small message to the group
+    const declineMsg: GroupMessage = {
+      id: 'msg_sys_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      groupId: group.id,
+      senderId: 'system',
+      senderName: 'System',
+      text: `👋 ${currentName} declined the invitation to join this group.`,
+      timestamp: Date.now(),
+      type: 'text',
+      status: 'delivered'
+    };
+    await sendGroupMessageInFirestore(group.id, declineMsg);
+
+    // 3. Remove group from user's "My Groups"
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== group.id) return g;
+        const updatedInvited = { ...(g.invitedMembers || {}) };
+        delete updatedInvited[currentUid];
+        if (userUid) delete updatedInvited[userUid];
+        return {
+          ...g,
+          invitedMembers: updatedInvited,
+          lastMessage: { text: declineMsg.text, senderName: 'System', timestamp: Date.now() }
+        };
+      })
+    );
+
+    // If active group was the declined group, switch active
+    if (activeGroupId === group.id) {
+      const remainingJoined = groups.filter((g) => g.id !== group.id && (isMemberOf(g) || isInvitedTo(g)));
+      setActiveGroupId(remainingJoined.length > 0 ? remainingJoined[0].id : '');
+      setShowMobileChat(false);
+    }
+
+    // 4. Notify creator
+    if (group.createdBy) {
+      await sendNotification(
+        'Invitation Declined',
+        `${currentName} declined the invitation to join "${group.name}".`,
+        'Important Alerts',
+        group.createdBy
+      ).catch((e) => console.warn('Decline notif error:', e));
+    }
+
+    triggerToast('Invitation Declined', `"${group.name}" was removed from your My Groups list.`, 'Important Alerts');
   };
 
   // Filter groups
   const filteredGroups = groups.filter((g) => {
     const isMember = isMemberOf(g);
-    const matchesTab = activeTab === 'my' ? isMember : !isMember && g.isPublic;
+    const isInvited = isInvitedTo(g);
+    const matchesTab = activeTab === 'my' ? (isMember || isInvited) : (!isMember && !isInvited && g.isPublic);
     const matchesSearch =
       (g.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (g.subject || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1687,7 +1986,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              My Groups ({groups.filter(isMemberOf).length})
+              My Groups ({groups.filter((g) => isMemberOf(g) || isInvitedTo(g)).length})
             </button>
             <button
               onClick={() => setActiveTab('explore')}
@@ -1714,7 +2013,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               </p>
               <p className="text-xs text-slate-400 mb-4 max-w-xs mx-auto">
                 {activeTab === 'my'
-                  ? 'Join an existing study hub or create your own study group!'
+                  ? 'Join an existing study hub, accept an invite, or create your own study group!'
                   : 'Try adjusting your search query or create a new group.'}
               </p>
               <button
@@ -1731,6 +2030,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
             filteredGroups.map((group, groupIdx) => {
               const isActive = group.id === activeGroupId;
               const isMember = isMemberOf(group);
+              const isInvited = isInvitedTo(group);
 
               return (
                 <div
@@ -1749,11 +2049,15 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     {/* Group Avatar / Icon */}
                     <div className="relative shrink-0">
                       {renderGroupIcon(group, "w-12 h-12 text-xl")}
-                      {isMember && (
+                      {isMember ? (
                         <div className="absolute -bottom-1 -right-1 w-4.5 h-4.5 bg-emerald-500 border-2 border-white dark:border-slate-800 rounded-full flex items-center justify-center shadow-sm">
                           <Check className="w-2.5 h-2.5 text-white" />
                         </div>
-                      )}
+                      ) : isInvited ? (
+                        <div className="absolute -bottom-1 -right-1 w-4.5 h-4.5 bg-amber-500 border-2 border-white dark:border-slate-800 rounded-full flex items-center justify-center shadow-sm text-white" title="Invited">
+                          <Mail className="w-2.5 h-2.5" />
+                        </div>
+                      ) : null}
                     </div>
 
                     {/* Info Snippet */}
@@ -1804,7 +2108,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                       </p>
                     </div>
 
-                    {!isMember && activeTab === 'explore' && (
+                    {!isMember && !isInvited && activeTab === 'explore' && (
                       group.joinRequests?.[currentUid] ? (
                         <span className="px-2.5 py-1.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded-xl text-[11px] font-bold flex items-center gap-1 shrink-0">
                           <Clock className="w-3 h-3" /> Requested
@@ -1822,6 +2126,34 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                       )
                     )}
                   </div>
+
+                  {/* Quick Accept/Decline for invited groups in My Groups */}
+                  {isInvited && !isMember && (
+                    <div
+                      className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 rounded-md text-[10px] font-bold flex items-center gap-1">
+                        <Mail className="w-3 h-3" /> Invitation
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleAcceptInvitation(group)}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer active:scale-95"
+                          title="Accept Invitation"
+                        >
+                          <Check className="w-3 h-3" /> Accept
+                        </button>
+                        <button
+                          onClick={() => handleDeclineInvitation(group)}
+                          className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-bold transition cursor-pointer active:scale-95 flex items-center gap-1"
+                          title="Decline Invitation"
+                        >
+                          <X className="w-3 h-3" /> Decline
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -2005,6 +2337,35 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 >
                   <PhoneCall className="w-4 h-4" />
                   <span>Join Call</span>
+                </button>
+              </div>
+            )}
+
+            {/* Admin: Pending Join Requests Banner */}
+            {isAdmin && activeGroup.joinRequests && Object.keys(activeGroup.joinRequests).length > 0 && (
+              <div className="mx-4 mt-3 p-3.5 bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-amber-500/10 border border-amber-500/30 dark:border-amber-500/20 rounded-2xl flex items-center justify-between z-10 shadow-sm backdrop-blur-md animate-fade-in">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                      <span>{Object.keys(activeGroup.joinRequests).length} Join Request{Object.keys(activeGroup.joinRequests).length === 1 ? '' : 's'} Awaiting Approval</span>
+                      <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-extrabold animate-pulse">
+                        Action Required
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate">
+                      Students cannot join or send messages without your approval as group admin.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowRequestsModal(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs rounded-xl shadow-md transition active:scale-95 cursor-pointer flex items-center gap-1.5 shrink-0 ml-2"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Review & Approve</span>
                 </button>
               </div>
             )}
@@ -2537,6 +2898,93 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               </form>
             </div>
           </>
+        ) : activeGroup && isInvitedToActive ? (
+          <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden">
+            {/* Top Header Bar for Invitation */}
+            <div className="px-4 py-3 sm:px-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between z-20 shadow-sm">
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  onClick={() => setShowMobileChat(false)}
+                  className="lg:hidden p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                  title="Back to Groups"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+
+                <div className="flex items-center gap-3 min-w-0">
+                  {renderGroupIcon(activeGroup, "w-10 h-10 text-xl")}
+
+                  <div className="min-w-0">
+                    <h2 className="font-bold text-slate-900 dark:text-white text-base truncate">
+                      {activeGroup.name}
+                    </h2>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>Group Invitation Pending</span>
+                      <span>•</span>
+                      <span>{activeGroup.subject}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Invitation Body */}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center text-center custom-scrollbar">
+              <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-2xl border border-amber-200/80 dark:border-amber-900/40 space-y-6 animate-in fade-in zoom-in-95">
+                <div className="flex justify-center">
+                  <div className="relative">
+                    {renderGroupIcon(activeGroup, "w-20 h-20 text-4xl shadow-xl")}
+                    <span className="absolute -bottom-1 -right-1 w-7 h-7 bg-amber-500 border-2 border-white dark:border-slate-800 rounded-full flex items-center justify-center text-white shadow-md">
+                      <Mail className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-black rounded-full uppercase tracking-wider mb-2">
+                    <Mail className="w-3.5 h-3.5" /> Group Invitation
+                  </span>
+                  <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-1">
+                    {activeGroup.name}
+                  </h3>
+                  <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-3">
+                    Subject: {activeGroup.subject} • {activeGroup.memberCount} {activeGroup.memberCount === 1 ? 'member' : 'members'}
+                  </p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                    {activeGroup.description || 'You were invited to collaborate and study together in this study group.'}
+                  </p>
+                </div>
+
+                <div className="p-4 bg-amber-50/80 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 text-xs font-medium text-left flex items-start gap-3">
+                  <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold">You are invited to join this study group!</p>
+                    <p className="text-slate-600 dark:text-slate-400">
+                      Accepting gives you immediate access to chat, share notes, and join live study lounges. If you decline, this group will be removed from your My Groups list and a small notice will be sent to the group.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                  <button
+                    onClick={() => handleAcceptInvitation(activeGroup)}
+                    className="w-full sm:flex-1 py-3 px-6 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-emerald-500/25 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    Accept Invitation 🎉
+                  </button>
+                  <button
+                    onClick={() => handleDeclineInvitation(activeGroup)}
+                    className="w-full sm:flex-1 py-3 px-6 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 font-bold text-sm rounded-xl border border-rose-200 dark:border-rose-800/60 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                    Decline
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : activeGroup ? (
           <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden">
             {/* Top Header Bar for Preview */}
@@ -2591,14 +3039,14 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   <div className="p-4 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 text-xs font-medium text-left flex items-start gap-3">
                     <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                     <span>
-                      Your request to join <strong>&quot;{activeGroup.name}&quot;</strong> has been sent to the group owner. You will be able to enter as soon as the owner approves your request!
+                      Your request to join <strong>&quot;{activeGroup.name}&quot;</strong> has been sent to the group admin. You will be able to enter and participate in chats as soon as the group admin approves your request!
                     </span>
                   </div>
                 ) : (
                   <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200 rounded-2xl border border-indigo-200/60 dark:border-indigo-900/40 text-xs font-medium text-left flex items-start gap-3">
                     <Info className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
                     <span>
-                      To join this group, click <strong>Ask Owner to Join</strong> below. Once approved by the owner, you can participate in chats!
+                      <strong>Protected Study Group:</strong> In this group, nobody can send messages without joining, and nobody can join without asking the group admin for approval. Click <strong>Ask Group Admin to Join</strong> below to request access.
                     </span>
                   </div>
                 )}
@@ -2610,7 +3058,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                       className="w-full py-3 px-6 bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold text-sm rounded-xl cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       <Clock className="w-4 h-4" />
-                      Request Pending Approval ⏳
+                      Request Pending Admin Approval ⏳
                     </button>
                   ) : (
                     <button
@@ -2618,7 +3066,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                       className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-500/25 transition-all active:scale-95 flex items-center justify-center gap-2"
                     >
                       <UserPlus className="w-4 h-4" />
-                      Ask Owner to Join Group 📩
+                      Ask Group Admin to Join 📩
                     </button>
                   )}
                 </div>
@@ -2887,6 +3335,280 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                         <span className="text-[10px] opacity-80 block leading-tight">Hidden from Explore. Join via ID / Link.</span>
                       </div>
                     </button>
+                  </div>
+                </div>
+
+                {/* Member Selection: Add from Friends list or App Members */}
+                <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Add Group Members & Friends (Optional)
+                      </label>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                        Friends join immediately with zero permission required. App scholars receive an invitation to accept or decline.
+                      </span>
+                    </div>
+                    {Object.keys(selectedGroupMembers).length > 0 && (
+                      <span className="px-2 py-0.5 bg-primary-100 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 rounded-full text-[10px] font-bold shrink-0">
+                        {Object.keys(selectedGroupMembers).length} selected
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Selected Members Chips */}
+                  {Object.keys(selectedGroupMembers).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200/80 dark:border-slate-700/80 max-h-24 overflow-y-auto custom-scrollbar">
+                      {Object.values(selectedGroupMembers).map((m) => (
+                        <span
+                          key={`selected-${m.uid}`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold shadow-xs ${
+                            m.isFriend
+                              ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50'
+                              : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50'
+                          }`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                          <span className="truncate max-w-[120px]">{m.displayName}</span>
+                          <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-white/70 dark:bg-black/30">
+                            {m.isFriend ? 'Friend' : 'App Scholar'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedGroupMembers((prev) => {
+                                const next = { ...prev };
+                                delete next[m.uid];
+                                return next;
+                              });
+                            }}
+                            className="p-0.5 hover:bg-black/10 rounded text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Sub-Tabs: Friends vs All App Members */}
+                  <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setMemberPickerTab('friends')}
+                      className={`flex-1 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 ${
+                        memberPickerTab === 'friends'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>My Friends ({friendsList.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberPickerTab('all_members')}
+                      className={`flex-1 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 ${
+                        memberPickerTab === 'all_members'
+                          ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>All App Members ({appUsersList.length})</span>
+                    </button>
+                  </div>
+
+                  {/* Search within candidate list */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder={memberPickerTab === 'friends' ? 'Search friends by name or email...' : 'Search app scholars by name, ID or school...'}
+                      value={memberPickerSearch}
+                      onChange={(e) => setMemberPickerSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+
+                  {/* Candidates List */}
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 p-1 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/60 custom-scrollbar">
+                    {loadingMembers ? (
+                      <p className="text-center py-4 text-xs text-slate-400">Loading members...</p>
+                    ) : memberPickerTab === 'friends' ? (
+                      friendsList.filter((f) => {
+                        const q = memberPickerSearch.toLowerCase().trim();
+                        if (!q) return true;
+                        return (f.displayName || '').toLowerCase().includes(q) || (f.email || '').toLowerCase().includes(q);
+                      }).length === 0 ? (
+                        <div className="text-center py-5 text-xs text-slate-400">
+                          {friendsList.length === 0 ? 'No accepted friends yet. You can still add scholars from "All App Members".' : 'No matching friends found.'}
+                        </div>
+                      ) : (
+                        friendsList
+                          .filter((f) => {
+                            const q = memberPickerSearch.toLowerCase().trim();
+                            if (!q) return true;
+                            return (f.displayName || '').toLowerCase().includes(q) || (f.email || '').toLowerCase().includes(q);
+                          })
+                          .map((friend) => {
+                            const isSelected = !!selectedGroupMembers[friend.uid];
+                            return (
+                              <div
+                                key={`picker-friend-${friend.uid}`}
+                                className={`flex items-center justify-between p-2 rounded-xl transition ${
+                                  isSelected
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40'
+                                    : 'bg-white dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-8 h-8 rounded-full overflow-hidden bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-xs font-bold shrink-0">
+                                    {friend.photoURL ? (
+                                      <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover" />
+                                    ) : (
+                                      (friend.displayName?.charAt(0) || 'F').toUpperCase()
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate flex items-center gap-1.5">
+                                      <span>{friend.displayName}</span>
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                        Friend
+                                      </span>
+                                    </p>
+                                    <span className="text-[10px] text-slate-400 block truncate">{friend.email || 'Friend on SJ Tutor AI'}</span>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedGroupMembers((prev) => {
+                                      const next = { ...prev };
+                                      if (isSelected) {
+                                        delete next[friend.uid];
+                                      } else {
+                                        next[friend.uid] = {
+                                          uid: friend.uid,
+                                          displayName: friend.displayName,
+                                          photoURL: friend.photoURL,
+                                          isFriend: true
+                                        };
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 ${
+                                    isSelected
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-emerald-600 hover:text-white'
+                                  }`}
+                                >
+                                  {isSelected ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                                  <span>{isSelected ? 'Added' : 'Add'}</span>
+                                </button>
+                              </div>
+                            );
+                          })
+                      )
+                    ) : (
+                      appUsersList.filter((u) => {
+                        const q = memberPickerSearch.toLowerCase().trim();
+                        if (!q) return true;
+                        return (
+                          (u.displayName || '').toLowerCase().includes(q) ||
+                          (u.email || '').toLowerCase().includes(q) ||
+                          (u.registrationNumber || '').toLowerCase().includes(q) ||
+                          (u.institution || '').toLowerCase().includes(q)
+                        );
+                      }).length === 0 ? (
+                        <div className="text-center py-5 text-xs text-slate-400">
+                          No matching app scholars found.
+                        </div>
+                      ) : (
+                        appUsersList
+                          .filter((u) => {
+                            const q = memberPickerSearch.toLowerCase().trim();
+                            if (!q) return true;
+                            return (
+                              (u.displayName || '').toLowerCase().includes(q) ||
+                              (u.email || '').toLowerCase().includes(q) ||
+                              (u.registrationNumber || '').toLowerCase().includes(q) ||
+                              (u.institution || '').toLowerCase().includes(q)
+                            );
+                          })
+                          .map((user) => {
+                            const isSelected = !!selectedGroupMembers[user.uid];
+                            const isAlreadyFriend = friendsList.some((f) => f.uid === user.uid);
+                            return (
+                              <div
+                                key={`picker-user-${user.uid}`}
+                                className={`flex items-center justify-between p-2 rounded-xl transition ${
+                                  isSelected
+                                    ? 'bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/40'
+                                    : 'bg-white dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-8 h-8 rounded-full overflow-hidden bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-xs font-bold shrink-0">
+                                    {user.photoURL ? (
+                                      <img src={user.photoURL} alt={user.displayName} className="w-full h-full object-cover" />
+                                    ) : (
+                                      (user.displayName?.charAt(0) || 'U').toUpperCase()
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate flex items-center gap-1.5">
+                                      <span>{user.displayName}</span>
+                                      {isAlreadyFriend ? (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                          Friend
+                                        </span>
+                                      ) : (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
+                                          App Scholar
+                                        </span>
+                                      )}
+                                    </p>
+                                    <span className="text-[10px] text-slate-400 block truncate">
+                                      {user.registrationNumber ? `ID: ${user.registrationNumber}` : user.email || 'SJ Tutor Scholar'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedGroupMembers((prev) => {
+                                      const next = { ...prev };
+                                      if (isSelected) {
+                                        delete next[user.uid];
+                                      } else {
+                                        next[user.uid] = {
+                                          uid: user.uid,
+                                          displayName: user.displayName,
+                                          photoURL: user.photoURL,
+                                          isFriend: isAlreadyFriend
+                                        };
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 ${
+                                    isSelected
+                                      ? 'bg-indigo-600 text-white'
+                                      : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-indigo-600 hover:text-white'
+                                  }`}
+                                >
+                                  {isSelected ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                                  <span>{isSelected ? (isAlreadyFriend ? 'Added' : 'Invited') : (isAlreadyFriend ? 'Add' : 'Invite')}</span>
+                                </button>
+                              </div>
+                            );
+                          })
+                      )
+                    )}
                   </div>
                 </div>
               </div>
