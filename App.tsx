@@ -65,6 +65,7 @@ import {
   getSharedContent,
   saveQuizScoreToLeaderboard,
   deleteHistoryItemFromFirestore,
+  getGroupBySlugOrId,
 } from "./utils/firebaseUtils";
 import Logo from "./components/Logo";
 import { GeminiService } from "./services/geminiService";
@@ -73,7 +74,6 @@ import { SEOService } from "./services/seoService";
 import { parseCurrentRoute, syncBrowserUrl } from "./utils/routeUtils";
 import { db, auth } from "./firebaseConfig";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
-import { StudyGroup } from "./types";
 import { getCurrentUserProfile, getMembershipByEmail } from "./utils/userService";
 import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo, } from "firebase/auth";
 import type { User } from "firebase/auth";
@@ -202,54 +202,74 @@ const App: React.FC = () => {
     setMode(AppMode.GROUP_INVITE);
   };
 
-  // Process group invite link parameters from URL (e.g. ?groupId=xxx or ?groupInvite=xxx or ?invite=xxx or /invite/:code)
+  // Process group invite and custom group slug link parameters from URL (e.g. /group_name, /invite/:slug, ?groupId=xxx)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const path = window.location.pathname;
+
+    const KNOWN_ROUTES = new Set([
+      "", "dashboard", "summary", "summarizer", "summaries", "quiz", "quizzes",
+      "homework", "homework-solver", "homework-helper", "essay", "essay-writer",
+      "tutor", "ai-tutor", "chat", "tutor-chat", "notes", "smart-notes", "schedule",
+      "groups", "study-groups", "id-card", "student-id", "id", "timer", "study-timer",
+      "pomodoro", "profile", "account", "my-profile", "settings", "preferences",
+      "notifications", "alerts", "about", "about-us", "privacy", "privacy-policy",
+      "terms", "terms-of-service", "terms-and-conditions", "login", "signin",
+      "signup", "register", "join", "premium", "pricing", "plans", "upgrade",
+      "share", "shared", "invite", "group-invite", "api"
+    ]);
+
+    const cleanPathSlug = path.replace(/^\//, '').replace(/\/$/, '').toLowerCase();
+    const isDirectSlug = !KNOWN_ROUTES.has(cleanPathSlug) && cleanPathSlug.length > 0 && !cleanPathSlug.includes('/');
+
     const pathInviteCode = path.startsWith("/invite/")
       ? path.substring(8).replace(/\/$/, "")
       : path.startsWith("/group-invite/")
       ? path.substring(14).replace(/\/$/, "")
+      : path.startsWith("/group/")
+      ? path.substring(7).replace(/\/$/, "")
+      : path.startsWith("/groups/")
+      ? path.substring(8).replace(/\/$/, "")
       : null;
-    const groupIdFromUrl = params.get("groupId") || params.get("groupInvite") || params.get("invite") || pathInviteCode;
-    const inviterFromUrl = params.get("inviter") || "A student";
 
-    if (groupIdFromUrl) {
+    const groupIdOrSlug = params.get("groupId") || params.get("groupInvite") || params.get("invite") || params.get("slug") || params.get("group") || pathInviteCode || (isDirectSlug ? cleanPathSlug : null);
+    const inviterFromUrl = params.get("inviter") || "A scholar";
+
+    if (groupIdOrSlug) {
       const checkAndRouteGroupInvite = async () => {
         try {
-          const groupRef = doc(db, "groups", groupIdFromUrl);
-          const groupSnap = await getDoc(groupRef);
+          const groupData = await getGroupBySlugOrId(groupIdOrSlug);
           
-          if (groupSnap.exists()) {
-            const groupData = groupSnap.data() as StudyGroup;
-            const currentUid = auth.currentUser ? auth.currentUser.uid : null;
+          if (groupData) {
+            const currentUid = auth.currentUser ? auth.currentUser.uid : (userProfile?.uid || null);
             const isMember = currentUid && groupData.members && !!groupData.members[currentUid];
 
             if (isMember) {
               // Already a member -> redirect directly to group chat
-              localStorage.setItem('sjtutor_active_group_id', groupIdFromUrl);
+              localStorage.setItem('sjtutor_active_group_id', groupData.id);
               setMode(AppMode.GROUPS);
               triggerToast('Welcome Back! 🎉', `Opened "${groupData.name}" group chat.`, 'Important Alerts');
             } else {
               // Not a member yet -> open group invite view with Accept/Decline buttons
               setPendingGroupInvite({
-                groupId: groupIdFromUrl,
+                groupId: groupData.id,
                 inviterName: inviterFromUrl,
                 groupName: groupData.name,
               });
               setMode(AppMode.GROUP_INVITE);
             }
-          } else {
+          } else if (pathInviteCode || params.get("groupId") || params.get("groupInvite") || params.get("invite")) {
             triggerToast('Invalid Group Link', 'The group in this link was not found or has been deleted.', 'Important Alerts');
           }
         } catch (err) {
           console.error("Error processing group invite link:", err);
         } finally {
-          // Clean search params from URL so refresh doesn't re-trigger
-          try {
-            window.history.replaceState({}, document.title, window.location.pathname);
-          } catch {
-            // ignore
+          if (params.get("groupId") || params.get("groupInvite") || params.get("invite")) {
+            try {
+              window.history.replaceState({}, document.title, window.location.pathname);
+            } catch {
+              // ignore
+            }
           }
         }
       };

@@ -402,6 +402,7 @@ export interface GroupMessage {
 export interface StudyGroup {
   id: string;
   name: string;
+  slug?: string;
   description: string;
   subject: string;
   gradeClass?: string;

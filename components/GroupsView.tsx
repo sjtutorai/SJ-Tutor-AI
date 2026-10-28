@@ -50,8 +50,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from "qrcode.react";
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db, auth } from '../firebaseConfig';
 import { compressImage } from "../utils/imageUtils";
 import {
   StudyGroup,
@@ -61,6 +61,8 @@ import {
   UserProfile,
   DirectCall,
   GroupCall,
+  Friendship,
+  DirectChat,
 } from '../types';
 import { GroupQRModal } from './GroupQRModal';
 import { GroupQRScannerModal } from './GroupQRScannerModal';
@@ -86,7 +88,10 @@ import {
   acceptGroupInvitationInFirestore,
   declineGroupInvitationInFirestore,
   subscribeToUserFriendships,
-  searchUsersInFirestore
+  subscribeToUserDirectChats,
+  searchUsersInFirestore,
+  formatGroupSlug,
+  getGroupBySlugOrId
 } from '../utils/firebaseUtils';
 import { NotificationService } from '../services/notificationService';
 import { useNotifications } from './NotificationContext';
@@ -115,7 +120,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   onStartOrJoinGroupCall,
 }) => {
   const { triggerToast, sendNotification } = useNotifications();
-  const currentUid = userUid || 'guest_user_' + (userProfile.displayName || 'scholar').toLowerCase().replace(/\s+/g, '_');
+  const currentUid = userUid || auth.currentUser?.uid || userProfile?.uid || 'guest_user_' + (userProfile.displayName || 'scholar').toLowerCase().replace(/\s+/g, '_');
   const currentName = userProfile.displayName || 'Scholar User';
 
   // Active Group Calls across all study groups
@@ -522,37 +527,36 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     if (!rawInput) return;
 
     let targetId = rawInput;
-    if (rawInput.includes('groupId=')) {
+    if (rawInput.includes("http://") || rawInput.includes("https://") || rawInput.includes("/")) {
       try {
-        const url = new URL(rawInput);
+        const url = new URL(rawInput, window.location.origin);
         const params = new URLSearchParams(url.search);
-        targetId = params.get('groupId') || params.get('groupInvite') || params.get('invite') || rawInput;
+        const fromParam = params.get("groupId") || params.get("groupInvite") || params.get("invite") || params.get("slug");
+        if (fromParam) {
+          targetId = fromParam;
+        } else {
+          const pathSegments = url.pathname.split("/").filter(Boolean);
+          if (pathSegments.length > 0) {
+            targetId = pathSegments[pathSegments.length - 1];
+          }
+        }
       } catch {
-        const match = rawInput.match(/(?:groupId|groupInvite|invite)=([^&]+)/);
-        if (match) targetId = match[1];
+        const match = rawInput.match(/(?:groupId|groupInvite|invite|slug)=([^&]+)/);
+        if (match) {
+          targetId = match[1];
+        } else {
+          const parts = rawInput.split("/").filter(Boolean);
+          if (parts.length > 0) targetId = parts[parts.length - 1];
+        }
       }
     }
 
     setJoiningById(true);
     try {
-      // Fetch direct doc by ID first
-      const groupRef = doc(db, 'groups', targetId);
-      const groupSnap = await getDoc(groupRef);
-      let targetGroupData: StudyGroup | null = null;
-
-      if (groupSnap.exists()) {
-        targetGroupData = groupSnap.data() as StudyGroup;
-      } else {
-        // Query by invite code
-        const q = query(collection(db, 'groups'), where('inviteCode', '==', targetId));
-        const querySnap = await getDocs(q);
-        if (!querySnap.empty) {
-          targetGroupData = querySnap.docs[0].data() as StudyGroup;
-        }
-      }
+      const targetGroupData = await getGroupBySlugOrId(targetId);
 
       if (!targetGroupData) {
-        triggerToast('Group Not Found', `No group found with ID or Invite Code "${targetId}".`, 'Important Alerts');
+        triggerToast("Group Not Found", `No group found with ID, Slug, or Link "${targetId}".`, "Important Alerts");
         return;
       }
 
@@ -1253,47 +1257,123 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<Record<string, { uid: string; displayName: string; photoURL?: string; isFriend: boolean }>>({});
   const [memberPickerTab, setMemberPickerTab] = useState<'friends' | 'all_members'>('friends');
   const [memberPickerSearch, setMemberPickerSearch] = useState('');
-  const [friendsList, setFriendsList] = useState<{ uid: string; displayName: string; photoURL?: string; email?: string }[]>([]);
+  const [friendsList, setFriendsList] = useState<{
+    uid: string;
+    displayName: string;
+    photoURL?: string;
+    email?: string;
+    registrationNumber?: string;
+    institution?: string;
+  }[]>([]);
   const [appUsersList, setAppUsersList] = useState<{ uid: string; displayName: string; photoURL?: string; email?: string; registrationNumber?: string; institution?: string }[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [rawFriendships, setRawFriendships] = useState<Friendship[]>([]);
+  const [rawDirectChats, setRawDirectChats] = useState<DirectChat[]>([]);
 
-  // Subscribe to user friends & fetch app users when Create Group modal opens
+  // 1. Live subscribe to user friendships and direct chats continuously so friends are immediately ready
   useEffect(() => {
-    if (!showCreateModal || !currentUid) return;
+    if (!currentUid || currentUid.startsWith('guest_user_')) return;
 
-    // 1. Subscribe to friends list
-    const unsub = subscribeToUserFriendships(currentUid, (friendships) => {
-      const friends: { uid: string; displayName: string; photoURL?: string; email?: string }[] = [];
-      friendships.forEach((f) => {
-        if (f.status === 'accepted') {
-          const friendUid = f.users.find((u) => u !== currentUid);
-          if (friendUid && f.userProfiles && f.userProfiles[friendUid]) {
-            friends.push({
-              uid: friendUid,
-              displayName: f.userProfiles[friendUid].displayName || 'Scholar Friend',
-              photoURL: f.userProfiles[friendUid].photoURL,
-              email: f.userProfiles[friendUid].email,
-            });
-          }
-        }
-      });
-      setFriendsList(friends);
+    const unsubFriends = subscribeToUserFriendships(currentUid, (friendships) => {
+      setRawFriendships(friendships || []);
     });
 
-    // 2. Fetch registered app users
+    const unsubChats = subscribeToUserDirectChats(currentUid, (chats) => {
+      setRawDirectChats(chats || []);
+    });
+
+    return () => {
+      unsubFriends();
+      unsubChats();
+    };
+  }, [currentUid]);
+
+  // 2. Fetch registered app users when modal opens or on component mount
+  useEffect(() => {
+    if (!currentUid) return;
     setLoadingMembers(true);
     searchUsersInFirestore('', currentUid)
       .then((users) => {
-        setAppUsersList(users);
+        setAppUsersList(users || []);
         setLoadingMembers(false);
       })
       .catch((e) => {
         console.warn('Error loading app users for group creation:', e);
         setLoadingMembers(false);
       });
-
-    return () => unsub();
   }, [showCreateModal, currentUid]);
+
+  // 3. Reactively combine accepted friendships, direct chats, and appUsers into friendsList
+  useEffect(() => {
+    const friendMap = new Map<string, {
+      uid: string;
+      displayName: string;
+      photoURL?: string;
+      email?: string;
+      registrationNumber?: string;
+      institution?: string;
+    }>();
+
+    // A. Parse accepted friendships from Firestore
+    rawFriendships.forEach((f) => {
+      if (f.status === 'accepted') {
+        const friendUid = f.users?.find((u) => u !== currentUid);
+        if (friendUid) {
+          // Check userDetails (canonical schema in firebaseUtils & types), userProfiles (fallback), participantDetails (fallback)
+          const detail = f.userDetails?.[friendUid] || (f as any).userProfiles?.[friendUid] || (f as any).participantDetails?.[friendUid];
+          friendMap.set(friendUid, {
+            uid: friendUid,
+            displayName: detail?.displayName || 'Scholar Friend',
+            photoURL: detail?.photoURL || '',
+            email: detail?.email || '',
+            registrationNumber: detail?.registrationNumber || '',
+            institution: detail?.institution || '',
+          });
+        }
+      }
+    });
+
+    // B. Enrich with direct chats data if available
+    rawDirectChats.forEach((chat) => {
+      const otherUid = chat.participants?.find((p: string) => p !== currentUid);
+      if (otherUid) {
+        const detail = chat.participantDetails?.[otherUid];
+        if (friendMap.has(otherUid)) {
+          const existing = friendMap.get(otherUid)!;
+          if (detail?.displayName && (!existing.displayName || existing.displayName === 'Scholar Friend' || existing.displayName === 'Student')) {
+            existing.displayName = detail.displayName;
+          }
+          if (detail?.photoURL && !existing.photoURL) {
+            existing.photoURL = detail.photoURL;
+          }
+        }
+      }
+    });
+
+    // C. Cross-reference with appUsersList for latest live displayName, photoURL, ID registration number, and institution
+    appUsersList.forEach((user) => {
+      if (friendMap.has(user.uid)) {
+        const existing = friendMap.get(user.uid)!;
+        if (user.displayName && (!existing.displayName || existing.displayName === 'Scholar Friend' || existing.displayName === 'Student')) {
+          existing.displayName = user.displayName;
+        }
+        if (user.photoURL && !existing.photoURL) {
+          existing.photoURL = user.photoURL;
+        }
+        if (user.email && !existing.email) {
+          existing.email = user.email;
+        }
+        if (user.registrationNumber && !existing.registrationNumber) {
+          existing.registrationNumber = user.registrationNumber;
+        }
+        if (user.institution && !existing.institution) {
+          existing.institution = user.institution;
+        }
+      }
+    });
+
+    setFriendsList(Array.from(friendMap.values()));
+  }, [rawFriendships, rawDirectChats, appUsersList, currentUid]);
 
   // Edit Group Modal States
   const [showEditModal, setShowEditModal] = useState(false);
@@ -1586,7 +1666,9 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
       return;
     }
 
-    const groupId = 'group_' + Date.now();
+    const baseSlug = formatGroupSlug(newGroupName.trim());
+    const existingSame = groups.some((g) => g.id === baseSlug || g.slug === baseSlug);
+    const groupId = existingSame ? `${baseSlug}_${Date.now().toString(36).slice(-4)}` : baseSlug;
     const finalIconUrl = newGroupIconType !== 'emoji' && newGroupIconUrl.trim() ? newGroupIconUrl.trim() : undefined;
 
     // Separate selected members: Friends (direct join, no permission required) vs Other App Scholars (invited)
@@ -1630,6 +1712,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
     const newGroup: StudyGroup = {
       id: groupId,
+      slug: baseSlug,
       name: newGroupName.trim(),
       description: newGroupDescription.trim() || `Official study group for ${newGroupSubject}`,
       subject: newGroupSubject.trim(),
@@ -2257,9 +2340,10 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 {/* Share Group Link */}
                 <button
                   onClick={() => {
-                    const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
+                    const slugOrId = activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id;
+                    const shareUrl = `${window.location.origin}/${slugOrId}`;
                     navigator.clipboard.writeText(shareUrl);
-                    triggerToast('Copied Group Link! 🔗', 'Share this link with any student. When opened, they can Accept or Decline your invitation.', 'Important Alerts');
+                    triggerToast('Copied Group Link! 🔗', `Direct group link copied: ${shareUrl}`, 'Important Alerts');
                   }}
                   className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition cursor-pointer"
                   title="Share Group Link"
@@ -3424,7 +3508,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
-                      placeholder={memberPickerTab === 'friends' ? 'Search friends by name or email...' : 'Search app scholars by name, ID or school...'}
+                      placeholder={memberPickerTab === 'friends' ? 'Search friends by name, ID, email or school...' : 'Search app scholars by name, ID or school...'}
                       value={memberPickerSearch}
                       onChange={(e) => setMemberPickerSearch(e.target.value)}
                       className="w-full pl-8 pr-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-medium text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -3434,22 +3518,52 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   {/* Candidates List */}
                   <div className="max-h-48 overflow-y-auto space-y-1.5 p-1 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/60 custom-scrollbar">
                     {loadingMembers ? (
-                      <p className="text-center py-4 text-xs text-slate-400">Loading members...</p>
+                      <p className="text-center py-4 text-xs text-slate-400">Loading scholars & friends...</p>
                     ) : memberPickerTab === 'friends' ? (
                       friendsList.filter((f) => {
                         const q = memberPickerSearch.toLowerCase().trim();
                         if (!q) return true;
-                        return (f.displayName || '').toLowerCase().includes(q) || (f.email || '').toLowerCase().includes(q);
+                        return (
+                          (f.displayName || '').toLowerCase().includes(q) ||
+                          (f.email || '').toLowerCase().includes(q) ||
+                          (f.registrationNumber || '').toLowerCase().includes(q) ||
+                          (f.institution || '').toLowerCase().includes(q)
+                        );
                       }).length === 0 ? (
-                        <div className="text-center py-5 text-xs text-slate-400">
-                          {friendsList.length === 0 ? 'No accepted friends yet. You can still add scholars from "All App Members".' : 'No matching friends found.'}
+                        <div className="text-center py-5 px-3">
+                          <div className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-2">
+                            <UserCheck className="w-4 h-4" />
+                          </div>
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            {friendsList.length === 0 ? 'No accepted friends yet' : 'No matching friends found'}
+                          </p>
+                          <p className="text-[11px] text-slate-400 mt-0.5 max-w-xs mx-auto">
+                            {friendsList.length === 0
+                              ? 'Add members from "All App Members" tab or connect with study partners in 1-on-1 Friend Chat.'
+                              : 'Try searching with a different name, email, or registration ID.'}
+                          </p>
+                          {friendsList.length === 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setMemberPickerTab('all_members')}
+                              className="mt-2.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-xs inline-flex items-center gap-1.5"
+                            >
+                              <Users className="w-3 h-3" />
+                              <span>Browse All App Members</span>
+                            </button>
+                          )}
                         </div>
                       ) : (
                         friendsList
                           .filter((f) => {
                             const q = memberPickerSearch.toLowerCase().trim();
                             if (!q) return true;
-                            return (f.displayName || '').toLowerCase().includes(q) || (f.email || '').toLowerCase().includes(q);
+                            return (
+                              (f.displayName || '').toLowerCase().includes(q) ||
+                              (f.email || '').toLowerCase().includes(q) ||
+                              (f.registrationNumber || '').toLowerCase().includes(q) ||
+                              (f.institution || '').toLowerCase().includes(q)
+                            );
                           })
                           .map((friend) => {
                             const isSelected = !!selectedGroupMembers[friend.uid];
@@ -3477,7 +3591,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                                         Friend
                                       </span>
                                     </p>
-                                    <span className="text-[10px] text-slate-400 block truncate">{friend.email || 'Friend on SJ Tutor AI'}</span>
+                                    <span className="text-[10px] text-slate-400 block truncate">
+                                      {friend.registrationNumber ? `ID: ${friend.registrationNumber} • ` : ''}
+                                      {friend.institution ? `${friend.institution} • ` : ''}
+                                      {friend.email || 'Friend on SJ Tutor AI'}
+                                    </span>
                                   </div>
                                 </div>
 
@@ -3942,14 +4060,15 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
+                        const slugOrId = activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id;
+                        const shareUrl = `${window.location.origin}/${slugOrId}`;
                         navigator.clipboard.writeText(shareUrl);
-                        triggerToast('Copied Group Link! 🔗', 'Share this link with any student to invite them.', 'Important Alerts');
+                        triggerToast('Copied Group Link! 🔗', `Direct group link copied: ${shareUrl}`, 'Important Alerts');
                       }}
                       className="flex-1 py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border border-indigo-200/60 dark:border-indigo-800/60"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      Copy Invite Link
+                      Copy Group Link
                     </button>
 
                     {activeGroup.inviteCode && (
@@ -4544,7 +4663,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                   <div className="flex justify-center p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
                     <QRCodeSVG 
-                      value={`${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`}
+                      value={`${window.location.origin}/${activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id}`}
                       size={150}
                       level="H"
                       className="rounded-lg shadow-sm"
@@ -4553,7 +4672,8 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                   <button
                     onClick={() => {
-                      const shareUrl = `${window.location.origin}/?groupId=${activeGroup.id}&inviter=${encodeURIComponent(currentName)}`;
+                      const slugOrId = activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id;
+                      const shareUrl = `${window.location.origin}/${slugOrId}`;
                       navigator.clipboard.writeText(shareUrl);
                       triggerToast('Copied Group Link! 🔗', 'Share this link with any student. When opened, they can Accept or Decline your invitation.', 'Important Alerts');
                     }}
@@ -4565,16 +4685,18 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
                   <div className="p-3 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-500 dark:text-slate-400">Group ID:</span>
+                      <span className="font-semibold text-slate-500 dark:text-slate-400">Group URL / ID:</span>
                       <div className="flex items-center gap-1.5 font-mono text-slate-800 dark:text-slate-200 font-bold">
-                        <span className="max-w-[140px] truncate">{activeGroup.id}</span>
+                        <span className="max-w-[140px] truncate">/{activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id}</span>
                         <button
                           onClick={() => {
-                            navigator.clipboard.writeText(activeGroup.id);
-                            triggerToast('Group ID Copied!', 'Group ID copied to clipboard.', 'Important Alerts');
+                            const slugOrId = activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id;
+                            const shareUrl = `${window.location.origin}/${slugOrId}`;
+                            navigator.clipboard.writeText(shareUrl);
+                            triggerToast('Group Link Copied!', `${shareUrl} copied to clipboard.`, 'Important Alerts');
                           }}
                           className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition text-indigo-600 dark:text-indigo-400"
-                          title="Copy Group ID"
+                          title="Copy Group Link"
                         >
                           <Copy className="w-3.5 h-3.5" />
                         </button>

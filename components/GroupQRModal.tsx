@@ -17,6 +17,7 @@ import {
 import { motion } from 'motion/react';
 import { StudyGroup } from '../types';
 import { useNotifications } from './NotificationContext';
+import { formatGroupSlug } from '../utils/firebaseUtils';
 
 interface GroupQRModalProps {
   group: StudyGroup;
@@ -35,9 +36,10 @@ export const GroupQRModal: React.FC<GroupQRModalProps> = ({
   const qrRef = useRef<HTMLDivElement>(null);
   const { triggerToast } = useNotifications();
 
-  // Primary share link
+  // Primary custom share link (https://example.com/group_name)
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://sjtutorai.vercel.app';
-  const groupInviteUrl = `${origin}/?groupId=${group.id}&inviter=${encodeURIComponent(currentUserName)}`;
+  const slugOrId = group.slug || formatGroupSlug(group.name) || group.id;
+  const groupInviteUrl = `${origin}/${slugOrId}`;
 
   // Structured QR payload (can be decoded as URL or direct ID)
   const qrPayload = groupInviteUrl;
@@ -100,7 +102,7 @@ export const GroupQRModal: React.FC<GroupQRModalProps> = ({
         
         ctx.fillStyle = '#94a3b8';
         ctx.font = '28px sans-serif';
-        ctx.fillText('Join at sjtutorai.vercel.app', size / 2, 990);
+        ctx.fillText('Join at sjtutorai.vercel.app • Shared by ', size / 2, 990);
 
         const pngUrl = canvas.toDataURL('image/png');
         const downloadLink = document.createElement('a');
@@ -164,7 +166,7 @@ export const GroupQRModal: React.FC<GroupQRModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 truncate max-w-[200px]">
-                {group.name}
+                {group.name} • Shared by {currentUserName}
               </p>
             </div>
           </div>

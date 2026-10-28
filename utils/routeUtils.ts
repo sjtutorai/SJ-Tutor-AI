@@ -103,6 +103,14 @@ export const parseCurrentRoute = (pathname = window.location.pathname): RouteSta
   } else if (cleanPath.startsWith("/group-invite/")) {
     groupInviteCode = cleanPath.substring(14);
     mode = AppMode.GROUP_INVITE;
+  } else if (cleanPath.startsWith("/group/") || cleanPath.startsWith("/groups/")) {
+    const rawSlug = cleanPath.startsWith("/group/") ? cleanPath.substring(7) : cleanPath.substring(8);
+    if (rawSlug) {
+      groupInviteCode = rawSlug;
+      mode = AppMode.GROUP_INVITE;
+    } else {
+      mode = AppMode.GROUPS;
+    }
   }
   // 3. Feature-specific routes
   else if (cleanPath === "/summary" || cleanPath === "/summarizer" || cleanPath === "/summaries") {
@@ -139,6 +147,7 @@ export const parseCurrentRoute = (pathname = window.location.pathname): RouteSta
     mode = AppMode.DASHBOARD;
   } else {
     // Check type-specific custom share routes e.g. /quiz/abc or /summary/def
+    let isShareRoute = false;
     const prefixes = ["/quiz/", "/summary/", "/notes/", "/homework/", "/tutor/"];
     for (const prefix of prefixes) {
       if (cleanPath.startsWith(prefix)) {
@@ -146,12 +155,29 @@ export const parseCurrentRoute = (pathname = window.location.pathname): RouteSta
         if (segments.length === 1) {
           publicShareId = segments[0];
           mode = AppMode.SHARED_CONTENT;
+          isShareRoute = true;
           break;
         } else if (segments.length > 1) {
           const prefixName = prefix.substring(1, prefix.length - 1);
           publicShareId = `${prefixName}_${segments.join("_")}`;
           mode = AppMode.SHARED_CONTENT;
+          isShareRoute = true;
           break;
+        }
+      }
+    }
+
+    // If not a share route, check if this is a custom direct group slug: https://example.com/group_name
+    if (!isShareRoute) {
+      const singleSegmentMatch = cleanPath.match(/^\/([a-zA-Z0-9_-]+)$/);
+      if (singleSegmentMatch) {
+        const candidateSlug = singleSegmentMatch[1];
+        const isReserved = [
+          "favicon.ico", "robots.txt", "sitemap.xml", "manifest.json", "sw.js", "site.webmanifest"
+        ].includes(candidateSlug.toLowerCase());
+        if (!isReserved) {
+          groupInviteCode = candidateSlug;
+          mode = AppMode.GROUP_INVITE;
         }
       }
     }
@@ -163,6 +189,8 @@ export const parseCurrentRoute = (pathname = window.location.pathname): RouteSta
     title = authModalMode === "signup" ? "Create Account - SJ Tutor AI" : "Sign In - SJ Tutor AI";
   } else if (isPremiumModalOpen) {
     title = "Premium Plans & Pricing - SJ Tutor AI";
+  } else if (mode === AppMode.GROUP_INVITE && groupInviteCode) {
+    title = `${groupInviteCode.replace(/_/g, ' ').replace(/-/g, ' ')} - Study Group | SJ Tutor AI`;
   }
 
   return {
@@ -187,6 +215,7 @@ export const syncBrowserUrl = (
     modal?: "signin" | "signup" | "premium" | null;
     shareId?: string | null;
     inviteCode?: string | null;
+    groupSlug?: string | null;
     customTitle?: string;
   } = {}
 ) => {
@@ -207,8 +236,11 @@ export const syncBrowserUrl = (
       targetPath = `/share/${options.shareId}`;
       targetTitle = "Shared Study Material - SJ Tutor AI";
     } else if (mode === AppMode.GROUP_INVITE && options.inviteCode) {
-      targetPath = `/invite/${options.inviteCode}`;
+      targetPath = `/${options.inviteCode}`;
       targetTitle = "Join Study Group - SJ Tutor AI";
+    } else if (mode === AppMode.GROUPS && options.groupSlug) {
+      targetPath = `/${options.groupSlug}`;
+      targetTitle = `${options.groupSlug.replace(/_/g, " ").replace(/-/g, " ")} - SJ Tutor AI`;
     }
 
     if (options.customTitle) {

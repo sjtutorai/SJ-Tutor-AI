@@ -598,10 +598,85 @@ export const removeUndefinedFields = <T>(obj: T): T => {
 // =====================================
 // GROUPS FIRESTORE UTILITIES
 // =====================================
+// STUDY GROUPS UTILITIES & SLUG ROUTING
+// =====================================
+
+export const formatGroupSlug = (name: string): string => {
+  const cleaned = (name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return cleaned || 'study_group';
+};
+
+export const getGroupBySlugOrId = async (slugOrId: string): Promise<StudyGroup | null> => {
+  if (!slugOrId) return null;
+  const raw = slugOrId.trim();
+  const lower = raw.toLowerCase();
+  const underscoreSlug = lower.replace(/-/g, '_');
+  const hyphenSlug = lower.replace(/_/g, '-');
+
+  try {
+    // 1. Direct document ID lookup
+    const directSnap = await getDoc(doc(db, "groups", raw));
+    if (directSnap.exists()) {
+      return directSnap.data() as StudyGroup;
+    }
+
+    // 2. Query by slug
+    const groupsRef = collection(db, "groups");
+    const slugQuery = query(groupsRef, where("slug", "==", underscoreSlug));
+    const slugSnap = await getDocs(slugQuery);
+    if (!slugSnap.empty) {
+      return slugSnap.docs[0].data() as StudyGroup;
+    }
+
+    if (hyphenSlug !== underscoreSlug) {
+      const hyphenQuery = query(groupsRef, where("slug", "==", hyphenSlug));
+      const hyphenSnap = await getDocs(hyphenQuery);
+      if (!hyphenSnap.empty) {
+        return hyphenSnap.docs[0].data() as StudyGroup;
+      }
+    }
+
+    // 3. Query by inviteCode
+    const inviteQuery = query(groupsRef, where("inviteCode", "==", raw.toUpperCase()));
+    const inviteSnap = await getDocs(inviteQuery);
+    if (!inviteSnap.empty) {
+      return inviteSnap.docs[0].data() as StudyGroup;
+    }
+
+    // 4. Query by exact name or slugified name match across all groups
+    const allGroupsSnap = await getDocs(groupsRef);
+    for (const d of allGroupsSnap.docs) {
+      const g = d.data() as StudyGroup;
+      if (g.slug === lower || g.slug === underscoreSlug || g.slug === hyphenSlug) {
+        return g;
+      }
+      if (formatGroupSlug(g.name) === underscoreSlug) {
+        return g;
+      }
+      if ((g.name || '').toLowerCase() === lower) {
+        return g;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.warn("Error getting group by slug or ID:", error);
+    return null;
+  }
+};
 
 export const createGroupInFirestore = async (group: StudyGroup): Promise<boolean> => {
   try {
-    const cleanGroup = removeUndefinedFields(group);
+    const slug = group.slug || formatGroupSlug(group.name);
+    const cleanGroup = removeUndefinedFields({
+      ...group,
+      slug,
+    });
     const docRef = doc(db, "groups", cleanGroup.id);
     await setDoc(docRef, cleanGroup);
     return true;
