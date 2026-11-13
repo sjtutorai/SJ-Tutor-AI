@@ -9,6 +9,7 @@ export interface RouteState {
   isPremiumModalOpen: boolean;
   publicShareId: string | null;
   groupInviteCode: string | null;
+  groupSlug: string | null;
 }
 
 export const ROUTE_PATH_MAP: Record<AppMode, string> = {
@@ -65,14 +66,19 @@ export const parseCurrentRoute = (pathname = window.location.pathname): RouteSta
   let isPremiumModalOpen = false;
   let publicShareId: string | null = null;
   let groupInviteCode: string | null = null;
+  let groupSlug: string | null = null;
 
   // Check URL query parameters for fallback (e.g. ?share=xyz or ?invite=abc)
   try {
-    const searchParams = new URLSearchParams(window.location.search);
-    const queryShare = searchParams.get("share");
-    if (queryShare) publicShareId = queryShare;
-    const queryInvite = searchParams.get("invite");
-    if (queryInvite) groupInviteCode = queryInvite;
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const queryShare = searchParams.get("share");
+      if (queryShare) publicShareId = queryShare;
+      const queryInvite = searchParams.get("invite");
+      if (queryInvite) groupInviteCode = queryInvite;
+      const queryGroup = searchParams.get("group") || searchParams.get("slug");
+      if (queryGroup) groupSlug = queryGroup;
+    }
   } catch (err) {
     console.debug("Query params parse notice:", err);
   }
@@ -107,7 +113,8 @@ export const parseCurrentRoute = (pathname = window.location.pathname): RouteSta
     const rawSlug = cleanPath.startsWith("/group/") ? cleanPath.substring(7) : cleanPath.substring(8);
     if (rawSlug) {
       groupInviteCode = rawSlug;
-      mode = AppMode.GROUP_INVITE;
+      groupSlug = rawSlug;
+      mode = AppMode.GROUPS;
     } else {
       mode = AppMode.GROUPS;
     }
@@ -189,8 +196,14 @@ export const parseCurrentRoute = (pathname = window.location.pathname): RouteSta
     title = authModalMode === "signup" ? "Create Account - SJ Tutor AI" : "Sign In - SJ Tutor AI";
   } else if (isPremiumModalOpen) {
     title = "Premium Plans & Pricing - SJ Tutor AI";
-  } else if (mode === AppMode.GROUP_INVITE && groupInviteCode) {
-    title = `${groupInviteCode.replace(/_/g, ' ').replace(/-/g, ' ')} - Study Group | SJ Tutor AI`;
+  } else if (groupSlug || (mode === AppMode.GROUP_INVITE && groupInviteCode)) {
+    const rawName = (groupSlug || groupInviteCode || '').replace(/_/g, ' ').replace(/-/g, ' ');
+    const formattedTitle = rawName
+      .split(' ')
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+    title = `${formattedTitle} - Study Group | SJ Tutor AI`;
   }
 
   return {
@@ -202,6 +215,7 @@ export const parseCurrentRoute = (pathname = window.location.pathname): RouteSta
     isPremiumModalOpen,
     publicShareId,
     groupInviteCode,
+    groupSlug,
   };
 };
 
@@ -236,11 +250,17 @@ export const syncBrowserUrl = (
       targetPath = `/share/${options.shareId}`;
       targetTitle = "Shared Study Material - SJ Tutor AI";
     } else if (mode === AppMode.GROUP_INVITE && options.inviteCode) {
-      targetPath = `/${options.inviteCode}`;
+      targetPath = `/groups/${options.inviteCode}`;
       targetTitle = "Join Study Group - SJ Tutor AI";
     } else if (mode === AppMode.GROUPS && options.groupSlug) {
-      targetPath = `/${options.groupSlug}`;
-      targetTitle = `${options.groupSlug.replace(/_/g, " ").replace(/-/g, " ")} - SJ Tutor AI`;
+      targetPath = `/groups/${options.groupSlug}`;
+      const rawName = options.groupSlug.replace(/_/g, " ").replace(/-/g, " ");
+      const formattedTitle = rawName
+        .split(' ')
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+      targetTitle = options.customTitle || `${formattedTitle} - Study Group | SJ Tutor AI`;
     }
 
     if (options.customTitle) {

@@ -1,40 +1,60 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Sparkles, 
-  BookOpen, 
-  FileText, 
-  BrainCircuit, 
-  MessageCircle, 
-  Languages, 
-  CheckCircle2, 
+import {
+  Sparkles,
+  BookOpen,
+  FileText,
+  BrainCircuit,
+  MessageCircle,
+  Languages,
+  CheckCircle2,
   ArrowRight,
-  TrendingUp,
   Award,
   Star,
   ChevronRight,
-  GraduationCap,
   Globe,
   Atom,
   Check,
   Zap,
   Quote,
-  Flame,
   Cpu,
   Mail,
   Phone,
-  Heart,
   Target,
   Lock,
   Lightbulb,
   Shield,
   UserCheck,
   UserPlus,
-  ExternalLink
+  ExternalLink,
+  Compass,
+  Landmark,
+  Sigma,
+  Repeat,
+  Menu,
+  X,
+  BarChart3,
+  BookMarked,
+  Dna
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
 import { getDeviceRegisteredUser } from '../utils/registrationDetection';
 import { AccountDetectorWidget } from './auth/AccountDetectorWidget';
+import {
+  RotatingHeadline,
+  WordReveal,
+  MagneticButton,
+  TiltCard3D,
+  BlurFocusReveal,
+  CircularImageReveal,
+  ParallaxLayer,
+  CounterNumber,
+  CursorSpotlight,
+  GradientOrbsBackdrop,
+  FloatingFormulasField,
+  ResilientImage,
+} from './ui/MotionPrimitives';
+import heroIllustrationImg from '../src/assets/images/hero_ai_tutor_scene_1794584199519.jpg';
 
 interface LandingPageProps {
   onGetStarted: (mode?: 'signin' | 'signup', prefilledIdentifier?: string) => void;
@@ -42,8 +62,9 @@ interface LandingPageProps {
   onNavigateToLegal?: (mode: 'PRIVACY' | 'TERMS') => void;
 }
 
-// Corrected, pristine Google Brand SVG Path for trust badges / login references
-const CorrectGoogleLogo: React.FC<{ className?: string; noBg?: boolean }> = ({ className = "w-5 h-5", noBg = false }) => (
+const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
+
+const CorrectGoogleLogo: React.FC<{ className?: string; noBg?: boolean }> = ({ className = 'w-5 h-5', noBg = false }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     {!noBg && <circle cx="12" cy="12" r="12" fill="white" />}
     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -53,84 +74,204 @@ const CorrectGoogleLogo: React.FC<{ className?: string; noBg?: boolean }> = ({ c
   </svg>
 );
 
+const FEATURES_LIST = [
+  {
+    icon: MessageCircle,
+    title: 'AI Tutor Chat',
+    desc: 'Interactive step-by-step explanations with voice dictation, file analysis, and adaptive follow-up questions.',
+    glow: 'from-blue-600/25 via-indigo-600/10 to-transparent',
+    accent: 'text-blue-400',
+    iconBg: 'bg-blue-500/15 border-blue-500/30',
+  },
+  {
+    icon: FileText,
+    title: 'Smart Notes',
+    desc: 'Instant structured chapter summaries, formula sheets, and downloadable PDF or Markdown revision decks.',
+    glow: 'from-violet-600/25 via-purple-600/10 to-transparent',
+    accent: 'text-violet-400',
+    iconBg: 'bg-violet-500/15 border-violet-500/30',
+  },
+  {
+    icon: BrainCircuit,
+    title: 'Quiz Generator',
+    desc: 'Generate syllabus-aligned MCQs, adaptive difficulty drills, and scored practice assessments in seconds.',
+    glow: 'from-cyan-500/25 via-blue-600/10 to-transparent',
+    accent: 'text-cyan-400',
+    iconBg: 'bg-cyan-500/15 border-cyan-500/30',
+  },
+  {
+    icon: Award,
+    title: 'Exam Preparation',
+    desc: 'Full mock exam prep tailored to CBSE, ICSE, State Boards, and competitive STEM readiness checks.',
+    glow: 'from-indigo-500/25 via-violet-500/10 to-transparent',
+    accent: 'text-indigo-400',
+    iconBg: 'bg-indigo-500/15 border-indigo-500/30',
+  },
+  {
+    icon: BookOpen,
+    title: 'Study Mode',
+    desc: 'Guided chapter exploration combining visual intuition, worked examples, and distraction-free focus timers.',
+    glow: 'from-blue-500/25 via-cyan-500/10 to-transparent',
+    accent: 'text-sky-400',
+    iconBg: 'bg-sky-500/15 border-sky-500/30',
+  },
+  {
+    icon: Zap,
+    title: 'Practice Mode',
+    desc: 'Targeted problem-solving sprints that detect weak steps early and build fluency through instant hints.',
+    glow: 'from-purple-500/25 via-blue-600/10 to-transparent',
+    accent: 'text-purple-400',
+    iconBg: 'bg-purple-500/15 border-purple-500/30',
+  },
+  {
+    icon: Repeat,
+    title: 'Revision Mode',
+    desc: 'High-yield rapid recap loops, key theorems, and starred bookmarks curated right before exams.',
+    glow: 'from-emerald-500/25 via-cyan-500/10 to-transparent',
+    accent: 'text-emerald-400',
+    iconBg: 'bg-emerald-500/15 border-emerald-500/30',
+  },
+  {
+    icon: Sigma,
+    title: 'Formula Explanation',
+    desc: 'Clear symbol-by-symbol breakdowns of mathematical theorems, physics derivations, and chemical laws.',
+    glow: 'from-blue-600/25 via-sky-500/10 to-transparent',
+    accent: 'text-blue-400',
+    iconBg: 'bg-blue-500/15 border-blue-500/30',
+  },
+  {
+    icon: Lightbulb,
+    title: 'Concept Simplifier',
+    desc: 'Turn dense textbook definitions into clear, everyday analogies and bilingual explanations on demand.',
+    glow: 'from-amber-500/25 via-violet-500/10 to-transparent',
+    accent: 'text-amber-300',
+    iconBg: 'bg-amber-500/15 border-amber-500/30',
+  },
+  {
+    icon: BarChart3,
+    title: 'Progress Tracking',
+    desc: 'Real-time study streaks, subject mastery analytics, daily study goals, and verified milestone rewards.',
+    glow: 'from-violet-600/25 via-blue-500/10 to-transparent',
+    accent: 'text-violet-400',
+    iconBg: 'bg-violet-500/15 border-violet-500/30',
+  },
+];
+
+const SUBJECTS_LIST = [
+  {
+    name: 'Mathematics',
+    desc: 'Algebra, Geometry, Trigonometry & Calculus solved step by step.',
+    icon: Sigma,
+    gradient: 'from-blue-600/20 to-indigo-600/10',
+    border: 'border-blue-500/30',
+    text: 'text-blue-400',
+  },
+  {
+    name: 'Physics',
+    desc: 'Mechanics, Optics, Electricity & Laws verified with formulas.',
+    icon: Atom,
+    gradient: 'from-violet-600/20 to-purple-600/10',
+    border: 'border-violet-500/30',
+    text: 'text-violet-400',
+  },
+  {
+    name: 'Chemistry',
+    desc: 'Balanced reactions, Atomic Structure & Organic pathways.',
+    icon: Cpu,
+    gradient: 'from-cyan-500/20 to-blue-600/10',
+    border: 'border-cyan-500/30',
+    text: 'text-cyan-400',
+  },
+  {
+    name: 'Biology',
+    desc: 'Cell processes, Genetics, Human Anatomy & visual diagrams.',
+    icon: Dna,
+    gradient: 'from-emerald-500/20 to-teal-600/10',
+    border: 'border-emerald-500/30',
+    text: 'text-emerald-400',
+  },
+  {
+    name: 'History',
+    desc: 'Chronological timelines, World & Indian History narratives.',
+    icon: Landmark,
+    gradient: 'from-amber-500/20 to-orange-600/10',
+    border: 'border-amber-500/30',
+    text: 'text-amber-300',
+  },
+  {
+    name: 'Geography',
+    desc: 'Earth systems, Climate patterns, Maps & Resource studies.',
+    icon: Compass,
+    gradient: 'from-sky-500/20 to-blue-600/10',
+    border: 'border-sky-500/30',
+    text: 'text-sky-400',
+  },
+  {
+    name: 'Civics',
+    desc: 'Constitutional frameworks, Governance & Rights simplified.',
+    icon: Shield,
+    gradient: 'from-indigo-500/20 to-violet-600/10',
+    border: 'border-indigo-500/30',
+    text: 'text-indigo-400',
+  },
+  {
+    name: 'English',
+    desc: 'Grammar precision, Literature analysis & Essay structuring.',
+    icon: BookMarked,
+    gradient: 'from-rose-500/20 to-pink-600/10',
+    border: 'border-rose-500/30',
+    text: 'text-rose-400',
+  },
+  {
+    name: 'Kannada',
+    desc: 'ಕನ್ನಡ ವ್ಯಾಕರಣ, ಸಾಹಿತ್ಯ ವಿವರಣೆ ಮತ್ತು ಅಭ್ಯಾಸ ಪ್ರಶ್ನೆಗಳು.',
+    icon: Languages,
+    gradient: 'from-purple-500/20 to-amber-500/10',
+    border: 'border-purple-500/30',
+    text: 'text-purple-300',
+  },
+];
+
 export default function LandingPage({ onGetStarted, onNavigateToLegal }: LandingPageProps) {
-  // Device registration detection
   const [deviceUser, setDeviceUser] = useState(() => getDeviceRegisteredUser());
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    const handleDetection = () => {
-      setDeviceUser(getDeviceRegisteredUser());
-    };
+    const handleDetection = () => setDeviceUser(getDeviceRegisteredUser());
     window.addEventListener('sjtutor_registration_detected', handleDetection);
     return () => window.removeEventListener('sjtutor_registration_detected', handleDetection);
   }, []);
 
-  // Canvas Animation Reference
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
-  // Custom demo state
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const mouseRef = useRef<{ x: number; y: number }>({ x: -9999, y: -9999 });
+
   const [demoPrompt, setDemoPrompt] = useState<'quad' | 'photo' | 'code'>('quad');
   const [demoIsTyping, setDemoIsTyping] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [quizChecked, setQuizChecked] = useState(false);
-  const [parabolaCoeffA, setParabolaCoeffA] = useState(1); // Coefficient A for parabolic math plot
-  const [parabolaOffset, setParabolaOffset] = useState(0); // Vertical offset for curve plotting
-
-  // Counters for Statistics (smoothly counts up on mount)
-  const [statistics, setStatistics] = useState({
-    students: 0,
-    solved: 0,
-    success: 0,
-    availability: "24/7"
-  });
-
-  // Carousel Success Testimonial index
+  const [parabolaCoeffA, setParabolaCoeffA] = useState(1);
+  const [parabolaOffset, setParabolaOffset] = useState(0);
   const [testimonialIdx, setTestimonialIdx] = useState(0);
 
-  // Statistics counters trigger
-  useEffect(() => {
-    const duration = 2000; // ms
-    const frameRate = 1000 / 60; // 60 FPS
-    const totalFrames = duration / frameRate;
-    
-    let frame = 0;
-    const interval = setInterval(() => {
-      frame++;
-      const progress = frame / totalFrames;
-      
-      const studentsVal = Math.min(Math.floor(10000 * progress), 10000);
-      const solvedVal = Math.min(Math.floor(1000000 * progress), 1000000);
-      const successVal = Math.min(Math.floor(95 * progress), 95);
-
-      setStatistics({
-        students: studentsVal,
-        solved: solvedVal,
-        success: successVal,
-        availability: "24/7"
-      });
-
-      if (frame >= totalFrames) {
-        clearInterval(interval);
-      }
-    }, frameRate);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Neural Network Cinematic Animation
+  // Subtle GPU-friendly particle constellation background (reads mouseRef cleanly without re-creating loop)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animationFrameId: number;
+    let animationFrameId = 0;
     let width = (canvas.width = canvas.offsetWidth);
     let height = (canvas.height = canvas.offsetHeight);
 
-    // Particle class
     class Node {
       x: number;
       y: number;
@@ -138,46 +279,36 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
       vy: number;
       radius: number;
       color: string;
-      originalRadius: number;
+      baseRadius: number;
 
       constructor() {
         this.x = Math.random() * width;
         this.y = Math.random() * height;
-        this.vx = (Math.random() - 0.5) * 0.4;
-        this.vy = (Math.random() - 0.5) * 0.4;
-        this.radius = Math.random() * 2 + 1;
-        this.originalRadius = this.radius;
-        
-        // Alternate colors for a high-end nebula energy feel
+        this.vx = (Math.random() - 0.5) * 0.35;
+        this.vy = (Math.random() - 0.5) * 0.35;
+        this.radius = Math.random() * 1.8 + 0.9;
+        this.baseRadius = this.radius;
         const rand = Math.random();
-        if (rand < 0.4) {
-          this.color = 'rgba(6, 182, 212, 0.6)'; // cyan Accent
-        } else if (rand < 0.7) {
-          this.color = 'rgba(124, 58, 237, 0.6)'; // violet Secondary
-        } else {
-          this.color = 'rgba(37, 99, 235, 0.6)'; // blue Primary
-        }
+        if (rand < 0.38) this.color = 'rgba(56, 189, 248, 0.55)';
+        else if (rand < 0.72) this.color = 'rgba(139, 92, 246, 0.55)';
+        else this.color = 'rgba(37, 99, 235, 0.6)';
       }
 
       update(mx: number, my: number) {
         this.x += this.vx;
         this.y += this.vy;
-
-        // Bouncing logic
         if (this.x < 0 || this.x > width) this.vx *= -1;
         if (this.y < 0 || this.y > height) this.vy *= -1;
 
-        // Mouse attraction/repulsion
         const dx = mx - this.x;
         const dy = my - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 180) {
-          // Soft attraction to mouse cursor
-          this.x += (dx / dist) * 0.45;
-          this.y += (dy / dist) * 0.45;
-          this.radius = this.originalRadius * 1.8;
+        if (dist > 0 && dist < 160) {
+          this.x += (dx / dist) * 0.35;
+          this.y += (dy / dist) * 0.35;
+          this.radius = this.baseRadius * 1.65;
         } else {
-          this.radius = this.originalRadius;
+          this.radius = this.baseRadius;
         }
       }
 
@@ -185,95 +316,57 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
         c.beginPath();
         c.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         c.fillStyle = this.color;
-        c.shadowColor = this.color;
-        c.shadowBlur = this.radius > 2 ? 8 : 0;
         c.fill();
-        c.shadowBlur = 0; // reset
       }
     }
 
-    // Initialize nodes array
-    const nodeCount = Math.min(Math.floor((width * height) / 14000), 100);
-    const nodes: Node[] = [];
-    for (let i = 0; i < nodeCount; i++) {
-      nodes.push(new Node());
-    }
+    const nodeCount = Math.min(Math.floor((width * height) / 18000), 78);
+    const nodes: Node[] = Array.from({ length: nodeCount }, () => new Node());
 
-    // Track mouse position globally
     const handleMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      setMousePosition({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      });
+      mouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
-
-    window.addEventListener('mousemove', handleMouseMove);
-
-    // Resize handler
     const handleResize = () => {
       if (!canvas) return;
       width = canvas.width = canvas.offsetWidth;
       height = canvas.height = canvas.offsetHeight;
     };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     window.addEventListener('resize', handleResize);
 
-    // Loop
     const render = () => {
       ctx.clearRect(0, 0, width, height);
-
-      // Soft glow center
-      const grad = ctx.createRadialGradient(width / 2, height / 2, 50, width / 2, height / 2, Math.max(width, height));
-      grad.addColorStop(0, '#090d22');
-      grad.addColorStop(1, '#020617');
+      const grad = ctx.createRadialGradient(width / 2, height / 3, 60, width / 2, height / 2, Math.max(width, height));
+      grad.addColorStop(0, '#091233');
+      grad.addColorStop(1, '#04091E');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
 
-      // Draw flowing grid lines under nodes
-      ctx.strokeStyle = 'rgba(15, 23, 42, 0.4)';
-      ctx.lineWidth = 1;
-      const gridSize = 80;
-      for (let x = 0; x < width; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
-      for (let y = 0; y < height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-      }
+      const mx = mouseRef.current.x;
+      const my = mouseRef.current.y;
 
-      // Update and connect nodes
       for (let i = 0; i < nodes.length; i++) {
-        nodes[i].update(mousePosition.x, mousePosition.y);
+        nodes[i].update(mx, my);
         nodes[i].draw(ctx);
-
         for (let j = i + 1; j < nodes.length; j++) {
           const dx = nodes[i].x - nodes[j].x;
           const dy = nodes[i].y - nodes[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-
-          // Connection threshold
-          if (dist < 120) {
+          if (dist < 115) {
+            const alpha = (1 - dist / 115) * 0.22;
             ctx.beginPath();
             ctx.moveTo(nodes[i].x, nodes[i].y);
             ctx.lineTo(nodes[j].x, nodes[j].y);
-            
-            // Fade line on distance
-            const alpha = (1 - dist / 120) * 0.25;
-            ctx.strokeStyle = `rgba(124, 58, 237, ${alpha})`;
+            ctx.strokeStyle = `rgba(99, 102, 241, ${alpha})`;
             ctx.lineWidth = 0.8;
             ctx.stroke();
           }
         }
       }
-
       animationFrameId = requestAnimationFrame(render);
     };
-
     render();
 
     return () => {
@@ -281,22 +374,16 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('resize', handleResize);
     };
-  }, [mousePosition]);
+  }, []);
 
-  // Handle typing effects inside demo section
   useEffect(() => {
     setDemoIsTyping(true);
     setSelectedAnswer(null);
     setQuizChecked(false);
-    
-    const timer = setTimeout(() => {
-      setDemoIsTyping(false);
-    }, 1200);
-
+    const timer = setTimeout(() => setDemoIsTyping(false), 950);
     return () => clearTimeout(timer);
   }, [demoPrompt]);
 
-  // Testimonial Carousel Auto-changer
   useEffect(() => {
     const timer = setInterval(() => {
       setTestimonialIdx((prev) => (prev + 1) % 3);
@@ -306,706 +393,697 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
 
   const testimonials = [
     {
-      name: "Marcus Aurelius Cheney",
-      role: "High School Junior",
-      achievement: "Improved Chemistry grade from C to A+",
-      quote: "SJ Tutor AI completely transformed how I study. The instant step-by-step explanations make complex chemical bonding details as clear as day. It's like having an MIT professor in my pocket.",
+      name: 'Marcus Aurelius Cheney',
+      role: 'Class 11 Science Student',
+      achievement: 'Improved Chemistry grade from C to A+',
+      quote: 'SJ Tutor AI completely transformed how I study. The instant step-by-step explanations make complex chemical bonding details as clear as day.',
       rating: 5,
-      avatarColor: "bg-gradient-to-tr from-cyan-400 to-blue-600"
+      avatarColor: 'bg-gradient-to-tr from-cyan-400 to-blue-600',
     },
     {
-      name: "Sabrina Patel",
-      role: "AP Calculus Student",
-      achievement: "Scored perfect 5 on AP BC Calculus Exam",
-      quote: "I used to sit stuck on difficult integration problems for hours. SJ Tutor AI explains exactly where I went wrong, diagrams the concepts, and generates practice quizzes to lock in the logic.",
+      name: 'Sabrina Patel',
+      role: 'AP & Class 12 Calculus Student',
+      achievement: 'Mastered Integration & Roots',
+      quote: 'I used to sit stuck on difficult integration problems for hours. SJ Tutor AI explains exactly where I went wrong and builds practice quizzes to lock in the logic.',
       rating: 5,
-      avatarColor: "bg-gradient-to-tr from-purple-500 to-indigo-600"
+      avatarColor: 'bg-gradient-to-tr from-violet-500 to-indigo-600',
     },
     {
-      name: "Alexander Vance",
-      role: "Freshman STEM Major",
-      achievement: "Mastered Python Recursion in 3 Days",
-      quote: "The personalized learning paths adjusted perfectly to my visual style. SJ Tutor AI doesn't just hand you the code – it walks you through stacked execution frames with stunning breakdowns.",
+      name: 'Alexander Vance',
+      role: 'Undergraduate STEM Scholar',
+      achievement: 'Completed Exam Prep Track',
+      quote: 'The personalized study paths adjusted smoothly to my visual style. SJ Tutor AI walks you through concepts clearly with interactive notes.',
       rating: 5,
-      avatarColor: "bg-gradient-to-tr from-amber-400 to-rose-500"
-    }
+      avatarColor: 'bg-gradient-to-tr from-blue-500 to-purple-600',
+    },
   ];
 
-  const subjects = [
-    { name: "Mathematics", icon: GraduationCap, color: "from-blue-500/20 to-indigo-500/10", border: "border-blue-500/30", text: "text-blue-400" },
-    { name: "Physics", icon: Atom, color: "from-violet-500/20 to-purple-500/10", border: "border-violet-500/30", text: "text-violet-400" },
-    { name: "Chemistry", icon: Cpu, color: "from-cyan-500/20 to-blue-500/10", border: "border-cyan-500/30", text: "text-cyan-400" },
-    { name: "Biology", icon: BookOpen, color: "from-emerald-500/20 to-teal-500/10", border: "border-emerald-500/30", text: "text-emerald-400" },
-    { name: "Computer Science", icon: BrainCircuit, color: "from-slate-500/20 to-slate-400/10", border: "border-slate-500/30", text: "text-slate-300" },
-    { name: "English", icon: Sparkles, color: "from-rose-500/20 to-pink-500/10", border: "border-rose-500/30", text: "text-rose-400" },
-    { name: "History", icon: Globe, color: "from-amber-500/20 to-orange-500/10", border: "border-amber-500/30", text: "text-amber-400" },
-    { name: "Economics", icon: TrendingUp, color: "from-teal-500/20 to-emerald-500/10", border: "border-teal-500/30", text: "text-teal-400" }
+  const navLinks = [
+    { label: 'Home', href: '#top' },
+    { label: 'Features', href: '#features' },
+    { label: 'Subjects', href: '#subjects' },
+    { label: 'About Us', href: '#about' },
   ];
 
   return (
-    <div className="bg-[#020617] text-[#F8FAFC] font-sans overflow-hidden min-h-screen relative selection:bg-blue-600/30 selection:text-white">
-      
-      {/* 2D Particles Canvas Network Behind Everything */}
-      <div className="absolute inset-0 z-0 h-full w-full pointer-events-none overflow-hidden">
-        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-        {/* Soft 75% Dark Overlay above animation to enforce pristine readability */}
-        <div className="absolute inset-0 bg-slate-950/75 pointer-events-none" />
+    <div id="top" className="bg-[#04091E] text-[#F8FAFC] font-sans overflow-x-hidden min-h-screen relative selection:bg-blue-600/35 selection:text-white">
+      {/* Ambient Background Layers */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <canvas ref={canvasRef} className="w-full h-full opacity-90" />
+        <GradientOrbsBackdrop />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#04091E]/30 via-[#04091E]/55 to-[#04091E]" />
       </div>
+      <CursorSpotlight />
 
-      {/* Floating Header Navigation Bar */}
-      <nav className="sticky top-0 z-50 bg-[#020617]/40 backdrop-blur-xl border-b border-[#0F172A]/80 shadow-2xl">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Logo className="w-10 h-10" iconOnly />
-            <div className="flex flex-col">
-              <span className="font-extrabold text-lg tracking-tight text-white flex items-center gap-1.5">
-                SJ Tutor <span className="text-blue-500 font-black">AI</span>
+      {/* NAVBAR (Slides down on load, glassier on scroll, magnetic buttons, staggered mobile menu) */}
+      <motion.header
+        initial={{ y: -28, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.55, ease: EASE_OUT_EXPO }}
+        className={`sticky top-0 z-50 transition-all duration-300 border-b ${
+          isScrolled
+            ? 'bg-[#050B24]/85 backdrop-blur-2xl border-blue-500/20 shadow-[0_8px_32px_rgba(3,7,28,0.65)]'
+            : 'bg-[#04091E]/55 backdrop-blur-md border-white/5'
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          {/* Brand Logo */}
+          <a href="#top" className="flex items-center gap-3 shrink-0 group">
+            <motion.div
+              whileHover={{ rotate: 6, scale: 1.06 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+              className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600/25 to-violet-600/25 border border-blue-400/30 p-0.5 shadow-lg shadow-blue-500/15"
+            >
+              <Logo className="w-full h-full" iconOnly noBorder />
+            </motion.div>
+            <div className="flex flex-col leading-none">
+              <span className="font-display font-extrabold text-base sm:text-lg tracking-tight text-white whitespace-nowrap">
+                SJ Tutor <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400">AI</span>
               </span>
-              <span className="text-[9px] uppercase tracking-[0.25em] font-bold text-cyan-400">PERSONALIZED LEARNING</span>
+              <span className="text-[9px] uppercase tracking-[0.22em] font-semibold text-blue-300/80 whitespace-nowrap mt-0.5">
+                AI LEARNING PLATFORM
+              </span>
             </div>
-          </div>
+          </a>
 
-          {/* Links */}
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
-            <a href="#features" className="hover:text-blue-400 transition-colors">Why Choose Us</a>
-            <a href="#how" className="hover:text-blue-400 transition-colors">How It Works</a>
-            <a href="#demo" className="hover:text-blue-400 transition-colors">Simulator Demo</a>
-            <a href="#subjects" className="hover:text-blue-400 transition-colors">Subjects</a>
-            <a href="#about" className="hover:text-blue-400 transition-colors">About Us</a>
-            <a href="#pricing" className="hover:text-blue-400 transition-colors">Pricing Plans</a>
-          </div>
+          {/* Desktop Navigation with animated underline */}
+          <nav aria-label="Primary navigation" className="hidden md:flex items-center gap-7">
+            {navLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="relative py-1 text-sm font-semibold text-slate-300 hover:text-white transition-colors whitespace-nowrap shrink-0 group"
+              >
+                <span>{link.label}</span>
+                <span className="absolute left-0 -bottom-0.5 h-[2px] w-0 bg-gradient-to-r from-blue-400 to-violet-400 transition-all duration-300 group-hover:w-full rounded-full" />
+              </a>
+            ))}
+          </nav>
 
-          <div className="flex items-center gap-3">
-            {deviceUser.hasRegistered ? (
-              <>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="truncate max-w-[120px]">{deviceUser.name || deviceUser.email || 'Registered'}</span>
-                </span>
-                <button
-                  onClick={() => onGetStarted('signup')}
-                  className="text-slate-400 hover:text-white transition-colors font-bold text-xs px-2 py-2"
-                >
-                  Register
-                </button>
-                <button 
-                  onClick={() => onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId)}
-                  className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/20 border border-emerald-500/30 transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
-                >
-                  <span>Log In</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </>
-            ) : (
-              <>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20">
-                  <UserPlus className="w-3.5 h-3.5 text-blue-400" />
-                  <span>New Student</span>
-                </span>
-                <button
-                  onClick={() => onGetStarted('signin')}
-                  className="text-slate-300 hover:text-white transition-colors font-bold text-xs px-2 py-2"
-                >
-                  Log In
-                </button>
-                <button 
-                  onClick={() => onGetStarted('signup')}
-                  className="px-5 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 border border-blue-500/30 transition-all hover:scale-105 active:scale-95"
-                >
-                  Register Now
-                </button>
-              </>
-            )}
+          {/* Actions */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <MagneticButton
+              onClick={() => onGetStarted('signin', deviceUser.hasRegistered ? (deviceUser.email || deviceUser.sjTutorId) : undefined)}
+              className="hidden sm:inline-flex items-center justify-center px-4 py-2 text-xs font-bold text-slate-200 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors whitespace-nowrap shrink-0"
+            >
+              Login
+            </MagneticButton>
+
+            <MagneticButton
+              onClick={() => onGetStarted(deviceUser.hasRegistered ? 'signin' : 'signup', deviceUser.hasRegistered ? (deviceUser.email || deviceUser.sjTutorId) : undefined)}
+              className="btn-liquid inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-600/25 border border-blue-400/30 whitespace-nowrap shrink-0"
+            >
+              <span>{deviceUser.hasRegistered ? 'Continue Learning' : 'Get Started'}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </MagneticButton>
+
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              className="md:hidden p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Toggle Menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
-      </nav>
+
+        {/* Mobile Staggered Menu */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.28, ease: EASE_OUT_EXPO }}
+              className="md:hidden border-t border-white/10 bg-[#050C26]/95 backdrop-blur-2xl overflow-hidden"
+            >
+              <div className="px-5 py-4 space-y-2">
+                {navLinks.map((link, idx) => (
+                  <motion.a
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.05, duration: 0.25 }}
+                    className="block px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-200 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    {link.label}
+                  </motion.a>
+                ))}
+                <div className="pt-2 flex gap-2 border-t border-white/10">
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-white"
+                  >
+                    Login
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onGetStarted('signup');
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-xs font-bold text-white"
+                  >
+                    Get Started
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.header>
 
       <div className="relative z-10">
-
         {/* HERO SECTION */}
-        <section className="max-w-7xl mx-auto px-6 pt-16 pb-24 lg:pt-28 lg:pb-32 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          
-          {/* Left Side Content */}
-          <div className="lg:col-span-6 space-y-7 text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-950 to-purple-950 border border-blue-500/30 rounded-full text-blue-400 text-xs font-bold uppercase tracking-wider shadow-inner">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-              <span>🚀 Personalised AI Tutor for Students</span>
-            </div>
+        <section className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-20 lg:pt-20 lg:pb-28 overflow-hidden">
+          <FloatingFormulasField className="opacity-65" />
 
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight tracking-tight">
-              Personalised <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400">
-                AI Tutor for Students,
-              </span> <br />
-              Available 24/7
-            </h1>
-
-            <p className="text-slate-300 md:text-lg max-w-xl leading-relaxed">
-              SJ Tutor AI is the ultimate personalised AI tutor for students. Master any curriculum with interactive 1-on-1 tutoring, scan-to-solve homework help, instant revision notes, and adaptive practice quizzes.
-            </p>
-
-            {/* Smart Registration Detection Banner */}
-            {deviceUser.hasRegistered ? (
-              <div className="p-4 rounded-2xl bg-emerald-950/50 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl backdrop-blur-md">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
-                    <UserCheck className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                      Detection: Registered User
-                    </span>
-                    <p className="text-sm font-bold text-white mt-1">
-                      Welcome back{deviceUser.name ? `, ${deviceUser.name}` : ''}!
-                    </p>
-                    <p className="text-xs text-slate-300">
-                      Based on your device records, please <strong>Log In</strong> to continue your studies.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId)}
-                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center gap-1.5 shrink-0 hover:scale-105"
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center relative z-10">
+            {/* Left Content */}
+            <div className="lg:col-span-6 space-y-6 text-left">
+              {/* 3D Zoom Entrance for SJ Tutor AI Mark + Unboxed Eyebrow */}
+              <div className="flex items-center gap-3.5">
+                <motion.div
+                  initial={{ scale: 0.35, rotateY: -28, opacity: 0 }}
+                  animate={{ scale: 1, rotateY: 0, opacity: 1 }}
+                  transition={{ duration: 0.75, ease: EASE_OUT_EXPO }}
+                  style={{ perspective: 900 }}
+                  className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500/25 via-indigo-500/20 to-violet-500/25 border border-blue-400/35 p-1 shadow-[0_0_32px_rgba(37,99,235,0.35)] shrink-0"
                 >
-                  <span>Log In Now</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="p-4 rounded-2xl bg-blue-950/50 border border-blue-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl backdrop-blur-md">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/30">
-                    <UserPlus className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">
-                      Detection: New Student
-                    </span>
-                    <p className="text-sm font-bold text-white mt-1">
-                      No account detected on this device
-                    </p>
-                    <p className="text-xs text-slate-300">
-                      Based on this, please <strong>Register (Sign Up)</strong> to get your personalized student ID.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => onGetStarted('signup')}
-                  className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 text-white font-black rounded-xl text-xs shadow-lg shadow-blue-500/25 transition-all flex items-center gap-1.5 shrink-0 hover:scale-105"
-                >
-                  <span>Register Free</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-4">
-              {deviceUser.hasRegistered ? (
-                <>
-                  <button 
-                    onClick={() => onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId)}
-                    className="px-8 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white rounded-2xl font-bold text-base shadow-2xl shadow-emerald-500/30 border border-emerald-400/40 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 group"
+                  <Logo className="w-full h-full" iconOnly noBorder />
+                </motion.div>
+                <div>
+                  <motion.p
+                    initial={{ opacity: 0, x: -18 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.55, delay: 0.12, ease: EASE_OUT_EXPO }}
+                    className="text-xs font-extrabold uppercase tracking-[0.22em] text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-cyan-300 to-violet-300"
                   >
-                    <span>Log In to Continue</span>
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </button>
-                  <button 
-                    onClick={() => onGetStarted('signup')}
-                    className="px-8 py-4 bg-slate-900/40 hover:bg-slate-900/80 text-slate-300 hover:text-white rounded-2xl font-bold text-base border border-slate-700/60 transition-all hover:-translate-y-1 flex items-center justify-center gap-2"
-                  >
-                    <span>Register New Account</span>
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button 
-                    onClick={() => onGetStarted('signup')}
-                    className="px-8 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-505 hover:to-purple-500 text-white rounded-2xl font-bold text-base shadow-2xl shadow-blue-500/30 border border-blue-400/40 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 group"
-                  >
-                    <span>Start Learning Free (Register)</span>
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </button>
-                  <button 
-                    onClick={() => onGetStarted('signin')}
-                    className="px-8 py-4 bg-slate-900/40 hover:bg-slate-900/80 text-white rounded-2xl font-bold text-base border border-slate-700/60 transition-all hover:-translate-y-1 flex items-center justify-center gap-2"
-                  >
-                    <span>Already Registered? Log In</span>
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Live Interactive Account Registration Detector */}
-            <div className="pt-2">
-              <AccountDetectorWidget
-                variant="landing"
-                onSelectAction={(mode, id) => onGetStarted(mode, id)}
-              />
-            </div>
-
-            {/* Trust Indicators */}
-            <div className="pt-6 border-t border-slate-800/85 grid grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <div className="flex text-amber-400 gap-0.5">
-                  {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />)}
-                </div>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Rated by Students</p>
-              </div>
-              <div>
-                <p className="text-xl font-bold text-white tracking-tight">10,000+</p>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Active Learners</p>
-              </div>
-              <div>
-                <p className="text-xl font-bold text-white tracking-tight">95%</p>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Success Rate</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Side: High-End Dashboard Mockup with Glassmorphism */}
-          <div className="lg:col-span-6 relative">
-            
-            {/* Absolute colorful ambient backing glows */}
-            <div className="absolute -top-12 -left-12 w-72 h-72 bg-blue-600/20 rounded-full blur-[100px] pointer-events-none" />
-            <div className="absolute -bottom-12 -right-12 w-72 h-72 bg-purple-600/25 rounded-full blur-[100px] pointer-events-none" />
-
-            <div className="relative bg-[#0F172A]/70 backdrop-blur-xl border border-slate-700/50 rounded-3xl overflow-hidden shadow-2xl p-6 hover:border-slate-600/60 transition-all duration-500 group">
-              
-              {/* Fake Menu Topbar */}
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-rose-500" />
-                  <div className="w-3 h-3 rounded-full bg-amber-500" />
-                  <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                </div>
-                <div className="text-xs text-slate-400 font-bold tracking-widest bg-slate-900 border border-slate-800 px-3 py-1 rounded-full flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  STUDENT PORTAL DEMO
-                </div>
-              </div>
-
-              {/* Grid content inside mockup */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {/* Subject Cards Overview Item */}
-                <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-2xl space-y-3 shadow-inner">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-400">REVISIONS</span>
-                    <span className="text-[10px] text-green-400 font-black bg-green-950 border border-green-800/40 px-1.5 py-0.5 rounded-full">+4% Streak</span>
-                  </div>
-                  <div className="flex items-center gap-3 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/60 transition-transform hover:translate-x-1">
-                    <div className="w-9 h-9 bg-blue-950 rounded-lg flex items-center justify-center border border-blue-800/20">
-                      <GraduationCap className="w-5 h-5 text-blue-400" />
-                    </div>
-                    <div className="text-left leading-none">
-                      <p className="text-sm font-bold text-white">AP Calculus</p>
-                      <span className="text-[9px] text-slate-400">Chapters 1-7 Summary</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/60 transition-transform hover:translate-x-1">
-                    <div className="w-9 h-9 bg-violet-900/30 rounded-lg flex items-center justify-center border border-violet-800/20">
-                      <Atom className="w-5 h-5 text-violet-400" />
-                    </div>
-                    <div className="text-left leading-none">
-                      <p className="text-sm font-bold text-violet-300">Physics 101</p>
-                      <span className="text-[9px] text-slate-400">Electromagnetic Notes</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Progress Graph card item */}
-                <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between shadow-inner">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="text-left">
-                      <span className="text-[10px] text-slate-400 font-bold block uppercase">Weekly Progress</span>
-                      <p className="text-lg font-black text-white">92.4% Mastery</p>
-                    </div>
-                    <TrendingUp className="w-5 h-5 text-emerald-400" />
-                  </div>
-                  
-                  {/* Custom SVG line progress chart */}
-                  <div className="w-full h-16 relative">
-                    <svg className="w-full h-full" viewBox="0 0 100 40">
-                      <defs>
-                        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#2563EB" stopOpacity="0.4" />
-                          <stop offset="100%" stopColor="#2563EB" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path d="M0 35 C15 30 20 10 40 22 C60 30 75 5 100 12 L100 40 L0 40 Z" fill="url(#chartGrad)" />
-                      <path d="M0 35 C15 30 20 10 40 22 C60 30 75 5 100 12" fill="none" stroke="#00d2ff" strokeWidth="2" strokeDasharray="300" className="animate-[growLines_3s_ease-out_infinite]" />
-                      <circle cx="100" cy="12" r="3" fill="#ffffff" className="animate-ping" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Floating Glass AI Insights */}
-                <div className="md:col-span-2 bg-[#0F172A]/90 border border-slate-800 p-4 rounded-2xl text-left space-y-3 relative overflow-hidden shadow-xl">
-                  <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold">
-                    <Sparkles className="w-4 h-4 animate-spin-slow" />
-                    <span>AI COMPANION RECOMMENDATIONS</span>
-                  </div>
-                  <p className="text-xs text-slate-300">
-                    &quot;Based on your Quiz scores on Quadratic Equations, we recommend focusing on <strong className="text-blue-400 font-black">Factoring Methods</strong> to complete your perfect math credentials.&quot;
+                    SJ TUTOR AI · FUTURE-READY EDUCATION
+                  </motion.p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Classes 6–12 · Competitive Prep · Bilingual Support
                   </p>
-                  <div className="flex gap-2">
-                    <span className="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-full text-[10px] text-slate-300">#MathChallenge</span>
-                    <span className="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-full text-[10px] text-slate-300">#QuadraticRoots</span>
-                  </div>
                 </div>
               </div>
 
-              {/* Floating micro items overlapping edge for premium layout */}
-              <div className="absolute -bottom-4 -left-6 bg-slate-900/90 backdrop-blur-md border border-slate-800 p-3 rounded-xl shadow-2xl flex items-center gap-2 transform -rotate-2 hover:rotate-0 transition-transform hidden sm:flex">
-                <div className="w-7 h-7 bg-purple-950 rounded-lg flex items-center justify-center border border-purple-800/40">
-                  <Flame className="w-4 h-4 text-purple-400" />
-                </div>
-                <div className="text-left leading-none">
-                  <p className="text-xs font-bold text-white">Daily Streak Activator</p>
-                  <span className="text-[9px] text-slate-400">Score logged now</span>
-                </div>
+              {/* Main Rotating Heading */}
+              <div className="min-h-[112px] sm:min-h-[130px] flex items-center">
+                <h1 className="font-display text-4xl sm:text-5xl lg:text-[54px] font-black text-white leading-[1.08] tracking-tight">
+                  <RotatingHeadline
+                    phrases={[
+                      'Your Personal AI Tutor',
+                      'Learn Smarter Every Day',
+                      'Your AI-Powered Study Partner',
+                    ]}
+                    className="text-transparent bg-clip-text bg-gradient-to-r from-white via-blue-200 to-violet-300"
+                  />
+                </h1>
               </div>
 
-              <div className="absolute -top-6 -right-6 bg-slate-900/95 backdrop-blur-md border border-[#00d4ff]/30 p-3.5 rounded-xl shadow-2xl flex items-center gap-2 transform rotate-3 hover:translate-y-1 transition-all hidden sm:flex">
-                <div className="w-8 h-8 rounded-full bg-cyan-950 flex items-center justify-center">
-                  <CorrectGoogleLogo className="w-4 h-4" />
-                </div>
-                <div className="text-left text-xs leading-none">
-                  <p className="font-bold text-white">Perfect Identity</p>
-                  <span className="text-[8px] text-cyan-400 uppercase tracking-widest font-bold">Official Integration</span>
-                </div>
+              {/* Word-by-word description reveal */}
+              <div className="text-slate-300 text-base sm:text-lg max-w-xl leading-relaxed">
+                <WordReveal
+                  text="Master mathematics, science, languages, and exams with step-by-step AI explanations, smart study notes, adaptive quizzes, and live progress analytics."
+                  delay={0.18}
+                  stagger={0.025}
+                />
               </div>
 
-            </div>
-          </div>
-        </section>
+              {/* Action Buttons (Get Started elastic zoom + Login slides in from right) */}
+              <div className="flex flex-col sm:flex-row gap-3.5 pt-1">
+                <motion.div
+                  initial={{ scale: 0.72, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 18, delay: 0.25 }}
+                >
+                  <MagneticButton
+                    onClick={() => onGetStarted('signup')}
+                    className="btn-liquid w-full sm:w-auto px-7 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-2xl font-bold text-base shadow-[0_12px_36px_rgba(37,99,235,0.38)] border border-blue-400/40 flex items-center justify-center gap-2.5 group"
+                  >
+                    <span>Get Started Free</span>
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </MagneticButton>
+                </motion.div>
 
-        {/* TRUSTED BY / STATS SECTION */}
-        <section className="border-y border-slate-900 bg-slate-950/40 py-12 relative overflow-hidden backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-6">
-            <h3 className="text-xs uppercase tracking-[0.3em] font-black text-slate-500 mb-8 text-center">Loved &amp; Trusted By Students worldwide</h3>
-            
-            {/* Trusted Brand Logos (With pristine corrected Google Brand SVG) */}
-            <div className="flex flex-wrap items-center justify-center gap-x-16 gap-y-8 mb-12 opacity-60 hover:opacity-85 transition-opacity duration-300">
-              <div className="flex items-center gap-2 text-white">
-                <CorrectGoogleLogo className="w-5 h-5" />
-                <span className="font-bold tracking-tight text-sm">Google Student Forums</span>
+                <motion.div
+                  initial={{ x: 28, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 0.32, ease: EASE_OUT_EXPO }}
+                >
+                  <MagneticButton
+                    onClick={() => onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId)}
+                    className="w-full sm:w-auto px-7 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-bold text-base border border-blue-400/25 hover:border-blue-400/50 backdrop-blur-md flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <span>Login to Portal</span>
+                  </MagneticButton>
+                </motion.div>
               </div>
-              <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                <svg className="w-5 h-5" viewBox="0 0 23 23" fill="currentColor">
-                  <path d="M0 0h11v11H0zM12 0h11v11H12zM0 12h11v11H0zM12 12h11v11H12z" fill="#F25022" />
-                </svg>
-                <span>Microsoft Education</span>
-              </div>
-              <div className="text-white font-extrabold tracking-widest text-sm flex items-center gap-1">
-                <span>STANFORD</span>
-                <span className="text-xs text-rose-500">STEM</span>
-              </div>
-              <div className="text-white font-serif italic text-base font-bold">
-                Princeton Academics
-              </div>
-            </div>
 
-            {/* Stats list with animated counter calculations */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 pt-8 border-t border-slate-900">
-              <div className="space-y-1 text-center">
-                <p className="text-3xl md:text-4xl font-black text-white bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-400">
-                  {statistics.students.toLocaleString()}+
-                </p>
-                <p className="text-xs uppercase tracking-widest font-bold text-slate-400">Active Students</p>
-              </div>
-              <div className="space-y-1 text-center">
-                <p className="text-3xl md:text-4xl font-black text-white bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-400">
-                  {statistics.solved >= 1000000 ? "1 Million+" : statistics.solved.toLocaleString()}
-                </p>
-                <p className="text-xs uppercase tracking-widest font-bold text-slate-400">Questions Solved</p>
-              </div>
-              <div className="space-y-1 text-center">
-                <p className="text-3xl md:text-4xl font-black text-white bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-rose-400">
-                  {statistics.success}%
-                </p>
-                <p className="text-xs uppercase tracking-widest font-bold text-slate-400">Academic Success</p>
-              </div>
-              <div className="space-y-1 text-center">
-                <p className="text-3xl md:text-4xl font-black text-white bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-blue-400">
-                  {statistics.availability}
-                </p>
-                <p className="text-xs uppercase tracking-widest font-bold text-slate-400">AI Accessibility</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* FEATURES SECTION (Why Students Choose SJ Tutor AI) */}
-        <section id="features" className="max-w-7xl mx-auto px-6 py-24 select-none">
-          <div className="text-center space-y-4 mb-20">
-            <span className="text-xs text-blue-400 font-extrabold uppercase tracking-[0.25em]">ELITE ACADEMIC CRITERIA</span>
-            <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white">Why Students Choose SJ Tutor AI</h2>
-            <p className="text-slate-400 max-w-2xl mx-auto">
-              We leverage top-tier machine learning models configured specifically for comprehensive school textbooks, turning frustrating homework roadblocks into active learning success.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[
-              { icon: FileText, title: "AI Homework Assistance", desc: "Solve complex, multi-level homework problems with clean step-by-step mathematical and conceptual justifications.", color: "from-blue-600/20 to-indigo-600/5", glow: "group-hover:shadow-[0_0_50px_rgba(37,99,235,0.25)]", accent: "text-blue-400" },
-              { icon: BrainCircuit, title: "Personalized Learning Paths", desc: "The platform dynamically tracks your mastery quotient, structuring learning tracks configured specifically to clear personal knowledge gaps.", color: "from-purple-600/20 to-violet-600/5", glow: "group-hover:shadow-[0_0_50px_rgba(124,58,237,0.25)]", accent: "text-purple-400" },
-              { icon: MessageCircle, title: "Instant Doubt Resolution", desc: "Speak directly with your hyper-friendly study companion. Backed by multi-subject, conversational, easy-to-follow wisdom anytime.", color: "from-cyan-600/20 to-blue-600/5", glow: "group-hover:shadow-[0_0_50px_rgba(6,182,212,0.25)]", accent: "text-cyan-400" },
-              { icon: Award, title: "AP & Exam Preparation", desc: "Generate custom revision sets, mock exams, and test templates matching specific syllabi, CBSE, or advanced curricula.", color: "from-rose-600/20 to-pink-600/5", glow: "group-hover:shadow-[0_0_50px_rgba(244,63,94,0.25)]", accent: "text-rose-400" },
-              { icon: TrendingUp, title: "Performance Analytics", desc: "Visualize clear progress records. Review completion reminders, streak calendars, and claim bonus learning credits immediately.", color: "from-emerald-600/20 to-teal-600/5", glow: "group-hover:shadow-[0_0_50px_rgba(16,185,129,0.25)]", accent: "text-emerald-400" },
-              { icon: Languages, title: "Multi-Subject & Language Support", desc: "Unconditional math, literature, sciences, and history answers, seamlessly translated into standard explanations in your language of choice.", color: "from-amber-600/20 to-orange-600/5", glow: "group-hover:shadow-[0_0_50px_rgba(217,119,6,0.25)]", accent: "text-amber-400" }
-            ].map((feat, i) => (
-              <div 
-                key={i} 
-                className={`group relative bg-[#0F172A]/40 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 hover:border-slate-700 hover:bg-slate-900/40 transition-all duration-500 overflow-hidden ${feat.glow}`}
-              >
-                {/* Visual Accent Inner Glow */}
-                <div className={`absolute -right-4 -top-4 w-24 h-24 bg-gradient-to-br ${feat.color} rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500`} />
-                
-                <div className="relative z-10 space-y-5">
-                  <div className={`w-12 h-12 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-center ${feat.accent} group-hover:scale-110 group-hover:border-slate-700 transition-all duration-300`}>
-                    <feat.icon className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-xl font-bold text-white group-hover:text-blue-300 transition-colors">{feat.title}</h3>
-                  <p className="text-slate-400 text-sm leading-relaxed">{feat.desc}</p>
-                  
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400 group-hover:text-white transition-colors pt-2 font-semibold">
-                    <span>Explore capability</span>
-                    <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* HOW IT WORKS (Timeline with interactive visual storytelling) */}
-        <section id="how" className="py-24 bg-slate-950/20 border-y border-slate-900/60 relative">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center space-y-4 mb-20">
-              <span className="text-xs text-purple-400 font-extrabold uppercase tracking-[0.25em]">STEP-BY-STEP WORKFLOW</span>
-              <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white">Learn Smarter in Four Simple Steps</h2>
-              <p className="text-slate-400 max-w-xl mx-auto text-sm">
-                An active, loop-linked approach to scientific training. Here is how your daily study cycle transforms from chaos to structural order.
-              </p>
-            </div>
-
-            {/* Roadmap layout */}
-            <div className="relative grid grid-cols-1 md:grid-cols-4 gap-8">
-              
-              {/* Connector gradient bar */}
-              <div className="absolute top-[38px] left-[10%] right-[10%] h-[2px] bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 opacity-20 hidden md:block" />
-
-              {[
-                { step: "01", title: "Ask Any Question", desc: "Submit difficult geometry, biology equations, scan textbook paragraphs, or simply converse regarding obscure history queries.", opt: "blue" },
-                { step: "02", title: "Receive AI Explanations", desc: "Review detailed, typing-animated step-by-step conceptual breakdowns instantly generated in simple human language.", opt: "purple" },
-                { step: "03", title: "Adaptive Practice Sets", desc: "Unlock customized multiple-choice practice quizzes triggered of your actual search subjects to enforce core retention.", opt: "cyan" },
-                { step: "04", title: "Track Progress & Thrive", desc: "Gain performance credits, build your student streak stats, and compile beautiful revision PDF lists immediately.", opt: "emerald" }
-              ].map((s, i) => (
-                <div key={i} className="relative z-10 bg-[#0F172A]/30 backdrop-blur-md border border-slate-800/80 p-6 rounded-2xl hover:border-slate-700 group hover:bg-[#0F172A]/50 transition-all">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="text-3xl font-black text-slate-800 group-hover:text-blue-500/20 transition-colors font-mono">{s.step}</div>
-                    
-                    {/* Ring Indicator */}
-                    <div className={`w-8 h-8 rounded-full bg-slate-950 border-2 border-slate-800 flex items-center justify-center text-xs font-bold text-white group-hover:border-blue-500 shadow-xl`}>
-                      <Check className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-400 group-hover:opacity-100 transition-opacity" />
+              {/* Smart Registration Detection Card */}
+              <BlurFocusReveal delay={0.35} yOffset={14}>
+                {deviceUser.hasRegistered ? (
+                  <div className="p-4 rounded-2xl bg-[#0A1638]/85 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl backdrop-blur-md">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                        <UserCheck className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                          Registered Device Account
+                        </p>
+                        <p className="text-sm font-bold text-white truncate">
+                          Welcome back{deviceUser.name ? `, ${deviceUser.name}` : ''}!
+                        </p>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId)}
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold rounded-xl text-xs transition-all flex items-center gap-1.5 shrink-0"
+                    >
+                      <span>Resume Sign In</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <h3 className="text-lg font-bold text-white mb-2 group-hover:text-blue-300 transition-colors">{s.title}</h3>
-                  <p className="text-slate-400 text-xs leading-relaxed">{s.desc}</p>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-[#0A1638]/80 border border-blue-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl backdrop-blur-md">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/30">
+                        <UserPlus className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-blue-400">
+                          10-Day Free Trial Included
+                        </p>
+                        <p className="text-sm font-bold text-white">
+                          Claim your official SJ Tutor AI Student ID
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onGetStarted('signup')}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 shrink-0"
+                    >
+                      <span>Create Student ID</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </BlurFocusReveal>
+
+              {/* Live Account Registration Lookup */}
+              <div>
+                <AccountDetectorWidget
+                  variant="landing"
+                  onSelectAction={(mode, id) => onGetStarted(mode, id)}
+                />
+              </div>
+
+              {/* Clean Metric Baseline Strip */}
+              <div className="pt-5 border-t border-white/10 grid grid-cols-3 gap-4">
+                <div>
+                  <div className="flex text-amber-400 gap-0.5 mb-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Rated by Students</p>
                 </div>
+                <div>
+                  <p className="text-xl font-extrabold text-white tabular-nums">10,000+</p>
+                  <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Active Learners</p>
+                </div>
+                <div>
+                  <p className="text-xl font-extrabold text-white tabular-nums">24/7</p>
+                  <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">AI Availability</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Floating 3D Hero AI Artwork + Live Portal Card */}
+            <div className="lg:col-span-6 relative">
+              <div className="absolute -top-10 -left-10 w-64 h-64 bg-blue-600/25 rounded-full blur-[110px] pointer-events-none" />
+              <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-violet-600/25 rounded-full blur-[110px] pointer-events-none" />
+
+              <ParallaxLayer offset={18}>
+                <motion.div
+                  initial={{ opacity: 0, y: 24, rotateY: 10 }}
+                  animate={{ opacity: 1, y: 0, rotateY: 0 }}
+                  transition={{ duration: 0.85, ease: EASE_OUT_EXPO }}
+                  className="animate-float-subtle"
+                >
+                  <TiltCard3D maxTilt={5} className="glow-border-card bg-[#0A1332]/85 backdrop-blur-2xl border border-blue-400/25 rounded-3xl overflow-hidden shadow-[0_24px_80px_rgba(4,9,30,0.85)] p-4 sm:p-5">
+                    {/* Browser Header */}
+                    <div className="flex items-center justify-between border-b border-white/10 pb-3.5 mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-400/90" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400/90" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/90" />
+                      </div>
+                      <span className="text-[11px] font-bold tracking-[0.18em] text-blue-300 uppercase">
+                        SJ TUTOR AI STUDIO
+                      </span>
+                    </div>
+
+                    {/* Generated Futuristic Educational Artwork */}
+                    <CircularImageReveal delay={0.15} className="rounded-2xl overflow-hidden border border-blue-500/20 mb-4 aspect-video bg-[#070E28]">
+                      <ResilientImage
+                        src={heroIllustrationImg}
+                        alt="SJ Tutor AI Holographic Learning Workspace"
+                        className="w-full h-full object-cover"
+                        fallbackTitle="SJ Tutor AI Smart Workspace"
+                      />
+                    </CircularImageReveal>
+
+                    {/* Compact Interactive Highlights */}
+                    <div className="grid grid-cols-2 gap-3 text-left">
+                      <div className="bg-[#050C24]/80 border border-white/10 p-3.5 rounded-2xl">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400">ADAPTIVE MODES</p>
+                        <p className="text-sm font-bold text-white mt-0.5">Study · Practice · Revision</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Instant summaries & quizzes</p>
+                      </div>
+                      <div className="bg-[#050C24]/80 border border-white/10 p-3.5 rounded-2xl">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400">PROGRESS TRACKER</p>
+                        <p className="text-sm font-bold text-white mt-0.5 tabular-nums">92.4% Concept Mastery</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Streaks & daily study goals</p>
+                      </div>
+                    </div>
+                  </TiltCard3D>
+                </motion.div>
+              </ParallaxLayer>
+            </div>
+          </div>
+        </section>
+
+        {/* TRUSTED & ANIMATED STATISTICS STRIP */}
+        <section className="border-y border-white/10 bg-[#060E2A]/60 py-12 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+              <div>
+                <p className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300 tabular-nums">
+                  <CounterNumber value={10000} suffix="+" />
+                </p>
+                <p className="text-xs uppercase tracking-widest font-bold text-slate-400 mt-1">Active Students</p>
+              </div>
+              <div>
+                <p className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-violet-400 tabular-nums">
+                  <CounterNumber value={1000000} suffix="+" />
+                </p>
+                <p className="text-xs uppercase tracking-widest font-bold text-slate-400 mt-1">Questions Solved</p>
+              </div>
+              <div>
+                <p className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-blue-400 tabular-nums">
+                  <CounterNumber value={95} suffix="%" />
+                </p>
+                <p className="text-xs uppercase tracking-widest font-bold text-slate-400 mt-1">Academic Confidence</p>
+              </div>
+              <div>
+                <p className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-300 tabular-nums">
+                  24/7
+                </p>
+                <p className="text-xs uppercase tracking-widest font-bold text-slate-400 mt-1">Tutor Accessibility</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* FEATURES SECTION (All 10 Capabilities with 3D Tilt, Glowing Borders & Animated Icons) */}
+        <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 py-20 lg:py-24">
+          <BlurFocusReveal className="text-center space-y-3 mb-14">
+            <p className="text-xs text-blue-400 font-extrabold uppercase tracking-[0.25em]">COMPLETE STUDY ECOSYSTEM</p>
+            <h2 className="font-display text-3xl md:text-5xl font-black tracking-tight text-white">
+              Ten Intelligent Tools for Faster Mastery
+            </h2>
+            <p className="text-slate-400 max-w-2xl mx-auto text-sm sm:text-base">
+              Built around how students actually learn — from instant doubt clearing to exam revision and streak accountability.
+            </p>
+          </BlurFocusReveal>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+            {FEATURES_LIST.map((feat, i) => {
+              const Icon = feat.icon;
+              return (
+                <BlurFocusReveal key={feat.title} delay={i * 0.045} yOffset={18}>
+                  <TiltCard3D
+                    maxTilt={7}
+                    onClick={() => onGetStarted('signup')}
+                    className="glow-border-card group h-full bg-[#091230]/80 hover:bg-[#0D1840]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-6 cursor-pointer transition-colors duration-300 flex flex-col justify-between overflow-hidden"
+                  >
+                    <div className={`absolute -right-8 -top-8 w-28 h-28 bg-gradient-to-br ${feat.glow} rounded-full blur-2xl opacity-60 group-hover:opacity-100 group-hover:scale-125 transition-all duration-500`} />
+                    <div className="relative z-10 space-y-3.5 text-left">
+                      <div className={`w-11 h-11 rounded-xl border flex items-center justify-center ${feat.iconBg} ${feat.accent} transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-base font-bold text-white group-hover:text-blue-300 transition-colors">
+                        {feat.title}
+                      </h3>
+                      <p className="text-slate-400 text-xs leading-relaxed">
+                        {feat.desc}
+                      </p>
+                    </div>
+                    <div className="relative z-10 flex items-center gap-1 text-xs font-semibold text-blue-400 mt-4 opacity-80 group-hover:opacity-100">
+                      <span>Try feature</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </TiltCard3D>
+                </BlurFocusReveal>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* SUBJECTS SECTION (All 9 Requested Subjects) */}
+        <section id="subjects" className="bg-[#060D28]/70 py-20 lg:py-24 border-y border-white/10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <BlurFocusReveal className="text-center space-y-3 mb-14">
+              <p className="text-xs text-violet-400 font-extrabold uppercase tracking-[0.25em]">CURRICULUM COVERAGE</p>
+              <h2 className="font-display text-3xl md:text-5xl font-black tracking-tight text-white">
+                Subjects Supported Across Every Grade
+              </h2>
+              <p className="text-slate-400 max-w-2xl mx-auto text-sm sm:text-base">
+                Clear concept explanations, chapter summaries, and practice quizzes tailored across Science, Humanities, and Languages.
+              </p>
+            </BlurFocusReveal>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {SUBJECTS_LIST.map((subj, idx) => {
+                const Icon = subj.icon;
+                return (
+                  <BlurFocusReveal key={subj.name} delay={idx * 0.05} yOffset={16}>
+                    <TiltCard3D
+                      maxTilt={6}
+                      onClick={() => onGetStarted('signup')}
+                      className={`group h-full bg-[#091230]/85 hover:bg-[#0D1942] border ${subj.border} p-6 rounded-2xl cursor-pointer transition-all duration-300 flex items-start gap-4 text-left overflow-hidden relative`}
+                    >
+                      <div className={`absolute -right-8 -bottom-8 w-32 h-32 bg-gradient-to-br ${subj.gradient} rounded-full blur-2xl opacity-40 group-hover:opacity-100 transition-opacity`} />
+                      <div className={`w-12 h-12 rounded-2xl bg-[#04091E] border border-white/10 flex items-center justify-center ${subj.text} shrink-0 relative z-10 group-hover:scale-110 transition-transform`}>
+                        <Icon className="w-6 h-6" />
+                      </div>
+                      <div className="relative z-10">
+                        <h3 className="text-lg font-extrabold text-white group-hover:text-blue-200 transition-colors">
+                          {subj.name}
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                          {subj.desc}
+                        </p>
+                      </div>
+                    </TiltCard3D>
+                  </BlurFocusReveal>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* HOW IT WORKS */}
+        <section id="how" className="py-20 lg:py-24 relative">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <BlurFocusReveal className="text-center space-y-3 mb-14">
+              <p className="text-xs text-blue-400 font-extrabold uppercase tracking-[0.25em]">LEARNING LOOP</p>
+              <h2 className="font-display text-3xl md:text-5xl font-black tracking-tight text-white">
+                Learn Smarter in Four Simple Steps
+              </h2>
+            </BlurFocusReveal>
+
+            <div className="relative grid grid-cols-1 md:grid-cols-4 gap-6">
+              {[
+                { step: '01', title: 'Ask Any Question', desc: 'Type a formula, upload homework photos or PDFs, or speak directly with voice dictation.' },
+                { step: '02', title: 'Receive Clear Breakdowns', desc: 'Get streaming step-by-step explanations tuned to your grade level and preferred language.' },
+                { step: '03', title: 'Practice with Quizzes', desc: 'Reinforce each topic immediately with custom quizzes and instant answer feedback.' },
+                { step: '04', title: 'Track Your Mastery', desc: 'Maintain daily streaks, monitor subject progress bars, and achieve your study goals.' },
+              ].map((s, i) => (
+                <BlurFocusReveal key={s.step} delay={i * 0.08}>
+                  <div className="h-full bg-[#091230]/75 border border-white/10 p-6 rounded-2xl hover:border-blue-400/40 transition-colors text-left">
+                    <div className="flex items-center justify-between mb-5">
+                      <span className="text-2xl font-black font-mono text-blue-400/60 tabular-nums">{s.step}</span>
+                      <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-center">
+                        <Check className="w-4 h-4 text-blue-400" />
+                      </div>
+                    </div>
+                    <h3 className="text-lg font-bold text-white mb-2">{s.title}</h3>
+                    <p className="text-slate-400 text-xs leading-relaxed">{s.desc}</p>
+                  </div>
+                </BlurFocusReveal>
               ))}
             </div>
           </div>
         </section>
 
-        {/* AI TUTOR DEMO SECTION (Highly interactive chatbot panel with math plotting) */}
-        <section id="demo" className="max-w-7xl mx-auto px-6 py-24 select-none relative">
-          
-          <div className="absolute top-1/2 left-1/4 w-80 h-80 bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            
-            {/* Simulation Controls Left Side */}
-            <div className="lg:col-span-4 space-y-6 text-left">
-              <span className="text-xs text-cyan-400 font-extrabold uppercase tracking-[0.25em]">LIVE REASONING PORTAL</span>
-              <h2 className="text-3xl md:text-4xl font-black text-white leading-tight">Interactive AI Tutor Lesson</h2>
+        {/* INTERACTIVE AI TUTOR DEMO SECTION */}
+        <section id="demo" className="max-w-7xl mx-auto px-4 sm:px-6 py-20 lg:py-24 relative">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            <div className="lg:col-span-4 space-y-5 text-left">
+              <p className="text-xs text-cyan-400 font-extrabold uppercase tracking-[0.25em]">INTERACTIVE PREVIEW</p>
+              <h2 className="font-display text-3xl md:text-4xl font-black text-white leading-tight">
+                Live AI Tutor Lesson Explorer
+              </h2>
               <p className="text-slate-400 text-sm leading-relaxed">
-                Test-drive our advanced learning modules. Select a challenging concept below to witness the comprehensive, structured, conversational results.
+                Select a concept below to preview interactive visual plotting, structured stage cards, and retention checks.
               </p>
 
-              {/* Selector buttons */}
               <div className="space-y-3">
                 {[
-                  { id: 'quad', label: "Explain Quadratic Equations", desc: "Algebraic formula & parabola graphing", icon: GraduationCap },
-                  { id: 'photo', label: "Solve Cell Respiration", desc: "Complex biology cycle breakdown", icon: Atom },
-                  { id: 'code', label: "Python Stack Recursion", desc: "Visualizing execution stacks", icon: BrainCircuit }
+                  { id: 'quad', label: 'Explain Quadratic Equations', desc: 'Formula & interactive parabola graph', icon: Sigma },
+                  { id: 'photo', label: 'Solve Cell Respiration', desc: 'Multi-stage ATP biology breakdown', icon: Atom },
+                  { id: 'code', label: 'Python Stack Recursion', desc: 'Execution stack frame visualizer', icon: BrainCircuit },
                 ].map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => {
-                      setDemoPrompt(item.id as any);
-                    }}
+                    onClick={() => setDemoPrompt(item.id as 'quad' | 'photo' | 'code')}
                     className={`w-full text-left p-4 rounded-xl border flex items-center gap-4 transition-all ${
-                      demoPrompt === item.id 
-                        ? 'bg-blue-600/20 border-blue-500 font-bold text-white shadow-lg' 
-                        : 'bg-[#121A2E]/20 border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white'
+                      demoPrompt === item.id
+                        ? 'bg-blue-600/20 border-blue-400 font-bold text-white shadow-lg shadow-blue-600/15'
+                        : 'bg-[#091230]/70 border-white/10 hover:border-blue-400/35 text-slate-300 hover:text-white'
                     }`}
                   >
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                      demoPrompt === item.id ? 'bg-blue-600 text-white' : 'bg-slate-950 text-slate-400'
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      demoPrompt === item.id ? 'bg-blue-600 text-white' : 'bg-white/5 text-slate-400'
                     }`}>
                       <item.icon className="w-5 h-5" />
                     </div>
                     <div className="leading-tight">
                       <p className="text-sm font-semibold">{item.label}</p>
-                      <span className="text-[10px] opacity-75">{item.desc}</span>
+                      <span className="text-[11px] text-slate-400">{item.desc}</span>
                     </div>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Chatbot Interface Right Side */}
             <div className="lg:col-span-8">
-              <div className="bg-[#0F172A]/80 border border-slate-700/60 rounded-3xl overflow-hidden shadow-2xl flex flex-col min-h-[500px]">
-                
-                {/* Chat Header */}
-                <div className="bg-slate-950/60 p-4 border-b border-slate-800/80 flex items-center justify-between">
+              <div className="bg-[#091230]/90 border border-blue-500/25 rounded-3xl overflow-hidden shadow-2xl flex flex-col min-h-[480px]">
+                <div className="bg-[#050C24]/90 p-4 border-b border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-primary-500 flex items-center justify-center shrink-0">
-                        <Logo className="w-full h-full" iconOnly />
-                      </div>
-                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-900 animate-pulse" />
+                    <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-900 border border-blue-400/30 flex items-center justify-center shrink-0">
+                      <Logo className="w-full h-full" iconOnly noBorder />
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-black text-white">SJ Tutor AI Companion</p>
-                      <span className="text-[10px] text-green-400 flex items-center gap-1">
-                        <CorrectGoogleLogo className="w-3 h-3 inline" /> Powered by Advanced Gemini Model
+                      <p className="text-sm font-bold text-white">SJ Tutor AI Companion</p>
+                      <span className="text-[11px] text-blue-300 flex items-center gap-1">
+                        <CorrectGoogleLogo className="w-3 h-3 inline" /> Concept Simulator Mode
                       </span>
                     </div>
                   </div>
-                  <span className="px-3 py-1 bg-blue-950/50 border border-blue-800/40 rounded-full text-[10px] font-bold text-blue-400">MATH INTEGRATION</span>
+                  <span className="text-[11px] font-bold tracking-wider text-cyan-300 uppercase">INTERACTIVE DEMO</span>
                 </div>
 
-                {/* Chat Scroll Container */}
-                <div className="flex-1 p-6 space-y-6 overflow-y-auto max-h-[420px] scrollbar-thin scrollbar-thumb-slate-800">
-                  
-                  {/* Student Input Prompt Bubble */}
+                <div className="flex-1 p-5 sm:p-6 space-y-5 overflow-y-auto max-h-[440px] custom-scrollbar">
                   <div className="flex items-start gap-3 justify-end">
-                    <div className="bg-blue-600 text-white p-4 rounded-t-2xl rounded-bl-2xl text-xs max-w-sm text-left font-medium shadow-md">
-                      {demoPrompt === 'quad' && "Hi! I am super confused by quadratic equations. Can you explain what the roots actually represent and how we find them?"}
-                      {demoPrompt === 'photo' && "Can you write a visual, easy-to-follow study guide of cellular respiration? It feels like just memorizing a giant list of molecules."}
-                      {demoPrompt === 'code' && "Explain Python recursion. What happens inside the stack memories during recursive execution?"}
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-bold flex items-center justify-center text-xs shrink-0 select-none">
-                      S
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-2xl rounded-tr-none text-xs sm:text-sm max-w-md text-left font-medium shadow-md">
+                      {demoPrompt === 'quad' && 'Can you explain what quadratic equation roots represent and how to visualize them?'}
+                      {demoPrompt === 'photo' && 'Can you give me a clear stage-by-stage visual guide of cellular respiration?'}
+                      {demoPrompt === 'code' && 'How does recursion work inside stack memory during execution?'}
                     </div>
                   </div>
 
-                  {/* AI Tutor Response Bubble */}
                   {demoIsTyping ? (
-                    <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-primary-500 flex items-center justify-center shrink-0">
-                        <Logo className="w-full h-full" iconOnly />
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-900 border border-blue-400/30 flex items-center justify-center shrink-0">
+                        <Logo className="w-full h-full" iconOnly noBorder />
                       </div>
-                      <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-r-2xl rounded-bl-2xl max-w-md text-left text-xs text-slate-400 flex items-center gap-2">
-                        <span className="animate-bounce">●</span>
-                        <span className="animate-bounce delay-100">●</span>
-                        <span className="animate-bounce delay-200">●</span>
-                        <span>SJ is formulating customized visuals...</span>
+                      <div className="bg-[#050C24]/80 border border-white/10 px-4 py-3 rounded-2xl rounded-tl-none text-xs text-slate-300 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: '0.12s' }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-bounce" style={{ animationDelay: '0.24s' }} />
+                        <span className="ml-1">Formulating visual breakdown...</span>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-start gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-primary-500 flex items-center justify-center shrink-0">
-                        <Logo className="w-full h-full" iconOnly />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.35 }}
+                      className="flex items-start gap-3"
+                    >
+                      <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-900 border border-blue-400/30 flex items-center justify-center shrink-0">
+                        <Logo className="w-full h-full" iconOnly noBorder />
                       </div>
 
-                      <div className="space-y-4 text-left max-w-2xl bg-slate-950/30 p-6 border border-slate-800/80 rounded-2xl shadow-inner">
-                        <div className="text-xs text-slate-300 leading-relaxed font-sans space-y-3">
-                          
-                          {/* DYNAMIC TEXT PER PROMPT */}
+                      <div className="space-y-4 text-left max-w-2xl bg-[#050C24]/75 p-5 border border-white/10 rounded-2xl rounded-tl-none">
+                        <div className="text-xs sm:text-sm text-slate-200 leading-relaxed space-y-3">
                           {demoPrompt === 'quad' && (
                             <>
-                              <p className="text-white font-bold text-sm flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
-                                Interactive Lesson: Parabolas and Roots
+                              <p className="text-white font-bold flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-cyan-400" />
+                                Interactive Lesson: Parabolas & Roots
                               </p>
                               <p>
-                                At its heart, a quadratic equation represents a <strong className="text-cyan-400">Parabola</strong> (a perfect mirror-symmetric U-shaped curve). When we solve ax² + bx + c = 0, we are searching for the exact spots where this curve crashes right through the ground level (x-axis)!
+                                A quadratic equation shapes a symmetric <strong className="text-cyan-300">Parabola</strong>. Solving ax² + bx + c = 0 finds where the curve crosses the x-axis.
                               </p>
-                              <p>
-                                The supreme key to locating these roots is the quadratic formula:
-                              </p>
-                              <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 font-mono text-center text-sm font-semibold text-white my-3">
-                                {"x = (-b ± √(b² - 4ac)) / a²"}
+                              <div className="bg-[#091230] p-3 rounded-xl border border-white/10 font-mono text-center text-sm font-semibold text-white">
+                                x = (-b ± √(b² - 4ac)) / 2a
                               </div>
 
-                              {/* Interactive mathematical plot coordinate card */}
-                              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+                              <div className="bg-[#091230] border border-white/10 p-4 rounded-xl space-y-3">
                                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
-                                  <span>LIVE PARABOLA COORDINATES PLOTTER</span>
-                                  <span className="text-cyan-400">y = {parabolaCoeffA}x² - 4x + {3 + parabolaOffset}</span>
+                                  <span>PARABOLA COORDINATES PLOTTER</span>
+                                  <span className="text-cyan-300 tabular-nums">y = {parabolaCoeffA}x² - 4x + {3 + parabolaOffset}</span>
                                 </div>
 
-                                {/* Plotter Graph */}
-                                <div className="h-32 bg-slate-950 border border-slate-850 rounded-lg relative overflow-hidden flex items-center justify-center">
-                                  
-                                  {/* Grid Lines */}
-                                  <div className="absolute inset-0 grid grid-cols-6 grid-rows-4 opacity-10 pointer-events-none">
-                                    {[...Array(24)].map((_, idx) => <div key={idx} className="border-r border-b border-white" />)}
-                                  </div>
-
-                                  {/* Coordinate Axes */}
-                                  <div className="absolute h-[1px] w-full bg-slate-700/60 top-1/2 left-0 pointer-events-none" />
-                                  <div className="absolute w-[1px] h-full bg-slate-700/60 left-1/2 top-0 pointer-events-none" />
-
-                                  {/* SVG Graph Curve path drawn real-time based on variables */}
+                                <div className="h-28 bg-[#04091E] border border-white/10 rounded-lg relative overflow-hidden flex items-center justify-center">
+                                  <div className="absolute h-[1px] w-full bg-slate-700/70 top-1/2 left-0" />
+                                  <div className="absolute w-[1px] h-full bg-slate-700/70 left-1/2 top-0" />
                                   <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 100">
-                                    <path 
-                                      d={`M 10 ${60 - (parabolaCoeffA * 10) + parabolaOffset} Q 100 ${90 + parabolaOffset} 190 ${60 - (parabolaCoeffA * 10) + parabolaOffset}`} 
-                                      fill="none" 
-                                      stroke="#06b6d4" 
-                                      strokeWidth="2.5" 
-                                      className="transition-all duration-300" 
+                                    <path
+                                      d={`M 10 ${60 - parabolaCoeffA * 10 + parabolaOffset} Q 100 ${90 + parabolaOffset} 190 ${60 - parabolaCoeffA * 10 + parabolaOffset}`}
+                                      fill="none"
+                                      stroke="#38BDF8"
+                                      strokeWidth="2.5"
                                     />
-                                    {/* Plotted Roots Points circles */}
-                                    <circle cx="50" cy="50" r="4" fill="#ef4444" className="animate-bounce" />
-                                    <circle cx="150" cy="50" r="4" fill="#ef4444" className="animate-bounce" />
+                                    <circle cx="50" cy="50" r="4" fill="#A855F7" />
+                                    <circle cx="150" cy="50" r="4" fill="#A855F7" />
                                   </svg>
-
-                                  <span className="absolute bottom-2 right-2 text-[9px] font-bold text-emerald-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                                    Roots highlighted in Red
-                                  </span>
                                 </div>
 
-                                {/* Slide controls */}
-                                <div className="flex items-center justify-between gap-4">
-                                  <div className="flex-1 flex items-center gap-1">
-                                    <span className="text-[10px] text-slate-400 shrink-0">Scale Parabola (A):</span>
-                                    <input 
-                                      type="range" 
-                                      min="0.5" 
-                                      max="2" 
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <label className="flex items-center gap-2 text-[11px] text-slate-300">
+                                    <span className="shrink-0">Scale (A):</span>
+                                    <input
+                                      type="range"
+                                      min="0.5"
+                                      max="2"
                                       step="0.1"
                                       value={parabolaCoeffA}
                                       onChange={(e) => setParabolaCoeffA(parseFloat(e.target.value))}
-                                      className="w-full accent-cyan-400 h-1 roundedbg-slate-700 pointer-events-auto"
+                                      className="w-full accent-blue-400"
                                     />
-                                  </div>
-                                  <div className="flex-1 flex items-center gap-1">
-                                    <span className="text-[10px] text-slate-400 shrink-0">Shift Curve (Offset):</span>
-                                    <input 
-                                      type="range" 
-                                      min="-15" 
-                                      max="15" 
+                                  </label>
+                                  <label className="flex items-center gap-2 text-[11px] text-slate-300">
+                                    <span className="shrink-0">Offset:</span>
+                                    <input
+                                      type="range"
+                                      min="-15"
+                                      max="15"
                                       value={parabolaOffset}
-                                      onChange={(e) => setParabolaOffset(parseInt(e.target.value))}
-                                      className="w-full accent-cyan-400 h-1 rounded bg-slate-700 pointer-events-auto"
+                                      onChange={(e) => setParabolaOffset(parseInt(e.target.value, 10))}
+                                      className="w-full accent-violet-400"
                                     />
-                                  </div>
+                                  </label>
                                 </div>
                               </div>
                             </>
@@ -1013,237 +1091,134 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
 
                           {demoPrompt === 'photo' && (
                             <>
-                              <p className="text-white font-bold text-sm flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
+                              <p className="text-white font-bold flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-cyan-400" />
                                 Visual Breakdown: Cellular Respiration
                               </p>
-                              <p>
-                                Do not think of cellular respiration as memorizing formulas. Imagine an <strong className="text-purple-400">Elite Molecular Turbine</strong>. It breaks down glucose to generate 36 units of cellular fuel (ATP)!
-                              </p>
-                              <p>
-                                The cycle behaves in three progressive cellular environments:
-                              </p>
-                              
-                              <div className="grid grid-cols-3 gap-3 my-4">
-                                <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-lg text-center leading-tight">
-                                  <span className="text-[10px] font-black text-cyan-400 block">STAGE 1</span>
-                                  <p className="text-white font-bold text-xs">Glycolysis</p>
-                                  <span className="text-[9px] text-slate-500">Cytoplasm (2 ATP)</span>
+                              <p>Cells convert glucose into ~36 ATP across three stages:</p>
+                              <div className="grid grid-cols-3 gap-2.5">
+                                <div className="bg-[#091230] border border-white/10 p-2.5 rounded-xl text-center">
+                                  <span className="text-[10px] font-bold text-cyan-400 block">STAGE 1</span>
+                                  <p className="text-white font-bold text-xs mt-0.5">Glycolysis</p>
+                                  <span className="text-[10px] text-slate-400">Cytoplasm · 2 ATP</span>
                                 </div>
-                                <div className="bg-slate-900 border border-purple-800/40 p-2.5 rounded-lg text-center leading-tight">
-                                  <span className="text-[10px] font-black text-purple-400 block">STAGE 2</span>
-                                  <p className="text-white font-bold text-xs">Krebs Cycle</p>
-                                  <span className="text-[9px] text-slate-500">Mitochondria (2 ATP)</span>
+                                <div className="bg-[#091230] border border-violet-500/30 p-2.5 rounded-xl text-center">
+                                  <span className="text-[10px] font-bold text-violet-400 block">STAGE 2</span>
+                                  <p className="text-white font-bold text-xs mt-0.5">Krebs Cycle</p>
+                                  <span className="text-[10px] text-slate-400">Matrix · 2 ATP</span>
                                 </div>
-                                <div className="bg-slate-900 border border-slate-800 p-2.5 rounded-lg text-center leading-tight">
-                                  <span className="text-[10px] font-black text-blue-400 block">STAGE 3</span>
-                                  <p className="text-white font-bold text-xs">ETC</p>
-                                  <span className="text-[9px] text-slate-500">Membrane (32 ATP)</span>
+                                <div className="bg-[#091230] border border-blue-500/30 p-2.5 rounded-xl text-center">
+                                  <span className="text-[10px] font-bold text-blue-400 block">STAGE 3</span>
+                                  <p className="text-white font-bold text-xs mt-0.5">ETC</p>
+                                  <span className="text-[10px] text-slate-400">Membrane · 32 ATP</span>
                                 </div>
                               </div>
-                              <p>
-                                Glucose molecules are stripped of high-energy electrons, causing a proton gradient to spin the ATP Synthase enzyme like a hydroelectric dam turbine!
-                              </p>
                             </>
                           )}
 
                           {demoPrompt === 'code' && (
                             <>
-                              <p className="text-white font-bold text-sm flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
-                                Stack Trace Frame: Recursion Simulator
+                              <p className="text-white font-bold flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-cyan-400" />
+                                Call Stack Visualizer: Recursion
                               </p>
-                              <p>
-                                Think of recursive execution like nested Russian nesting dolls. Each call pushes a new <strong className="text-emerald-400">Execution Stack Frame</strong> containing variables onto the system stack. None of these frames can dissolve until the base case acts!
-                              </p>
-                              <p>
-                                Let&apos;s trace `factorial(3)` stacked calls visually:
-                              </p>
-                              
-                              <div className="bg-slate-900 p-4 border border-slate-800 rounded-xl space-y-2.5 my-3 font-mono text-[11px]">
-                                <div className="border border-red-500/30 bg-red-950/20 p-2 rounded-lg text-red-300">
-                                  <span className="text-[10px] font-black uppercase text-red-500 block">PUSH FRAME 3</span>
-                                  factorial(3) = 3 * factorial(2) <span className="text-slate-500">(Waiting...)</span>
+                              <p>Each recursive function call allocates its own stack frame until a base condition resolves:</p>
+                              <div className="bg-[#091230] p-3.5 border border-white/10 rounded-xl space-y-2 font-mono text-xs">
+                                <div className="border border-blue-500/30 bg-blue-950/30 p-2 rounded-lg text-blue-200">
+                                  FRAME 3 · factorial(3) = 3 * factorial(2)
                                 </div>
-                                <div className="border border-purple-500/30 bg-purple-950/20 p-2 rounded-lg text-purple-300">
-                                  <span className="text-[10px] font-black uppercase text-purple-500 block">PUSH FRAME 2</span>
-                                  factorial(2) = 2 * factorial(1) <span className="text-slate-500">(Waiting...)</span>
+                                <div className="border border-violet-500/30 bg-violet-950/30 p-2 rounded-lg text-violet-200">
+                                  FRAME 2 · factorial(2) = 2 * factorial(1)
                                 </div>
-                                <div className="border border-emerald-500/40 bg-emerald-950/20 p-2 rounded-lg text-emerald-300">
-                                  <span className="text-[10px] font-black uppercase text-emerald-500 block">BASE CASE FRAME 1 - RETURNING</span>
-                                  factorial(1) = returns 1 <span className="font-extrabold text-white">✓ Solved</span>
+                                <div className="border border-emerald-500/30 bg-emerald-950/30 p-2 rounded-lg text-emerald-300">
+                                  BASE CASE · factorial(1) returns 1
                                 </div>
                               </div>
                             </>
                           )}
 
-                          {/* Interactive Practice Question Widget */}
-                          <div className="border border-slate-800 bg-[#0F172A]/70 rounded-xl p-5 mt-4 space-y-3 shadow-inner">
-                            <span className="text-[10px] font-black text-amber-500 tracking-wider block bg-amber-950/40 border border-amber-800/30 px-2 py-0.5 rounded-full w-fit">
-                              TEST YOUR RETENTION PROGRESS
-                            </span>
-                            
-                            <p className="font-semibold text-white text-xs">
-                              {demoPrompt === 'quad' && "Which of the following conditions ensures a parabola will touch the x-axis exactly once?"}
-                              {demoPrompt === 'photo' && "Which stage of cellular respiration produces the largest amount of ATP energy?"}
-                              {demoPrompt === 'code' && "What happens if a recursive function does not define an accessible base case?"}
+                          {/* Quick Interactive Retention Quiz */}
+                          <div className="border border-white/10 bg-[#091230]/80 rounded-xl p-4 space-y-3">
+                            <p className="text-[10px] font-extrabold text-blue-300 uppercase tracking-wider">
+                              QUICK CONCEPT CHECK
                             </p>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {demoPrompt === 'quad' && [
-                                "The discriminant (b² - 4ac) is positive",
-                                "The discriminant (b² - 4ac) is negative",
-                                "The discriminant (b² - 4ac) is exactly 0",
-                                "The coefficient a is equal to 0"
-                              ].map((opt, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => {
-                                    if (!quizChecked) setSelectedAnswer(idx);
-                                  }}
-                                  className={`p-3 text-left rounded-lg text-[11px] border transition-all ${
-                                    selectedAnswer === idx 
-                                      ? (quizChecked && idx === 2 ? 'bg-green-950 border-green-500 text-green-300' : quizChecked ? 'bg-red-950 border-red-500 text-red-300' : 'bg-blue-600/35 border-blue-500 text-white') 
-                                      : (quizChecked && idx === 2 ? 'bg-green-950/30 border-green-800 text-green-400' : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300')
-                                  }`}
-                                >
-                                  {opt}
-                                </button>
-                              ))}
-
-                              {demoPrompt === 'photo' && [
-                                "Glycolysis in cytoplasmic spaces",
-                                "The Krebs citric acid cycle",
-                                "The membrane Electron Transport Chain (ETC)",
-                                "Anaerobic lactic acid processes"
-                              ].map((opt, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => {
-                                    if (!quizChecked) setSelectedAnswer(idx);
-                                  }}
-                                  className={`p-3 text-left rounded-lg text-[11px] border transition-all ${
-                                    selectedAnswer === idx 
-                                      ? (quizChecked && idx === 2 ? 'bg-green-950 border-green-500 text-green-300' : quizChecked ? 'bg-red-950 border-red-500 text-red-300' : 'bg-blue-600/35 border-blue-500 text-white') 
-                                      : (quizChecked && idx === 2 ? 'bg-green-950/30 border-green-800 text-green-400' : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300')
-                                  }`}
-                                >
-                                  {opt}
-                                </button>
-                              ))}
-
-                              {demoPrompt === 'code' && [
-                                "The compiler auto-corrects the logic",
-                                "Infinite loop causing Stack Overflow crash",
-                                "The execution gets values from previous cache",
-                                "Memory memory clears out automatically"
-                              ].map((opt, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => {
-                                    if (!quizChecked) setSelectedAnswer(idx);
-                                  }}
-                                  className={`p-3 text-left rounded-lg text-[11px] border transition-all ${
-                                    selectedAnswer === idx 
-                                      ? (quizChecked && idx === 1 ? 'bg-green-950 border-green-500 text-green-300' : quizChecked ? 'bg-red-950 border-red-500 text-red-300' : 'bg-blue-600/35 border-blue-500 text-white') 
-                                      : (quizChecked && idx === 1 ? 'bg-green-950/30 border-green-800 text-green-400' : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300')
-                                  }`}
-                                >
-                                  {opt}
-                                </button>
-                              ))}
+                            <p className="font-semibold text-white text-xs">
+                              {demoPrompt === 'quad' && 'Which discriminant condition gives a parabola exactly one real root touching the x-axis?'}
+                              {demoPrompt === 'photo' && 'Which stage generates the largest yield of ATP during cellular respiration?'}
+                              {demoPrompt === 'code' && 'What happens when a recursive function omits an attainable base case?'}
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {(demoPrompt === 'quad'
+                                ? ['b² - 4ac > 0', 'b² - 4ac < 0', 'b² - 4ac = 0', 'a = 0']
+                                : demoPrompt === 'photo'
+                                ? ['Glycolysis', 'Krebs Cycle', 'Electron Transport Chain', 'Fermentation']
+                                : ['Compiler auto-resolves', 'Stack Overflow recursion error', 'Returns zero safely', 'Clears memory']
+                              ).map((opt, idx) => {
+                                const correctIdx = demoPrompt === 'code' ? 1 : 2;
+                                return (
+                                  <button
+                                    key={idx}
+                                    onClick={() => !quizChecked && setSelectedAnswer(idx)}
+                                    className={`p-2.5 text-left rounded-lg text-xs border transition-all ${
+                                      selectedAnswer === idx
+                                        ? quizChecked
+                                          ? idx === correctIdx
+                                            ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
+                                            : 'bg-rose-950 border-rose-500 text-rose-300'
+                                          : 'bg-blue-600/30 border-blue-400 text-white'
+                                        : quizChecked && idx === correctIdx
+                                        ? 'bg-emerald-950/40 border-emerald-700 text-emerald-300'
+                                        : 'bg-[#04091E] border-white/10 hover:border-blue-400/40 text-slate-300'
+                                    }`}
+                                  >
+                                    {opt}
+                                  </button>
+                                );
+                              })}
                             </div>
-
-                            {/* Submit verification button */}
-                            <div className="flex justify-end pt-2">
+                            <div className="flex justify-end items-center gap-3">
                               {quizChecked ? (
-                                <div className="flex items-center gap-3">
-                                  <span className="text-[11px] text-slate-400 font-medium">
-                                    {(demoPrompt === 'quad' && selectedAnswer === 2) || (demoPrompt === 'photo' && selectedAnswer === 2) || (demoPrompt === 'code' && selectedAnswer === 1)
-                                      ? "🏆 Perfectly correct answer!" 
-                                      : "❌ Oops, examine explanations again!"}
+                                <>
+                                  <span className="text-xs text-slate-300">
+                                    {selectedAnswer === (demoPrompt === 'code' ? 1 : 2) ? 'Correct answer!' : 'Review explanation above and try again.'}
                                   </span>
                                   <button
                                     onClick={() => {
                                       setSelectedAnswer(null);
                                       setQuizChecked(false);
                                     }}
-                                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-[10px] font-bold text-slate-300"
+                                    className="px-3 py-1.5 bg-white/10 hover:bg-white/15 rounded-lg text-xs font-bold text-white"
                                   >
-                                    Try again
+                                    Reset
                                   </button>
-                                </div>
+                                </>
                               ) : (
                                 <button
                                   disabled={selectedAnswer === null}
                                   onClick={() => setQuizChecked(true)}
-                                  className="px-5 py-2.5 bg-[#00d4ff]/20 hover:bg-[#00d4ff]/30 text-white rounded-lg text-[10px] font-black border border-[#00d4ff]/40 disabled:opacity-40"
+                                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold disabled:opacity-40"
                                 >
-                                  VERIFY MY CHOICE
+                                  Check Answer
                                 </button>
                               )}
                             </div>
                           </div>
-
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   )}
-
                 </div>
               </div>
             </div>
-
           </div>
         </section>
 
-        {/* INTERACTIVE SUBJECTS SECTION */}
-        <section id="subjects" className="bg-[#0b0f24]/50 py-24 border-y border-slate-900/80">
-          <div className="max-w-7xl mx-auto px-6 text-center select-none">
-            <div className="space-y-4 mb-20 text-center">
-              <span className="text-xs text-blue-400 font-extrabold uppercase tracking-[0.25em]">COMPREHENSIVE MULTI-SUBJECT ENVELOPE</span>
-              <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white">Full-Spectrum Academic Support</h2>
-              <p className="text-slate-400 max-w-xl mx-auto text-sm">
-                From high-school calculus functions to AP historical essays, our custom neural layers deliver subject fluency configured precisely to your study objectives.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-              {subjects.map((subj, i) => {
-                const Icon = subj.icon;
-                return (
-                  <div 
-                    key={i}
-                    onClick={() => onGetStarted('signup')}
-                    className={`group bg-slate-950/70 hover:bg-slate-900 border ${subj.border} p-6 rounded-2xl flex flex-col items-center justify-center space-y-4 cursor-pointer hover:scale-105 hover:shadow-[0_10px_35px_rgba(0,0,0,0.4)] transition-all duration-300 overflow-hidden relative`}
-                  >
-                    {/* Glowing highlight bubble behind */}
-                    <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 bg-gradient-to-br ${subj.color} rounded-full blur-2xl group-hover:scale-150 transition-all duration-300 opacity-0 group-hover:opacity-100`} />
-                    
-                    <div className={`w-14 h-14 bg-slate-900/90 rounded-full flex items-center justify-center ${subj.text} border border-slate-800/85 relative z-10 group-hover:border-slate-700`}>
-                      <Icon className="w-7 h-7" />
-                    </div>
-
-                    <div className="relative z-10 text-center">
-                      <p className="font-extrabold text-[#F8FAFC] text-sm md:text-base">{subj.name}</p>
-                      <span className="text-[10px] text-slate-500 uppercase tracking-widest block mt-1">Practice &amp; Solvers</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* TESTIMONIALS SECTION */}
-        <section className="max-w-7xl mx-auto px-6 py-24">
-          <div className="text-center space-y-4 mb-20">
-            <span className="text-xs text-purple-400 font-extrabold slider-indicator uppercase tracking-[0.25em]">AUTHENTIC SUCCESS RECORDS</span>
-            <h2 className="text-3xl md:text-4xl font-black text-white">Student Success Stories</h2>
-            <p className="text-slate-400 max-w-xl mx-auto text-xs md:text-sm">
-              Discover how school students are utilizing local streaks, custom notes compilations, and interactive summaries to complete their perfect study regimens.
-            </p>
-          </div>
+        {/* TESTIMONIALS */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-20">
+          <BlurFocusReveal className="text-center space-y-3 mb-12">
+            <p className="text-xs text-violet-400 font-extrabold uppercase tracking-[0.25em]">STUDENT OUTCOMES</p>
+            <h2 className="font-display text-3xl md:text-4xl font-black text-white">Student Success Stories</h2>
+          </BlurFocusReveal>
 
           <div className="max-w-4xl mx-auto relative">
             <AnimatePresence mode="wait">
@@ -1252,48 +1227,39 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.5 }}
-                className="bg-[#0F172A]/40 backdrop-blur-xl border border-slate-805 p-8 md:p-12 rounded-3xl relative shadow-2xl space-y-6 text-left"
+                transition={{ duration: 0.45 }}
+                className="bg-[#091230]/80 backdrop-blur-xl border border-white/10 p-8 md:p-10 rounded-3xl relative shadow-2xl space-y-5 text-left"
               >
-                {/* Floating Quotation Icon */}
-                <Quote className="absolute top-6 right-8 w-12 h-12 text-blue-500/15 pointer-events-none" />
-
-                {/* Rating */}
-                <div className="flex text-amber-500 gap-1">
+                <Quote className="absolute top-6 right-8 w-10 h-10 text-blue-500/20 pointer-events-none" />
+                <div className="flex text-amber-400 gap-1">
                   {[...Array(testimonials[testimonialIdx].rating)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-amber-500 text-amber-500" />
+                    <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
                   ))}
                 </div>
-
-                <p className="text-lg md:text-xl text-slate-250 italic leading-relaxed font-serif">
+                <p className="text-base md:text-xl text-slate-200 leading-relaxed">
                   &quot;{testimonials[testimonialIdx].quote}&quot;
                 </p>
-
-                <div className="flex items-center gap-4 pt-4 border-t border-slate-850">
-                  <div className={`w-12 h-12 ${testimonials[testimonialIdx]?.avatarColor || 'bg-amber-500'} rounded-full flex items-center justify-center font-bold text-white shadow-lg`}>
-                    {(testimonials[testimonialIdx]?.name?.charAt(0) || 'S').toUpperCase()}
+                <div className="flex items-center gap-4 pt-4 border-t border-white/10">
+                  <div className={`w-11 h-11 ${testimonials[testimonialIdx].avatarColor} rounded-full flex items-center justify-center font-bold text-white shadow-lg`}>
+                    {testimonials[testimonialIdx].name.charAt(0)}
                   </div>
-                  <div className="leading-tight text-left">
-                    <h4 className="font-bold text-white text-base">{testimonials[testimonialIdx]?.name || 'Scholar'}</h4>
-                    <p className="text-xs text-slate-400">{testimonials[testimonialIdx]?.role || 'Student'}</p>
-                    <span className="text-[11px] font-black text-emerald-400 mt-1 block">
-                      🏅 {testimonials[testimonialIdx]?.achievement || 'Top Performer'}
-                    </span>
+                  <div>
+                    <h4 className="font-bold text-white text-sm">{testimonials[testimonialIdx].name}</h4>
+                    <p className="text-xs text-slate-400">{testimonials[testimonialIdx].role} · {testimonials[testimonialIdx].achievement}</p>
                   </div>
                 </div>
               </motion.div>
             </AnimatePresence>
 
-            {/* Slider triggers */}
-            <div className="flex items-center justify-center gap-3 mt-8">
+            <div className="flex items-center justify-center gap-2.5 mt-6">
               {testimonials.map((_, idx) => (
                 <button
                   key={idx}
                   onClick={() => setTestimonialIdx(idx)}
-                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                    testimonialIdx === idx ? 'bg-blue-400 w-8' : 'bg-slate-800 hover:bg-slate-700'
+                  className={`h-2.5 rounded-full transition-all duration-300 ${
+                    testimonialIdx === idx ? 'bg-blue-400 w-7' : 'bg-slate-700 hover:bg-slate-600 w-2.5'
                   }`}
-                  aria-label={`Go to slide ${idx + 1}`}
+                  aria-label={`Testimonial ${idx + 1}`}
                 />
               ))}
             </div>
@@ -1301,517 +1267,303 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
         </section>
 
         {/* ABOUT US SECTION */}
-        <section id="about" className="bg-[#020617]/95 py-24 border-t border-slate-900/80 relative overflow-hidden">
-          
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[180px] pointer-events-none" />
-          <div className="absolute bottom-10 right-10 w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[150px] pointer-events-none" />
-
-          <div className="max-w-6xl mx-auto px-6 relative z-10 space-y-16">
-            
-            {/* Header */}
-            <div className="text-center space-y-4 max-w-3xl mx-auto">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-950/60 border border-blue-500/30 rounded-full text-cyan-400 text-xs font-extrabold uppercase tracking-widest">
-                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                <span>ABOUT SJ TUTOR AI</span>
-              </div>
-              <h2 className="text-3xl md:text-5xl font-black text-white leading-tight">
-                Empowering Students with <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-cyan-400">Intelligent Learning</span>
+        <section id="about" className="bg-[#050B22]/90 py-20 lg:py-24 border-t border-white/10 relative overflow-hidden">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10 space-y-14">
+            <BlurFocusReveal className="text-center space-y-3 max-w-3xl mx-auto">
+              <p className="text-xs text-cyan-400 font-extrabold uppercase tracking-[0.25em]">ABOUT SJ TUTOR AI</p>
+              <h2 className="font-display text-3xl md:text-5xl font-black text-white leading-tight">
+                Empowering Students with{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-violet-400">
+                  Intelligent Learning
+                </span>
               </h2>
               <p className="text-slate-300 text-sm md:text-base leading-relaxed">
-                An all-in-one AI study companion designed to simplify complex concepts, generate custom study materials, and provide 24/7 academic support for students worldwide.
+                Designed to simplify complex concepts, generate adaptive study notes, and offer 24/7 academic mentoring with strict student privacy safeguards.
               </p>
-            </div>
+            </BlurFocusReveal>
 
-            {/* Innovators & Inventors Spotlight */}
-            <div className="bg-gradient-to-r from-amber-500/10 via-blue-500/10 to-purple-500/10 border border-amber-500/20 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-2xl backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
-                  <Lightbulb className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    Innovators &amp; Inventors
-                    <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-                  </h3>
-                  <p className="text-xs text-slate-400 font-medium">The creative minds pioneering SJ Tutor AI</p>
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-6">
-                {/* Sadanand Jyoti */}
-                <div className="bg-[#0F172A]/80 border border-slate-800 p-6 rounded-2xl flex items-start gap-4 hover:border-amber-500/40 transition-all group">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-black text-lg flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
-                    SJ
+            {/* Innovators Spotlight */}
+            <BlurFocusReveal>
+              <div className="bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-violet-500/10 border border-blue-400/20 rounded-3xl p-6 sm:p-8 shadow-2xl">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center border border-blue-400/30">
+                    <Lightbulb className="w-5 h-5" />
                   </div>
-                  <div className="space-y-1 text-left">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider border border-amber-500/30">
-                      <Award className="w-3 h-3" /> Lead Innovator &amp; Founder
+                  <div className="text-left">
+                    <h3 className="text-lg font-bold text-white">Innovators & Inventors</h3>
+                    <p className="text-xs text-slate-400">Creators pioneering the SJ Tutor AI platform</p>
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-5">
+                  <div className="bg-[#091230]/80 border border-white/10 p-5 rounded-2xl flex items-start gap-4 text-left">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 text-white font-black text-lg flex items-center justify-center shrink-0">
+                      SJ
                     </div>
-                    <h4 className="text-lg font-bold text-white">Sadanand Jyoti</h4>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Visionary architect behind SJ Tutor AI&apos;s intelligent learning frameworks, adaptive tutoring models, and personalized student study workflows.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Samanyu S Patil */}
-                <div className="bg-[#0F172A]/80 border border-slate-800 p-6 rounded-2xl flex items-start gap-4 hover:border-blue-500/40 transition-all group">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 text-white font-black text-lg flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
-                    SP
-                  </div>
-                  <div className="space-y-1 text-left">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider border border-blue-500/30">
-                      <Award className="w-3 h-3" /> Innovator &amp; Co-Inventor
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-blue-400">Lead Innovator & Founder</p>
+                      <h4 className="text-base font-bold text-white mt-0.5">Sadanand Jyoti</h4>
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                        Architect behind SJ Tutor AI&apos;s personalized study workflows, adaptive tutoring frameworks, and student identity network.
+                      </p>
                     </div>
-                    <h4 className="text-lg font-bold text-white">Samanyu S Patil</h4>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Co-inventor pioneering smart learning algorithms, automated study aids, and interactive student success tools.
-                    </p>
+                  </div>
+                  <div className="bg-[#091230]/80 border border-white/10 p-5 rounded-2xl flex items-start gap-4 text-left">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-500 text-white font-black text-lg flex items-center justify-center shrink-0">
+                      SP
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-violet-400">Innovator & Co-Inventor</p>
+                      <h4 className="text-base font-bold text-white mt-0.5">Samanyu S Patil</h4>
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                        Co-inventor pioneering smart learning algorithms, automated revision kits, and interactive student practice tools.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </BlurFocusReveal>
 
-            {/* 4 Core Pillars Grid */}
+            {/* Mission, Core Values, Safety & Contact */}
             <div className="grid md:grid-cols-2 gap-6 text-left">
-              
-              {/* Mission */}
-              <div className="bg-[#0F172A]/60 border border-slate-800 p-7 rounded-2xl hover:border-slate-700 transition-all group space-y-4">
-                <div className="w-11 h-11 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-center text-rose-400 group-hover:scale-110 transition-transform">
+              <div className="bg-[#091230]/75 border border-white/10 p-6 rounded-2xl space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-center text-blue-400">
                   <Target className="w-5 h-5" />
                 </div>
-                <h3 className="text-xl font-bold text-white">Our Mission</h3>
-                <p className="text-slate-300 text-sm leading-relaxed">
-                  To democratize access to quality personalized education. We believe every student deserves a tutor that understands their individual learning style and pace, available whenever inspiration strikes.
+                <h3 className="text-lg font-bold text-white">Our Mission</h3>
+                <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+                  To democratize high-quality personalized education so every learner has a patient mentor attuned to their syllabus, speed, and preferred language.
                 </p>
               </div>
 
-              {/* What We Do */}
-              <div className="bg-[#0F172A]/60 border border-slate-800 p-7 rounded-2xl hover:border-slate-700 transition-all group space-y-4">
-                <div className="w-11 h-11 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
-                  <Zap className="w-5 h-5" />
-                </div>
-                <h3 className="text-xl font-bold text-white">What We Do</h3>
-                <p className="text-slate-300 text-sm leading-relaxed mb-2">
-                  We combine advanced Large Language Models with proven pedagogical methods to deliver:
-                </p>
-                <ul className="space-y-2 text-xs text-slate-400">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span>Instant chapter summaries &amp; essay structuring</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span>Practice quiz generator tailored to your curriculum</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                    <span>Step-by-step homework help and coordinate plotting</span>
-                  </li>
-                </ul>
-              </div>
-
-              {/* Core Values */}
-              <div className="bg-[#0F172A]/60 border border-slate-800 p-7 rounded-2xl hover:border-slate-700 transition-all group space-y-4">
-                <div className="w-11 h-11 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
-                  <Heart className="w-5 h-5" />
-                </div>
-                <h3 className="text-xl font-bold text-white">Core Values</h3>
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
-                    <p className="text-xs font-bold text-white">Student First</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Optimized for genuine learning outcomes.</p>
-                  </div>
-                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
-                    <p className="text-xs font-bold text-white">Integrity</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Promoting deep comprehension, not shortcuts.</p>
-                  </div>
-                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
-                    <p className="text-xs font-bold text-white">Innovation</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Continuously evolving with modern AI.</p>
-                  </div>
-                  <div className="p-3 bg-slate-900/80 rounded-xl border border-slate-800">
-                    <p className="text-xs font-bold text-white">Accessibility</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Universal access for students everywhere.</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Privacy Promise */}
-              <div className="bg-[#0F172A]/60 border border-slate-800 p-7 rounded-2xl hover:border-slate-700 transition-all group space-y-4">
-                <div className="w-11 h-11 bg-purple-500/10 border border-purple-500/30 rounded-xl flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+              <div className="bg-[#091230]/75 border border-white/10 p-6 rounded-2xl space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-500/15 border border-violet-400/30 flex items-center justify-center text-violet-400">
                   <Shield className="w-5 h-5" />
                 </div>
-                <h3 className="text-xl font-bold text-white">Privacy &amp; Safety Promise</h3>
-                <p className="text-slate-300 text-sm leading-relaxed mb-2">
-                  We maintain strict privacy safeguards tailored for students and parents:
-                </p>
-                <ul className="space-y-2 text-xs text-slate-400">
+                <h3 className="text-lg font-bold text-white">Privacy & Student Safety</h3>
+                <ul className="space-y-2 text-xs text-slate-300">
                   <li className="flex items-center gap-2">
                     <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>All study data is encrypted and securely stored</span>
+                    <span>Encrypted student profiles with optional 2-step & PIN lock</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Zero data sale to third-party advertisers</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Full control to delete notes and data at any time</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Zero sale of student study records to advertisers</span>
                   </li>
                 </ul>
               </div>
-
             </div>
 
-            {/* Get In Touch / Contact Section */}
-            <div className="bg-gradient-to-br from-slate-900 via-[#0F172A] to-slate-900 border border-slate-800 rounded-3xl p-8 md:p-10 shadow-2xl relative overflow-hidden">
-              <div className="relative z-10 grid md:grid-cols-2 gap-8 items-center text-left">
-                <div>
-                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full text-xs font-bold uppercase tracking-wider text-slate-300 mb-4 border border-white/10">
-                    <Mail className="w-3 h-3 text-cyan-400" /> Get in touch
+            {/* Contact Block */}
+            <div id="contact" className="bg-[#091230]/90 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl grid md:grid-cols-2 gap-6 items-center text-left">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-2">CONTACT TEAM</p>
+                <h3 className="text-2xl font-black text-white">Have questions about SJ Tutor AI?</h3>
+                <p className="text-slate-400 text-sm mt-2">
+                  Reach out directly for school partnerships, feedback, or student account assistance.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <a
+                  href="mailto:sadanandj2011@gmail.com"
+                  className="flex items-center gap-3.5 p-3.5 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-colors"
+                >
+                  <Mail className="w-5 h-5 text-blue-400 shrink-0" />
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Email</p>
+                    <p className="font-mono text-xs sm:text-sm text-white">sadanandj2011@gmail.com</p>
                   </div>
-                  <h3 className="text-2xl md:text-3xl font-black text-white mb-3">
-                    We&apos;d love to hear from you
-                  </h3>
-                  <p className="text-slate-400 text-sm leading-relaxed mb-6">
-                    Have feedback, feature requests, or questions about SJ Tutor AI? Reach out directly to the creators.
-                  </p>
-                  
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Innovators &amp; Inventors</span>
-                    <p className="text-base font-bold text-amber-400">
-                      Sadanand Jyoti <span className="text-slate-400 font-normal">&amp;</span> Samanyu S Patil
-                    </p>
+                </a>
+                <a
+                  href="tel:+918105423488"
+                  className="flex items-center gap-3.5 p-3.5 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-colors"
+                >
+                  <Phone className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Phone</p>
+                    <p className="font-mono text-xs sm:text-sm text-white">+91 8105423488</p>
                   </div>
-                </div>
-
-                <div className="space-y-3">
-                  <a 
-                    href="mailto:sadanandj2011@gmail.com" 
-                    className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all border border-white/5 group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Mail className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Email Us</p>
-                      <p className="font-mono text-sm text-white break-all">sadanandj2011@gmail.com</p>
-                    </div>
-                  </a>
-
-                  <a 
-                    href="tel:+918105423488" 
-                    className="flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all border border-white/5 group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Phone className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Call Us</p>
-                      <p className="font-mono text-sm text-white">+91 8105423488</p>
-                    </div>
-                  </a>
-                </div>
+                </a>
               </div>
             </div>
-
           </div>
         </section>
 
         {/* PRICING SECTION */}
-        <section id="pricing" className="max-w-7xl mx-auto px-6 py-24 select-none">
-          <div className="text-center space-y-4 mb-20">
-            <span className="text-xs text-blue-400 font-extrabold uppercase tracking-[0.25em]">PRISTINE LEARNING PLANS</span>
-            <h2 className="text-3xl md:text-5xl font-black text-white">Choose Your Learning Plan</h2>
-            <p className="text-slate-400 max-w-xl mx-auto text-sm">
-              Unlock unlimited AI answers, advanced math coordinate tracers, student credentials, and extra daily streak credit multipliers.
-            </p>
-          </div>
+        <section id="pricing" className="max-w-7xl mx-auto px-4 sm:px-6 py-20 lg:py-24">
+          <BlurFocusReveal className="text-center space-y-3 mb-14">
+            <p className="text-xs text-blue-400 font-extrabold uppercase tracking-[0.25em]">FLEXIBLE PLANS</p>
+            <h2 className="font-display text-3xl md:text-5xl font-black text-white">Choose Your Learning Plan</h2>
+          </BlurFocusReveal>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
-            
-            {/* PLAN 1: Free */}
-            <div className="bg-[#0F172A]/40 border border-slate-800 p-8 rounded-3xl flex flex-col justify-between hover:border-slate-700 transition-all duration-300">
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-300">Basic Explorer</h3>
-                  <span className="text-[10px] text-emerald-400 font-bold uppercase block mt-1 tracking-wider">10-Day Free Trial + 100 Free Credits</span>
-                </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+            <div className="bg-[#091230]/80 border border-white/10 p-7 rounded-3xl flex flex-col justify-between text-left">
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white">Basic Explorer</h3>
                 <div className="flex items-baseline gap-1 text-white">
-                  <span className="text-4xl font-extrabold font-mono">₹0</span>
-                  <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">/ Free Tier</span>
+                  <span className="text-4xl font-extrabold font-mono tabular-nums">₹0</span>
+                  <span className="text-xs text-slate-400 uppercase font-bold">/ Free Trial</span>
                 </div>
-
-                <p className="text-xs text-slate-400">10-day full unlimited access, plus 100 Free Credits awarded automatically after trial ends.</p>
-
-                <ul className="space-y-3.5 pt-6 border-t border-slate-900">
-                  <li className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>10 Days of Unlimited AI Study Access</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>100 Free Credits Post-Trial Balance</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>AI Tutor, Summaries & Quizzes</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-xs text-slate-500 line-through">
-                    <span>Advanced Interactive Graphs</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-xs text-slate-500 line-through">
-                    <span>Comprehensive Exam Prep Quizzes</span>
-                  </li>
+                <p className="text-xs text-slate-400">10-day unlimited AI trial plus 100 free starter credits.</p>
+                <ul className="space-y-2.5 pt-4 border-t border-white/10 text-xs text-slate-300">
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> AI Tutor, Summaries & Quizzes</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> Official Student ID Card</li>
                 </ul>
               </div>
-
-              <button 
+              <button
                 onClick={() => onGetStarted('signup')}
-                className="w-full mt-8 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-bold text-white transition-colors"
+                className="w-full mt-7 py-3 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl text-xs font-bold text-white transition-colors"
               >
-                Start Learning Free
+                Start Free Trial
               </button>
             </div>
 
-            {/* PLAN 2: PRO (Highlighted Glowing Card) */}
-            <div className="bg-gradient-to-b from-[#131b3a] to-[#0A0D1D] border border-blue-500/50 p-8 rounded-3xl flex flex-col justify-between shadow-[0_0_60px_rgba(37,99,235,0.25)] relative transform md:-translate-y-4">
-              
-              {/* Popular ribbon */}
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white border border-blue-400 text-[10px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full shadow-lg">
-                ★ MOST POPULAR PLAN
-              </div>
-
-              <div className="space-y-6 pt-2">
+            <TiltCard3D maxTilt={4} className="bg-gradient-to-b from-[#131F4D] to-[#0A1130] border border-blue-400/50 p-7 rounded-3xl flex flex-col justify-between shadow-[0_0_50px_rgba(37,99,235,0.22)] text-left relative">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xl font-bold text-white">Academic Pro</h3>
-                  <span className="px-2.5 py-0.5 bg-blue-500/20 border border-blue-500/40 rounded-full text-[9px] font-bold text-blue-400">BEST VALUE</span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-300">MOST POPULAR</span>
                 </div>
-
                 <div className="flex items-baseline gap-1 text-white">
-                  <span className="text-5xl font-black font-mono text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-cyan-300 to-purple-300">₹999</span>
-                  <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">/ Month</span>
+                  <span className="text-5xl font-black font-mono tabular-nums text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-violet-300">₹999</span>
+                  <span className="text-xs text-slate-400 uppercase font-bold">/ Month</span>
                 </div>
-
-                <p className="text-xs text-slate-300">Perfect for students looking to completely master their syllabus roots and score A+ grades.</p>
-
-                <ul className="space-y-3.5 pt-6 border-t border-slate-800">
-                  <li className="flex items-center gap-3 text-xs text-blue-300 font-semibold">
-                    <CorrectGoogleLogo className="w-4 h-4 text-cyan-400 shrink-0" />
-                    <span>Unlimited AI Tutoring Questions</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-xs text-slate-200">
-                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                    <span>Advanced Interactive Math Plots</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-xs text-slate-200">
-                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                    <span>Comprehensive AP/Exam Prep Tools</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-xs text-slate-200">
-                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                    <span>Personalized Adaptive Practice Paths</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-xs text-slate-200">
-                    <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                    <span>500 Bonus Monthly Learning Credits</span>
-                  </li>
+                <p className="text-xs text-slate-300">Unlimited AI study guidance, mock exam prep, and bonus learning credits.</p>
+                <ul className="space-y-2.5 pt-4 border-t border-white/10 text-xs text-slate-200">
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" /> Unlimited AI Tutoring & Doubts</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" /> Interactive Quizzes & Exam Prep</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" /> 500 Bonus Monthly Credits</li>
                 </ul>
               </div>
-
-              <button 
+              <MagneticButton
                 onClick={() => onGetStarted('signup')}
-                className="w-full mt-8 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-505 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/35 border border-blue-400/40 transition-all hover:scale-[1.03]"
+                className="btn-liquid w-full mt-7 py-3.5 bg-gradient-to-r from-blue-600 to-violet-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-600/30"
               >
-                Claim My Academic Pro Plan
-              </button>
-            </div>
+                Get Academic Pro
+              </MagneticButton>
+            </TiltCard3D>
 
-            {/* PLAN 3: School */}
-            <div className="bg-[#0F172A]/40 border border-slate-800 p-8 rounded-3xl flex flex-col justify-between hover:border-slate-700 transition-all duration-300">
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-300">Institution Portal</h3>
-                  <span className="text-[10px] text-slate-500 block mt-1 tracking-wider uppercase">Syllabi for complete schools</span>
-                </div>
-
+            <div className="bg-[#091230]/80 border border-white/10 p-7 rounded-3xl flex flex-col justify-between text-left">
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white">Institution Portal</h3>
                 <div className="flex items-baseline gap-1 text-white">
-                  <span className="text-4xl font-extrabold font-mono">₹7,499</span>
-                  <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">/ Month</span>
+                  <span className="text-4xl font-extrabold font-mono tabular-nums">₹7,499</span>
+                  <span className="text-xs text-slate-400 uppercase font-bold">/ Month</span>
                 </div>
-
-                <p className="text-xs text-slate-400">Empower teacher rooms with structured student progress trackers and quiz creator analytics.</p>
-
-                <ul className="space-y-3.5 pt-6 border-t border-slate-900">
-                  <li className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Comprehensive Teacher Dashboard</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Advanced Classroom Management Tools</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Detailed Student Performance metrics</span>
-                  </li>
-                  <li className="flex items-center gap-3 text-xs text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>School District Grade Analytics reports</span>
-                  </li>
+                <p className="text-xs text-slate-400">For schools and coaching academies deploying AI study companions at scale.</p>
+                <ul className="space-y-2.5 pt-4 border-t border-white/10 text-xs text-slate-300">
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> Shared Study Groups & Analytics</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> Priority Support & Onboarding</li>
                 </ul>
               </div>
-
-              <button 
+              <button
                 onClick={() => onGetStarted('signup')}
-                className="w-full mt-8 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-bold text-white transition-colors"
+                className="w-full mt-7 py-3 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl text-xs font-bold text-white transition-colors"
               >
-                Contact Institution Partner
+                Connect with Team
               </button>
-            </div>
-
-          </div>
-        </section>
-
-        {/* FINAL CTA SECTION (Ready to Learn Smarter?) */}
-        <section className="max-w-7xl mx-auto px-6 py-24 select-none">
-          <div className="bg-gradient-to-r from-[#1E293B]/40 to-[#0F172A]/80 border border-slate-800/80 rounded-3xl p-12 md:p-16 text-center shadow-2xl relative overflow-hidden">
-            
-            {/* Absolute colorful background elements */}
-            <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-blue-600/10 rounded-full blur-[100px] pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-[240px] h-[240px] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
-
-            <div className="max-w-2xl mx-auto space-y-6 relative z-10">
-              <span className="text-xs text-cyan-400 font-extrabold uppercase tracking-[0.25em]">UNLIMITED ACCESS NOW</span>
-              <h2 className="text-3xl md:text-5xl font-black text-white tracking-tight">Ready to Learn Smarter?</h2>
-              
-              <p className="text-slate-300 text-sm md:text-base leading-relaxed">
-                Join thousands of students transforming their education through the smartest, most conversational AI-powered personal tutor.
-              </p>
-
-              <button 
-                onClick={() => onGetStarted('signup')}
-                className="px-10 py-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-505 hover:to-purple-500 text-white rounded-2xl font-bold text-lg shadow-2xl shadow-blue-500/30 border border-blue-400/40 transition-all hover:scale-105 inline-flex items-center gap-3 group"
-              >
-                <span>Start Learning for Free</span>
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
-              </button>
-
-              <p className="text-xs text-slate-500 font-medium">Claim 100 free credits upon active registration completion. No card required.</p>
             </div>
           </div>
         </section>
 
-        {/* MINIMALIST LUXURIOUS SaaS FOOTER */}
-        <footer className="border-t border-[#0F172A] py-16 bg-[#020617]/90 backdrop-blur-md relative overflow-hidden select-none">
-          <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-6 gap-8 pb-12">
-            
-            {/* Branding col */}
-            <div className="col-span-2 space-y-4">
-              <div className="flex items-center gap-3">
-                <Logo className="w-10 h-10" iconOnly />
-                <span className="font-extrabold text-white text-lg">SJ Tutor AI</span>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed max-w-xs text-left">
-                The future of education powered by conversational artificial intelligence. Providing pristine explanations, exam quizzes, and credentials.
-              </p>
-              <div className="flex items-center gap-1.5 text-xs text-[#94A3B8] font-bold">
-                <CorrectGoogleLogo className="w-3.5 h-3.5" /> Checked for Google Compliance
-              </div>
-              <div className="pt-2">
-                <a
-                  href="https://sjtutorai.vercel.app"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all shadow-sm group"
+        {/* FINAL CTA */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-20">
+          <BlurFocusReveal>
+            <div className="bg-gradient-to-r from-[#0E1A44] via-[#13184A] to-[#1D1245] border border-blue-400/25 rounded-3xl p-10 md:p-14 text-center shadow-2xl relative overflow-hidden">
+              <div className="max-w-2xl mx-auto space-y-5 relative z-10">
+                <p className="text-xs text-cyan-300 font-extrabold uppercase tracking-[0.25em]">START TODAY</p>
+                <h2 className="font-display text-3xl md:text-5xl font-black text-white tracking-tight">
+                  Ready to Learn Smarter?
+                </h2>
+                <p className="text-slate-300 text-sm md:text-base leading-relaxed">
+                  Join thousands of learners mastering concepts with SJ Tutor AI. Claim your 10-day free trial and 100 starter credits.
+                </p>
+                <MagneticButton
+                  onClick={() => onGetStarted('signup')}
+                  className="btn-liquid px-8 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white rounded-2xl font-bold text-base shadow-2xl shadow-blue-600/35 border border-blue-400/40 inline-flex items-center gap-2.5"
                 >
-                  <Globe className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
-                  <span>sjtutorai.vercel.app</span>
-                </a>
+                  <span>Start Learning Free</span>
+                  <ArrowRight className="w-5 h-5" />
+                </MagneticButton>
               </div>
             </div>
+          </BlurFocusReveal>
+        </section>
 
-            {/* Product */}
-            <div className="space-y-4 text-left">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Product</h4>
-              <ul className="space-y-2.5 text-xs text-slate-400">
+        {/* ANIMATED FOOTER */}
+        <footer className="border-t border-white/10 py-14 bg-[#030718]/95 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 grid grid-cols-2 md:grid-cols-5 gap-8 pb-10">
+            <div className="col-span-2 space-y-4 text-left">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-400/30 p-0.5">
+                  <Logo className="w-full h-full" iconOnly noBorder />
+                </div>
+                <span className="font-display font-extrabold text-white text-lg">SJ Tutor AI</span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed max-w-xs">
+                About SJ Tutor AI: An intelligent educational platform built to help students understand every subject with clarity, practice quizzes, and verified progress tracking.
+              </p>
+              <a
+                href="https://sjtutorai.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>sjtutorai.vercel.app</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            <div className="space-y-3 text-left">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Quick Links</h4>
+              <ul className="space-y-2 text-xs text-slate-400">
+                <li><a href="#top" className="hover:text-blue-400 transition-colors">Home</a></li>
+                <li><a href="#features" className="hover:text-blue-400 transition-colors">Features</a></li>
+                <li><a href="#subjects" className="hover:text-blue-400 transition-colors">Subjects</a></li>
+                <li><a href="#about" className="hover:text-blue-400 transition-colors">About Us</a></li>
+              </ul>
+            </div>
+
+            <div className="space-y-3 text-left">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Features</h4>
+              <ul className="space-y-2 text-xs text-slate-400">
+                <li><button onClick={() => onGetStarted('signup')} className="hover:text-blue-400 transition-colors">AI Tutor Chat</button></li>
+                <li><button onClick={() => onGetStarted('signup')} className="hover:text-blue-400 transition-colors">Smart Notes</button></li>
+                <li><button onClick={() => onGetStarted('signup')} className="hover:text-blue-400 transition-colors">Quiz Generator</button></li>
+                <li><button onClick={() => onGetStarted('signup')} className="hover:text-blue-400 transition-colors">Progress Tracking</button></li>
+              </ul>
+            </div>
+
+            <div className="space-y-3 text-left">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Contact & Legal</h4>
+              <ul className="space-y-2 text-xs text-slate-400">
+                <li><a href="#contact" className="hover:text-blue-400 transition-colors">Contact Us</a></li>
                 <li>
-                  <a 
-                    href="https://sjtutorai.vercel.app" 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-amber-400 hover:text-amber-300 font-semibold transition-colors flex items-center gap-1"
-                  >
-                    <span>Official Web App</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </li>
-                <li><a href="#features" className="hover:text-blue-400 transition-colors">Core Features</a></li>
-                <li><a href="#demo" className="hover:text-blue-400 transition-colors">Tutor Simulator</a></li>
-                <li><a href="#pricing" className="hover:text-blue-400 transition-colors">Pricing Options</a></li>
-                <li><span className="text-slate-600 cursor-not-allowed">Roadmap 2027</span></li>
-              </ul>
-            </div>
-
-            {/* Capabilities */}
-            <div className="space-y-4 text-left">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Capabilities</h4>
-              <ul className="space-y-2.5 text-xs text-slate-400">
-                <li><span className="cursor-pointer hover:text-blue-400" onClick={() => onGetStarted('signup')}>Instant Summarizer</span></li>
-                <li><span className="cursor-pointer hover:text-blue-400" onClick={() => onGetStarted('signup')}>Quiz Creator</span></li>
-                <li><span className="cursor-pointer hover:text-blue-400" onClick={() => onGetStarted('signup')}>Homework Solver</span></li>
-                <li><span className="cursor-pointer hover:text-blue-400" onClick={() => onGetStarted('signup')}>Streak Rewarder</span></li>
-              </ul>
-            </div>
-
-            {/* Company / Vision */}
-            <div className="space-y-4 text-left">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Company</h4>
-              <ul className="space-y-2.5 text-xs text-slate-400">
-                <li><a href="#about" className="hover:text-blue-300 transition-colors">About Us</a></li>
-                <li><span className="text-slate-500">Press Kit</span></li>
-                <li><span className="text-slate-500">Inquiry Team</span></li>
-                <li><span className="text-slate-500">We are Hiring!</span></li>
-              </ul>
-            </div>
-
-            {/* Legal */}
-            <div className="space-y-4 text-left">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Legal &amp; Policy</h4>
-              <ul className="space-y-2.5 text-xs text-slate-400">
-                <li>
-                  <button 
-                    onClick={() => onNavigateToLegal?.('PRIVACY')} 
-                    className="hover:text-blue-400 text-left transition-colors cursor-pointer"
+                  <button
+                    onClick={() => onNavigateToLegal?.('PRIVACY')}
+                    className="hover:text-blue-400 transition-colors cursor-pointer"
                   >
                     Privacy Policy
                   </button>
                 </li>
                 <li>
-                  <button 
-                    onClick={() => onNavigateToLegal?.('TERMS')} 
-                    className="hover:text-blue-400 text-left transition-colors cursor-pointer"
+                  <button
+                    onClick={() => onNavigateToLegal?.('TERMS')}
+                    className="hover:text-blue-400 transition-colors cursor-pointer"
                   >
                     Terms of Service
                   </button>
                 </li>
-                <li><span className="cursor-pointer hover:text-blue-400">Cookie Preferences</span></li>
               </ul>
             </div>
-
           </div>
 
-          {/* Subfooter */}
-          <div className="max-w-7xl mx-auto px-6 pt-8 border-t border-slate-900/90 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
-            <p>Copyright © 2026 SJ Tutor AI. Innovated by Sadanand Jyoti &amp; Samanyu S Patil. All rights reserved.</p>
-            <p className="text-[10px] font-black uppercase tracking-widest text-[#00d4ff]">
-              Your smart path to better grades is here.
-            </p>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 border-t border-white/10 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-slate-500">
+            <p>© {new Date().getFullYear()} SJ Tutor AI. Created by Sadanand Jyoti &amp; Samanyu S Patil.</p>
+            <p className="text-blue-400 font-semibold">Learn Smarter Every Day</p>
           </div>
         </footer>
-
       </div>
     </div>
   );

@@ -97,12 +97,15 @@ import { NotificationService } from '../services/notificationService';
 import { useNotifications } from './NotificationContext';
 import { DirectChatView } from './DirectChatView';
 import { requestMicrophoneStream, blobToDataUrl } from '../services/audioService';
+import { syncBrowserUrl } from '../utils/routeUtils';
+import { AppMode } from '../types';
 
 interface GroupsViewProps {
   userProfile: UserProfile;
   userUid?: string | null;
   onNavigateToNotes?: () => void;
   onOpenAuthModal?: () => void;
+  onActiveGroupChange?: (group: StudyGroup | null) => void;
   onStartDirectCall?: (call: DirectCall) => void;
   onStartOrJoinGroupCall?: (group: StudyGroup, type: 'audio' | 'video') => void;
   activeGroupCall?: GroupCall | null;
@@ -116,6 +119,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   userProfile,
   userUid,
   onOpenAuthModal,
+  onActiveGroupChange,
   onStartDirectCall,
   onStartOrJoinGroupCall,
 }) => {
@@ -148,6 +152,13 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
   });
 
   const [activeGroupId, setActiveGroupId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname.toLowerCase();
+      if (pathname.startsWith('/groups/') || pathname.startsWith('/group/')) {
+        const rawSlug = pathname.startsWith('/groups/') ? pathname.substring(8).replace(/\/$/, '') : pathname.substring(7).replace(/\/$/, '');
+        if (rawSlug) return rawSlug;
+      }
+    }
     return localStorage.getItem('sjtutor_active_group_id') || '';
   });
 
@@ -434,14 +445,31 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
 
   // Persist active group selection
   useEffect(() => {
-    if (activeGroupId) {
+    if (activeGroupId && activeGroup) {
       try {
         localStorage.setItem('sjtutor_active_group_id', activeGroupId);
       } catch (e) {
         console.warn('Cache active group warn', e);
       }
+      const slug = activeGroup.slug || formatGroupSlug(activeGroup.name || activeGroup.id);
+      syncBrowserUrl(AppMode.GROUPS, {
+        groupSlug: slug,
+        customTitle: `${activeGroup.name} - Study Group | SJ Tutor AI`,
+      });
+      onActiveGroupChange?.(activeGroup);
     }
-  }, [activeGroupId]);
+  }, [activeGroupId, activeGroup, onActiveGroupChange]);
+
+  const handleSelectGroup = (group: StudyGroup) => {
+    setActiveGroupId(group.id);
+    setShowMobileChat(true);
+    const slug = group.slug || formatGroupSlug(group.name || group.id);
+    syncBrowserUrl(AppMode.GROUPS, {
+      groupSlug: slug,
+      customTitle: `${group.name} - Study Group | SJ Tutor AI`,
+    });
+    onActiveGroupChange?.(group);
+  };
 
   // Auto-select active group based on membership
   useEffect(() => {
@@ -450,23 +478,36 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
     const myJoined = groups.filter(isMemberOf);
 
     setActiveGroupId((prev) => {
-      // If prev is set and valid in groups, keep it
-      if (prev && groups.some((g) => g.id === prev)) {
-        return prev;
+      // 1. If prev is set and matches any group by id or slug, keep it
+      if (prev) {
+        const matched = groups.find((g) => g.id === prev || g.slug === prev || formatGroupSlug(g.name) === prev);
+        if (matched) return matched.id;
       }
 
-      // Check cached active group if user is a member
+      // 2. Check URL for group slug
+      if (typeof window !== 'undefined') {
+        const pathname = window.location.pathname.toLowerCase();
+        if (pathname.startsWith('/groups/') || pathname.startsWith('/group/')) {
+          const rawSlug = pathname.startsWith('/groups/') ? pathname.substring(8).replace(/\/$/, '') : pathname.substring(7).replace(/\/$/, '');
+          if (rawSlug) {
+            const matchedByUrl = groups.find((g) => g.id === rawSlug || g.slug === rawSlug || formatGroupSlug(g.name) === rawSlug);
+            if (matchedByUrl) return matchedByUrl.id;
+          }
+        }
+      }
+
+      // 3. Check cached active group if user is a member
       const cached = localStorage.getItem('sjtutor_active_group_id');
       if (cached && myJoined.some((g) => g.id === cached)) {
         return cached;
       }
 
-      // Default to first joined group if available
+      // 4. Default to first joined group if available
       if (myJoined.length > 0) {
         return myJoined[0].id;
       }
 
-      // If user has not joined any group, clear activeGroupId so unjoined group is not auto-selected
+      // 5. If user has not joined any group, clear activeGroupId so unjoined group is not auto-selected
       return '';
     });
   }, [groups, currentUid, userUid]);
@@ -2118,10 +2159,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
               return (
                 <div
                   key={group.id || `group-item-${groupIdx}-${group.name}`}
-                  onClick={() => {
-                    setActiveGroupId(group.id);
-                    setShowMobileChat(true);
-                  }}
+                  onClick={() => handleSelectGroup(group)}
                   className={`p-3.5 rounded-2xl cursor-pointer transition-all border ${
                     isActive
                       ? 'bg-primary-50 dark:bg-slate-800 border-primary-300/50 dark:border-slate-700 shadow-sm'
@@ -2341,7 +2379,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                 <button
                   onClick={() => {
                     const slugOrId = activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id;
-                    const shareUrl = `${window.location.origin}/${slugOrId}`;
+                    const shareUrl = `${window.location.origin}/groups/${slugOrId}`;
                     navigator.clipboard.writeText(shareUrl);
                     triggerToast('Copied Group Link! 🔗', `Direct group link copied: ${shareUrl}`, 'Important Alerts');
                   }}
@@ -4061,7 +4099,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                       type="button"
                       onClick={() => {
                         const slugOrId = activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id;
-                        const shareUrl = `${window.location.origin}/${slugOrId}`;
+                        const shareUrl = `${window.location.origin}/groups/${slugOrId}`;
                         navigator.clipboard.writeText(shareUrl);
                         triggerToast('Copied Group Link! 🔗', `Direct group link copied: ${shareUrl}`, 'Important Alerts');
                       }}
@@ -4673,7 +4711,7 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                   <button
                     onClick={() => {
                       const slugOrId = activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id;
-                      const shareUrl = `${window.location.origin}/${slugOrId}`;
+                      const shareUrl = `${window.location.origin}/groups/${slugOrId}`;
                       navigator.clipboard.writeText(shareUrl);
                       triggerToast('Copied Group Link! 🔗', 'Share this link with any student. When opened, they can Accept or Decline your invitation.', 'Important Alerts');
                     }}
@@ -4687,11 +4725,11 @@ export const GroupsView: React.FC<GroupsViewProps> = ({
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-semibold text-slate-500 dark:text-slate-400">Group URL / ID:</span>
                       <div className="flex items-center gap-1.5 font-mono text-slate-800 dark:text-slate-200 font-bold">
-                        <span className="max-w-[140px] truncate">/{activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id}</span>
+                        <span className="max-w-[140px] truncate">/groups/{activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id}</span>
                         <button
                           onClick={() => {
                             const slugOrId = activeGroup.slug || formatGroupSlug(activeGroup.name) || activeGroup.id;
-                            const shareUrl = `${window.location.origin}/${slugOrId}`;
+                            const shareUrl = `${window.location.origin}/groups/${slugOrId}`;
                             navigator.clipboard.writeText(shareUrl);
                             triggerToast('Group Link Copied!', `${shareUrl} copied to clipboard.`, 'Important Alerts');
                           }}

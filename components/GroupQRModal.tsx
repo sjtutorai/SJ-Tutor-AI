@@ -39,7 +39,7 @@ export const GroupQRModal: React.FC<GroupQRModalProps> = ({
   // Primary custom share link (https://example.com/group_name)
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://sjtutorai.vercel.app';
   const slugOrId = group.slug || formatGroupSlug(group.name) || group.id;
-  const groupInviteUrl = `${origin}/${slugOrId}`;
+  const groupInviteUrl = `${origin}/groups/${slugOrId}`;
 
   // Structured QR payload (can be decoded as URL or direct ID)
   const qrPayload = groupInviteUrl;
