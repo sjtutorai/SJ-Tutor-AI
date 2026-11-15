@@ -397,58 +397,30 @@ app.post("/api/transcribe-audio", async (req, res) => {
       }
     }
 
-    const { GoogleGenAI } = await import("@google/genai");
-
     const prompt = `Transcribe all spoken words in this audio recording accurately and faithfully. 
 Preserve the speaker's language (primarily ${language} or any spoken language in the audio).
 Return ONLY the raw transcription text with proper capitalization and punctuation. 
 Do NOT include any timestamps, markdown labels, explanations, or quotes. 
 If the audio is completely silent or contains no discernible speech, return an empty string.`;
 
-    const transcript = await serverGeminiKeyManager.executeWithRotation(async (key) => {
-      const ai = new GoogleGenAI({
-        apiKey: key,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
+    const transcript = await serverGeminiKeyManager.executeWithRotation(async (ai, rotatedModel) => {
+      const response = await ai.models.generateContent({
+        model: rotatedModel,
+        contents: [
+          {
+            inlineData: {
+              mimeType: finalMimeType || "audio/webm",
+              data: cleanBase64,
+            },
+          },
+          {
+            text: prompt,
+          },
+        ],
       });
 
-      const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
-      let lastGenErr: any = null;
-
-      for (let i = 0; i < modelsToTry.length; i++) {
-        const modelName = modelsToTry[i];
-        try {
-          const response = await ai.models.generateContent({
-            model: modelName,
-            contents: [
-              {
-                inlineData: {
-                  mimeType: finalMimeType || 'audio/webm',
-                  data: cleanBase64,
-                }
-              },
-              {
-                text: prompt
-              }
-            ]
-          });
-
-          return response.text?.trim() || "";
-        } catch (mErr: any) {
-          lastGenErr = mErr;
-          console.warn(`[Server Audio Transcription] Notice on ${modelName}:`, mErr?.message || mErr);
-          if (i < modelsToTry.length - 1) {
-            await new Promise((r) => setTimeout(r, 400));
-            continue;
-          }
-        }
-      }
-
-      throw lastGenErr;
-    });
+      return response.text?.trim() || "";
+    }, ["gemini-3.5-transcribe", "gemini-4-hydrogen", "gemini-3.1-flash-lite"]);
 
     res.json({ success: true, transcript });
   } catch (error: any) {

@@ -117,7 +117,7 @@ import {
   Target,
   TrendingUp,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, MotionConfig } from "motion/react";
 import {
   LetterReveal,
   TiltCard3D,
@@ -332,6 +332,7 @@ const App: React.FC = () => {
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>(initialRoute.authModalMode);
   const [authPrefilledIdentifier, setAuthPrefilledIdentifier] = useState<string>('');
   const [showDashboardReveal, setShowDashboardReveal] = useState(false);
+  const [uiAnimationsEnabled, setUiAnimationsEnabled] = useState<boolean>(() => SettingsService.getSettings().appearance.animations ?? true);
 
   const DEFAULT_DAILY_GOALS = [
     { id: 'goal-concept', label: 'Review 1 key chapter concept', completed: false },
@@ -1287,7 +1288,7 @@ const App: React.FC = () => {
       const settings = SettingsService.getSettings();
       const theme = settings.appearance.theme;
       const primaryColorName = settings.appearance.primaryColor || "Sapphire";
-      const fontFamily = settings.appearance.fontFamily || "Inter";
+      const fontFamily = settings.appearance.fontFamily || "Plus Jakarta Sans";
       const animationsEnabled = settings.appearance.animations;
 
       const root = window.document.documentElement;
@@ -1308,11 +1309,11 @@ const App: React.FC = () => {
         root.style.setProperty(`--color-primary-${shade}`, value);
       });
 
-      const formattedFont = fontFamily.includes(" ")
-        ? `'${fontFamily}'`
-        : fontFamily;
+      const formattedFont = `'${fontFamily}', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
       root.style.setProperty("--font-sans", formattedFont);
+      body.style.fontFamily = formattedFont;
 
+      setUiAnimationsEnabled(animationsEnabled);
       if (animationsEnabled) {
         body.classList.remove("reduce-motion");
       } else {
@@ -4327,7 +4328,8 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 app-custom-bg font-sans selection:bg-blue-100 selection:text-blue-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <MotionConfig reducedMotion={uiAnimationsEnabled ? "user" : "always"}>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 app-custom-bg font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
@@ -4426,7 +4428,7 @@ const App: React.FC = () => {
                   title={!isExpanded ? item.label : undefined}
                   className={`relative w-full flex items-center ${isExpanded ? "gap-3 px-3" : "justify-center px-2"} py-2.5 rounded-xl transition-all duration-200 group text-sm cursor-pointer ${
                     isActive
-                      ? "text-blue-700 dark:text-blue-400 font-semibold"
+                      ? "text-primary-700 dark:text-primary-400 font-semibold"
                       : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
@@ -4434,11 +4436,11 @@ const App: React.FC = () => {
                     <motion.div
                       layoutId="sidebarActiveNav"
                       transition={{ type: "spring", stiffness: 360, damping: 30 }}
-                      className="absolute inset-0 rounded-xl bg-blue-50/90 dark:bg-slate-800 border border-blue-200/70 dark:border-slate-700 shadow-xs"
+                      className="absolute inset-0 rounded-xl bg-primary-50/90 dark:bg-slate-800 border border-primary-200/70 dark:border-slate-700 shadow-xs"
                     />
                   )}
                   <Icon
-                    className={`w-4 h-4 flex-shrink-0 relative z-10 ${isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
+                    className={`w-4 h-4 flex-shrink-0 relative z-10 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
                   />
                   {isExpanded && <span className="truncate relative z-10">{item.label}</span>}
                   {isExpanded && !user &&
@@ -5158,6 +5160,7 @@ const App: React.FC = () => {
         onComplete={() => setShowDashboardReveal(false)}
       />
     </div>
+    </MotionConfig>
   );
 };
 

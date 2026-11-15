@@ -1,6 +1,29 @@
 import { Router } from "express";
-import { Type } from "@google/genai";
+import { Type, ThinkingLevel } from "@google/genai";
 import { createDedicatedGeminiClient } from "../geminiClient";
+
+const DEFAULT_GEMINI_MODELS = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
+
+function buildLowLatencyThinkingConfig(model: string) {
+  return model === "gemini-4-hydrogen" ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {};
+}
+
+function safeParseJson<T>(raw: string): T {
+  const cleaned = raw
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  return JSON.parse(cleaned) as T;
+}
+
+function withAttemptTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
+  ]);
+}
 
 export interface ServerKeySlot {
   id: string;
@@ -108,47 +131,78 @@ export class ServerGeminiKeyManager {
     };
   }
 
-  public async executeWithRotation<T>(operation: (ai: ReturnType<typeof createDedicatedGeminiClient>, model: string, slot: ServerKeySlot) => Promise<T>): Promise<T> {
+  public isModelNotFoundError(err: any): boolean {
+    const status = err?.status || err?.statusCode;
+    const msg = String(err?.message || err || "").toLowerCase();
+    return status === 404 || msg.includes("not_found") || (msg.includes("model") && msg.includes("not found"));
+  }
+
+  public async executeWithRotation<T>(
+    operation: (ai: ReturnType<typeof createDedicatedGeminiClient>, model: string, slot: ServerKeySlot) => Promise<T>,
+    modelsOverride?: string[]
+  ): Promise<T> {
     const slots = this.getSlots();
     if (slots.length === 0) {
       throw new Error("No valid Gemini API keys configured on server.");
     }
 
-    const preferredModels = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
+    const preferredModels = modelsOverride && modelsOverride.length > 0 ? modelsOverride : DEFAULT_GEMINI_MODELS;
     const totalSlots = slots.length;
     const startIdx = this.currentIndex % totalSlots;
     this.currentIndex = (this.currentIndex + 1) % totalSlots;
+
+    // Order active keys first, cooling-down keys last
+    const orderedIndices: number[] = [];
+    for (let i = 0; i < totalSlots; i++) {
+      const idx = (startIdx + i) % totalSlots;
+      if (slots[idx].cooldownUntil <= Date.now()) orderedIndices.push(idx);
+    }
+    for (let i = 0; i < totalSlots; i++) {
+      const idx = (startIdx + i) % totalSlots;
+      if (slots[idx].cooldownUntil > Date.now()) orderedIndices.push(idx);
+    }
+
     let lastErr: any = null;
 
     for (let mIdx = 0; mIdx < preferredModels.length; mIdx++) {
       const currentModel = preferredModels[mIdx];
-      for (let i = 0; i < totalSlots; i++) {
-        const slotIdx = (startIdx + i) % totalSlots;
+      for (let i = 0; i < orderedIndices.length; i++) {
+        const slotIdx = orderedIndices[i];
         const currentSlot = slots[slotIdx];
         currentSlot.requests++;
+        const startedAt = Date.now();
 
         try {
           const ai = createDedicatedGeminiClient(currentSlot.key);
-          const result = await operation(ai, currentModel, currentSlot);
+          const result = await withAttemptTimeout(
+            operation(ai, currentModel, currentSlot),
+            26000,
+            `Gemini ${currentModel}`
+          );
           currentSlot.status = "ACTIVE";
           currentSlot.cooldownUntil = 0;
           return result;
         } catch (err: any) {
           lastErr = err;
+          const elapsed = Date.now() - startedAt;
           const highDemand = this.isHighDemandError(err);
+          const modelMissing = this.isModelNotFoundError(err);
+
           if (highDemand) {
             currentSlot.status = "HIGH_DEMAND";
             currentSlot.highDemandCount++;
             currentSlot.cooldownUntil = Date.now() + this.COOLDOWN_MS;
-            const nextSlot = slots[(slotIdx + 1) % totalSlots];
-            console.warn(
-              `[Server Gemini] ⚠️ High demand on ${currentSlot.id} (${currentSlot.masked}) model ${currentModel}. Trying next slot ${nextSlot.id}...`
-            );
-          } else {
-            console.warn(`[Server Gemini] Error on ${currentSlot.id} (${currentModel}): ${err?.message || err}`);
           }
 
-          if (i === totalSlots - 1 && mIdx === preferredModels.length - 1) {
+          console.warn(
+            `[Server Gemini] Error (${elapsed}ms) on ${currentSlot.id} (${currentSlot.masked}) model ${currentModel}: ${err?.message || err}`
+          );
+
+          if (modelMissing && mIdx < preferredModels.length - 1) {
+            break; // Immediately move to next model instead of retrying all keys on a missing model
+          }
+
+          if (i === orderedIndices.length - 1 && mIdx === preferredModels.length - 1) {
             throw lastErr;
           }
         }
@@ -158,41 +212,70 @@ export class ServerGeminiKeyManager {
   }
 
   public async executeStreamWithRotation(
-    streamBuilder: (ai: ReturnType<typeof createDedicatedGeminiClient>, model: string, slot: ServerKeySlot) => Promise<any>
+    streamBuilder: (ai: ReturnType<typeof createDedicatedGeminiClient>, model: string, slot: ServerKeySlot) => Promise<any>,
+    modelsOverride?: string[]
   ): Promise<any> {
     const slots = this.getSlots();
     if (slots.length === 0) {
       throw new Error("No valid Gemini API keys configured on server.");
     }
 
-    const preferredModels = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
+    const preferredModels = modelsOverride && modelsOverride.length > 0 ? modelsOverride : DEFAULT_GEMINI_MODELS;
     const totalSlots = slots.length;
     const startIdx = this.currentIndex % totalSlots;
     this.currentIndex = (this.currentIndex + 1) % totalSlots;
+
+    const orderedIndices: number[] = [];
+    for (let i = 0; i < totalSlots; i++) {
+      const idx = (startIdx + i) % totalSlots;
+      if (slots[idx].cooldownUntil <= Date.now()) orderedIndices.push(idx);
+    }
+    for (let i = 0; i < totalSlots; i++) {
+      const idx = (startIdx + i) % totalSlots;
+      if (slots[idx].cooldownUntil > Date.now()) orderedIndices.push(idx);
+    }
+
     let lastErr: any = null;
 
     for (let mIdx = 0; mIdx < preferredModels.length; mIdx++) {
       const currentModel = preferredModels[mIdx];
-      for (let i = 0; i < totalSlots; i++) {
-        const slotIdx = (startIdx + i) % totalSlots;
+      for (let i = 0; i < orderedIndices.length; i++) {
+        const slotIdx = orderedIndices[i];
         const currentSlot = slots[slotIdx];
         currentSlot.requests++;
+        const startedAt = Date.now();
 
         try {
           const ai = createDedicatedGeminiClient(currentSlot.key);
-          const stream = await streamBuilder(ai, currentModel, currentSlot);
+          const stream = await withAttemptTimeout(
+            streamBuilder(ai, currentModel, currentSlot),
+            26000,
+            `Gemini stream ${currentModel}`
+          );
           currentSlot.status = "ACTIVE";
           currentSlot.cooldownUntil = 0;
           return stream;
         } catch (err: any) {
           lastErr = err;
+          const elapsed = Date.now() - startedAt;
           const highDemand = this.isHighDemandError(err);
+          const modelMissing = this.isModelNotFoundError(err);
+
           if (highDemand) {
             currentSlot.status = "HIGH_DEMAND";
             currentSlot.highDemandCount++;
             currentSlot.cooldownUntil = Date.now() + this.COOLDOWN_MS;
           }
-          if (i === totalSlots - 1 && mIdx === preferredModels.length - 1) {
+
+          console.warn(
+            `[Server Gemini Stream] Error (${elapsed}ms) on ${currentSlot.id} (${currentSlot.masked}) model ${currentModel}: ${err?.message || err}`
+          );
+
+          if (modelMissing && mIdx < preferredModels.length - 1) {
+            break;
+          }
+
+          if (i === orderedIndices.length - 1 && mIdx === preferredModels.length - 1) {
             throw lastErr;
           }
         }
@@ -377,6 +460,7 @@ router.post("/quiz", async (req, res) => {
         model,
         contents: prompt,
         config: {
+          ...buildLowLatencyThinkingConfig(model),
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
@@ -394,10 +478,38 @@ router.post("/quiz", async (req, res) => {
         },
       });
 
-      if (response.text) {
-        return JSON.parse(response.text.trim());
+      if (!response.text) {
+        throw new Error("No text response from quiz generator");
       }
-      throw new Error("No text response from quiz generator");
+
+      const parsed = safeParseJson<any>(response.text);
+      const rawQuestions: any[] = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.questions)
+        ? parsed.questions
+        : [];
+
+      const validQuestions = rawQuestions
+        .filter((q) => q && typeof q.question === "string" && Array.isArray(q.options) && q.options.length >= 2)
+        .map((q) => {
+          const options = q.options.map((opt: any) => String(opt));
+          const idx = Number.isInteger(q.correctAnswerIndex) ? q.correctAnswerIndex : parseInt(String(q.correctAnswerIndex || "0"), 10);
+          const safeIdx = !isNaN(idx) && idx >= 0 && idx < options.length ? idx : 0;
+          return {
+            question: q.question.trim(),
+            options,
+            correctAnswerIndex: safeIdx,
+            explanation: typeof q.explanation === "string" && q.explanation.trim()
+              ? q.explanation.trim()
+              : "Review the chapter concepts to verify this answer.",
+          };
+        });
+
+      if (validQuestions.length === 0) {
+        throw new Error("Quiz generator returned an invalid question list. Please try again.");
+      }
+
+      return validQuestions;
     });
 
     res.json({ success: true, questions });
@@ -419,6 +531,7 @@ router.post("/timetable", async (req, res) => {
         model,
         contents: prompt,
         config: {
+          ...buildLowLatencyThinkingConfig(model),
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
@@ -445,7 +558,7 @@ router.post("/timetable", async (req, res) => {
           },
         },
       });
-      if (response.text) return JSON.parse(response.text.trim());
+      if (response.text) return safeParseJson<any[]>(response.text);
       throw new Error("Failed to generate timetable");
     });
 
@@ -467,6 +580,7 @@ router.post("/timetable/update", async (req, res) => {
         model,
         contents: prompt,
         config: {
+          ...buildLowLatencyThinkingConfig(model),
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
@@ -493,7 +607,7 @@ router.post("/timetable/update", async (req, res) => {
           },
         },
       });
-      if (response.text) return JSON.parse(response.text.trim());
+      if (response.text) return safeParseJson<any[]>(response.text);
       throw new Error("Failed to update timetable");
     });
 
@@ -826,6 +940,7 @@ router.post("/validate-payment", async (req, res) => {
           parts: [{ inlineData: { mimeType, data: cleanData } }, { text: prompt }],
         },
         config: {
+          ...buildLowLatencyThinkingConfig(model),
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -837,7 +952,7 @@ router.post("/validate-payment", async (req, res) => {
           },
         },
       });
-      if (response.text) return JSON.parse(response.text.trim());
+      if (response.text) return safeParseJson<{ isValid: boolean; reason: string }>(response.text);
       throw new Error("No response from payment validator");
     });
 

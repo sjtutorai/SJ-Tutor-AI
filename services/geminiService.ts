@@ -105,18 +105,21 @@ async function* parseSSEStream(response: Response): AsyncGenerator<{ text?: stri
           return;
         }
 
+        let parsed: any = null;
         try {
-          const parsed = JSON.parse(payload);
-          if (parsed.error) {
-            throw new Error(parsed.error);
-          }
-          if (parsed.text !== undefined) {
-            yield { text: parsed.text };
-          }
+          parsed = JSON.parse(payload);
         } catch (e: any) {
           if (e?.message && e.message !== "Unexpected end of JSON input") {
             console.debug("[SSE Chunk Parse Notice]:", e);
           }
+          continue;
+        }
+
+        if (parsed?.error) {
+          throw new Error(parsed.error);
+        }
+        if (parsed?.text !== undefined) {
+          yield { text: parsed.text };
         }
       }
     }
@@ -124,11 +127,17 @@ async function* parseSSEStream(response: Response): AsyncGenerator<{ text?: stri
     if (buffer.trim().startsWith("data:")) {
       const payload = buffer.trim().replace(/^data:\s*/, "");
       if (payload !== "[DONE]") {
+        let parsed: any = null;
         try {
-          const parsed = JSON.parse(payload);
-          if (parsed.text) yield { text: parsed.text };
+          parsed = JSON.parse(payload);
         } catch (e: any) {
           console.debug("[SSE trailing chunk parse notice]:", e?.message || e);
+        }
+        if (parsed?.error) {
+          throw new Error(parsed.error);
+        }
+        if (parsed?.text) {
+          yield { text: parsed.text };
         }
       }
     }
@@ -285,7 +294,10 @@ export const GeminiService = {
     if (!res.ok || !body.success) {
       throw new Error(body.error || "Failed to generate quiz");
     }
-    return body.questions || [];
+    if (!Array.isArray(body.questions) || body.questions.length === 0) {
+      throw new Error("The AI did not return any quiz questions. Please try again.");
+    }
+    return body.questions;
   },
 
   /**
