@@ -111,36 +111,13 @@ import {
   X,
   Trash2,
   Laptop,
-  Flame,
-  CheckCircle2,
-  Circle,
-  Target,
-  TrendingUp,
 } from "lucide-react";
-import { motion, AnimatePresence, MotionConfig } from "motion/react";
-import {
-  LetterReveal,
-  TiltCard3D,
-  CounterNumber,
-  AnimatedProgressCircle,
-  DashboardRevealTransition,
-} from "./components/ui/MotionPrimitives";
+import { motion, AnimatePresence } from "motion/react";
+import type { GenerateContentResponse } from "@google/genai";
 
 const sanitizeSlug = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") : "general";
 
 const THEME_COLORS: Record<string, Record<string, string>> = {
-  Sapphire: {
-    50: "#eff6ff",
-    100: "#dbeafe",
-    200: "#bfdbfe",
-    300: "#93c5fd",
-    400: "#60a5fa",
-    500: "#2563eb",
-    600: "#1d4ed8",
-    700: "#1e40af",
-    800: "#1e3a8a",
-    900: "#172554",
-  },
   Gold: {
     50: "#FFFAF0",
     100: "#FDF5E6",
@@ -331,63 +308,6 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(initialRoute.isAuthModalOpen);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>(initialRoute.authModalMode);
   const [authPrefilledIdentifier, setAuthPrefilledIdentifier] = useState<string>('');
-  const [showDashboardReveal, setShowDashboardReveal] = useState(false);
-  const [uiAnimationsEnabled, setUiAnimationsEnabled] = useState<boolean>(() => SettingsService.getSettings().appearance.animations ?? true);
-
-  const DEFAULT_DAILY_GOALS = [
-    { id: 'goal-concept', label: 'Review 1 key chapter concept', completed: false },
-    { id: 'goal-practice', label: 'Solve 5 practice questions', completed: false },
-    { id: 'goal-focus', label: 'Complete 20-min focused study', completed: false },
-  ];
-  const [dailyGoals, setDailyGoals] = useState<Array<{ id: string; label: string; completed: boolean }>>(() => {
-    try {
-      const saved = localStorage.getItem('sjtutor_daily_goals_guest');
-      return saved ? JSON.parse(saved) : DEFAULT_DAILY_GOALS;
-    } catch {
-      return DEFAULT_DAILY_GOALS;
-    }
-  });
-  const [newGoalInput, setNewGoalInput] = useState('');
-
-  useEffect(() => {
-    try {
-      const key = `sjtutor_daily_goals_${user?.uid || 'guest'}`;
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setDailyGoals(parsed);
-          return;
-        }
-      }
-      setDailyGoals(DEFAULT_DAILY_GOALS);
-    } catch {
-      setDailyGoals(DEFAULT_DAILY_GOALS);
-    }
-  }, [user?.uid]);
-
-  const persistDailyGoals = (nextGoals: Array<{ id: string; label: string; completed: boolean }>) => {
-    setDailyGoals(nextGoals);
-    try {
-      localStorage.setItem(`sjtutor_daily_goals_${user?.uid || 'guest'}`, JSON.stringify(nextGoals));
-    } catch {
-      // ignore storage errors
-    }
-  };
-
-  const toggleDailyGoal = (goalId: string) => {
-    persistDailyGoals(
-      dailyGoals.map((g) => (g.id === goalId ? { ...g, completed: !g.completed } : g))
-    );
-  };
-
-  const handleAddDailyGoal = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = newGoalInput.trim();
-    if (!trimmed) return;
-    persistDailyGoals([...dailyGoals, { id: `goal-${Date.now()}`, label: trimmed, completed: false }]);
-    setNewGoalInput('');
-  };
 
   const openAuthModal = (authMode?: 'signin' | 'signup', prefilledId?: string) => {
     const targetMode = authMode || (getDeviceRegisteredUser().hasRegistered ? 'signin' : 'signup');
@@ -1287,8 +1207,8 @@ const App: React.FC = () => {
     const applyTheme = () => {
       const settings = SettingsService.getSettings();
       const theme = settings.appearance.theme;
-      const primaryColorName = settings.appearance.primaryColor || "Sapphire";
-      const fontFamily = settings.appearance.fontFamily || "Plus Jakarta Sans";
+      const primaryColorName = settings.appearance.primaryColor || "Gold";
+      const fontFamily = settings.appearance.fontFamily || "Inter";
       const animationsEnabled = settings.appearance.animations;
 
       const root = window.document.documentElement;
@@ -1304,16 +1224,16 @@ const App: React.FC = () => {
         root.classList.remove("dark");
       }
 
-      const palette = THEME_COLORS[primaryColorName] || THEME_COLORS["Sapphire"];
+      const palette = THEME_COLORS[primaryColorName] || THEME_COLORS["Gold"];
       Object.entries(palette).forEach(([shade, value]) => {
         root.style.setProperty(`--color-primary-${shade}`, value);
       });
 
-      const formattedFont = `'${fontFamily}', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+      const formattedFont = fontFamily.includes(" ")
+        ? `'${fontFamily}'`
+        : fontFamily;
       root.style.setProperty("--font-sans", formattedFont);
-      body.style.fontFamily = formattedFont;
 
-      setUiAnimationsEnabled(animationsEnabled);
       if (animationsEnabled) {
         body.classList.remove("reduce-motion");
       } else {
@@ -1334,6 +1254,13 @@ const App: React.FC = () => {
       window.removeEventListener("settings-changed", applyTheme);
       mediaQuery.removeEventListener("change", handleSystemChange);
     };
+  }, []);
+
+  // Check API Key
+  useEffect(() => {
+    if (!process.env.API_KEY) {
+      console.warn("API_KEY is missing in environment variables!");
+    }
   }, []);
 
   // Auto-fill grade from profile when switching modes
@@ -2045,7 +1972,6 @@ const App: React.FC = () => {
         }));
       }
 
-      setShowDashboardReveal(true);
       setMode(AppMode.DASHBOARD);
       setDashboardView("OVERVIEW");
       setShowAuthModal(false);
@@ -2058,7 +1984,6 @@ const App: React.FC = () => {
           isRegisteredInFirestore: true,
         };
         setUserProfile(mergedProfile as any);
-        setShowDashboardReveal(true);
         if (!userProf.hasCompletedOnboarding) {
           setMode(AppMode.PROFILE);
         } else {
@@ -2433,6 +2358,13 @@ const App: React.FC = () => {
       return;
     }
 
+    if (!process.env.API_KEY) {
+      setError(
+        "Configuration Error: API_KEY is missing. Please check your environment variables.",
+      );
+      return;
+    }
+
     if (!validateForm()) return;
 
     setLoading(true);
@@ -2447,9 +2379,9 @@ const App: React.FC = () => {
 
         let text = "";
         for await (const chunk of stream) {
-          const chunkText = (chunk as any)?.text || "";
-          if (chunkText) {
-            text += chunkText;
+          const c = chunk as GenerateContentResponse;
+          if (c.text) {
+            text += c.text;
             setSummaryContent(text);
           }
         }
@@ -2470,9 +2402,9 @@ const App: React.FC = () => {
 
         let text = "";
         for await (const chunk of stream) {
-          const chunkText = (chunk as any)?.text || "";
-          if (chunkText) {
-            text += chunkText;
+          const c = chunk as GenerateContentResponse;
+          if (c.text) {
+            text += c.text;
             setHomeworkContent(text);
           }
         }
@@ -2841,40 +2773,40 @@ const App: React.FC = () => {
         label: "Study Groups",
         count: null,
         icon: Users,
-        color: "text-blue-600 dark:text-blue-400",
-        bg: "bg-blue-50 dark:bg-blue-950/40",
+        color: "text-emerald-600 dark:text-emerald-400",
+        bg: "bg-[#FDF5E6] dark:bg-emerald-900/30",
       },
       {
         id: AppMode.ID_CARD,
         label: "My ID Card",
         count: null,
         icon: CreditCard,
-        color: "text-violet-600 dark:text-violet-400",
-        bg: "bg-violet-50 dark:bg-violet-950/40",
+        color: "text-indigo-600 dark:text-indigo-400",
+        bg: "bg-[#FDF5E6] dark:bg-indigo-900/30",
       },
       {
         id: AppMode.SUMMARY,
         label: "Summaries",
         count: stats.summaries,
         icon: FileText,
-        color: "text-sky-600 dark:text-sky-400",
-        bg: "bg-sky-50 dark:bg-sky-950/40",
+        color: "text-amber-800 dark:text-amber-300",
+        bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
       },
       {
         id: AppMode.QUIZ,
         label: "Quizzes",
         count: stats.quizzes,
         icon: BrainCircuit,
-        color: "text-purple-600 dark:text-purple-400",
-        bg: "bg-purple-50 dark:bg-purple-950/40",
+        color: "text-amber-700 dark:text-amber-400",
+        bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
       },
       {
         id: AppMode.HOMEWORK,
         label: "Homework Solutions",
         count: stats.homeworks + stats.essays,
         icon: BookOpen,
-        color: "text-emerald-600 dark:text-emerald-400",
-        bg: "bg-emerald-50 dark:bg-emerald-950/40",
+        color: "text-amber-600 dark:text-amber-500",
+        bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
       },
       {
         id: AppMode.TUTOR,
@@ -2882,7 +2814,7 @@ const App: React.FC = () => {
         count: stats.chats,
         icon: MessageCircle,
         color: "text-blue-600 dark:text-blue-400",
-        bg: "bg-blue-50 dark:bg-blue-950/40",
+        bg: "bg-[#FDF5E6] dark:bg-blue-900/30",
       },
       {
         id: AppMode.NOTIFICATIONS,
@@ -2890,15 +2822,15 @@ const App: React.FC = () => {
         count: unreadCount,
         icon: Bell,
         color: "text-violet-600 dark:text-violet-400",
-        bg: "bg-violet-50 dark:bg-violet-950/40",
+        bg: "bg-[#FDF5E6] dark:bg-violet-900/30",
       },
       {
         id: AppMode.NOTES,
         label: "Notes",
         count: noteCount,
         icon: Calendar,
-        color: "text-indigo-600 dark:text-indigo-400",
-        bg: "bg-indigo-50 dark:bg-indigo-950/40",
+        color: "text-emerald-700 dark:text-emerald-400",
+        bg: "bg-[#FDF5E6] dark:bg-emerald-900/30",
       },
     ];
 
@@ -3130,53 +3062,16 @@ const App: React.FC = () => {
       return <DashboardSkeleton />;
     }
 
-    const activeStreakDays = streakData.currentStreak || userProfile.streak || 0;
-    const bestStreakDays = streakData.longestStreak || userProfile.highestStreak || activeStreakDays;
-    const profileCompletionPct = calculateProfileCompletion(userProfile);
-    const completedGoalsCount = dailyGoals.filter((g) => g.completed).length;
-    const goalsCompletionPct = dailyGoals.length > 0 ? Math.round((completedGoalsCount / dailyGoals.length) * 100) : 0;
-
-    // Derive real subject activity directly from the student's saved study history and profile preferences
-    const subjectCountMap = new Map<string, number>();
-    history.forEach((item) => {
-      const candidate = (item.subtitle || '').split('•')[0]?.trim() || '';
-      if (candidate && candidate.length > 1 && candidate.length < 32) {
-        subjectCountMap.set(candidate, (subjectCountMap.get(candidate) || 0) + 1);
-      }
-    });
-    const profileSubjects = Array.isArray((userProfile as any).subjects)
-      ? ((userProfile as any).subjects as string[])
-      : Array.isArray((userProfile as any).interests)
-      ? ((userProfile as any).interests as string[])
-      : [];
-    profileSubjects.forEach((subj) => {
-      if (subj && !subjectCountMap.has(subj)) {
-        subjectCountMap.set(subj, 0);
-      }
-    });
-    const subjectProgressEntries = Array.from(subjectCountMap.entries()).slice(0, 6);
-    const maxSubjectSessions = Math.max(1, ...subjectProgressEntries.map(([, c]) => c));
-
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
-        {/* Clean Light Header Greeting */}
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              <LetterReveal text={`Welcome Back, ${userProfile.displayName || "Scholar"}!`} delay={0.05} stagger={0.018} />
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+              Welcome back, {userProfile.displayName || "Scholar"}! 👋
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Ready to learn something new today? Track your goals, streaks, and AI study progress below.
+            <p className="text-slate-500 dark:text-slate-400">
+              Ready to learn something new today?
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigateToMode(AppMode.TUTOR)}
-              className="btn-liquid inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Ask AI Tutor</span>
-            </button>
           </div>
         </div>
 
@@ -3198,307 +3093,101 @@ const App: React.FC = () => {
           />
         )}
 
-        {/* Section 9 & Final Hybrid Theme: Clean White Analytics Strip (Profile 3D Card, Study Streak Counter, Daily Study Goals) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-7">
-          {/* Student Profile 3D Hover Card */}
-          <TiltCard3D
-            maxTilt={5}
-            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-4"
-          >
-            <div className="flex items-center gap-3.5 min-w-0 relative z-10">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 text-white flex items-center justify-center font-bold text-lg overflow-hidden shrink-0 shadow-sm">
-                {userProfile.photoURL ? (
-                  <img
-                    src={userProfile.photoURL}
-                    alt={userProfile.displayName || "Student"}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <span>{(userProfile.displayName || "S").charAt(0).toUpperCase()}</span>
-                )}
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                  {userProfile.displayName || "Scholar"}
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  {userProfile.grade || "Class 10"}{userProfile.board ? ` • ${userProfile.board}` : ""}
-                </p>
-                {userProfile.sjTutorId && (
-                  <span className="inline-block mt-1.5 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 font-mono text-[10px] font-bold">
-                    {userProfile.sjTutorId}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="relative z-10 shrink-0">
-              <AnimatedProgressCircle
-                percentage={profileCompletionPct}
-                size={76}
-                strokeWidth={6}
-                accentColor="#2563EB"
-              />
-            </div>
-          </TiltCard3D>
-
-          {/* Animated Study Streak Counter Card */}
-          <TiltCard3D
-            maxTilt={5}
-            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
-          >
-            <div className="flex items-start justify-between relative z-10">
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  Study Streak
-                </span>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <CounterNumber
-                    value={activeStreakDays}
-                    suffix={activeStreakDays === 1 ? " day" : " days"}
-                    className="text-3xl font-extrabold text-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
-              <motion.div
-                animate={{ scale: [1, 1.08, 1] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-50 to-violet-100 dark:from-blue-950/60 dark:to-violet-950/60 border border-blue-200/60 dark:border-blue-800/60 flex items-center justify-center text-blue-600 dark:text-blue-400"
-              >
-                <Flame className="w-5 h-5" />
-              </motion.div>
-            </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs relative z-10">
-              <span className="text-slate-500 dark:text-slate-400 font-medium tabular-nums">
-                Personal Best: <strong className="text-slate-800 dark:text-slate-200">{bestStreakDays} days</strong>
-              </span>
-              <button
-                onClick={() => navigateToMode(AppMode.TIMER)}
-                className="text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
-              >
-                Focus Timer →
-              </button>
-            </div>
-          </TiltCard3D>
-
-          {/* Daily Study Goals Card */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <Target className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
-                  Daily Study Goals
-                </span>
-                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 tabular-nums">
-                  {completedGoalsCount}/{dailyGoals.length}
-                </span>
-              </div>
-              <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mb-3">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-blue-600 to-violet-600 rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${goalsCompletionPct}%` }}
-                  transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                />
-              </div>
-              <div className="space-y-1.5 max-h-24 overflow-y-auto custom-scrollbar pr-1">
-                {dailyGoals.map((goal) => (
-                  <button
-                    key={goal.id}
-                    type="button"
-                    onClick={() => toggleDailyGoal(goal.id)}
-                    className="w-full flex items-center gap-2 text-left text-xs py-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 px-1.5 transition cursor-pointer"
-                  >
-                    {goal.completed ? (
-                      <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                    ) : (
-                      <Circle className="w-4 h-4 text-slate-300 dark:text-slate-600 shrink-0" />
-                    )}
-                    <span className={goal.completed ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-200 font-medium"}>
-                      {goal.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <form onSubmit={handleAddDailyGoal} className="mt-2.5 flex items-center gap-1.5">
-              <input
-                type="text"
-                value={newGoalInput}
-                onChange={(e) => setNewGoalInput(e.target.value)}
-                placeholder="Add a goal..."
-                className="flex-1 text-xs px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white outline-none focus:border-blue-500"
-              />
-              <button
-                type="submit"
-                className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition cursor-pointer"
-                title="Add study goal"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {/* Subject Progress Cards (Strictly derived from real user study activity & profile interests) */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 shadow-sm mb-7">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-sm sm:text-base">
-              <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              Subject Progress
-            </h3>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium tabular-nums">
-              {history.length} total study items
-            </span>
-          </div>
-
-          {subjectProgressEntries.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {subjectProgressEntries.map(([subjectName, count], idx) => {
-                const pct = count === 0 ? 10 : Math.min(100, Math.round((count / Math.max(3, maxSubjectSessions)) * 100));
-                return (
-                  <motion.div
-                    key={subjectName}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.35, delay: idx * 0.05 }}
-                    className="p-4 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/70"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate pr-2">
-                        {subjectName}
-                      </span>
-                      <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 tabular-nums shrink-0">
-                        {count} {count === 1 ? "session" : "sessions"}
-                      </span>
-                    </div>
-                    <div className="w-full h-2 bg-slate-200/80 dark:bg-slate-700 rounded-full overflow-hidden">
-                      <motion.div
-                        className="h-full bg-gradient-to-r from-blue-600 to-violet-600 rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ duration: 0.75, delay: 0.1 + idx * 0.06, ease: [0.16, 1, 0.3, 1] }}
-                      />
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Complete a summary, quiz, or AI tutor session to see live progress across your subjects.
-              </p>
-              <button
-                onClick={() => navigateToMode(AppMode.SUMMARY)}
-                className="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shrink-0 cursor-pointer transition"
-              >
-                Start First Session
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Quick Access Feature Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {dashboardCards.map((card, idx) => (
-            <motion.div
+            <motion.button
               key={card.id}
-              initial={{ opacity: 0, y: 18 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.42,
-                delay: idx * 0.05,
-                ease: [0.16, 1, 0.3, 1],
+              transition={{ 
+                duration: 0.45, 
+                delay: idx * 0.07, 
+                ease: [0.16, 1, 0.3, 1] 
               }}
-            >
-              <TiltCard3D maxTilt={6} className="h-full rounded-2xl">
-                <button
-                  onClick={() => {
-                    if (card.id === AppMode.ID_CARD && !user) {
-                      setShowAuthModal(true);
-                      return;
-                    }
+              whileHover={{ y: -4, transition: { duration: 0.2 } }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => {
+                if (card.id === AppMode.ID_CARD && !user) {
+                  setShowAuthModal(true);
+                  return;
+                }
 
-                    if (card.id === AppMode.NOTES) {
-                      setMode(AppMode.NOTES);
-                    } else if (card.id === AppMode.GROUPS) {
-                      setMode(AppMode.GROUPS);
-                    } else if (card.id === AppMode.ID_CARD) {
-                      setMode(AppMode.ID_CARD);
-                    } else if (card.id === AppMode.NOTIFICATIONS) {
-                      setMode(AppMode.NOTIFICATIONS);
-                    } else {
-                      setDashboardView(card.id as any);
-                    }
-                  }}
-                  className="w-full h-full p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 transition-all hover:shadow-md text-left group bg-white dark:bg-slate-900 shadow-sm relative overflow-hidden cursor-pointer"
+                if (card.id === AppMode.NOTES) {
+                  setMode(AppMode.NOTES);
+                } else if (card.id === AppMode.GROUPS) {
+                  setMode(AppMode.GROUPS);
+                } else if (card.id === AppMode.ID_CARD) {
+                  setMode(AppMode.ID_CARD);
+                } else if (card.id === AppMode.NOTIFICATIONS) {
+                  setMode(AppMode.NOTIFICATIONS);
+                } else {
+                  setDashboardView(card.id as any);
+                }
+              }}
+              className={`p-5 rounded-xl border border-transparent hover:border-amber-200 dark:hover:border-amber-800 transition-all hover:shadow-md text-left group bg-white dark:bg-slate-800 shadow-sm border-slate-100 dark:border-slate-700 relative overflow-hidden`}
+            >
+              <div
+                className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${card.color}`}
+              >
+                <card.icon className="w-16 h-16" />
+              </div>
+              <div className="flex justify-between items-start mb-3 relative z-10">
+                <div
+                  className={`p-2.5 rounded-lg shadow-sm ${card.color} ${card.bg}`}
                 >
-                  <div
-                    className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${card.color}`}
-                  >
-                    <card.icon className="w-16 h-16" />
-                  </div>
-                  <div className="flex justify-between items-start mb-3 relative z-10">
-                    <div
-                      className={`p-2.5 rounded-xl shadow-xs ${card.color} ${card.bg}`}
-                    >
-                      <card.icon className="w-5 h-5" />
-                    </div>
-                    {card.count !== null && (
-                      historyLoadedUid === "none" ? (
-                        <div className="h-6 w-10 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-                      ) : (
-                        <CounterNumber
-                          value={card.count}
-                          className="text-2xl font-extrabold text-slate-900 dark:text-white"
-                        />
-                      )
-                    )}
-                  </div>
-                  <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-1 relative z-10">
-                    {card.label}
-                  </h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-1 relative z-10">
-                    View Details <ChevronRight className="w-3 h-3" />
-                  </p>
-                </button>
-              </TiltCard3D>
-            </motion.div>
+                  <card.icon className="w-5 h-5" />
+                </div>
+                {card.count !== null && (
+                  historyLoadedUid === "none" ? (
+                    <div className="h-6 w-10 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                  ) : (
+                    <span className="text-2xl font-bold text-slate-800 dark:text-white">
+                      {card.count}
+                    </span>
+                  )
+                )}
+              </div>
+              <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10">
+                {card.label}
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1 relative z-10">
+                View Details <ChevronRight className="w-3 h-3" />
+              </p>
+            </motion.button>
           ))}
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-6 animate-in slide-in-from-bottom-6 duration-700">
-          <h3 className="font-bold text-slate-900 dark:text-white mb-4">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
+          <h3 className="font-bold text-slate-800 dark:text-white mb-4">
             Quick Actions
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <button
               onClick={() => navigateToMode(AppMode.SUMMARY)}
-              className="p-4 bg-slate-50/70 dark:bg-slate-800/50 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl text-sm font-semibold transition-all text-slate-700 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-200/70 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer"
+              className="p-4 bg-white dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900"
             >
-              <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <FileText className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               New Summary
             </button>
             <button
               onClick={() => navigateToMode(AppMode.HOMEWORK)}
-              className="p-4 bg-slate-50/70 dark:bg-slate-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-semibold transition-all text-slate-700 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-200/70 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 cursor-pointer"
+              className="p-4 bg-white dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900"
             >
               <BookOpen className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
               Homework Solver
             </button>
             <button
               onClick={() => navigateToMode(AppMode.QUIZ)}
-              className="p-4 bg-slate-50/70 dark:bg-slate-800/50 hover:bg-violet-50 dark:hover:bg-violet-950/30 hover:text-violet-700 dark:hover:text-violet-400 rounded-xl text-sm font-semibold transition-all text-slate-700 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-200/70 dark:border-slate-700 hover:border-violet-300 dark:hover:border-violet-700 cursor-pointer"
+              className="p-4 bg-white dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900"
             >
-              <BrainCircuit className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+              <BrainCircuit className="w-6 h-6 text-amber-600 dark:text-amber-400" />
               New Quiz
             </button>
             <button
               onClick={() => navigateToMode(AppMode.TUTOR)}
-              className="p-4 bg-slate-50/70 dark:bg-slate-800/50 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 hover:text-indigo-700 dark:hover:text-indigo-400 rounded-xl text-sm font-semibold transition-all text-slate-700 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-200/70 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 cursor-pointer"
+              className="p-4 bg-white dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900"
             >
-              <MessageCircle className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+              <MessageCircle className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               Ask Tutor
             </button>
           </div>
@@ -3506,13 +3195,13 @@ const App: React.FC = () => {
 
         {/* Recent Study History */}
         {history.length > 0 && (
-          <div className="mt-6 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-6 animate-in slide-in-from-bottom-6 duration-700">
+          <div className="mt-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <Clock className="w-5 h-5 text-amber-500" />
                 Recent Study History
               </h3>
-              <span className="text-xs text-slate-500 font-semibold font-mono bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md tabular-nums">
+              <span className="text-xs text-slate-400 font-medium font-mono bg-slate-150 dark:bg-slate-900 px-2.5 py-1 rounded">
                 {history.length} items
               </span>
             </div>
@@ -3521,28 +3210,28 @@ const App: React.FC = () => {
                 <div
                   key={item.id}
                   onClick={() => loadHistoryItem(item)}
-                  className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-200/70 dark:border-slate-700/80 hover:border-blue-300 dark:hover:border-blue-700 shadow-xs hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
+                  className="bg-slate-50/50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:border-amber-200 dark:hover:border-amber-800 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
                 >
                   <div className="flex items-start gap-3">
                     <div
-                      className="mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400"
+                      className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-50 dark:bg-slate-750 text-primary-600 dark:text-primary-400`}
                     >
                       {item.type === AppMode.QUIZ ? (
-                        <BrainCircuit className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                        <BrainCircuit className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                       ) : item.type === AppMode.SUMMARY ? (
-                        <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <FileText className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                       ) : (item.type === AppMode.HOMEWORK || item.type === AppMode.ESSAY) ? (
                         <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                       ) : (
-                        <MessageCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        <MessageCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       )}
                     </div>
                     <div>
-                      <h4 className="font-semibold text-slate-800 dark:text-white text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      <h4 className="font-semibold text-slate-800 dark:text-white text-sm group-hover:text-amber-700 dark:group-hover:text-amber-405 transition-colors">
                         {item.title}
                       </h4>
                       <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-3 mt-1">
-                        <span className="font-medium bg-slate-200/60 dark:bg-slate-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        <span className="font-medium bg-slate-200/50 dark:bg-slate-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-350">
                           {getSingularName(item.type)}
                         </span>
                         <span className="flex items-center gap-1 text-slate-400">
@@ -3571,7 +3260,7 @@ const App: React.FC = () => {
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-                    <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-xs opacity-60 group-hover:opacity-100 group-hover:text-blue-600 transition-all">
+                    <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center border border-slate-100 dark:border-slate-700 shadow-sm opacity-60 group-hover:opacity-100 group-hover:text-amber-600 transition-all">
                       <ChevronRight className="w-4 h-4" />
                     </div>
                   </div>
@@ -4328,8 +4017,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <MotionConfig reducedMotion={uiAnimationsEnabled ? "user" : "always"}>
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 app-custom-bg font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div className="min-h-screen app-custom-bg font-sans selection:bg-primary-100 selection:text-primary-900 flex text-slate-900 dark:text-slate-100 transition-colors duration-300">
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm"
@@ -4426,26 +4114,19 @@ const App: React.FC = () => {
                     }
                   }}
                   title={!isExpanded ? item.label : undefined}
-                  className={`relative w-full flex items-center ${isExpanded ? "gap-3 px-3" : "justify-center px-2"} py-2.5 rounded-xl transition-all duration-200 group text-sm cursor-pointer ${
+                  className={`w-full flex items-center ${isExpanded ? "gap-3 px-3" : "justify-center px-2"} py-2.5 rounded-lg transition-all duration-200 group text-sm ${
                     isActive
-                      ? "text-primary-700 dark:text-primary-400 font-semibold"
+                      ? "bg-primary-50 dark:bg-slate-800 text-primary-700 dark:text-primary-400 font-semibold shadow-sm"
                       : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
-                  {isActive && (
-                    <motion.div
-                      layoutId="sidebarActiveNav"
-                      transition={{ type: "spring", stiffness: 360, damping: 30 }}
-                      className="absolute inset-0 rounded-xl bg-primary-50/90 dark:bg-slate-800 border border-primary-200/70 dark:border-slate-700 shadow-xs"
-                    />
-                  )}
                   <Icon
-                    className={`w-4 h-4 flex-shrink-0 relative z-10 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
+                    className={`w-4 h-4 flex-shrink-0 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
                   />
-                  {isExpanded && <span className="truncate relative z-10">{item.label}</span>}
+                  {isExpanded && <span className="truncate">{item.label}</span>}
                   {isExpanded && !user &&
                     item.id !== AppMode.DASHBOARD && (
-                      <div className="ml-auto flex-shrink-0 relative z-10">
+                      <div className="ml-auto flex-shrink-0">
                         <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
                       </div>
                     )}
@@ -5154,13 +4835,7 @@ const App: React.FC = () => {
           }}
         />
       )}
-      <DashboardRevealTransition
-        active={showDashboardReveal}
-        studentName={userProfile.displayName}
-        onComplete={() => setShowDashboardReveal(false)}
-      />
     </div>
-    </MotionConfig>
   );
 };
 

@@ -1540,18 +1540,14 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
           {messages.map((msg) => {
             const isStarred = starredTimestamps.includes(msg.timestamp);
-            const isUser = msg.role === 'user';
             return (
-              <motion.div
+              <div
                 key={msg.id}
-                initial={{ opacity: 0, x: isUser ? 20 : 0, y: isUser ? 0 : 14 }}
-                animate={{ opacity: 1, x: 0, y: 0 }}
-                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className={`flex gap-4 relative group ${isUser ? 'justify-end' : 'justify-start'}`}
+                className={`flex gap-4 relative group ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {/* AI Avatar */}
                 {msg.role === 'model' && (
-                  <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm flex items-center justify-center bg-white dark:bg-slate-900">
+                  <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm flex items-center justify-center">
                     <Logo className="w-full h-full" iconOnly noBorder />
                   </div>
                 )}
@@ -1579,7 +1575,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                         isEnlarged ? 'text-[17px] sm:text-[18px] leading-relaxed p-6' : 'text-[15px] leading-relaxed'
                       } ${
                         msg.role === 'user'
-                          ? 'bg-gradient-to-br from-blue-600 to-violet-600 border-blue-600 text-white rounded-tr-none shadow-blue-600/15'
+                          ? 'bg-primary-600 border-primary-600 text-white rounded-tr-none'
                           : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800/80 text-slate-800 dark:text-slate-100 rounded-tl-none'
                       }`}
                     >
@@ -1601,22 +1597,12 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
                       {/* Content rendering */}
                       {msg.role === 'model' ? (
-                        msg.isStreaming && !msg.text ? (
-                          <div className="space-y-2.5 min-w-[220px] py-1">
-                            <div className="h-3.5 w-48 rounded-md bg-slate-200/80 dark:bg-slate-800 shimmer-surface" />
-                            <div className="h-3.5 w-64 rounded-md bg-slate-200/70 dark:bg-slate-800 shimmer-surface" />
-                            <div className="h-3.5 w-40 rounded-md bg-slate-200/60 dark:bg-slate-800 shimmer-surface" />
-                          </div>
-                        ) : (
-                          <div className="markdown-body [&_pre]:animate-fade-in-up [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-slate-200/70 dark:[&_pre]:border-slate-700/70 [&_pre]:shadow-xs">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
-                            {msg.isStreaming && (
-                              <span className="inline-flex items-center gap-1 ml-1 align-middle">
-                                <span className="inline-block w-1.5 h-4 bg-blue-600 dark:bg-blue-400 animate-pulse rounded-full" />
-                              </span>
-                            )}
-                          </div>
-                        )
+                        <div className="markdown-body">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                          {msg.isStreaming && (
+                            <span className="inline-block w-1.5 h-4 bg-primary-500 animate-pulse ml-0.5 rounded-full" />
+                          )}
+                        </div>
                       ) : (
                         <p className="whitespace-pre-wrap">{msg.text}</p>
                       )}
@@ -1648,38 +1634,13 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                             >
                               {speakingMessageId === msg.id ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                             </button>
-                            <motion.button
-                              whileTap={{ scale: 0.88 }}
+                            <button
                               onClick={() => handleCopyMessage(msg.id, msg.text)}
-                              className={`p-1.5 rounded-lg transition-colors ${copiedId === msg.id ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850'}`}
-                              title={copiedId === msg.id ? "Copied!" : "Copy response"}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850 transition-colors"
+                              title="Copy response"
                             >
-                              <AnimatePresence mode="wait">
-                                {copiedId === msg.id ? (
-                                  <motion.span
-                                    key="copied"
-                                    initial={{ scale: 0.5, rotate: -20 }}
-                                    animate={{ scale: 1, rotate: 0 }}
-                                    exit={{ scale: 0.5, opacity: 0 }}
-                                    transition={{ duration: 0.16 }}
-                                    className="inline-flex"
-                                  >
-                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                  </motion.span>
-                                ) : (
-                                  <motion.span
-                                    key="copy"
-                                    initial={{ scale: 0.8, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    exit={{ scale: 0.6, opacity: 0 }}
-                                    transition={{ duration: 0.14 }}
-                                    className="inline-flex"
-                                  >
-                                    <Copy className="w-3.5 h-3.5" />
-                                  </motion.span>
-                                )}
-                              </AnimatePresence>
-                            </motion.button>
+                              {copiedId === msg.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
                             <button
                               onClick={() => handleReadAloud(msg.id, msg.text)}
                               className={`p-1.5 rounded-lg transition-colors ${speakingId === msg.id ? 'text-primary-600 bg-primary-50 dark:bg-primary-950/20 animate-pulse' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850'}`}
@@ -1727,19 +1688,14 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                   {msg.suggestions && msg.suggestions.length > 0 && !msg.isStreaming && (
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {msg.suggestions.map((suggestion, sIdx) => (
-                        <motion.button
+                        <button
                           key={sIdx}
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.24, delay: sIdx * 0.05 }}
-                          whileHover={{ y: -2, scale: 1.02 }}
-                          whileTap={{ scale: 0.96 }}
                           onClick={() => sendMessageToAi(suggestion)}
-                          className="px-3 py-1 bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-xs font-bold text-slate-600 dark:text-slate-300 rounded-full transition shadow-xs flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1 bg-white/60 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/20 text-xs font-bold text-slate-600 dark:text-slate-300 rounded-full transition shadow-xs flex items-center gap-1"
                         >
                           <span>{suggestion}</span>
                           <ArrowUpRight className="w-3 h-3 text-slate-400" />
-                        </motion.button>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -1777,57 +1733,39 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                     <UserIcon className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                   </div>
                 )}
-              </motion.div>
+              </div>
             );
           })}
           
           {/* MULTI-STEP ANIMATED STAGGERED THINKING INDICATOR */}
           {thinkingStep && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.25 }}
-              className="flex gap-4 justify-start items-start"
-            >
-              <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm flex items-center justify-center bg-white dark:bg-slate-900">
+            <div className="flex gap-4 justify-start items-start">
+              <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm flex items-center justify-center">
                 <Logo className="w-full h-full" iconOnly noBorder />
               </div>
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm flex flex-col gap-3 min-w-[270px] shimmer-surface">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                    <span className="text-sm font-black text-slate-800 dark:text-white">SJ Tutor AI</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {[0, 1, 2].map((dot) => (
-                      <motion.span
-                        key={dot}
-                        animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
-                        transition={{ duration: 0.8, repeat: Infinity, delay: dot * 0.14 }}
-                        className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400"
-                      />
-                    ))}
-                  </div>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm flex flex-col gap-3 min-w-[260px] animate-pulse">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 text-primary-500 animate-spin" />
+                  <span className="text-sm font-black text-slate-800 dark:text-white">SJ Tutor AI</span>
                 </div>
                 
                 {/* Thinking steps sequence progress */}
                 <div className="space-y-2 text-xs">
                   <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${thinkingStep === 'thinking' ? 'bg-blue-500 scale-125 animate-ping' : 'bg-emerald-500'}`} />
-                    <span className={`font-black ${thinkingStep === 'thinking' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-450 dark:text-slate-500'}`}>Thinking...</span>
+                    <div className={`w-2 h-2 rounded-full ${thinkingStep === 'thinking' ? 'bg-primary-500 scale-125 animate-ping' : 'bg-emerald-500'}`} />
+                    <span className={`font-black ${thinkingStep === 'thinking' ? 'text-primary-600 dark:text-primary-400' : 'text-slate-450 dark:text-slate-500'}`}>Thinking...</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${thinkingStep === 'analyzing' ? 'bg-blue-500 scale-125 animate-ping' : thinkingStep === 'generating' ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-800'}`} />
-                    <span className={`font-black ${thinkingStep === 'analyzing' ? 'text-blue-600 dark:text-blue-400' : thinkingStep === 'generating' ? 'text-slate-450 dark:text-slate-500' : 'text-slate-300 dark:text-slate-700'}`}>Analyzing your question...</span>
+                    <div className={`w-2 h-2 rounded-full ${thinkingStep === 'analyzing' ? 'bg-primary-500 scale-125 animate-ping' : thinkingStep === 'generating' ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-800'}`} />
+                    <span className={`font-black ${thinkingStep === 'analyzing' ? 'text-primary-600 dark:text-primary-400' : thinkingStep === 'generating' ? 'text-slate-450 dark:text-slate-500' : 'text-slate-300 dark:text-slate-700'}`}>Analyzing your question...</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${thinkingStep === 'generating' ? 'bg-violet-500 scale-125 animate-ping' : 'bg-slate-200 dark:bg-slate-800'}`} />
-                    <span className={`font-black ${thinkingStep === 'generating' ? 'text-violet-600 dark:text-violet-400' : 'text-slate-300 dark:text-slate-700'}`}>Generating the best answer...</span>
+                    <div className={`w-2 h-2 rounded-full ${thinkingStep === 'generating' ? 'bg-primary-500 scale-125 animate-ping' : 'bg-slate-200 dark:bg-slate-800'}`} />
+                    <span className={`font-black ${thinkingStep === 'generating' ? 'text-primary-600 dark:text-primary-400' : 'text-slate-300 dark:text-slate-700'}`}>Generating the best answer...</span>
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Fallback sample questions */}
@@ -1864,18 +1802,13 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl">
                 {sampleQuestions.map((q, idx) => (
-                  <motion.button
+                  <button
                     key={idx}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.28, delay: idx * 0.05 }}
-                    whileHover={{ y: -2, scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
                     onClick={() => sendMessageToAi(q)}
-                    className="text-left text-xs bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800/60 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 hover:shadow-xs transition duration-200 cursor-pointer"
+                    className="text-left text-xs bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800/60 hover:border-primary-400 hover:bg-primary-50/50 dark:hover:bg-primary-950/20 hover:shadow-xs transition duration-200"
                   >
                     {q}
-                  </motion.button>
+                  </button>
                 ))}
               </div>
             </div>
@@ -2026,15 +1959,12 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               </div>
               
               <div className="flex items-center gap-3 mt-1.5">
-                {/* Audio voice equalizer visualizer */}
-                <div className="flex items-end gap-1 h-4 flex-shrink-0">
-                  {[0, 100, 200, 300, 150, 250].map((delayMs, idx) => (
-                    <span
-                      key={idx}
-                      className={`w-1 rounded-full animate-voice-bar ${idx % 2 === 0 ? 'bg-rose-500 h-4' : 'bg-violet-500 h-3'}`}
-                      style={{ animationDelay: `${delayMs}ms` }}
-                    />
-                  ))}
+                {/* Audio voice waves animation */}
+                <div className="flex items-end gap-1 h-3.5 w-10 flex-shrink-0">
+                  <span className="w-1 bg-rose-500 rounded-full animate-pulse h-2"></span>
+                  <span className="w-1 bg-rose-600 rounded-full animate-pulse h-3.5" style={{ animationDelay: '0.1s' }}></span>
+                  <span className="w-1 bg-rose-500 rounded-full animate-pulse h-2.5" style={{ animationDelay: '0.2s' }}></span>
+                  <span className="w-1 bg-rose-400 rounded-full animate-pulse h-1.5" style={{ animationDelay: '0.3s' }}></span>
                 </div>
                 
                 <div className="text-xs text-slate-650 dark:text-slate-405 leading-relaxed font-semibold italic truncate flex-1">
@@ -2098,26 +2028,21 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
             {/* Stop Generation or Send button */}
             {isGeneratingRef.current || thinkingStep !== null ? (
-              <motion.button
-                whileHover={{ scale: 1.06 }}
-                whileTap={{ scale: 0.92 }}
+              <button
                 onClick={handleStopGenerating}
-                className="absolute right-2 p-2 bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 rounded-lg transition-colors flex items-center justify-center cursor-pointer"
+                className="absolute right-2 p-2 bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 rounded-lg transition-colors flex items-center justify-center"
                 title="Stop generation"
               >
                 <StopCircle className="w-5 h-5" />
-              </motion.button>
+              </button>
             ) : (
-              <motion.button
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.92 }}
+              <button
                 onClick={handleSend}
                 disabled={(!input.trim() && attachedFiles.length === 0) || isTyping}
-                className="absolute right-2 p-2 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center cursor-pointer"
-                title="Send message"
+                className="absolute right-2 p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
               >
                 <Send className="w-4 h-4" />
-              </motion.button>
+              </button>
             )}
           </div>
           

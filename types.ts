@@ -206,8 +206,8 @@ export interface UserSettings {
   appearance: {
     theme: 'Light' | 'Dark' | 'System';
     animations: boolean;
-    primaryColor: 'Sapphire' | 'Gold' | 'Blue' | 'Emerald' | 'Violet' | 'Rose';
-    fontFamily: 'Plus Jakarta Sans' | 'Inter' | 'Roboto' | 'Open Sans';
+    primaryColor: 'Gold' | 'Blue' | 'Emerald' | 'Violet' | 'Rose';
+    fontFamily: 'Inter' | 'Roboto' | 'Open Sans';
   };
   privacy: {
     twoFactor: boolean;
@@ -328,8 +328,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   appearance: {
     theme: 'Light',
     animations: true,
-    primaryColor: 'Sapphire',
-    fontFamily: 'Plus Jakarta Sans',
+    primaryColor: 'Gold',
+    fontFamily: 'Inter',
   },
   privacy: {
     twoFactor: false,

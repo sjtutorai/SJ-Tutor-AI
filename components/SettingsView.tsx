@@ -194,10 +194,6 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     }
   };
 
-  // Help Center State
-  const [helpTab, setHelpTab] = useState<'FAQ' | 'TERMS'>('FAQ');
-  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
-
   // Synchronize settings grade with userProfile grade
   useEffect(() => {
     if (userProfile.grade) {
@@ -216,39 +212,11 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
     }
   }, [userProfile.grade]);
 
-  // Keep SettingsView synced when header theme toggle or other components update settings
-  useEffect(() => {
-    const syncFromStorage = () => {
-      const latest = SettingsService.getSettings();
-      setSettings((prev) => ({
-        ...latest,
-        learning: userProfile.grade
-          ? { ...latest.learning, grade: userProfile.grade }
-          : latest.learning,
-        privacy: prev.privacy,
-      }));
-    };
-    window.addEventListener('settings-changed', syncFromStorage);
-    return () => window.removeEventListener('settings-changed', syncFromStorage);
-  }, [userProfile.grade]);
+  // Help Center State
+  const [helpTab, setHelpTab] = useState<'FAQ' | 'TERMS'>('FAQ');
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   const handleSettingChange = (category: keyof UserSettings, field: string, value: any) => {
-    if (category === 'appearance') {
-      setSettings((prev) => {
-        const nextAppearance = {
-          ...prev.appearance,
-          [field]: value,
-        };
-        SettingsService.updateSettings({ appearance: nextAppearance });
-        return {
-          ...prev,
-          appearance: nextAppearance,
-        };
-      });
-      showFeedback('Appearance updated! ✨');
-      return;
-    }
-
     setSettings(prev => ({
       ...prev,
       [category]: {
@@ -1203,33 +1171,10 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
         );
       }
 
-      case 'appearance': {
-        const activeColor = settings.appearance.primaryColor || 'Sapphire';
-        const activeFont = settings.appearance.fontFamily || 'Plus Jakarta Sans';
-        const colorOptions: Array<{ name: UserSettings['appearance']['primaryColor']; color: string }> = [
-          { name: 'Sapphire', color: '#0564E8' },
-          { name: 'Gold', color: '#D4AF37' },
-          { name: 'Blue', color: '#3b82f6' },
-          { name: 'Emerald', color: '#10b981' },
-          { name: 'Violet', color: '#8b5cf6' },
-          { name: 'Rose', color: '#f43f5e' },
-        ];
-        const fontOptions: Array<UserSettings['appearance']['fontFamily']> = [
-          'Plus Jakarta Sans',
-          'Inter',
-          'Roboto',
-          'Open Sans',
-        ];
-
+      case 'appearance':
         return (
            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700 pb-2">
-               <h3 className="text-xl font-bold text-slate-800 dark:text-white">Appearance</h3>
-               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/40 px-3 py-1 rounded-full border border-primary-200 dark:border-primary-800/50">
-                 <CheckCircle2 className="w-3.5 h-3.5" />
-                 Changes apply live
-               </span>
-             </div>
+             <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Appearance</h3>
              
              <div className="space-y-6">
                 {/* Theme Section */}
@@ -1245,15 +1190,14 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                    </div>
                    
                    <div className="grid grid-cols-3 gap-3">
-                      {(['Light', 'Dark', 'System'] as const).map((t) => (
+                      {['Light', 'Dark', 'System'].map((t) => (
                          <button
                            key={t}
-                           type="button"
                            onClick={() => handleSettingChange('appearance', 'theme', t)}
-                           className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all cursor-pointer ${
+                           className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
                              settings.appearance.theme === t
                              ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 ring-1 ring-primary-500'
-                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700'
                            }`}
                          >
                             {t === 'Light' ? (
@@ -1278,26 +1222,26 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                 <div className="grid md:grid-cols-2 gap-6">
                     {/* Brand Color */}
                     <div className="space-y-4 p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2 mb-1">
-                                  <Palette className="w-4 h-4" />
-                                  Accent Color
-                              </label>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">Personalize buttons and highlights.</p>
-                            </div>
-                            <span className="text-xs font-bold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/50 px-2.5 py-1 rounded-lg border border-primary-200/70 dark:border-primary-800/50">
-                              {activeColor}
-                            </span>
+                        <div>
+                            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2 mb-1">
+                                <Palette className="w-4 h-4" />
+                                Accent Color
+                            </label>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Personalize buttons and highlights.</p>
                         </div>
-                        <div className="flex flex-wrap gap-4 pt-1">
-                            {colorOptions.map((color) => (
+                        <div className="flex flex-wrap gap-4">
+                            {[
+                                { name: 'Gold', color: '#D4AF37' },
+                                { name: 'Blue', color: '#3b82f6' },
+                                { name: 'Emerald', color: '#10b981' },
+                                { name: 'Violet', color: '#8b5cf6' },
+                                { name: 'Rose', color: '#f43f5e' },
+                            ].map((color) => (
                                 <button
                                     key={color.name}
-                                    type="button"
                                     onClick={() => handleSettingChange('appearance', 'primaryColor', color.name)}
-                                    className={`relative w-10 h-10 rounded-full transition-all flex items-center justify-center shadow-sm hover:scale-110 cursor-pointer ${
-                                        activeColor === color.name
+                                    className={`relative w-10 h-10 rounded-full transition-all flex items-center justify-center shadow-sm hover:scale-110 ${
+                                        (settings.appearance.primaryColor || 'Gold') === color.name
                                         ? 'ring-2 ring-offset-2 ring-slate-900 dark:ring-white dark:ring-offset-slate-900 scale-110'
                                         : 'hover:ring-2 hover:ring-offset-1 hover:ring-slate-200 dark:hover:ring-slate-700'
                                     }`}
@@ -1305,7 +1249,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                                     title={color.name}
                                     aria-label={`Select ${color.name} color`}
                                 >
-                                    {activeColor === color.name && (
+                                    {(settings.appearance.primaryColor || 'Gold') === color.name && (
                                         <div className="w-3 h-3 bg-white rounded-full shadow-sm"></div>
                                     )}
                                 </button>
@@ -1323,23 +1267,23 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                             <p className="text-xs text-slate-500 dark:text-slate-400">Select the primary font family.</p>
                         </div>
                         <div className="flex flex-col gap-2">
-                            {fontOptions.map((font) => (
+                            {['Inter', 'Roboto', 'Open Sans'].map((font) => (
                                 <label 
                                     key={font}
                                     className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
-                                        activeFont === font
+                                        (settings.appearance.fontFamily || 'Inter') === font
                                         ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10 text-primary-700 dark:text-primary-400'
-                                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                        : 'border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-700'
                                     }`}
                                 >
-                                    <span className="text-sm font-medium" style={{ fontFamily: `'${font}', sans-serif` }}>{font}</span>
+                                    <span className="text-sm font-medium" style={{ fontFamily: font }}>{font}</span>
                                     <input 
                                         type="radio" 
                                         name="fontFamily"
                                         value={font}
-                                        checked={activeFont === font}
+                                        checked={(settings.appearance.fontFamily || 'Inter') === font}
                                         onChange={(e) => handleSettingChange('appearance', 'fontFamily', e.target.value)}
-                                        className="w-4 h-4 accent-primary-600 cursor-pointer"
+                                        className="w-4 h-4 accent-primary-600"
                                     />
                                 </label>
                             ))}
@@ -1371,7 +1315,6 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
              </div>
            </div>
         );
-      }
 
       case 'privacy': {
         const activeUid = props.uid || userProfile.uid || auth.currentUser?.uid;
@@ -2044,7 +1987,7 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
          {(() => {
            const completion = calculateProfileCompletion(userProfile);
            const isProfileComplete = completion >= 100 || !!userProfile.isRegisteredInFirestore || !!userProfile.hasCompletedOnboarding;
-           const isPublicTab = activeTab === 'help' || activeTab === 'account' || activeTab === 'shortcuts' || activeTab === 'appearance';
+           const isPublicTab = activeTab === 'help' || activeTab === 'account' || activeTab === 'shortcuts';
            
            return (
              <>
@@ -2075,25 +2018,23 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
            );
          })()}
 
-         {/* Floating Save Bar (sticky so it stays visible while scrolling) */}
+         {/* Floating Save Bar */}
          {hasChanges && (
-            <div className="sticky bottom-4 mx-auto w-fit mt-6 bg-slate-800 dark:bg-slate-700 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom-4 z-20">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 dark:bg-slate-700 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom-4 z-20">
                <span className="text-sm font-medium">You have unsaved changes</span>
                <div className="flex items-center gap-2">
                  <button 
-                   type="button"
                    onClick={() => {
                      setSettings(SettingsService.getSettings()); // Reset
                      setHasChanges(false);
                    }}
-                   className="text-xs hover:text-slate-300 px-2 cursor-pointer"
+                   className="text-xs hover:text-slate-300 px-2"
                  >
                    Discard
                  </button>
                  <button 
-                   type="button"
                    onClick={saveSettings}
-                   className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                   className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1"
                  >
                    <Save className="w-3 h-3" />
                    Save Changes
@@ -2103,14 +2044,14 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
          )}
 
          {showSaveSuccess && (
-            <div className="sticky bottom-4 mx-auto w-fit mt-6 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 z-20">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 z-20">
                <Activity className="w-4 h-4" />
                <span className="text-sm font-bold">Settings Saved Successfully!</span>
             </div>
          )}
 
          {feedbackMessage && (
-            <div className="sticky bottom-4 mx-auto w-fit mt-6 bg-slate-900 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 z-20 border border-slate-700">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 z-20 border border-slate-700">
                <Check className="w-4 h-4 text-emerald-400" />
                <span className="text-sm font-medium">{feedbackMessage}</span>
             </div>
