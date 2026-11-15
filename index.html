@@ -195,7 +195,7 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Open+Sans:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Open+Sans:wght@400;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <script>
       (function() {
         try {
@@ -222,17 +222,19 @@
     <style>
       /* Default Variables to prevent flash */
       :root {
-        --font-sans: 'Inter';
-        --color-primary-50: #F0F7FF;
-        --color-primary-100: #E0EFFF;
-        --color-primary-200: #BAE0FD;
-        --color-primary-300: #7CC6FB;
-        --color-primary-400: #38A7F6;
-        --color-primary-500: #0564E8;
-        --color-primary-600: #044EC2;
-        --color-primary-700: #033B9B;
-        --color-primary-800: #042D75;
-        --color-primary-900: #061D4C;
+        --font-sans: 'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif;
+        --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+        --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+        --color-primary-50: #EFF6FF;
+        --color-primary-100: #DBEAFE;
+        --color-primary-200: #BFDBFE;
+        --color-primary-300: #93C5FD;
+        --color-primary-400: #60A5FA;
+        --color-primary-500: #2563EB;
+        --color-primary-600: #1D4ED8;
+        --color-primary-700: #1E40AF;
+        --color-primary-800: #1E3A8A;
+        --color-primary-900: #172554;
       }
 
       /* Custom scrollbar for cleaner look */
@@ -244,31 +246,36 @@
         background: transparent;
       }
       ::-webkit-scrollbar-thumb {
-        background: #e2e8f0;
+        background: #cbd5e1;
         border-radius: 10px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #cbd5e1;
+        background: #94a3b8;
       }
       body {
-        background-color: var(--color-primary-50);
-        transition: background-color 0.3s ease, color 0.3s ease;
+        font-family: var(--font-sans);
+        background-color: #F8FAFC;
+        transition: background-color 0.35s ease, color 0.35s ease;
       }
       
       /* Dark Mode Overrides */
       html.dark body {
-        background-color: #111827;
+        background-color: #0F172A;
         color: #f3f4f6;
       }
       .app-custom-bg {
-        background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.94) 0%, rgba(248, 250, 252, 0.97) 100%), url('/sj_tutor_bg.jpg');
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
+        background-color: #F8FAFC;
+        background-image:
+          radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.05) 0px, transparent 48%),
+          radial-gradient(at 100% 0%, rgba(124, 58, 237, 0.05) 0px, transparent 48%),
+          linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%);
       }
       html.dark .app-custom-bg {
-        background-image: linear-gradient(to bottom, rgba(15, 23, 42, 0.88) 0%, rgba(15, 23, 42, 0.96) 100%), url('/sj_tutor_bg.jpg');
+        background-color: #0B1120;
+        background-image:
+          radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.12) 0px, transparent 48%),
+          radial-gradient(at 100% 0%, rgba(124, 58, 237, 0.12) 0px, transparent 48%),
+          linear-gradient(180deg, #0B1120 0%, #0F172A 100%);
       }
       html.dark ::-webkit-scrollbar-thumb {
         background: #374151;

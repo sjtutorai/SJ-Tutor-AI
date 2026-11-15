@@ -6,6 +6,9 @@ import {
   sendPasswordResetEmail,
   updateProfile,
   getAdditionalUserInfo,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
 } from "firebase/auth";
 import {
   doc,
@@ -148,7 +151,8 @@ export async function checkUsernameAvailability(username: string): Promise<{ ava
  */
 export async function handleSocialAuth(
   providerType: "google" | "apple" | "yahoo" | "github",
-  mode: "signin" | "signup"
+  mode: "signin" | "signup",
+  rememberMe = true
 ): Promise<AuthResult> {
   const provider =
     providerType === "google"
@@ -160,6 +164,14 @@ export async function handleSocialAuth(
       : githubProvider;
 
   try {
+    try {
+      await setPersistence(
+        auth,
+        rememberMe ? browserLocalPersistence : browserSessionPersistence
+      );
+    } catch (persistErr) {
+      console.warn("Firebase persistence setup notice:", persistErr);
+    }
     const userCred = await signInWithPopup(auth, provider);
     const currentUser = userCred.user;
     const additionalInfo = getAdditionalUserInfo(userCred);
@@ -341,10 +353,22 @@ export async function initEmailSignUp(
 /**
  * Handle Email + Password Login
  */
-export async function loginWithEmail(email: string, password: string): Promise<AuthResult> {
+export async function loginWithEmail(
+  email: string,
+  password: string,
+  rememberMe = true
+): Promise<AuthResult> {
   const normalizedEmail = email.trim().toLowerCase();
 
   try {
+    try {
+      await setPersistence(
+        auth,
+        rememberMe ? browserLocalPersistence : browserSessionPersistence
+      );
+    } catch (persistErr) {
+      console.warn("Firebase persistence setup notice:", persistErr);
+    }
     const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
     const user = cred.user;
 

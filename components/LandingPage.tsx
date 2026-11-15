@@ -18,7 +18,6 @@ import {
   Check,
   Zap,
   Quote,
-  Flame,
   Cpu,
   Mail,
   Phone,
@@ -35,6 +34,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import Logo from './Logo';
 import { getDeviceRegisteredUser } from '../utils/registrationDetection';
 import { AccountDetectorWidget } from './auth/AccountDetectorWidget';
+import aiNeuralOrbImg from '../src/assets/images/ai_neural_orb_1794732977576.jpg';
+import aiStudyCosmosImg from '../src/assets/images/ai_study_cosmos_1794732977694.jpg';
 
 interface LandingPageProps {
   onGetStarted: (mode?: 'signin' | 'signup', prefilledIdentifier?: string) => void;
@@ -65,9 +66,24 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
     return () => window.removeEventListener('sjtutor_registration_detected', handleDetection);
   }, []);
 
-  // Canvas Animation Reference
+  // Canvas Animation Reference & 3D Hero Tilt
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [heroTilt, setHeroTilt] = useState({ rotateX: 0, rotateY: 0 });
+
+  const handleHeroMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    setHeroTilt({
+      rotateX: Number((-py * 10).toFixed(2)),
+      rotateY: Number((px * 12).toFixed(2)),
+    });
+  };
+
+  const handleHeroMouseLeave = () => {
+    setHeroTilt({ rotateX: 0, rotateY: 0 });
+  };
 
   // Custom demo state
   const [demoPrompt, setDemoPrompt] = useState<'quad' | 'photo' | 'code'>('quad');
@@ -352,45 +368,43 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
         <div className="absolute inset-0 bg-slate-950/75 pointer-events-none" />
       </div>
 
-      {/* Floating Header Navigation Bar */}
-      <nav className="sticky top-0 z-50 bg-[#020617]/40 backdrop-blur-xl border-b border-[#0F172A]/80 shadow-2xl">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Logo className="w-10 h-10" iconOnly />
-            <div className="flex flex-col">
-              <span className="font-extrabold text-lg tracking-tight text-white flex items-center gap-1.5">
-                SJ Tutor <span className="text-blue-500 font-black">AI</span>
+      {/* Floating Header Navigation Bar (3-zone layout) */}
+      <nav className="sticky top-0 z-50 bg-[#020617]/75 backdrop-blur-xl border-b border-white/10 shadow-2xl">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 shrink-0">
+            <Logo className="w-9 h-9" iconOnly />
+            <div className="flex flex-col leading-none">
+              <span className="font-extrabold text-lg tracking-tight text-white flex items-center gap-1 whitespace-nowrap">
+                SJ Tutor <span className="text-blue-400 font-black">AI</span>
               </span>
-              <span className="text-[9px] uppercase tracking-[0.25em] font-bold text-cyan-400">PERSONALIZED LEARNING</span>
+              <span className="text-[9px] uppercase tracking-[0.22em] font-bold text-violet-300/80 whitespace-nowrap mt-0.5">
+                Personalized Learning
+              </span>
             </div>
           </div>
 
-          {/* Links */}
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
-            <a href="#features" className="hover:text-blue-400 transition-colors">Why Choose Us</a>
-            <a href="#how" className="hover:text-blue-400 transition-colors">How It Works</a>
-            <a href="#demo" className="hover:text-blue-400 transition-colors">Simulator Demo</a>
-            <a href="#subjects" className="hover:text-blue-400 transition-colors">Subjects</a>
-            <a href="#about" className="hover:text-blue-400 transition-colors">About Us</a>
-            <a href="#pricing" className="hover:text-blue-400 transition-colors">Pricing Plans</a>
+          {/* Nav Links */}
+          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
+            <a href="#features" className="hover:text-blue-400 transition-colors whitespace-nowrap shrink-0">Why Choose Us</a>
+            <a href="#how" className="hover:text-blue-400 transition-colors whitespace-nowrap shrink-0">How It Works</a>
+            <a href="#demo" className="hover:text-blue-400 transition-colors whitespace-nowrap shrink-0">Simulator Demo</a>
+            <a href="#subjects" className="hover:text-blue-400 transition-colors whitespace-nowrap shrink-0">Subjects</a>
+            <a href="#about" className="hover:text-blue-400 transition-colors whitespace-nowrap shrink-0">About Us</a>
+            <a href="#pricing" className="hover:text-blue-400 transition-colors whitespace-nowrap shrink-0">Pricing</a>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             {deviceUser.hasRegistered ? (
               <>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="truncate max-w-[120px]">{deviceUser.name || deviceUser.email || 'Registered'}</span>
-                </span>
                 <button
                   onClick={() => onGetStarted('signup')}
-                  className="text-slate-400 hover:text-white transition-colors font-bold text-xs px-2 py-2"
+                  className="text-slate-300 hover:text-white transition-colors font-semibold text-xs px-2.5 py-2 whitespace-nowrap cursor-pointer"
                 >
                   Register
                 </button>
-                <button 
+                <button
                   onClick={() => onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId)}
-                  className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/20 border border-emerald-500/30 transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/25 border border-blue-400/30 transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
                 >
                   <span>Log In</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -398,21 +412,17 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
               </>
             ) : (
               <>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20">
-                  <UserPlus className="w-3.5 h-3.5 text-blue-400" />
-                  <span>New Student</span>
-                </span>
                 <button
                   onClick={() => onGetStarted('signin')}
-                  className="text-slate-300 hover:text-white transition-colors font-bold text-xs px-2 py-2"
+                  className="text-slate-300 hover:text-white transition-colors font-semibold text-xs px-2.5 py-2 whitespace-nowrap cursor-pointer"
                 >
                   Log In
                 </button>
-                <button 
+                <button
                   onClick={() => onGetStarted('signup')}
-                  className="px-5 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/20 border border-blue-500/30 transition-all hover:scale-105 active:scale-95"
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/25 border border-blue-400/30 transition-all hover:scale-105 active:scale-95 whitespace-nowrap cursor-pointer"
                 >
-                  Register Now
+                  Get Started
                 </button>
               </>
             )}
@@ -423,26 +433,58 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
       <div className="relative z-10">
 
         {/* HERO SECTION */}
-        <section className="max-w-7xl mx-auto px-6 pt-16 pb-24 lg:pt-28 lg:pb-32 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <section className="max-w-7xl mx-auto px-6 pt-16 pb-24 lg:pt-24 lg:pb-32 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           
-          {/* Left Side Content */}
+          {/* Left Side Content with Animated Typography */}
           <div className="lg:col-span-6 space-y-7 text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-950 to-purple-950 border border-blue-500/30 rounded-full text-blue-400 text-xs font-bold uppercase tracking-wider shadow-inner">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-              <span>🚀 Personalised AI Tutor for Students</span>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45 }}
+              className="text-xs font-extrabold uppercase tracking-[0.22em] text-cyan-300 flex items-center gap-2"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+              <span>AI-Powered Adaptive Education Platform</span>
+            </motion.div>
 
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight tracking-tight">
-              Personalised <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400">
+            <h1
+              className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.08] tracking-tight"
+              style={{ textWrap: 'balance' }}
+            >
+              <motion.span
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.08 }}
+                className="block"
+              >
+                Personalised
+              </motion.span>
+              <motion.span
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.55, delay: 0.18 }}
+                className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-violet-400 to-cyan-300"
+              >
                 AI Tutor for Students,
-              </span> <br />
-              Available 24/7
+              </motion.span>
+              <motion.span
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.55, delay: 0.28 }}
+                className="block"
+              >
+                Available 24/7
+              </motion.span>
             </h1>
 
-            <p className="text-slate-300 md:text-lg max-w-xl leading-relaxed">
-              SJ Tutor AI is the ultimate personalised AI tutor for students. Master any curriculum with interactive 1-on-1 tutoring, scan-to-solve homework help, instant revision notes, and adaptive practice quizzes.
-            </p>
+            <motion.p
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: 0.36 }}
+              className="text-slate-300 md:text-lg max-w-xl leading-relaxed"
+            >
+              SJ Tutor AI transforms complex textbooks into clear interactive mastery. Experience 1-on-1 AI tutoring, visual step-by-step problem solving, custom summaries, and adaptive practice quizzes.
+            </motion.p>
 
             {/* Smart Registration Detection Banner */}
             {deviceUser.hasRegistered ? (
@@ -452,46 +494,40 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
                     <UserCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                      Detection: Registered User
-                    </span>
-                    <p className="text-sm font-bold text-white mt-1">
+                    <p className="text-sm font-bold text-white">
                       Welcome back{deviceUser.name ? `, ${deviceUser.name}` : ''}!
                     </p>
-                    <p className="text-xs text-slate-300">
-                      Based on your device records, please <strong>Log In</strong> to continue your studies.
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      Your account is recognized on this device. Sign in to resume your study streak.
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId)}
-                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center gap-1.5 shrink-0 hover:scale-105"
+                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center gap-1.5 shrink-0 hover:scale-105 cursor-pointer"
                 >
                   <span>Log In Now</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             ) : (
-              <div className="p-4 rounded-2xl bg-blue-950/50 border border-blue-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl backdrop-blur-md">
+              <div className="p-4 rounded-2xl bg-blue-950/45 border border-blue-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl backdrop-blur-md">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/30">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center shrink-0 border border-blue-500/30">
                     <UserPlus className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">
-                      Detection: New Student
-                    </span>
-                    <p className="text-sm font-bold text-white mt-1">
-                      No account detected on this device
+                    <p className="text-sm font-bold text-white">
+                      Ready to start your study workspace?
                     </p>
-                    <p className="text-xs text-slate-300">
-                      Based on this, please <strong>Register (Sign Up)</strong> to get your personalized student ID.
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      Register free to receive your SJ Tutor AI ID, streak tracker, and credits.
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => onGetStarted('signup')}
-                  className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 text-white font-black rounded-xl text-xs shadow-lg shadow-blue-500/25 transition-all flex items-center gap-1.5 shrink-0 hover:scale-105"
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-400 hover:to-violet-500 text-white font-black rounded-xl text-xs shadow-lg shadow-blue-500/25 transition-all flex items-center gap-1.5 shrink-0 hover:scale-105 cursor-pointer"
                 >
                   <span>Register Free</span>
                   <ArrowRight className="w-4 h-4" />
@@ -502,34 +538,34 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
             <div className="flex flex-col sm:flex-row gap-4">
               {deviceUser.hasRegistered ? (
                 <>
-                  <button 
+                  <button
                     onClick={() => onGetStarted('signin', deviceUser.email || deviceUser.sjTutorId)}
-                    className="px-8 py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white rounded-2xl font-bold text-base shadow-2xl shadow-emerald-500/30 border border-emerald-400/40 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 group"
+                    className="px-8 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-2xl font-bold text-base shadow-[0_12px_40px_rgba(37,99,235,0.4)] border border-blue-400/40 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 group cursor-pointer"
                   >
                     <span>Log In to Continue</span>
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => onGetStarted('signup')}
-                    className="px-8 py-4 bg-slate-900/40 hover:bg-slate-900/80 text-slate-300 hover:text-white rounded-2xl font-bold text-base border border-slate-700/60 transition-all hover:-translate-y-1 flex items-center justify-center gap-2"
+                    className="px-8 py-4 bg-slate-900/50 hover:bg-slate-900/80 text-slate-200 hover:text-white rounded-2xl font-bold text-base border border-slate-700/60 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <span>Register New Account</span>
                   </button>
                 </>
               ) : (
                 <>
-                  <button 
+                  <button
                     onClick={() => onGetStarted('signup')}
-                    className="px-8 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-505 hover:to-purple-500 text-white rounded-2xl font-bold text-base shadow-2xl shadow-blue-500/30 border border-blue-400/40 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 group"
+                    className="px-8 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 text-white rounded-2xl font-bold text-base shadow-[0_12px_40px_rgba(37,99,235,0.4)] border border-blue-400/40 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 group cursor-pointer"
                   >
-                    <span>Start Learning Free (Register)</span>
+                    <span>Start Learning Free</span>
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => onGetStarted('signin')}
-                    className="px-8 py-4 bg-slate-900/40 hover:bg-slate-900/80 text-white rounded-2xl font-bold text-base border border-slate-700/60 transition-all hover:-translate-y-1 flex items-center justify-center gap-2"
+                    className="px-8 py-4 bg-slate-900/50 hover:bg-slate-900/80 text-white rounded-2xl font-bold text-base border border-slate-700/60 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <span>Already Registered? Log In</span>
+                    <span>Log In</span>
                   </button>
                 </>
               )}
@@ -546,137 +582,146 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
             {/* Trust Indicators */}
             <div className="pt-6 border-t border-slate-800/85 grid grid-cols-3 gap-4">
               <div className="space-y-1">
-                <div className="flex text-amber-400 gap-0.5">
-                  {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />)}
+                <div className="flex text-blue-400 gap-0.5">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-blue-400 text-blue-400" />
+                  ))}
                 </div>
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Rated by Students</p>
               </div>
               <div>
-                <p className="text-xl font-bold text-white tracking-tight">10,000+</p>
+                <p className="text-xl font-bold text-white tracking-tight font-mono tabular-nums">10,000+</p>
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Active Learners</p>
               </div>
               <div>
-                <p className="text-xl font-bold text-white tracking-tight">95%</p>
+                <p className="text-xl font-bold text-white tracking-tight font-mono tabular-nums">95%</p>
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Success Rate</p>
               </div>
             </div>
           </div>
 
-          {/* Right Side: High-End Dashboard Mockup with Glassmorphism */}
-          <div className="lg:col-span-6 relative">
-            
-            {/* Absolute colorful ambient backing glows */}
-            <div className="absolute -top-12 -left-12 w-72 h-72 bg-blue-600/20 rounded-full blur-[100px] pointer-events-none" />
-            <div className="absolute -bottom-12 -right-12 w-72 h-72 bg-purple-600/25 rounded-full blur-[100px] pointer-events-none" />
+          {/* Right Side: Cinematic 3D Perspective Showcase with Glowing Neural Orb Illustration */}
+          <div
+            className="lg:col-span-6 relative perspective-1200"
+            onMouseMove={handleHeroMouseMove}
+            onMouseLeave={handleHeroMouseLeave}
+          >
+            {/* Ambient Electric Blue & Purple Glows */}
+            <div className="absolute -top-12 -left-12 w-72 h-72 bg-blue-600/25 rounded-full blur-[110px] pointer-events-none" />
+            <div className="absolute -bottom-12 -right-12 w-72 h-72 bg-violet-600/30 rounded-full blur-[110px] pointer-events-none" />
 
-            <div className="relative bg-[#0F172A]/70 backdrop-blur-xl border border-slate-700/50 rounded-3xl overflow-hidden shadow-2xl p-6 hover:border-slate-600/60 transition-all duration-500 group">
-              
-              {/* Fake Menu Topbar */}
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-rose-500" />
-                  <div className="w-3 h-3 rounded-full bg-amber-500" />
-                  <div className="w-3 h-3 rounded-full bg-emerald-500" />
+            <motion.div
+              initial={{ opacity: 0, rotateX: 8, rotateY: -10, scale: 0.94 }}
+              animate={{ opacity: 1, rotateX: heroTilt.rotateX, rotateY: heroTilt.rotateY, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 120, damping: 18 }}
+              className="relative bg-[#091128]/80 backdrop-blur-2xl border border-blue-400/25 rounded-3xl overflow-hidden shadow-[0_28px_90px_-15px_rgba(37,99,235,0.45)] p-6 preserve-3d group"
+            >
+              {/* Glowing Holographic Neural Orb Header Banner */}
+              <div className="relative h-44 sm:h-52 rounded-2xl overflow-hidden border border-white/10 mb-5 bg-slate-950">
+                <img
+                  src={aiNeuralOrbImg}
+                  alt="SJ Tutor AI glowing holographic neural orb"
+                  className="w-full h-full object-cover object-center scale-105 group-hover:scale-110 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#091128] via-[#091128]/35 to-transparent" />
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-28 h-28 rounded-full border border-cyan-400/30 animate-perspective-orbit" />
                 </div>
-                <div className="text-xs text-slate-400 font-bold tracking-widest bg-slate-900 border border-slate-800 px-3 py-1 rounded-full flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  STUDENT PORTAL DEMO
+                <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">
+                      Neural Study Engine
+                    </span>
+                    <p className="text-base sm:text-lg font-extrabold text-white">
+                      Interactive Student Workspace
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-blue-200 bg-slate-950/80 border border-blue-400/30 px-2.5 py-1 rounded-lg backdrop-blur-md">
+                    <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Adaptive AI</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Grid content inside mockup */}
+              {/* Grid content inside showcase */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {/* Subject Cards Overview Item */}
-                <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-2xl space-y-3 shadow-inner">
+                <div className="bg-slate-950/75 border border-white/10 p-4 rounded-2xl space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-400">REVISIONS</span>
-                    <span className="text-[10px] text-green-400 font-black bg-green-950 border border-green-800/40 px-1.5 py-0.5 rounded-full">+4% Streak</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Active Courses
+                    </span>
+                    <span className="text-[11px] text-emerald-400 font-bold">On Track</span>
                   </div>
-                  <div className="flex items-center gap-3 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/60 transition-transform hover:translate-x-1">
-                    <div className="w-9 h-9 bg-blue-950 rounded-lg flex items-center justify-center border border-blue-800/20">
+                  <div className="flex items-center gap-3 bg-slate-900/80 p-2.5 rounded-xl border border-white/5 transition-transform hover:translate-x-1">
+                    <div className="w-9 h-9 bg-blue-500/15 rounded-lg flex items-center justify-center border border-blue-400/25">
                       <GraduationCap className="w-5 h-5 text-blue-400" />
                     </div>
-                    <div className="text-left leading-none">
+                    <div className="text-left leading-tight">
                       <p className="text-sm font-bold text-white">AP Calculus</p>
-                      <span className="text-[9px] text-slate-400">Chapters 1-7 Summary</span>
+                      <span className="text-[10px] text-slate-400">Chapters 1-7 Summary</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/60 transition-transform hover:translate-x-1">
-                    <div className="w-9 h-9 bg-violet-900/30 rounded-lg flex items-center justify-center border border-violet-800/20">
+                  <div className="flex items-center gap-3 bg-slate-900/80 p-2.5 rounded-xl border border-white/5 transition-transform hover:translate-x-1">
+                    <div className="w-9 h-9 bg-violet-500/15 rounded-lg flex items-center justify-center border border-violet-400/25">
                       <Atom className="w-5 h-5 text-violet-400" />
                     </div>
-                    <div className="text-left leading-none">
-                      <p className="text-sm font-bold text-violet-300">Physics 101</p>
-                      <span className="text-[9px] text-slate-400">Electromagnetic Notes</span>
+                    <div className="text-left leading-tight">
+                      <p className="text-sm font-bold text-violet-200">Physics 101</p>
+                      <span className="text-[10px] text-slate-400">Electromagnetic Notes</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Progress Graph card item */}
-                <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between shadow-inner">
+                <div className="bg-slate-950/75 border border-white/10 p-4 rounded-2xl flex flex-col justify-between">
                   <div className="flex justify-between items-center mb-2">
                     <div className="text-left">
-                      <span className="text-[10px] text-slate-400 font-bold block uppercase">Weekly Progress</span>
-                      <p className="text-lg font-black text-white">92.4% Mastery</p>
+                      <span className="text-[10px] text-slate-400 font-bold block uppercase">
+                        Weekly Mastery
+                      </span>
+                      <p className="text-lg font-black text-white font-mono tabular-nums">92.4%</p>
                     </div>
-                    <TrendingUp className="w-5 h-5 text-emerald-400" />
+                    <TrendingUp className="w-5 h-5 text-cyan-400" />
                   </div>
-                  
-                  {/* Custom SVG line progress chart */}
+
                   <div className="w-full h-16 relative">
                     <svg className="w-full h-full" viewBox="0 0 100 40">
                       <defs>
                         <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#2563EB" stopOpacity="0.4" />
-                          <stop offset="100%" stopColor="#2563EB" stopOpacity="0" />
+                          <stop offset="0%" stopColor="#2563EB" stopOpacity="0.45" />
+                          <stop offset="100%" stopColor="#7C3AED" stopOpacity="0" />
                         </linearGradient>
                       </defs>
-                      <path d="M0 35 C15 30 20 10 40 22 C60 30 75 5 100 12 L100 40 L0 40 Z" fill="url(#chartGrad)" />
-                      <path d="M0 35 C15 30 20 10 40 22 C60 30 75 5 100 12" fill="none" stroke="#00d2ff" strokeWidth="2" strokeDasharray="300" className="animate-[growLines_3s_ease-out_infinite]" />
-                      <circle cx="100" cy="12" r="3" fill="#ffffff" className="animate-ping" />
+                      <path
+                        d="M0 35 C15 30 20 10 40 22 C60 30 75 5 100 12 L100 40 L0 40 Z"
+                        fill="url(#chartGrad)"
+                      />
+                      <path
+                        d="M0 35 C15 30 20 10 40 22 C60 30 75 5 100 12"
+                        fill="none"
+                        stroke="#38BDF8"
+                        strokeWidth="2.2"
+                        strokeDasharray="300"
+                        className="animate-[growLines_3.5s_ease-out_infinite]"
+                      />
+                      <circle cx="100" cy="12" r="3" fill="#38BDF8" />
                     </svg>
                   </div>
                 </div>
 
-                {/* Floating Glass AI Insights */}
-                <div className="md:col-span-2 bg-[#0F172A]/90 border border-slate-800 p-4 rounded-2xl text-left space-y-3 relative overflow-hidden shadow-xl">
-                  <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold">
-                    <Sparkles className="w-4 h-4 animate-spin-slow" />
-                    <span>AI COMPANION RECOMMENDATIONS</span>
+                {/* AI Study Guidance */}
+                <div className="md:col-span-2 bg-[#0F172A]/90 border border-white/10 p-4 rounded-2xl text-left space-y-2 relative overflow-hidden">
+                  <div className="flex items-center gap-2 text-cyan-300 text-xs font-bold">
+                    <Sparkles className="w-4 h-4" />
+                    <span>Adaptive Study Recommendation</span>
                   </div>
-                  <p className="text-xs text-slate-300">
-                    &quot;Based on your Quiz scores on Quadratic Equations, we recommend focusing on <strong className="text-blue-400 font-black">Factoring Methods</strong> to complete your perfect math credentials.&quot;
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Based on your recent quadratic equation practice, focusing on{' '}
+                    <strong className="text-blue-300 font-bold">Factoring Methods</strong> will raise topic fluency above 95%.
                   </p>
-                  <div className="flex gap-2">
-                    <span className="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-full text-[10px] text-slate-300">#MathChallenge</span>
-                    <span className="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-full text-[10px] text-slate-300">#QuadraticRoots</span>
-                  </div>
                 </div>
               </div>
-
-              {/* Floating micro items overlapping edge for premium layout */}
-              <div className="absolute -bottom-4 -left-6 bg-slate-900/90 backdrop-blur-md border border-slate-800 p-3 rounded-xl shadow-2xl flex items-center gap-2 transform -rotate-2 hover:rotate-0 transition-transform hidden sm:flex">
-                <div className="w-7 h-7 bg-purple-950 rounded-lg flex items-center justify-center border border-purple-800/40">
-                  <Flame className="w-4 h-4 text-purple-400" />
-                </div>
-                <div className="text-left leading-none">
-                  <p className="text-xs font-bold text-white">Daily Streak Activator</p>
-                  <span className="text-[9px] text-slate-400">Score logged now</span>
-                </div>
-              </div>
-
-              <div className="absolute -top-6 -right-6 bg-slate-900/95 backdrop-blur-md border border-[#00d4ff]/30 p-3.5 rounded-xl shadow-2xl flex items-center gap-2 transform rotate-3 hover:translate-y-1 transition-all hidden sm:flex">
-                <div className="w-8 h-8 rounded-full bg-cyan-950 flex items-center justify-center">
-                  <CorrectGoogleLogo className="w-4 h-4" />
-                </div>
-                <div className="text-left text-xs leading-none">
-                  <p className="font-bold text-white">Perfect Identity</p>
-                  <span className="text-[8px] text-cyan-400 uppercase tracking-widest font-bold">Official Integration</span>
-                </div>
-              </div>
-
-            </div>
+            </motion.div>
           </div>
         </section>
 
@@ -819,6 +864,49 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
           </div>
         </section>
 
+        {/* 3D AI STUDY COSMOS VISUAL ARCHITECTURE */}
+        <section className="max-w-7xl mx-auto px-6 pt-20 pb-8">
+          <motion.div
+            initial={{ opacity: 0, y: 24, rotateX: 8 }}
+            whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+            viewport={{ once: true, amount: 0.25 }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="perspective-1200 relative rounded-3xl overflow-hidden border border-violet-400/25 bg-[#091128]/70 backdrop-blur-xl shadow-[0_24px_80px_-15px_rgba(124,58,237,0.35)]"
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-12 items-center">
+              <div className="lg:col-span-7 relative h-64 sm:h-80 lg:h-96 overflow-hidden">
+                <img
+                  src={aiStudyCosmosImg}
+                  alt="3D glowing educational AI STEM universe"
+                  className="w-full h-full object-cover object-center hover:scale-105 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#091128] hidden lg:block" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#091128] via-transparent to-transparent lg:hidden" />
+              </div>
+              <div className="lg:col-span-5 p-8 sm:p-10 space-y-5 text-left">
+                <span className="text-xs font-extrabold uppercase tracking-[0.22em] text-violet-300">
+                  Cinematic 3D Learning Engine
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">
+                  From Dark-Mode Immersion to Clean Light Focus
+                </h2>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Explore concepts through high-contrast cosmic visualizations, then transition smoothly into your distraction-free light study dashboard built for deep reading, graphing, and exam readiness.
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={() => onGetStarted(deviceUser.hasRegistered ? 'signin' : 'signup')}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/25 transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>Launch Your Study Workspace</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </section>
+
         {/* AI TUTOR DEMO SECTION (Highly interactive chatbot panel with math plotting) */}
         <section id="demo" className="max-w-7xl mx-auto px-6 py-24 select-none relative">
           
@@ -873,20 +961,19 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
                 {/* Chat Header */}
                 <div className="bg-slate-950/60 p-4 border-b border-slate-800/80 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-primary-500 flex items-center justify-center shrink-0">
-                        <Logo className="w-full h-full" iconOnly />
-                      </div>
-                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-900 animate-pulse" />
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-blue-500/50 flex items-center justify-center shrink-0">
+                      <Logo className="w-full h-full" iconOnly />
                     </div>
                     <div className="text-left">
                       <p className="text-sm font-black text-white">SJ Tutor AI Companion</p>
-                      <span className="text-[10px] text-green-400 flex items-center gap-1">
-                        <CorrectGoogleLogo className="w-3 h-3 inline" /> Powered by Advanced Gemini Model
+                      <span className="text-[10px] text-cyan-300 flex items-center gap-1">
+                        <CorrectGoogleLogo className="w-3 h-3 inline" /> Live Interactive Demonstration
                       </span>
                     </div>
                   </div>
-                  <span className="px-3 py-1 bg-blue-950/50 border border-blue-800/40 rounded-full text-[10px] font-bold text-blue-400">MATH INTEGRATION</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">
+                    Simulator
+                  </span>
                 </div>
 
                 {/* Chat Scroll Container */}
@@ -1323,15 +1410,14 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
             </div>
 
             {/* Innovators & Inventors Spotlight */}
-            <div className="bg-gradient-to-r from-amber-500/10 via-blue-500/10 to-purple-500/10 border border-amber-500/20 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-2xl backdrop-blur-sm">
+            <div className="bg-gradient-to-r from-blue-600/10 via-indigo-500/10 to-violet-600/15 border border-blue-500/25 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-2xl backdrop-blur-sm">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center border border-blue-400/30">
                   <Lightbulb className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-white flex items-center gap-2">
                     Innovators &amp; Inventors
-                    <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
                   </h3>
                   <p className="text-xs text-slate-400 font-medium">The creative minds pioneering SJ Tutor AI</p>
                 </div>
@@ -1339,14 +1425,14 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
 
               <div className="grid sm:grid-cols-2 gap-6">
                 {/* Sadanand Jyoti */}
-                <div className="bg-[#0F172A]/80 border border-slate-800 p-6 rounded-2xl flex items-start gap-4 hover:border-amber-500/40 transition-all group">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-black text-lg flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
+                <div className="bg-[#0F172A]/80 border border-slate-800 p-6 rounded-2xl flex items-start gap-4 hover:border-violet-500/40 transition-all group">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-violet-600 to-blue-500 text-white font-black text-lg flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
                     SJ
                   </div>
                   <div className="space-y-1 text-left">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider border border-amber-500/30">
-                      <Award className="w-3 h-3" /> Lead Innovator &amp; Founder
-                    </div>
+                    <span className="text-[10px] font-extrabold text-violet-300 uppercase tracking-wider block">
+                      Lead Innovator &amp; Founder
+                    </span>
                     <h4 className="text-lg font-bold text-white">Sadanand Jyoti</h4>
                     <p className="text-xs text-slate-400 leading-relaxed">
                       Visionary architect behind SJ Tutor AI&apos;s intelligent learning frameworks, adaptive tutoring models, and personalized student study workflows.
@@ -1356,13 +1442,13 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
 
                 {/* Samanyu S Patil */}
                 <div className="bg-[#0F172A]/80 border border-slate-800 p-6 rounded-2xl flex items-start gap-4 hover:border-blue-500/40 transition-all group">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 text-white font-black text-lg flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-500 text-white font-black text-lg flex items-center justify-center shadow-lg shrink-0 group-hover:scale-105 transition-transform">
                     SP
                   </div>
                   <div className="space-y-1 text-left">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] font-extrabold rounded-full uppercase tracking-wider border border-blue-500/30">
-                      <Award className="w-3 h-3" /> Innovator &amp; Co-Inventor
-                    </div>
+                    <span className="text-[10px] font-extrabold text-blue-300 uppercase tracking-wider block">
+                      Innovator &amp; Co-Inventor
+                    </span>
                     <h4 className="text-lg font-bold text-white">Samanyu S Patil</h4>
                     <p className="text-xs text-slate-400 leading-relaxed">
                       Co-inventor pioneering smart learning algorithms, automated study aids, and interactive student success tools.
@@ -1725,9 +1811,9 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
                   href="https://sjtutorai.vercel.app"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all shadow-sm group"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-300 hover:bg-blue-500/20 text-xs font-bold transition-all shadow-sm group"
                 >
-                  <Globe className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
+                  <Globe className="w-3.5 h-3.5 text-blue-400 group-hover:rotate-12 transition-transform" />
                   <span>sjtutorai.vercel.app</span>
                 </a>
               </div>
@@ -1742,7 +1828,7 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
                     href="https://sjtutorai.vercel.app" 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="text-amber-400 hover:text-amber-300 font-semibold transition-colors flex items-center gap-1"
+                    className="text-blue-300 hover:text-cyan-300 font-semibold transition-colors flex items-center gap-1"
                   >
                     <span>Official Web App</span>
                     <ExternalLink className="w-3 h-3" />

@@ -1,54 +1,107 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-primary-50: #F0F7FF;
-  --color-primary-100: #E0EFFF;
-  --color-primary-200: #BAE0FD;
-  --color-primary-300: #7CC6FB;
-  --color-primary-400: #38A7F6;
-  --color-primary-500: #0564E8;
-  --color-primary-600: #044EC2;
-  --color-primary-700: #033B9B;
-  --color-primary-800: #042D75;
-  --color-primary-900: #061D4C;
+  --color-primary-50: #EFF6FF;
+  --color-primary-100: #DBEAFE;
+  --color-primary-200: #BFDBFE;
+  --color-primary-300: #93C5FD;
+  --color-primary-400: #60A5FA;
+  --color-primary-500: #2563EB;
+  --color-primary-600: #1D4ED8;
+  --color-primary-700: #1E40AF;
+  --color-primary-800: #1E3A8A;
+  --color-primary-900: #172554;
 
   --color-slate-850: #1a202c;
   --color-slate-900: #111827;
+
+  --font-display: 'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 }
 
 /* Base Global Styles */
 :root {
-  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  --color-primary-50: #F0F7FF;
-  --color-primary-100: #E0EFFF;
-  --color-primary-200: #BAE0FD;
-  --color-primary-300: #7CC6FB;
-  --color-primary-400: #38A7F6;
-  --color-primary-500: #0564E8;
-  --color-primary-600: #044EC2;
-  --color-primary-700: #033B9B;
-  --color-primary-800: #042D75;
-  --color-primary-900: #061D4C;
+  --font-sans: 'Plus Jakarta Sans', 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --color-primary-50: #EFF6FF;
+  --color-primary-100: #DBEAFE;
+  --color-primary-200: #BFDBFE;
+  --color-primary-300: #93C5FD;
+  --color-primary-400: #60A5FA;
+  --color-primary-500: #2563EB;
+  --color-primary-600: #1D4ED8;
+  --color-primary-700: #1E40AF;
+  --color-primary-800: #1E3A8A;
+  --color-primary-900: #172554;
 }
 
 @keyframes blob {
-  0% { transform: translate(0px, 0px) scale(1); }
-  33% { transform: translate(30px, -50px) scale(1.1); }
-  66% { transform: translate(-20px, 20px) scale(0.9); }
-  100% { transform: translate(0px, 0px) scale(1); }
+  0% { transform: translate3d(0px, 0px, 0px) scale(1); }
+  33% { transform: translate3d(26px, -36px, 0px) scale(1.08); }
+  66% { transform: translate3d(-18px, 18px, 0px) scale(0.94); }
+  100% { transform: translate3d(0px, 0px, 0px) scale(1); }
 }
 
 @keyframes fadeInUp {
-  0% { opacity: 0; transform: translateY(20px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% { opacity: 0; transform: translate3d(0, 20px, 0); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes orbBreathe {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.78; }
+  50% { transform: scale(1.08) rotate(180deg); opacity: 1; }
+}
+
+@keyframes floatFormula {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-1deg); opacity: 0.45; }
+  50% { transform: translate3d(0, -14px, 0) rotate(1.5deg); opacity: 0.85; }
+}
+
+@keyframes perspectiveOrbit {
+  0% { transform: rotateX(68deg) rotateY(-12deg) rotateZ(0deg); }
+  100% { transform: rotateX(68deg) rotateY(-12deg) rotateZ(360deg); }
+}
+
+@keyframes growLines {
+  0% { stroke-dashoffset: 300; }
+  100% { stroke-dashoffset: 0; }
 }
 
 .animate-blob {
-  animation: blob 7s infinite;
+  animation: blob 8s ease-in-out infinite;
 }
 
 .animate-fade-in-up {
-  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeInUp 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-orb-breathe {
+  animation: orbBreathe 9s ease-in-out infinite;
+}
+
+.animate-float-formula {
+  animation: floatFormula 6s ease-in-out infinite;
+}
+
+.animate-perspective-orbit {
+  animation: perspectiveOrbit 18s linear infinite;
+}
+
+.perspective-1200 {
+  perspective: 1200px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-blob,
+  .animate-orb-breathe,
+  .animate-float-formula,
+  .animate-perspective-orbit {
+    animation: none !important;
+  }
 }
 
 /* Custom Sleek Scrollbar */

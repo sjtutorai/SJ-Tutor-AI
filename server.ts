@@ -1,10 +1,12 @@
 import express from "express";
+import { createServer as createHttpServer } from "http";
 import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
 import { pushNotificationService } from "./server/services/pushNotificationService";
 import { getFirebaseBackendStatus, verifyFirebaseUserWithBackend, checkFirebaseEmailWithBackend } from "./server/services/firebaseBackendService";
+import { setupGeminiLiveWebSocket } from "./server/services/geminiLiveService";
 import path from "path";
 import fs from "fs";
 
@@ -75,161 +77,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Server-side Gemini multi-key rotation and intelligent high-demand failover manager
-interface ServerKeySlot {
-  id: string;
-  key: string;
-  masked: string;
-  status: 'ACTIVE' | 'HIGH_DEMAND' | 'COOLING_DOWN';
-  cooldownUntil: number;
-  requests: number;
-  highDemandCount: number;
-}
-
-class ServerGeminiKeyManager {
-  private slots: ServerKeySlot[] = [];
-  private currentIndex: number = 0;
-  private readonly COOLDOWN_MS = 60000;
-
-  constructor() {
-    this.refresh();
-  }
-
-  public refresh(): ServerKeySlot[] {
-    const rawDefinitions = [
-      { id: "GEMINI_API_KEY_1", key: process.env.GEMINI_API_KEY_1 },
-      { id: "GEMINI_API_KEY_2", key: process.env.GEMINI_API_KEY_2 },
-      { id: "GEMINI_API_KEY_3", key: process.env.GEMINI_API_KEY_3 },
-      { id: "GEMINI_API_KEY", key: process.env.GEMINI_API_KEY },
-      { id: "API_KEY", key: process.env.API_KEY },
-    ];
-
-    const seen = new Set<string>();
-    const newSlots: ServerKeySlot[] = [];
-
-    for (const def of rawDefinitions) {
-      const trimmed = (def.key || "").trim();
-      if (trimmed.length > 5 && trimmed !== "undefined" && trimmed !== "null" && !seen.has(trimmed)) {
-        seen.add(trimmed);
-        const existing = this.slots.find((s) => s.key === trimmed);
-        const masked = trimmed.length > 8 ? `${trimmed.substring(0, 4)}...${trimmed.substring(trimmed.length - 4)}` : "***";
-        newSlots.push({
-          id: def.id,
-          key: trimmed,
-          masked,
-          status: existing ? existing.status : 'ACTIVE',
-          cooldownUntil: existing ? existing.cooldownUntil : 0,
-          requests: existing ? existing.requests : 0,
-          highDemandCount: existing ? existing.highDemandCount : 0,
-        });
-      }
-    }
-    this.slots = newSlots;
-    return this.slots;
-  }
-
-  public isHighDemandError(err: any): boolean {
-    if (!err) return false;
-    const msg = String(err?.message || err?.statusText || err || "").toLowerCase();
-    const status = err?.status || err?.statusCode;
-    if (status === 429 || status === 503 || status === 500 || status === 502) return true;
-    return (
-      msg.includes("429") ||
-      msg.includes("resource_exhausted") ||
-      msg.includes("quota") ||
-      msg.includes("rate limit") ||
-      msg.includes("ratelimit") ||
-      msg.includes("high demand") ||
-      msg.includes("overloaded") ||
-      msg.includes("capacity") ||
-      msg.includes("too many requests") ||
-      msg.includes("service unavailable") ||
-      msg.includes("503") ||
-      msg.includes("try again later")
-    );
-  }
-
-  public getSlots(): ServerKeySlot[] {
-    if (this.slots.length === 0) this.refresh();
-    const now = Date.now();
-    for (const s of this.slots) {
-      if (s.cooldownUntil > 0 && now >= s.cooldownUntil) {
-        s.status = 'ACTIVE';
-        s.cooldownUntil = 0;
-      }
-    }
-    return this.slots;
-  }
-
-  public getStatus() {
-    const slots = this.getSlots();
-    const active = slots[this.currentIndex % (slots.length || 1)];
-    return {
-      totalKeys: slots.length,
-      activeKeyId: active?.id || "NONE",
-      activeKeyMasked: active?.masked || "***",
-      highDemandAutoSwitchEnabled: true,
-      keys: slots.map((s) => ({
-        id: s.id,
-        masked: s.masked,
-        status: s.status,
-        requests: s.requests,
-        highDemandCount: s.highDemandCount,
-        inCooldown: s.cooldownUntil > Date.now(),
-        cooldownRemainingSec: Math.max(0, Math.ceil((s.cooldownUntil - Date.now()) / 1000)),
-      })),
-    };
-  }
-
-  public async executeWithRotation<T>(operation: (key: string, slot: ServerKeySlot) => Promise<T>): Promise<T> {
-    const slots = this.getSlots();
-    if (slots.length === 0) {
-      throw new Error("No valid Gemini API keys configured on server.");
-    }
-
-    const total = slots.length;
-    const startIdx = this.currentIndex % total;
-    this.currentIndex = (this.currentIndex + 1) % total;
-    let lastErr: any = null;
-
-    for (let i = 0; i < total; i++) {
-      const idx = (startIdx + i) % total;
-      const current = slots[idx];
-      current.requests++;
-
-      try {
-        const result = await operation(current.key, current);
-        current.status = 'ACTIVE';
-        current.cooldownUntil = 0;
-        return result;
-      } catch (err: any) {
-        lastErr = err;
-        const highDemand = this.isHighDemandError(err);
-        if (highDemand) {
-          current.status = 'HIGH_DEMAND';
-          current.highDemandCount++;
-          current.cooldownUntil = Date.now() + this.COOLDOWN_MS;
-          const nextSlot = slots[(idx + 1) % total];
-          console.warn(`[Server Gemini Rotation] ⚠️ High demand on ${current.id} (${current.masked}). Automatically switching to ${nextSlot.id} (${nextSlot.masked})...`);
-        } else {
-          console.warn(`[Server Gemini Rotation] Error on ${current.id}: ${err.message || err}`);
-        }
-
-        if (i === total - 1) {
-          throw lastErr;
-        }
-      }
-    }
-    throw lastErr || new Error("All Gemini keys failed on server.");
-  }
-}
-
-const serverGeminiKeyManager = new ServerGeminiKeyManager();
-
-// Gemini Key Status endpoint
-app.get("/api/gemini/status", (req, res) => {
-  res.json({ success: true, ...serverGeminiKeyManager.getStatus() });
-});
+// Mount Gemini server-side API routes
+import geminiRoutes, { serverGeminiKeyManager } from "./server/routes/gemini";
+app.use("/api/gemini", geminiRoutes);
 
 // SEO Crawler endpoints
 app.get("/robots.txt", (req, res) => {
@@ -547,58 +397,30 @@ app.post("/api/transcribe-audio", async (req, res) => {
       }
     }
 
-    const { GoogleGenAI } = await import("@google/genai");
-
     const prompt = `Transcribe all spoken words in this audio recording accurately and faithfully. 
 Preserve the speaker's language (primarily ${language} or any spoken language in the audio).
 Return ONLY the raw transcription text with proper capitalization and punctuation. 
 Do NOT include any timestamps, markdown labels, explanations, or quotes. 
 If the audio is completely silent or contains no discernible speech, return an empty string.`;
 
-    const transcript = await serverGeminiKeyManager.executeWithRotation(async (key) => {
-      const ai = new GoogleGenAI({
-        apiKey: key,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
+    const transcript = await serverGeminiKeyManager.executeWithRotation(async (ai, rotatedModel) => {
+      const response = await ai.models.generateContent({
+        model: rotatedModel,
+        contents: [
+          {
+            inlineData: {
+              mimeType: finalMimeType || "audio/webm",
+              data: cleanBase64,
+            },
+          },
+          {
+            text: prompt,
+          },
+        ],
       });
 
-      const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
-      let lastGenErr: any = null;
-
-      for (let i = 0; i < modelsToTry.length; i++) {
-        const modelName = modelsToTry[i];
-        try {
-          const response = await ai.models.generateContent({
-            model: modelName,
-            contents: [
-              {
-                inlineData: {
-                  mimeType: finalMimeType || 'audio/webm',
-                  data: cleanBase64,
-                }
-              },
-              {
-                text: prompt
-              }
-            ]
-          });
-
-          return response.text?.trim() || "";
-        } catch (mErr: any) {
-          lastGenErr = mErr;
-          console.warn(`[Server Audio Transcription] Notice on ${modelName}:`, mErr?.message || mErr);
-          if (i < modelsToTry.length - 1) {
-            await new Promise((r) => setTimeout(r, 400));
-            continue;
-          }
-        }
-      }
-
-      throw lastGenErr;
-    });
+      return response.text?.trim() || "";
+    }, ["gemini-3.5-transcribe", "gemini-4-hydrogen", "gemini-3.1-flash-lite"]);
 
     res.json({ success: true, transcript });
   } catch (error: any) {
@@ -706,7 +528,10 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const httpServer = createHttpServer(app);
+  setupGeminiLiveWebSocket(httpServer);
+
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

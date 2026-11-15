@@ -84,6 +84,9 @@ export const SettingsService = {
         ...settings,
         privacy: sanitizePrivacy(settings.privacy),
       };
+      if (settings.appearance?.primaryColor) {
+        localStorage.setItem('sjtutor_theme_color_customized', '1');
+      }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
     } catch (e) {
       console.error("Failed to save settings", e);
@@ -95,6 +98,9 @@ export const SettingsService = {
    */
   updateSettings: (partialSettings: any): void => {
     try {
+      if (partialSettings?.appearance?.primaryColor) {
+        localStorage.setItem('sjtutor_theme_color_customized', '1');
+      }
       const current = SettingsService.getSettings();
       const updated = {
         ...current,
