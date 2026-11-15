@@ -1,6 +1,7 @@
 import { db, auth } from '../firebaseConfig';
 import { 
   collection, 
+  getDoc,
   getDocs, 
   doc, 
   deleteDoc, 

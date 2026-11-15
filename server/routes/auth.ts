@@ -36,6 +36,7 @@ export interface SjTutorAccount {
   classGrade?: string;
   subjects?: string[];
   learningPreferences?: string[];
+  preferredLanguage?: string;
   phoneNumber?: string;
   institution?: string;
   grade?: string;
@@ -1276,7 +1277,7 @@ router.post("/login-with-id-card", async (req, res) => {
       credits,
       hasCompletedOnboarding: true,
       isRegisteredInFirestore: true,
-      role: isSadanand ? "achiever" : "student",
+      role: isAchiever ? "achiever" : "student",
     };
 
     res.json({

@@ -498,7 +498,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
       const classGrade = isPremium ? classGradeInput : (userProfile?.grade || classGradeInput);
       const board = isPremium ? boardInput : (userProfile?.board || boardInput);
 
-      const content = await GeminiService.generateStudyNotes({
+      const content = await GeminiService.generateAiNotes({
         classGrade,
         board,
         subject: subjectInput,

@@ -8,6 +8,7 @@ export interface DeviceRegisteredUserInfo {
   name?: string;
   sjTutorId?: string;
   username?: string;
+  phoneNumber?: string;
   lastActive?: number;
 }
 
@@ -97,6 +98,8 @@ export function saveDeviceRegisteredUser(info: {
   displayName?: string;
   sjTutorId?: string;
   username?: string;
+  phoneNumber?: string;
+  hasRegistered?: boolean;
 }): void {
   try {
     const payload: DeviceRegisteredUserInfo = {
@@ -105,6 +108,7 @@ export function saveDeviceRegisteredUser(info: {
       name: info.displayName || info.name,
       sjTutorId: info.sjTutorId?.trim().toUpperCase(),
       username: info.username?.trim().toLowerCase(),
+      phoneNumber: info.phoneNumber?.trim(),
       lastActive: Date.now(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));

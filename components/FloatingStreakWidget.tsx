@@ -201,6 +201,10 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
   // Active streak tier and progress
   const userTier = useMemo(() => getStreakTier(currentStreak), [currentStreak]);
   const tierProgress = useMemo(() => getStreakTierProgress(currentStreak), [currentStreak]);
+  const nextMilestone = useMemo(
+    () => STREAK_MILESTONES.find((m) => currentStreak < m.days) || null,
+    [currentStreak]
+  );
 
   // Load leaderboard when tab is opened
   useEffect(() => {

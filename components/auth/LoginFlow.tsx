@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'motion/react';
 import {
   Loader2,
   Mail,
@@ -18,7 +17,6 @@ import {
   Sparkles,
   ArrowRight,
   Search,
-  Lock,
 } from 'lucide-react';
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import { GoogleIcon, AppleIcon, YahooIcon } from './AuthIcons';
@@ -35,8 +33,6 @@ import {
 } from '../../services/authService';
 import { SecurityPinService } from '../../services/securityPinService';
 
-const REMEMBER_EMAIL_KEY = 'sjtutor_remember_email';
-
 interface LoginFlowProps {
   onSuccess: (userData: any) => void;
   onSwitchToSignUp: (prefilledEmail?: string) => void;
@@ -47,47 +43,34 @@ type LoginView =
   | 'OVERVIEW'
   | 'ID_CARD_LOGIN'
   | 'ACCOUNT_NOT_FOUND'
+  | 'EMAIL'
   | 'SJTUTOR_ID'
   | 'PIN_VERIFY'
   | 'RECOVER_LOOKUP'
   | 'RECOVER_ANSWER'
   | 'RECOVER_SUCCESS';
 
-export const LoginFlow: React.FC<LoginFlowProps> = ({
-  onSuccess,
-  onSwitchToSignUp,
-  prefilledIdentifier,
-}) => {
+export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignUp, prefilledIdentifier }) => {
   const isPrefilledEmail = prefilledIdentifier?.includes('@');
-  const initialView: LoginView =
-    prefilledIdentifier && !isPrefilledEmail ? 'SJTUTOR_ID' : 'OVERVIEW';
+  const initialView: LoginView = prefilledIdentifier
+    ? (isPrefilledEmail ? 'EMAIL' : 'SJTUTOR_ID')
+    : 'OVERVIEW';
 
   const [activeView, setActiveView] = useState<LoginView>(initialView);
   const [loading, setLoading] = useState(false);
-  const [authMethodPending, setAuthMethodPending] = useState<string | null>(null);
   const [errorAlert, setErrorAlert] = useState<string | null>(null);
   const [unauthorizedDomainData, setUnauthorizedDomainData] = useState<{
     domain?: string;
     provider?: string;
   } | null>(null);
 
-  // Email + Password + Remember Me form (featured directly on primary panel)
-  const [email, setEmail] = useState(() => {
-    if (isPrefilledEmail && prefilledIdentifier) return prefilledIdentifier;
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(REMEMBER_EMAIL_KEY) || '';
-    }
-    return '';
-  });
+  // Email form
+  const [email, setEmail] = useState(isPrefilledEmail && prefilledIdentifier ? prefilledIdentifier : '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   // SJ Tutor AI ID login
-  const [sjTutorIdInput, setSjTutorIdInput] = useState(
-    !isPrefilledEmail && prefilledIdentifier ? prefilledIdentifier : ''
-  );
+  const [sjTutorIdInput, setSjTutorIdInput] = useState(!isPrefilledEmail && prefilledIdentifier ? prefilledIdentifier : '');
   const [sjTutorPassword, setSjTutorPassword] = useState('');
   const [showSjTutorPw, setShowSjTutorPw] = useState(false);
   const [challengeId, setChallengeId] = useState('');
@@ -101,47 +84,6 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
   const [isSearchingFirestore, setIsSearchingFirestore] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Account Recovery states
-  const [recoverIdentifier, setRecoverIdentifier] = useState('');
-  const [recoverQuestion, setRecoverQuestion] = useState('');
-  const [recoverSjTutorId, setRecoverSjTutorId] = useState('');
-  const [recoverAnswer, setRecoverAnswer] = useState('');
-  const [recoverNewPassword, setRecoverNewPassword] = useState('');
-  const [recoverNewPin, setRecoverNewPin] = useState('');
-  const [recoverPinLength, setRecoverPinLength] = useState<4 | 6>(6);
-  const [recoverSuccessMsg, setRecoverSuccessMsg] = useState('');
-
-  const handleProcessIdCard = async (val: string) => {
-    const target = val.trim();
-    if (!target) return;
-    setIsSearchingFirestore(true);
-    setLoading(true);
-    setErrorAlert(null);
-    try {
-      const res = await findAccountAndLoginWithIdCard(target);
-      if (!res.success || !res.user) {
-        setErrorAlert(
-          res.message ||
-            'No student account found in Firestore for this registration number / ID card.'
-        );
-        return;
-      }
-      setFoundStudentAccount(res.user);
-      if (res.user?.uid) {
-        SecurityPinService.markLoginAttempt(res.user.uid);
-      }
-      setTimeout(() => {
-        onSuccess(res.user);
-      }, 950);
-    } catch (err: any) {
-      console.error(err);
-      setErrorAlert('An error occurred while finding your account from Firestore.');
-    } finally {
-      setIsSearchingFirestore(false);
-      setLoading(false);
-    }
-  };
-
   // Live QR camera scanner lifecycle
   useEffect(() => {
     if (activeView !== 'ID_CARD_LOGIN' || idCardMode !== 'scan' || foundStudentAccount) return;
@@ -149,10 +91,10 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
     let scanner: Html5QrcodeScanner | null = null;
     const timer = setTimeout(() => {
       try {
-        const el = document.getElementById('login-id-card-qr-reader');
+        const el = document.getElementById("login-id-card-qr-reader");
         if (el) {
           scanner = new Html5QrcodeScanner(
-            'login-id-card-qr-reader',
+            "login-id-card-qr-reader",
             {
               fps: 10,
               qrbox: { width: 220, height: 220 },
@@ -168,7 +110,7 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
           );
         }
       } catch (err) {
-        console.warn('Scanner initialization warning:', err);
+        console.warn("Scanner initialization warning:", err);
       }
     }, 150);
 
@@ -186,30 +128,65 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
     setIsSearchingFirestore(true);
     setErrorAlert(null);
     try {
-      const html5QrCode = new Html5Qrcode('hidden-file-qr-reader');
+      const html5QrCode = new Html5Qrcode("hidden-file-qr-reader");
       const decodedText = await html5QrCode.scanFile(file, false);
       html5QrCode.clear();
       await handleProcessIdCard(decodedText);
     } catch (err) {
-      console.warn('Could not scan QR code from image:', err);
-      setErrorAlert(
-        'Could not detect a valid QR code in this image. Please enter the ID card number directly.'
-      );
+      console.warn("Could not scan QR code from image:", err);
+      setErrorAlert("Could not detect a valid QR code in this image. Please enter the ID card number directly.");
       setIdCardMode('manual');
     } finally {
       setIsSearchingFirestore(false);
     }
   };
 
+  const handleProcessIdCard = async (val: string) => {
+    const target = val.trim();
+    if (!target) return;
+    setIsSearchingFirestore(true);
+    setLoading(true);
+    setErrorAlert(null);
+    try {
+      const res = await findAccountAndLoginWithIdCard(target);
+      if (!res.success || !res.user) {
+        setErrorAlert(res.message || "No student account found in Firestore for this registration number / ID card.");
+        return;
+      }
+      setFoundStudentAccount(res.user);
+      if (res.user?.uid) {
+        SecurityPinService.markLoginAttempt(res.user.uid);
+      }
+      setTimeout(() => {
+        onSuccess(res.user);
+      }, 1200);
+    } catch (err: any) {
+      console.error(err);
+      setErrorAlert("An error occurred while finding your account from Firestore.");
+    } finally {
+      setIsSearchingFirestore(false);
+      setLoading(false);
+    }
+  };
+
+  // Account Recovery states
+  const [recoverIdentifier, setRecoverIdentifier] = useState('');
+  const [recoverQuestion, setRecoverQuestion] = useState('');
+  const [recoverSjTutorId, setRecoverSjTutorId] = useState('');
+  const [recoverAnswer, setRecoverAnswer] = useState('');
+  const [recoverNewPassword, setRecoverNewPassword] = useState('');
+  const [recoverNewPin, setRecoverNewPin] = useState('');
+  const [recoverPinLength, setRecoverPinLength] = useState<4 | 6>(6);
+  const [recoverSuccessMsg, setRecoverSuccessMsg] = useState('');
+
   // -------------------------------------------------------------
   // 1. Social Log In
   // -------------------------------------------------------------
   const handleSocialLogin = async (provider: 'google' | 'apple' | 'yahoo' | 'github') => {
     setLoading(true);
-    setAuthMethodPending(provider);
     setErrorAlert(null);
     try {
-      const res = await handleSocialAuth(provider, 'signin', rememberMe);
+      const res = await handleSocialAuth(provider, 'signin');
       if (res.status === 'ACCOUNT_NOT_FOUND') {
         setActiveView('ACCOUNT_NOT_FOUND');
         return;
@@ -234,7 +211,6 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
       setErrorAlert('Error signing in with provider.');
     } finally {
       setLoading(false);
-      setAuthMethodPending(null);
     }
   };
 
@@ -244,18 +220,9 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
   const handleEmailLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setAuthMethodPending('email');
     setErrorAlert(null);
     try {
-      if (typeof window !== 'undefined') {
-        if (rememberMe && email.trim()) {
-          localStorage.setItem(REMEMBER_EMAIL_KEY, email.trim());
-        } else {
-          localStorage.removeItem(REMEMBER_EMAIL_KEY);
-        }
-      }
-
-      const res = await loginWithEmail(email, password, rememberMe);
+      const res = await loginWithEmail(email, password);
       if (res.status === 'ACCOUNT_NOT_FOUND') {
         setActiveView('ACCOUNT_NOT_FOUND');
         return;
@@ -281,7 +248,6 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
       setErrorAlert('Could not connect to authentication server.');
     } finally {
       setLoading(false);
-      setAuthMethodPending(null);
     }
   };
 
@@ -440,313 +406,130 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
     }
   };
 
-  // Animated border style helper for glass inputs
-  const getInputShellClass = (fieldName: string) =>
-    `relative rounded-xl p-[1px] transition-all duration-300 ${
-      focusedField === fieldName
-        ? 'bg-gradient-to-r from-blue-400 via-cyan-400 to-violet-500 shadow-[0_0_24px_rgba(37,99,235,0.38)]'
-        : 'bg-white/15 hover:bg-white/25'
-    }`;
-
   return (
-    <div className="w-full max-w-md mx-auto text-white">
+    <div className="w-full max-w-md mx-auto">
       {/* Global Error Notice */}
       {errorAlert && (
-        <motion.div
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-4 p-3 bg-red-950/60 border border-red-500/40 rounded-xl flex items-start gap-2.5 text-xs text-red-200 backdrop-blur-md"
-        >
-          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-400" />
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl flex items-start gap-2.5 text-xs text-red-700 dark:text-red-300">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
           <span>{errorAlert}</span>
-        </motion.div>
+        </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════
-          VIEW: OVERVIEW (EMAIL + PASSWORD + GOOGLE + PROVIDERS)
+          VIEW: OVERVIEW (ALL LOGIN METHODS)
          ══════════════════════════════════════════════════════════ */}
       {activeView === 'OVERVIEW' && (
         <div>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.05 }}
-            className="text-center mb-5"
-          >
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">
-              Welcome Back
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+              Welcome back
             </h2>
-            <p className="text-sm text-slate-300 mt-1">
-              Sign in to resume your personalized study workspace.
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+              Log in to continue your learning journey.
             </p>
-          </motion.div>
+          </div>
 
-          {/* Sequential Animated Email + Password Form */}
-          <form onSubmit={handleEmailLoginSubmit} className="space-y-4">
-            {/* Field 1: Email */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.12 }}
-            >
-              <label
-                htmlFor="login-email-input"
-                className="block text-xs font-semibold text-slate-300 mb-1.5"
-              >
-                Email Address
-              </label>
-              <div className={getInputShellClass('email')}>
-                <div className="relative flex items-center rounded-[11px] bg-slate-950/90">
-                  <Mail
-                    className={`absolute left-3.5 w-4 h-4 transition-colors ${
-                      focusedField === 'email' ? 'text-blue-400' : 'text-slate-400'
-                    }`}
-                  />
-                  <input
-                    id="login-email-input"
-                    type="email"
-                    required
-                    autoComplete="email"
-                    placeholder="student@example.com"
-                    value={email}
-                    onFocus={() => setFocusedField('email')}
-                    onBlur={() => setFocusedField(null)}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-transparent text-sm text-white placeholder-slate-500 outline-none rounded-[11px]"
-                  />
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Field 2: Password with Show/Hide */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.2 }}
-            >
-              <div className="flex justify-between items-center mb-1.5">
-                <label
-                  htmlFor="login-password-input"
-                  className="block text-xs font-semibold text-slate-300"
-                >
-                  Password
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErrorAlert(null);
-                    setRecoverIdentifier(email);
-                    setActiveView('RECOVER_LOOKUP');
-                  }}
-                  className="text-xs font-semibold text-blue-300 hover:text-cyan-300 transition-colors cursor-pointer"
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <div className={getInputShellClass('password')}>
-                <div className="relative flex items-center rounded-[11px] bg-slate-950/90">
-                  <Lock
-                    className={`absolute left-3.5 w-4 h-4 transition-colors ${
-                      focusedField === 'password' ? 'text-violet-400' : 'text-slate-400'
-                    }`}
-                  />
-                  <input
-                    id="login-password-input"
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    value={password}
-                    onFocus={() => setFocusedField('password')}
-                    onBlur={() => setFocusedField(null)}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-11 py-3 bg-transparent text-sm text-white placeholder-slate-500 outline-none rounded-[11px]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    className="absolute right-3 p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Field 3: Remember Me */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.27 }}
-              className="flex items-center justify-between pt-0.5"
-            >
-              <label className="inline-flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none group">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-white/25 bg-slate-900 text-blue-500 focus:ring-blue-500/40 focus:ring-offset-0 accent-blue-500 cursor-pointer"
-                />
-                <span className="group-hover:text-white transition-colors">Remember me</span>
-              </label>
-              <span className="text-[11px] text-slate-400">Encrypted Firebase Session</span>
-            </motion.div>
-
-            {/* Field 4: Glowing Login Button */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.33 }}
-            >
-              <button
-                type="submit"
-                disabled={loading}
-                className="relative w-full py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 shadow-[0_8px_28px_rgba(37,99,235,0.42)] hover:shadow-[0_0_36px_rgba(99,102,241,0.75)] transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.99] cursor-pointer"
-              >
-                {loading && authMethodPending === 'email' ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Authenticating...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Log In to Dashboard</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </motion.div>
-          </form>
-
-          {/* Divider */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.35, delay: 0.38 }}
-            className="relative my-5"
-          >
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/10" />
-            </div>
-            <div className="relative flex justify-center text-[11px] uppercase">
-              <span className="bg-[#091128] px-3 text-slate-400 font-semibold tracking-widest">
-                OR CONTINUE WITH
-              </span>
-            </div>
-          </motion.div>
-
-          {/* Google Sign-In + Existing Auth Providers */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.43 }}
-            className="space-y-2.5"
-          >
+          <div className="space-y-3">
             <button
-              type="button"
               onClick={() => handleSocialLogin('google')}
               disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-bold text-sm transition-all shadow-sm disabled:opacity-50 cursor-pointer"
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors shadow-sm disabled:opacity-50"
             >
-              {loading && authMethodPending === 'google' ? (
-                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-              ) : (
-                <GoogleIcon className="w-5 h-5" />
-              )}
+              <GoogleIcon className="w-5 h-5" />
               <span>Continue with Google</span>
             </button>
 
-            {/* Secondary OAuth providers preserved */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleSocialLogin('apple')}
-                disabled={loading}
-                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white rounded-xl text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
-              >
-                {loading && authMethodPending === 'apple' ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <AppleIcon className="w-4 h-4" />
-                )}
-                <span>Apple</span>
-              </button>
+            <button
+              onClick={() => handleSocialLogin('apple')}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-black text-white rounded-xl font-medium hover:bg-slate-900 transition-colors shadow-sm disabled:opacity-50"
+            >
+              <AppleIcon className="w-5 h-5" />
+              <span>Continue with Apple</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => handleSocialLogin('yahoo')}
-                disabled={loading}
-                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-[#6001D2]/30 hover:bg-[#6001D2]/50 border border-violet-400/25 text-white rounded-xl text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
-              >
-                {loading && authMethodPending === 'yahoo' ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <YahooIcon className="w-4 h-4" />
-                )}
-                <span>Yahoo</span>
-              </button>
+            <button
+              onClick={() => handleSocialLogin('yahoo')}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-[#6001D2] text-white rounded-xl font-medium hover:bg-[#5200b3] transition-colors shadow-sm disabled:opacity-50"
+            >
+              <YahooIcon className="w-5 h-5" />
+              <span>Continue with Yahoo</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => handleSocialLogin('github')}
-                disabled={loading}
-                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white rounded-xl text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
-              >
-                {loading && authMethodPending === 'github' ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Github className="w-4 h-4" />
-                )}
-                <span>GitHub</span>
-              </button>
+            <button
+              onClick={() => handleSocialLogin('github')}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-slate-900 dark:bg-slate-950 text-white rounded-xl font-medium hover:bg-slate-800 transition-colors shadow-sm disabled:opacity-50"
+            >
+              <Github className="w-5 h-5" />
+              <span>Continue with GitHub</span>
+            </button>
+          </div>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
             </div>
-
-            {/* SJ Tutor AI ID & QR Student Card shortcuts preserved */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setErrorAlert(null);
-                  setActiveView('SJTUTOR_ID');
-                }}
-                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-400/25 text-blue-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
-              >
-                <KeyRound className="w-3.5 h-3.5 text-blue-400" />
-                <span>Tutor ID &amp; PIN</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setErrorAlert(null);
-                  setFoundStudentAccount(null);
-                  setActiveView('ID_CARD_LOGIN');
-                }}
-                className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-400/25 text-violet-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
-              >
-                <QrCode className="w-3.5 h-3.5 text-violet-400" />
-                <span>Scan ID Card</span>
-              </button>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white dark:bg-slate-900 px-3 text-slate-500 font-semibold tracking-wider">
+                OR
+              </span>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Signup Navigation */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.35, delay: 0.48 }}
-            className="mt-6 text-center text-sm text-slate-300"
-          >
+          <div className="space-y-2.5">
+            <button
+              onClick={() => {
+                setErrorAlert(null);
+                setFoundStudentAccount(null);
+                setActiveView('ID_CARD_LOGIN');
+              }}
+              className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-emerald-500/5 hover:from-emerald-500/25 hover:via-teal-500/20 hover:to-emerald-500/10 border border-emerald-500/40 dark:border-emerald-500/50 text-emerald-950 dark:text-emerald-200 rounded-xl font-bold transition-all shadow-sm group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <ScanLine className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    Fast Student Sign-In
+                  </div>
+                  <div className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                    Log in with ID Card / Reg Number
+                  </div>
+                </div>
+              </div>
+              <QrCode className="w-5 h-5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+            </button>
+
+            <button
+              onClick={() => setActiveView('EMAIL')}
+              className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl font-semibold transition-colors"
+            >
+              <Mail className="w-5 h-5 text-amber-500" />
+              <span>Log in with Email & Password</span>
+            </button>
+
+            <button
+              onClick={() => setActiveView('SJTUTOR_ID')}
+              className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold transition-all shadow-sm shadow-amber-500/20"
+            >
+              <KeyRound className="w-5 h-5" />
+              <span>Log in with SJ Tutor AI ID & PIN</span>
+            </button>
+          </div>
+
+          <div className="mt-8 text-center text-sm text-slate-600 dark:text-slate-400">
             Don&apos;t have an account?{' '}
             <button
-              type="button"
-              onClick={() => onSwitchToSignUp(email || undefined)}
-              className="text-blue-300 hover:text-cyan-300 font-bold hover:underline cursor-pointer"
+              onClick={() => onSwitchToSignUp()}
+              className="text-amber-600 dark:text-amber-400 font-semibold hover:underline"
             >
               Sign Up
             </button>
-          </motion.div>
+          </div>
         </div>
       )}
 
@@ -756,82 +539,90 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
       {activeView === 'ID_CARD_LOGIN' && (
         <div>
           <button
-            type="button"
             onClick={() => {
               setFoundStudentAccount(null);
               setErrorAlert(null);
               setActiveView('OVERVIEW');
             }}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-white mb-4 transition-colors cursor-pointer"
+            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-4 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Log In</span>
+            <span>All login options</span>
           </button>
 
           <div className="text-center mb-5">
-            <div className="inline-flex p-2.5 bg-blue-500/15 rounded-2xl text-blue-400 mb-2 border border-blue-400/25">
+            <div className="inline-flex p-2.5 bg-emerald-500/10 dark:bg-emerald-400/10 rounded-2xl text-emerald-600 dark:text-emerald-400 mb-2 border border-emerald-500/20">
               <ScanLine className="w-6 h-6" />
             </div>
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Log in with ID Card
             </h2>
-            <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto">
-              Scan your SJ Tutor AI Student ID card or enter your Card ID to locate your account in Firestore.
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+              Scan your SJ Tutor AI Student ID card or enter your Card ID to find your account in Firestore and log in instantly.
             </p>
           </div>
 
+          {/* Hidden element for file scanning */}
           <div id="hidden-file-qr-reader" className="hidden" />
 
           {foundStudentAccount ? (
-            <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-5 text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-emerald-900/50 mx-auto flex items-center justify-center border-2 border-emerald-500/30">
-                <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+            /* Verified Account Found in Firestore Card */
+            <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-5 text-center space-y-4 animate-in fade-in zoom-in-95 duration-300">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/50 mx-auto flex items-center justify-center border-2 border-emerald-500/30 shadow-inner">
+                <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400 animate-bounce" />
               </div>
 
               <div>
-                <div className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-emerald-300 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/25 mb-2">
+                <div className="inline-flex items-center gap-1 text-[11px] font-extrabold uppercase tracking-widest text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 mb-2">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Account Verified</span>
+                  <span>Account Found in Firestore</span>
                 </div>
-                <h3 className="text-xl font-black text-white">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">
                   {foundStudentAccount.displayName || foundStudentAccount.name}
                 </h3>
-                <p className="text-xs text-slate-300 font-mono mt-0.5">
+                <p className="text-xs text-slate-600 dark:text-slate-400 font-mono mt-0.5">
                   ID: {foundStudentAccount.sjTutorId || foundStudentAccount.registrationNumber || foundStudentAccount.uid}
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 text-left bg-slate-900/80 p-3 rounded-xl border border-emerald-500/20 text-xs">
+              <div className="grid grid-cols-3 gap-2 text-left bg-white/80 dark:bg-slate-900/80 p-3 rounded-xl border border-emerald-500/20 text-xs">
                 <div>
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Plan Tier</span>
-                  <span className="font-extrabold text-blue-300 flex items-center gap-1 truncate">
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Plan Tier</span>
+                  <span className="font-extrabold text-amber-600 dark:text-amber-400 flex items-center gap-1 truncate">
                     <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
                     {foundStudentAccount.planType || 'Scholar'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Credits</span>
-                  <span className="font-extrabold text-slate-100">
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Credits</span>
+                  <span className="font-extrabold text-slate-800 dark:text-slate-200">
                     {(foundStudentAccount.credits ?? 2000).toLocaleString()}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">Streak</span>
-                  <span className="font-extrabold text-violet-300">
-                    {foundStudentAccount.streak ?? foundStudentAccount.currentStreak ?? 0}d
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Learning Streak</span>
+                  <span className="font-extrabold text-orange-600 dark:text-orange-400 flex items-center gap-1">
+                    🔥 {foundStudentAccount.streak ?? foundStudentAccount.currentStreak ?? 0}d
+                  </span>
+                </div>
+                <div className="col-span-3 pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 dark:text-slate-400 font-medium truncate max-w-[200px]">
+                    {foundStudentAccount.institution || 'SJ Tutor AI Academy'} • {foundStudentAccount.grade || 'Class 10'}
+                  </span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                    Reg: {foundStudentAccount.registrationNumber || foundStudentAccount.sjTutorId || 'Verified'}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-2 text-xs font-semibold text-emerald-300 py-1">
+              <div className="flex items-center justify-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 py-1">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Loading your study workspace...</span>
+                <span>Hydrating streak & study workspace...</span>
               </div>
 
               <button
-                type="button"
                 onClick={() => onSuccess(foundStudentAccount)}
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-violet-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
               >
                 <span>Continue to Dashboard</span>
                 <ArrowRight className="w-4 h-4" />
@@ -839,14 +630,15 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950/60 rounded-xl border border-white/10">
+              {/* Mode Tabs */}
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={() => setIdCardMode('scan')}
-                  className={`py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                     idCardMode === 'scan'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <Camera className="w-3.5 h-3.5" />
@@ -855,22 +647,22 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
                 <button
                   type="button"
                   onClick={() => setIdCardMode('upload')}
-                  className={`py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                     idCardMode === 'upload'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <UploadCloud className="w-3.5 h-3.5" />
-                  <span>Upload</span>
+                  <span>Upload Card</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setIdCardMode('manual')}
-                  className={`py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
                     idCardMode === 'manual'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <Search className="w-3.5 h-3.5" />
@@ -878,22 +670,24 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
                 </button>
               </div>
 
+              {/* Mode 1: Live Camera Scan */}
               {idCardMode === 'scan' && (
                 <div className="space-y-3">
                   <div
                     id="login-id-card-qr-reader"
-                    className="overflow-hidden rounded-2xl border-2 border-dashed border-blue-400/40 bg-slate-900/60 p-1"
+                    className="overflow-hidden rounded-2xl border-2 border-dashed border-emerald-500/40 bg-slate-50 dark:bg-slate-800/50 p-1"
                   />
-                  <p className="text-center text-xs text-slate-400">
-                    Align the QR code from your SJ Tutor AI ID card in front of your camera.
+                  <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+                    Align the QR code from the back of your SJ Tutor AI ID card in front of your camera.
                   </p>
                 </div>
               )}
 
+              {/* Mode 2: Upload ID Card photo / screenshot */}
               {idCardMode === 'upload' && (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-blue-400/40 hover:border-blue-400 bg-slate-900/50 hover:bg-blue-950/20 rounded-2xl p-8 text-center cursor-pointer transition-all group"
+                  className="border-2 border-dashed border-emerald-500/40 hover:border-emerald-500 bg-slate-50/50 dark:bg-slate-800/50 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 rounded-2xl p-8 text-center cursor-pointer transition-all group"
                 >
                   <input
                     ref={fileInputRef}
@@ -902,20 +696,25 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
                     onChange={handleIdCardFileUpload}
                     className="hidden"
                   />
-                  <div className="w-12 h-12 rounded-2xl bg-blue-500/15 text-blue-400 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
                     <UploadCloud className="w-6 h-6" />
                   </div>
-                  <h4 className="text-sm font-bold text-white">Click to Upload ID Card</h4>
-                  <p className="text-xs text-slate-400 mt-1">PNG, JPG, or WEBP QR card image</p>
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                    Click or Drag to Upload ID Card
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Upload a photo or screenshot of your ID Card or QR code (PNG, JPG, WEBP)
+                  </p>
                   {isSearchingFirestore && (
-                    <div className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-blue-300">
+                    <div className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-emerald-600">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Reading QR &amp; checking Firestore...</span>
+                      <span>Reading QR & searching Firestore...</span>
                     </div>
                   )}
                 </div>
               )}
 
+              {/* Mode 3: Manual ID lookup */}
               {idCardMode === 'manual' && (
                 <form
                   onSubmit={(e) => {
@@ -929,41 +728,40 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
                   className="space-y-4"
                 >
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                       Registration Number or Student Card ID
                     </label>
-                    <div className={getInputShellClass('idcard')}>
-                      <div className="relative rounded-[11px] bg-slate-950/90">
-                        <input
-                          type="text"
-                          required
-                          autoFocus
-                          placeholder="e.g. SJTA-XXXXXX"
-                          value={idCardInput}
-                          onFocus={() => setFocusedField('idcard')}
-                          onBlur={() => setFocusedField(null)}
-                          onChange={(e) => setIdCardInput(e.target.value)}
-                          className="w-full pl-3.5 pr-10 py-3 bg-transparent text-sm font-medium text-white placeholder-slate-500 outline-none uppercase placeholder:normal-case font-mono rounded-[11px]"
-                        />
-                        <Search className="absolute right-3.5 top-3.5 w-4 h-4 text-slate-400" />
-                      </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        autoFocus
+                        placeholder="e.g. SJTA-ACHIEVER01 or SJTA-XXXXXX"
+                        value={idCardInput}
+                        onChange={(e) => setIdCardInput(e.target.value)}
+                        className="w-full pl-3.5 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none uppercase placeholder:normal-case font-mono"
+                      />
+                      <Search className="absolute right-3.5 top-3.5 w-4 h-4 text-slate-400" />
                     </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Instantly finds your account in Firestore by registration number, card ID, or email, and restores all credits &amp; streaks.
+                    </p>
                   </div>
 
                   <button
                     type="submit"
                     disabled={loading || isSearchingFirestore}
-                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg disabled:opacity-50 cursor-pointer"
+                    className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50"
                   >
                     {loading || isSearchingFirestore ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Searching Firestore...</span>
+                        <span>Searching Firestore Database...</span>
                       </>
                     ) : (
                       <>
                         <ShieldCheck className="w-4 h-4" />
-                        <span>Find Account &amp; Log In</span>
+                        <span>Find Account & Log In</span>
                       </>
                     )}
                   </button>
@@ -979,30 +777,129 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
          ══════════════════════════════════════════════════════════ */}
       {activeView === 'ACCOUNT_NOT_FOUND' && (
         <div className="text-center py-4">
-          <div className="w-16 h-16 bg-blue-950/60 border border-blue-500/30 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-400">
+          <div className="w-16 h-16 bg-amber-100 dark:bg-amber-950/60 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600 dark:text-amber-400">
             <AlertCircle className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">Account Not Registered</h2>
-          <p className="text-sm text-slate-300 mt-2 max-w-sm mx-auto leading-relaxed">
-            We couldn&apos;t find a registered account for{' '}
-            <strong className="text-white">{email || sjTutorIdInput || 'this account'}</strong>.
-            Create your free student account to get started.
+          <span className="inline-block text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-full mb-2 border border-amber-500/30">
+            Detection: Unregistered User
+          </span>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+            Account Not Registered
+          </h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-sm mx-auto leading-relaxed">
+            We detected that <strong className="text-slate-900 dark:text-white">{email || sjTutorIdInput || 'this account'}</strong> is not yet registered with SJ Tutor AI.
+            <br />
+            Based on this, you should <strong>Register (Sign Up)</strong> to create your student account.
           </p>
           <div className="mt-6 space-y-3">
             <button
-              type="button"
               onClick={() => onSwitchToSignUp(email || sjTutorIdInput)}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all shadow-sm shadow-amber-500/20 flex items-center justify-center gap-2"
             >
-              <span>Create Student Account</span>
+              <span>Register (Sign Up) Now</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
-              type="button"
               onClick={() => setActiveView('OVERVIEW')}
-              className="w-full py-2.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-slate-200 font-medium rounded-xl transition-colors cursor-pointer"
+              className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
               Try Another Account
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+          VIEW: EMAIL + PASSWORD LOGIN
+         ══════════════════════════════════════════════════════════ */}
+      {activeView === 'EMAIL' && (
+        <div>
+          <button
+            onClick={() => setActiveView('OVERVIEW')}
+            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-4 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>All login options</span>
+          </button>
+
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+              Log in with Email
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+              Enter your email address and password.
+            </p>
+          </div>
+
+          <form onSubmit={handleEmailLoginSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                <input
+                  type="email"
+                  required
+                  placeholder="student@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecoverIdentifier(email);
+                    setActiveView('RECOVER_LOOKUP');
+                  }}
+                  className="text-xs text-amber-600 dark:text-amber-400 hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-4 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-2 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 transition-all shadow-sm shadow-amber-500/20 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Log In</span>}
+            </button>
+          </form>
+
+          <div className="mt-8 text-center text-sm text-slate-600 dark:text-slate-400">
+            Don&apos;t have an account?{' '}
+            <button
+              onClick={() => onSwitchToSignUp()}
+              className="text-amber-600 dark:text-amber-400 font-semibold hover:underline"
+            >
+              Sign Up
             </button>
           </div>
         </div>
@@ -1014,45 +911,40 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
       {activeView === 'SJTUTOR_ID' && (
         <div>
           <button
-            type="button"
             onClick={() => setActiveView('OVERVIEW')}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-white mb-4 transition-colors cursor-pointer"
+            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-4 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Log In</span>
+            <span>All login options</span>
           </button>
 
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Log in with SJ Tutor AI ID
             </h2>
-            <p className="text-sm text-slate-300 mt-1">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
               Enter your unique ID and 2-step verification password.
             </p>
           </div>
 
           <form onSubmit={handleSjTutorIdStep1Submit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 SJ Tutor AI ID
               </label>
-              <div className={getInputShellClass('sjid')}>
-                <input
-                  type="text"
-                  required
-                  placeholder="SJTA-XXXXXX"
-                  value={sjTutorIdInput}
-                  onFocus={() => setFocusedField('sjid')}
-                  onBlur={() => setFocusedField(null)}
-                  onChange={(e) => setSjTutorIdInput(e.target.value.toUpperCase())}
-                  className="w-full px-3.5 py-3 font-mono uppercase bg-slate-950/90 rounded-[11px] text-sm text-white placeholder-slate-500 outline-none"
-                />
-              </div>
+              <input
+                type="text"
+                required
+                placeholder="SJTA-XXXXXX"
+                value={sjTutorIdInput}
+                onChange={(e) => setSjTutorIdInput(e.target.value.toUpperCase())}
+                className="w-full px-3.5 py-2.5 font-mono uppercase bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
+              />
             </div>
 
             <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-xs font-semibold text-slate-300">
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   2-Step Verification Password
                 </label>
                 <button
@@ -1061,38 +953,34 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
                     setRecoverIdentifier(sjTutorIdInput);
                     setActiveView('RECOVER_LOOKUP');
                   }}
-                  className="text-xs text-blue-300 hover:text-cyan-300 hover:underline cursor-pointer"
+                  className="text-xs text-amber-600 dark:text-amber-400 hover:underline"
                 >
                   Forgot password?
                 </button>
               </div>
-              <div className={getInputShellClass('sjpw')}>
-                <div className="relative rounded-[11px] bg-slate-950/90">
-                  <input
-                    type={showSjTutorPw ? 'text' : 'password'}
-                    required
-                    placeholder="••••••••"
-                    value={sjTutorPassword}
-                    onFocus={() => setFocusedField('sjpw')}
-                    onBlur={() => setFocusedField(null)}
-                    onChange={(e) => setSjTutorPassword(e.target.value)}
-                    className="w-full pl-4 pr-10 py-3 bg-transparent rounded-[11px] text-sm text-white placeholder-slate-500 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowSjTutorPw(!showSjTutorPw)}
-                    className="absolute right-3.5 top-3 text-slate-400 hover:text-white cursor-pointer"
-                  >
-                    {showSjTutorPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+              <div className="relative">
+                <input
+                  type={showSjTutorPw ? 'text' : 'password'}
+                  required
+                  placeholder="••••••••"
+                  value={sjTutorPassword}
+                  onChange={(e) => setSjTutorPassword(e.target.value)}
+                  className="w-full pl-4 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSjTutorPw(!showSjTutorPw)}
+                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  {showSjTutorPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg disabled:opacity-50 cursor-pointer"
+              className="w-full mt-2 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 transition-all shadow-sm shadow-amber-500/20 disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Continue to PIN</span>}
             </button>
@@ -1102,7 +990,7 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
             <button
               type="button"
               onClick={() => setActiveView('RECOVER_LOOKUP')}
-              className="text-xs text-slate-400 hover:text-blue-300 cursor-pointer"
+              className="text-xs text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400"
             >
               Forgot your SJ Tutor AI ID or PIN? Recover account
             </button>
@@ -1112,32 +1000,32 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
 
       {/* ══════════════════════════════════════════════════════════
           VIEW: SJ TUTOR AI ID LOGIN - STEP 2 (PIN VERIFICATION)
+          (NO OTP! Strictly verifies 4 or 6-digit PIN)
          ══════════════════════════════════════════════════════════ */}
       {activeView === 'PIN_VERIFY' && (
         <div>
           <button
-            type="button"
             onClick={() => setActiveView('SJTUTOR_ID')}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-white mb-4 transition-colors cursor-pointer"
+            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-4 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back</span>
           </button>
 
           <div className="text-center mb-6">
-            <div className="inline-flex p-2.5 bg-blue-500/15 border border-blue-400/25 rounded-xl text-blue-400 mb-2">
+            <div className="inline-flex p-2 bg-amber-100 dark:bg-amber-950/60 rounded-xl text-amber-600 dark:text-amber-400 mb-2">
               <KeyRound className="w-6 h-6" />
             </div>
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Enter Your Security PIN
             </h2>
-            <p className="text-sm text-slate-300 mt-1">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
               Enter your {pinLength}-digit security PIN to unlock your account.
             </p>
           </div>
 
           <form onSubmit={handlePinSubmit} className="space-y-5">
-            <div className={getInputShellClass('pin')}>
+            <div>
               <input
                 type="password"
                 inputMode="numeric"
@@ -1145,23 +1033,17 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
                 maxLength={pinLength}
                 placeholder={'•'.repeat(pinLength)}
                 value={pin}
-                onFocus={() => setFocusedField('pin')}
-                onBlur={() => setFocusedField(null)}
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                className="w-full text-center tracking-[0.5em] text-2xl font-bold py-3 bg-slate-950/90 rounded-[11px] text-white outline-none font-mono"
+                className="w-full text-center tracking-[0.5em] text-2xl font-bold py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none font-mono"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || pin.length !== pinLength}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg disabled:opacity-50 cursor-pointer"
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm shadow-amber-500/20 disabled:opacity-50"
             >
-              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <span>Verify PIN &amp; Log In</span>
-              )}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Verify PIN & Log In</span>}
             </button>
           </form>
 
@@ -1172,7 +1054,7 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
                 setRecoverIdentifier(sjTutorIdInput);
                 setActiveView('RECOVER_LOOKUP');
               }}
-              className="text-xs text-blue-300 font-semibold hover:underline cursor-pointer"
+              className="text-xs text-amber-600 dark:text-amber-400 font-semibold hover:underline"
             >
               Forgot your PIN? Recover using Security Question
             </button>
@@ -1186,46 +1068,41 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
       {activeView === 'RECOVER_LOOKUP' && (
         <div>
           <button
-            type="button"
             onClick={() => setActiveView('OVERVIEW')}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-white mb-4 transition-colors cursor-pointer"
+            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-4 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Log In</span>
+            <span>Back to Login</span>
           </button>
 
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Recover Your Account
             </h2>
-            <p className="text-sm text-slate-300 mt-1">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
               Enter your SJ Tutor AI ID or registered email address.
             </p>
           </div>
 
           <form onSubmit={handleLookupRecovery} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 SJ Tutor AI ID or Email
               </label>
-              <div className={getInputShellClass('recover')}>
-                <input
-                  type="text"
-                  required
-                  placeholder="SJTA-XXXXXX or student@example.com"
-                  value={recoverIdentifier}
-                  onFocus={() => setFocusedField('recover')}
-                  onBlur={() => setFocusedField(null)}
-                  onChange={(e) => setRecoverIdentifier(e.target.value)}
-                  className="w-full px-3.5 py-3 bg-slate-950/90 rounded-[11px] text-sm text-white placeholder-slate-500 outline-none"
-                />
-              </div>
+              <input
+                type="text"
+                required
+                placeholder="SJTA-XXXXXX or student@example.com"
+                value={recoverIdentifier}
+                onChange={(e) => setRecoverIdentifier(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
+              />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg disabled:opacity-50 cursor-pointer"
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 transition-all shadow-sm shadow-amber-500/20 disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Continue Recovery</span>}
             </button>
@@ -1235,7 +1112,7 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
                 <button
                   type="button"
                   onClick={handleSendEmailReset}
-                  className="text-xs text-blue-300 hover:text-cyan-300 underline cursor-pointer"
+                  className="text-xs text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 underline"
                 >
                   Send a password reset link to this email instead
                 </button>
@@ -1251,33 +1128,34 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
       {activeView === 'RECOVER_ANSWER' && (
         <div>
           <button
-            type="button"
             onClick={() => setActiveView('RECOVER_LOOKUP')}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-white mb-4 transition-colors cursor-pointer"
+            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-4 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back</span>
           </button>
 
           <div className="text-center mb-5">
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Answer Security Question
             </h2>
-            <p className="text-sm text-slate-300 mt-1">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
               Verify your identity to reset your password and PIN.
             </p>
           </div>
 
           <form onSubmit={handleVerifyRecovery} className="space-y-4">
-            <div className="p-3 bg-blue-950/50 border border-blue-400/25 rounded-xl">
-              <span className="text-xs text-blue-300 font-semibold block mb-0.5">
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl">
+              <span className="text-xs text-amber-700 dark:text-amber-400 font-semibold block mb-0.5">
                 Security Question:
               </span>
-              <p className="text-sm font-medium text-white">{recoverQuestion}</p>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">
+                {recoverQuestion}
+              </p>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Your Answer
               </label>
               <input
@@ -1286,12 +1164,12 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
                 placeholder="Enter answer"
                 value={recoverAnswer}
                 onChange={(e) => setRecoverAnswer(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-950/90 border border-white/15 focus:border-blue-400 rounded-xl text-sm text-white outline-none"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 New 2-Step Password (min 8 chars)
               </label>
               <input
@@ -1300,37 +1178,27 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
                 placeholder="••••••••"
                 value={recoverNewPassword}
                 onChange={(e) => setRecoverNewPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-950/90 border border-white/15 focus:border-blue-400 rounded-xl text-sm text-white outline-none"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
               />
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-semibold text-slate-300">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   New Security PIN ({recoverPinLength} Digits)
                 </label>
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setRecoverPinLength(4);
-                      setRecoverNewPin('');
-                    }}
-                    className={`text-[11px] px-2 py-0.5 rounded cursor-pointer ${
-                      recoverPinLength === 4 ? 'bg-blue-600 text-white' : 'text-slate-400'
-                    }`}
+                    onClick={() => { setRecoverPinLength(4); setRecoverNewPin(''); }}
+                    className={`text-[11px] px-2 py-0.5 rounded ${recoverPinLength === 4 ? 'bg-amber-500 text-white' : 'text-slate-400'}`}
                   >
                     4 Digits
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setRecoverPinLength(6);
-                      setRecoverNewPin('');
-                    }}
-                    className={`text-[11px] px-2 py-0.5 rounded cursor-pointer ${
-                      recoverPinLength === 6 ? 'bg-blue-600 text-white' : 'text-slate-400'
-                    }`}
+                    onClick={() => { setRecoverPinLength(6); setRecoverNewPin(''); }}
+                    className={`text-[11px] px-2 py-0.5 rounded ${recoverPinLength === 6 ? 'bg-amber-500 text-white' : 'text-slate-400'}`}
                   >
                     6 Digits
                   </button>
@@ -1343,20 +1211,16 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
                 placeholder={'•'.repeat(recoverPinLength)}
                 value={recoverNewPin}
                 onChange={(e) => setRecoverNewPin(e.target.value.replace(/\D/g, ''))}
-                className="w-full px-3.5 py-2.5 bg-slate-950/90 border border-white/15 focus:border-blue-400 rounded-xl text-sm text-white outline-none font-mono"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none font-mono"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg disabled:opacity-50 cursor-pointer"
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 transition-all shadow-sm shadow-amber-500/20 disabled:opacity-50"
             >
-              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <span>Update Credentials &amp; Recover</span>
-              )}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Update Credentials & Recover</span>}
             </button>
           </form>
         </div>
@@ -1367,17 +1231,18 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
          ══════════════════════════════════════════════════════════ */}
       {activeView === 'RECOVER_SUCCESS' && (
         <div className="text-center py-4">
-          <div className="w-16 h-16 bg-emerald-950/60 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-400">
+          <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/60 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">Recovery Successful</h2>
-          <p className="text-sm text-slate-300 mt-2 max-w-xs mx-auto">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+            Recovery Successful
+          </h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-xs mx-auto">
             {recoverSuccessMsg || 'Your account credentials have been updated.'}
           </p>
           <button
-            type="button"
             onClick={() => setActiveView('OVERVIEW')}
-            className="w-full mt-6 py-3 bg-gradient-to-r from-blue-600 to-violet-600 text-white font-bold rounded-xl transition-all shadow-lg cursor-pointer"
+            className="w-full mt-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all shadow-sm shadow-amber-500/20"
           >
             Return to Log In
           </button>
@@ -1395,7 +1260,7 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({
             handleSocialLogin(unauthorizedDomainData.provider as any);
           }
         }}
-        onSwitchToEmail={() => setActiveView('OVERVIEW')}
+        onSwitchToEmail={() => setActiveView('EMAIL')}
         onSwitchToId={() => setActiveView('SJTUTOR_ID')}
       />
     </div>

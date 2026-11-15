@@ -18,7 +18,7 @@ import {
   Clock
 } from 'lucide-react';
 import { UserProfile } from '../types';
-import { SecurityPinService } from '../services/securityPinService';
+import { SecurityPinService, SecurityPinConfig } from '../services/securityPinService';
 import { updateSecurityPin, updateTwoStepPassword, disableSecuritySetting } from '../services/authService';
 
 export interface SecurityPinSetupModalProps {

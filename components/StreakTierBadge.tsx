@@ -320,8 +320,10 @@ export const StreakTierIcon: React.FC<StreakTierIconProps> = ({
 };
 
 interface StreakBadgePillProps {
-  streak: number;
+  streak?: number;
+  streakCount?: number;
   showTitle?: boolean;
+  showLabel?: boolean;
   showEmoji?: boolean;
   size?: 'sm' | 'md' | 'lg';
   onClick?: () => void;
@@ -329,14 +331,18 @@ interface StreakBadgePillProps {
 }
 
 export const StreakBadgePill: React.FC<StreakBadgePillProps> = ({
-  streak = 0,
-  showTitle = false,
+  streak,
+  streakCount,
+  showTitle,
+  showLabel,
   showEmoji = true,
   size = 'md',
   onClick,
   className = ''
 }) => {
-  const tier = getStreakTier(streak);
+  const resolvedStreak = streak ?? streakCount ?? 0;
+  const resolvedShowTitle = showTitle ?? showLabel ?? false;
+  const tier = getStreakTier(resolvedStreak);
 
   const sizeStyles = {
     sm: 'px-2 py-0.5 text-[11px] gap-1',
@@ -352,15 +358,15 @@ export const StreakBadgePill: React.FC<StreakBadgePillProps> = ({
       } ${tier.darkBg} ${tier.borderColor} ${sizeStyles[size]} ${
         onClick ? 'cursor-pointer hover:scale-105 active:scale-95' : ''
       } ${className}`}
-      title={`${streak} Day Streak • Tier: ${tier.name} (${tier.title})`}
+      title={`${resolvedStreak} Day Streak • Tier: ${tier.name} (${tier.title})`}
     >
       {showEmoji && <span className="text-sm leading-none">{tier.emoji}</span>}
-      <StreakTierIcon tier={tier} size={size === 'lg' ? 'md' : 'sm'} animate={streak > 0} />
-      <span className="font-mono font-black">{streak}</span>
+      <StreakTierIcon tier={tier} size={size === 'lg' ? 'md' : 'sm'} animate={resolvedStreak > 0} />
+      <span className="font-mono font-black">{resolvedStreak}</span>
       <span className="text-[11px] font-medium opacity-80">
-        {streak === 1 ? 'day' : 'days'}
+        {resolvedStreak === 1 ? 'day' : 'days'}
       </span>
-      {showTitle && (
+      {resolvedShowTitle && (
         <span className="hidden sm:inline-block px-1.5 py-0.2 rounded-md bg-black/10 dark:bg-white/10 text-[10px] uppercase tracking-wider font-extrabold ml-0.5">
           {tier.name}
         </span>

@@ -94,6 +94,8 @@ export interface UserProfile {
   username?: string;
   linkedProviders?: string[];
   displayName: string;
+  name?: string;
+  fullName?: string;
   phoneNumber: string;
   institution: string;
   grade?: string;
@@ -328,7 +330,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   appearance: {
     theme: 'Light',
     animations: true,
-    primaryColor: 'Blue',
+    primaryColor: 'Gold',
     fontFamily: 'Inter',
   },
   privacy: {
