@@ -208,8 +208,8 @@ export interface UserSettings {
   appearance: {
     theme: 'Light' | 'Dark' | 'System';
     animations: boolean;
-    primaryColor: 'Gold' | 'Blue' | 'Emerald' | 'Violet' | 'Rose';
-    fontFamily: 'Inter' | 'Roboto' | 'Open Sans';
+    primaryColor: 'Sapphire' | 'Gold' | 'Blue' | 'Emerald' | 'Violet' | 'Rose';
+    fontFamily: 'Plus Jakarta Sans' | 'Inter' | 'Roboto' | 'Open Sans';
   };
   privacy: {
     twoFactor: boolean;

@@ -115,7 +115,6 @@ import {
   Laptop,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import type { GenerateContentResponse } from "@google/genai";
 
 const sanitizeSlug = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") : "general";
 
@@ -1258,13 +1257,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Check API Key
-  useEffect(() => {
-    if (!process.env.API_KEY) {
-      console.warn("API_KEY is missing in environment variables!");
-    }
-  }, []);
-
   // Auto-fill grade from profile when switching modes
   useEffect(() => {
     if (
@@ -2360,13 +2352,6 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!process.env.API_KEY) {
-      setError(
-        "Configuration Error: API_KEY is missing. Please check your environment variables.",
-      );
-      return;
-    }
-
     if (!validateForm()) return;
 
     setLoading(true);
@@ -2381,9 +2366,8 @@ const App: React.FC = () => {
 
         let text = "";
         for await (const chunk of stream) {
-          const c = chunk as GenerateContentResponse;
-          if (c.text) {
-            text += c.text;
+          if (chunk.text) {
+            text += chunk.text;
             setSummaryContent(text);
           }
         }
@@ -2404,9 +2388,8 @@ const App: React.FC = () => {
 
         let text = "";
         for await (const chunk of stream) {
-          const c = chunk as GenerateContentResponse;
-          if (c.text) {
-            text += c.text;
+          if (chunk.text) {
+            text += chunk.text;
             setHomeworkContent(text);
           }
         }
