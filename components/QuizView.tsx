@@ -22,12 +22,11 @@ interface QuizViewProps {
 }
 
 const LOADING_STEPS = [
-  "Loading Questions...",
-  "Preparing Timer...",
-  "Randomizing Questions...",
-  "Formatting Questions...",
-  "Setting Difficulty...",
-  "Almost Ready..."
+  "Understanding your topic...",
+  "Preparing questions...",
+  "Generating answer options...",
+  "Reviewing quiz accuracy...",
+  "Your quiz is ready!"
 ];
 
 const QuizView: React.FC<QuizViewProps> = ({ 
@@ -42,6 +41,7 @@ const QuizView: React.FC<QuizViewProps> = ({
 }) => {
   const { triggerToast } = useNotifications();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>(() => new Array(questions.length).fill(null));
   const [score, setScore] = useState(0);
   const [quizCompleted, setQuizCompleted] = useState(false);
@@ -53,7 +53,6 @@ const QuizView: React.FC<QuizViewProps> = ({
   const handleSharePublicLinkClick = async () => {
     if (isSharingPublic) return;
     setIsSharingPublic(true);
-    console.log("QuizView Share button click event detected with score and answers.");
     try {
       if (onSharePublicLink) {
         const title = questions[0]?.question ? `Quiz: ${questions[0].question.substring(0, 35)}...` : 'AI Quiz Challenge';
@@ -62,13 +61,11 @@ const QuizView: React.FC<QuizViewProps> = ({
           userScore: score,
           totalQuestions: questions.length,
           percentage: questions.length > 0 ? Math.round((score / questions.length) * 100) : 0,
-          userAnswers, // Array of the user's selected option indices
+          userAnswers,
           quizCompleted: true,
           completedAt: Date.now()
         };
         await onSharePublicLink('quiz', title, quizPayload, score);
-      } else {
-        console.warn("onSharePublicLink prop is not provided to QuizView.");
       }
     } catch (err) {
       console.error("Error inside QuizView handleSharePublicLinkClick:", err);
@@ -98,22 +95,20 @@ const QuizView: React.FC<QuizViewProps> = ({
   // 1. INTRO QUIZ LOADING SCREEN (ONLY IF NEW QUIZ)
   useEffect(() => {
     if (quizLoading) {
-      const duration = 2200;
+      const duration = 1800;
       const intervalTime = duration / LOADING_STEPS.length;
 
-      // Cycle textual loading messages
       const stepInterval = setInterval(() => {
         setLoadingStepIdx((prev) => (prev < LOADING_STEPS.length - 1 ? prev + 1 : prev));
       }, intervalTime);
 
-      // Smooth progress count to 100%
       const progressInterval = setInterval(() => {
         setLoadingProgress((prev) => {
           if (prev >= 100) {
             clearInterval(progressInterval);
             return 100;
           }
-          return prev + 1.5;
+          return prev + 2;
         });
       }, 30);
 
@@ -145,11 +140,9 @@ const QuizView: React.FC<QuizViewProps> = ({
     if (showResultModal) {
       const finalPercentage = Math.round((score / questions.length) * 100);
       
-      // Reset counting values
       setCountedScore(0);
       setRingProgress(0);
 
-      // Animate numerical score count
       let currentCount = 0;
       const countDuration = 1200;
       const stepTime = Math.max(Math.floor(countDuration / (score || 1)), 40);
@@ -168,12 +161,10 @@ const QuizView: React.FC<QuizViewProps> = ({
         }
       }, stepTime);
 
-      // Animate SVG Ring Fill
       const ringTimer = setTimeout(() => {
         setRingProgress(finalPercentage);
       }, 100);
 
-      // Trigger premium confetti explosion if score is >= 80%
       if (finalPercentage >= 80) {
         const confettiTimer = setTimeout(() => {
           confetti({
@@ -206,11 +197,18 @@ const QuizView: React.FC<QuizViewProps> = ({
     setUserAnswers(newAnswers);
   };
 
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      setSlideDirection(-1);
+      setCurrentIndex((prev) => prev - 1);
+    }
+  };
+
   const handleNext = () => {
     if (currentIndex < questions.length - 1) {
+      setSlideDirection(1);
       setCurrentIndex((prev) => prev + 1);
     } else {
-      // Evaluate all answers!
       const finalScore = userAnswers.reduce((acc, ans, idx) => {
         return ans === questions[idx].correctAnswerIndex ? acc + 1 : acc;
       }, 0);
@@ -282,7 +280,6 @@ const QuizView: React.FC<QuizViewProps> = ({
 
     return (
       <div className="relative p-8 sm:p-12 bg-gradient-to-tr from-slate-950 via-slate-900 to-blue-950 text-white rounded-[24px] border border-slate-800 shadow-2xl min-h-[480px] max-h-[85vh] flex flex-col items-center justify-center overflow-y-auto custom-scrollbar">
-        {/* Floating Background Particles */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           {particles.map((p) => (
             <motion.div
@@ -306,7 +303,6 @@ const QuizView: React.FC<QuizViewProps> = ({
           ))}
         </div>
 
-        {/* Floating Timer Icon */}
         <div className="relative mb-8 flex items-center justify-center">
           <div className="absolute w-24 h-24 bg-blue-500/10 rounded-full blur-xl animate-pulse" />
           <motion.div
@@ -323,7 +319,6 @@ const QuizView: React.FC<QuizViewProps> = ({
           </motion.div>
         </div>
 
-        {/* Dynamic loading textual indicator */}
         <div className="h-6 mb-4 flex items-center justify-center z-10">
           <AnimatePresence mode="wait">
             <motion.h3
@@ -343,7 +338,6 @@ const QuizView: React.FC<QuizViewProps> = ({
           Calibrating grading metrics, timers, and randomized academic selections...
         </p>
 
-        {/* Circular Loading Progress */}
         <div className="relative w-20 h-20 flex items-center justify-center z-10">
           <svg className="w-full h-full -rotate-90">
             <circle
@@ -422,9 +416,7 @@ const QuizView: React.FC<QuizViewProps> = ({
               </button>
 
               <div className="p-8 text-center">
-                {/* 1. GORGEOUS POPPING BADGE & SCORE CIRCLE */}
                 <div className="relative w-36 h-36 mx-auto mb-6 flex items-center justify-center">
-                  {/* SVG Circular Fill Progress */}
                   <svg className="absolute inset-0 w-full h-full -rotate-90">
                     <circle
                       cx="72"
@@ -447,7 +439,6 @@ const QuizView: React.FC<QuizViewProps> = ({
                     />
                   </svg>
 
-                  {/* Popping Award/Trophy Badge */}
                   <motion.div
                     initial={{ scale: 0, rotate: -45 }}
                     animate={{ scale: 1, rotate: 0 }}
@@ -456,7 +447,6 @@ const QuizView: React.FC<QuizViewProps> = ({
                   >
                     <BadgeIcon className="w-11 h-11" />
                     
-                    {/* Tiny glowing star badge decoration */}
                     <motion.div 
                       animate={{ scale: [1, 1.2, 1] }} 
                       transition={{ duration: 1.5, repeat: Infinity }}
@@ -467,7 +457,6 @@ const QuizView: React.FC<QuizViewProps> = ({
                   </motion.div>
                 </div>
 
-                {/* Badge title popup */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -483,7 +472,6 @@ const QuizView: React.FC<QuizViewProps> = ({
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 mb-6 font-medium italic text-sm">&quot;{message}&quot;</p>
                 
-                {/* 2. SCORE BOX WITH COUNTING ANIMATION */}
                 <motion.div 
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -500,7 +488,6 @@ const QuizView: React.FC<QuizViewProps> = ({
                   </div>
                 </motion.div>
 
-                {/* 3. BUTTONS ANIMATE UPWARD */}
                 <motion.div 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -508,7 +495,6 @@ const QuizView: React.FC<QuizViewProps> = ({
                   className="space-y-4"
                 >
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {/* Save Button */}
                     <button
                       onClick={handleSaveClick}
                       disabled={isAddedToList || localSaved}
@@ -522,7 +508,6 @@ const QuizView: React.FC<QuizViewProps> = ({
                       <span>{(isAddedToList || localSaved) ? "Saved" : "Save Score"}</span>
                     </button>
 
-                    {/* Premium Export Button */}
                     <button
                       onClick={() => setIsExportOpen(true)}
                       className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-sm transition hover:scale-[1.02]"
@@ -531,7 +516,6 @@ const QuizView: React.FC<QuizViewProps> = ({
                       <span>Export Quiz</span>
                     </button>
 
-                    {/* Copy Button */}
                     <button
                       onClick={async () => {
                         try {
@@ -555,7 +539,6 @@ const QuizView: React.FC<QuizViewProps> = ({
                       <span>Copy Quiz</span>
                     </button>
 
-                    {/* Share Link Button */}
                     <button
                       onClick={handleSharePublicLinkClick}
                       disabled={isSharingPublic}
@@ -578,7 +561,6 @@ const QuizView: React.FC<QuizViewProps> = ({
                     Retake Another Quiz
                   </button>
 
-                  {/* Individual statistics sharing */}
                   <div className="border-t border-slate-100 dark:border-slate-800 pt-5">
                     <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3">Quick Share Score</p>
                     <div className="flex justify-center gap-3">
@@ -653,7 +635,13 @@ const QuizView: React.FC<QuizViewProps> = ({
               const isSkipped = userAnswer === null;
 
               return (
-                <div key={idx} className="p-6">
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: Math.min(idx * 0.06, 0.5) }}
+                  className="p-6"
+                >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <p className="font-semibold text-slate-800 dark:text-slate-200 flex gap-3 text-left">
                       <span className="text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-sm shrink-0 h-fit">{idx + 1}</span>
@@ -666,15 +654,25 @@ const QuizView: React.FC<QuizViewProps> = ({
                           Skipped
                         </span>
                       ) : isCorrect ? (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 rounded-full text-xs font-black">
+                        <motion.span
+                          initial={{ scale: 0.85 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 rounded-full text-xs font-black"
+                        >
                           <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
                           Correct
-                        </span>
+                        </motion.span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 text-rose-750 dark:text-rose-400 rounded-full text-xs font-black">
+                        <motion.span
+                          initial={{ x: -4 }}
+                          animate={{ x: [0, -4, 4, -2, 2, 0] }}
+                          transition={{ duration: 0.4 }}
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 text-rose-750 dark:text-rose-400 rounded-full text-xs font-black"
+                        >
                           <XCircle className="w-3.5 h-3.5 text-rose-500" />
                           Incorrect
-                        </span>
+                        </motion.span>
                       )}
                     </div>
                   </div>
@@ -707,7 +705,7 @@ const QuizView: React.FC<QuizViewProps> = ({
                     <span className="font-bold text-slate-700 dark:text-slate-300 not-italic">Quick Tip: </span>
                     {q.explanation}
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -724,17 +722,18 @@ const QuizView: React.FC<QuizViewProps> = ({
 
       {/* Main Active Quiz Screen */}
       <div className={`bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative flex-col min-h-[500px] ${quizCompleted ? 'hidden' : 'flex'}`}>
-        {/* Progress Bar */}
-        <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 shrink-0">
-          <div 
-            className="bg-primary-600 h-1.5 transition-all duration-300"
-            style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
-          ></div>
+        {/* Smooth Animated Progress Bar */}
+        <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 shrink-0 overflow-hidden">
+          <motion.div 
+            className="bg-gradient-to-r from-blue-600 via-primary-600 to-violet-600 h-1.5"
+            animate={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          />
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto max-h-[72vh] custom-scrollbar">
           <div className="flex justify-between items-center mb-6">
-            <span className="text-xs font-bold text-primary-600 uppercase tracking-wider bg-primary-50 dark:bg-primary-950/40 px-2 py-1 rounded">
+            <span className="text-xs font-bold text-primary-600 uppercase tracking-wider bg-primary-50 dark:bg-primary-950/40 px-2.5 py-1 rounded-lg border border-primary-100 dark:border-primary-900/40">
               Question {currentIndex + 1} of {questions.length}
             </span>
             <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
@@ -744,64 +743,105 @@ const QuizView: React.FC<QuizViewProps> = ({
             </div>
           </div>
 
-          <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-6 text-left leading-relaxed">
-            {currentQuestion?.question}
-          </h3>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={currentIndex}
+              initial={{ opacity: 0, x: slideDirection * 36 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: slideDirection * -36 }}
+              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <h3 className="text-xl font-semibold text-slate-800 dark:text-white mb-6 text-left leading-relaxed">
+                {currentQuestion?.question}
+              </h3>
 
-          <div className="space-y-3">
-            {currentQuestion?.options.map((option, idx) => {
-              const isSelected = userAnswers[currentIndex] === idx;
-              let optionClass = "border-slate-200 dark:border-slate-800 hover:border-primary-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300";
-              
-              if (isSelected) {
-                optionClass = "border-primary-500 bg-primary-50 dark:bg-primary-950/20 ring-1 ring-primary-500 text-primary-700 dark:text-primary-300 font-semibold";
-              }
+              <div className="space-y-3">
+                {currentQuestion?.options.map((option, idx) => {
+                  const isSelected = userAnswers[currentIndex] === idx;
+                  let optionClass = "border-slate-200 dark:border-slate-800 hover:border-primary-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300";
+                  
+                  if (isSelected) {
+                    optionClass = "border-primary-500 bg-primary-50 dark:bg-primary-950/20 ring-1 ring-primary-500 text-primary-700 dark:text-primary-300 font-semibold shadow-sm";
+                  }
 
-              return (
-                <button
-                  key={idx}
-                  onClick={() => handleOptionSelect(idx)}
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-all flex justify-between items-center hover:scale-[1.01] active:scale-[0.98] cursor-pointer ${optionClass}`}
-                >
-                  <span className="font-medium text-sm sm:text-base">{option}</span>
-                  {isSelected && <CheckCircle className="w-5 h-5 text-primary-500 shrink-0" />}
-                </button>
-              );
-            })}
-          </div>
+                  return (
+                    <motion.button
+                      key={`${currentIndex}-opt-${idx}`}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.26, delay: idx * 0.055, ease: [0.16, 1, 0.3, 1] }}
+                      whileHover={{ x: 4, scale: 1.008 }}
+                      whileTap={{ scale: 0.985 }}
+                      onClick={() => handleOptionSelect(idx)}
+                      className={`w-full text-left p-4 rounded-xl border-2 transition-colors flex justify-between items-center cursor-pointer ${optionClass}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 transition-colors ${
+                          isSelected
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                        }`}>
+                          {String.fromCharCode(65 + idx)}
+                        </span>
+                        <span className="font-medium text-sm sm:text-base">{option}</span>
+                      </div>
+                      <AnimatePresence>
+                        {isSelected && (
+                          <motion.span
+                            initial={{ scale: 0, rotate: -30 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            exit={{ scale: 0 }}
+                            transition={{ type: 'spring', stiffness: 360, damping: 20 }}
+                          >
+                            <CheckCircle className="w-5 h-5 text-primary-500 shrink-0" />
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </AnimatePresence>
 
           <div className="mt-8 flex justify-between items-center gap-4 border-t border-slate-100 dark:border-slate-800 pt-6">
             {/* Back Button */}
             {currentIndex > 0 ? (
-              <button
-                onClick={() => setCurrentIndex((prev) => prev - 1)}
-                className="inline-flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-250 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs transition cursor-pointer"
+              <motion.button
+                whileHover={{ x: -2 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={handlePrevious}
+                className="inline-flex items-center px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs transition cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4 mr-1.5" />
                 Previous
-              </button>
+              </motion.button>
             ) : (
-              <div /> // spacer
+              <div />
             )}
 
             {/* Next or Skip Button */}
             <div className="flex items-center gap-3">
               {userAnswers[currentIndex] === null ? (
-                <button
+                <motion.button
+                  whileHover={{ x: 2 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={handleNext}
                   className="inline-flex items-center px-5 py-2.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400 rounded-xl font-bold text-xs transition cursor-pointer"
                 >
                   Skip Question
                   <ArrowRight className="w-4 h-4 ml-1.5" />
-                </button>
+                </motion.button>
               ) : (
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.03, x: 2 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={handleNext}
-                  className="inline-flex items-center px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs transition shadow-md shadow-primary-500/10 hover:scale-102 active:scale-95 cursor-pointer"
+                  className="inline-flex items-center px-6 py-2.5 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs transition shadow-md shadow-primary-500/20 cursor-pointer"
                 >
                   {currentIndex === questions.length - 1 ? 'Finish & Evaluate' : 'Next Question'}
                   <ArrowRight className="w-4 h-4 ml-1.5" />
-                </button>
+                </motion.button>
               )}
             </div>
           </div>

@@ -22,6 +22,7 @@ import {
 } from '../utils/firebaseUtils';
 import { useNotifications } from './NotificationContext';
 import { requestMicrophoneStream, VoiceDictationSession } from '../services/audioService';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface NotesViewProps {
   userId: string | null;
@@ -56,6 +57,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState<Partial<NoteItem> | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [justSavedNote, setJustSavedNote] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | NoteStatus>('ALL');
 
@@ -405,9 +407,13 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   const handleSaveNote = () => {
     if (!editingNote?.id) return;
     setNotes(prev => prev.map(n => n.id === editingNote.id ? { ...n, ...editingNote } as NoteItem : n));
-    setViewMode('LIST');
-    setEditingNote(null);
+    setJustSavedNote(true);
     triggerToast('Note Saved! 💾', `"${editingNote.title || 'Untitled'}" saved successfully.`, 'Important Alerts');
+    setTimeout(() => {
+      setJustSavedNote(false);
+      setViewMode('LIST');
+      setEditingNote(null);
+    }, 520);
   };
 
   const handleDeleteNote = (noteId: string) => {
@@ -660,7 +666,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       {/* Navigation Tabs */}
-      <div className="flex p-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-xs">
+      <div className="flex p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-xs relative">
         {[
           { id: 'NOTES', label: 'Study Notes & Folders', icon: StickyNote },
           { id: 'REMINDERS', label: 'Study Tasks', icon: Bell },
@@ -672,14 +678,21 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
             <button 
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 rounded-xl transition-all ${
+              className={`relative flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 rounded-xl transition-colors z-10 cursor-pointer ${
                 isCurrent 
-                  ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shadow-xs' 
-                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                  ? 'text-primary-700 dark:text-primary-300' 
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
+              {isCurrent && (
+                <motion.div
+                  layoutId="notes-active-tab"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  className="absolute inset-0 bg-primary-50 dark:bg-primary-900/35 border border-primary-200/70 dark:border-primary-800/60 rounded-xl shadow-xs"
+                />
+              )}
+              <Icon className="w-4 h-4 relative z-10" />
+              <span className="relative z-10">{tab.label}</span>
             </button>
           );
         })}
@@ -723,30 +736,36 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                       </button>
                     </div>
 
-                    <button 
+                    <motion.button 
+                      whileHover={{ y: -2, scale: 1.02 }}
+                      whileTap={{ scale: 0.96 }}
                       onClick={openCreateFolderModal}
-                      className="px-3.5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-xs"
+                      className="px-3.5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer"
                       title="Create a new study category/folder"
                     >
                       <FolderPlus className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                       <span>+ New Folder</span>
-                    </button>
+                    </motion.button>
 
-                    <button 
+                    <motion.button 
+                      whileHover={{ y: -2, scale: 1.03 }}
+                      whileTap={{ scale: 0.96 }}
                       onClick={() => setViewMode('AI_GENERATOR')} 
-                      className="px-3.5 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md shadow-indigo-500/20 transition active:scale-95"
+                      className="btn-glow-border px-3.5 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md shadow-indigo-500/20 transition cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-amber-300" /> 
                       <span className="hidden sm:inline">AI Notes</span>
-                    </button>
+                    </motion.button>
 
-                    <button 
+                    <motion.button 
+                      whileHover={{ y: -2, scale: 1.03 }}
+                      whileTap={{ scale: 0.96 }}
                       onClick={() => handleCreateNote('Blank', selectedFolder || undefined)} 
-                      className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md shadow-primary-500/20 transition active:scale-95"
+                      className="btn-glow-border px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md shadow-primary-500/20 transition cursor-pointer"
                     >
                       <Plus className="w-4 h-4" /> 
                       <span>New Note</span>
-                    </button>
+                    </motion.button>
                   </div>
                 </div>
 
@@ -808,26 +827,36 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   
                   {/* Create New Folder Action Card */}
-                  <div
+                  <motion.div
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35 }}
+                    whileHover={{ y: -4, scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={openCreateFolderModal}
-                    className="p-6 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-primary-400 dark:hover:border-primary-600 bg-white/50 dark:bg-slate-800/50 flex flex-col items-center justify-center text-center cursor-pointer group transition-all hover:-translate-y-0.5 min-h-[190px]"
+                    className="p-6 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-primary-400 dark:hover:border-primary-600 bg-white/50 dark:bg-slate-800/50 flex flex-col items-center justify-center text-center cursor-pointer group transition-colors min-h-[190px]"
                   >
                     <div className="w-12 h-12 rounded-2xl bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                       <FolderPlus className="w-6 h-6" />
                     </div>
                     <h4 className="font-bold text-slate-800 dark:text-white text-sm group-hover:text-primary-600 transition">Create New Folder</h4>
                     <p className="text-xs text-slate-400 mt-1 max-w-[200px]">Organize study notes by subject, unit, or exam topic.</p>
-                  </div>
+                  </motion.div>
 
-                  {foldersList.map((folder) => {
+                  {foldersList.map((folder, fIdx) => {
                     const containedNotes = notes.filter(n => (n.folder || 'General Notes') === folder.name);
                     const col = FOLDER_COLORS[folder.color] || FOLDER_COLORS.indigo;
 
                     return (
-                      <div 
+                      <motion.div 
                         key={folder.id}
+                        initial={{ opacity: 0, y: 18 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.38, delay: Math.min(fIdx * 0.045, 0.35), ease: [0.16, 1, 0.3, 1] }}
+                        whileHover={{ y: -5, scale: 1.012 }}
+                        whileTap={{ scale: 0.985 }}
                         onClick={() => { setSelectedFolder(folder.name); setViewMode('LIST'); }}
-                        className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-primary-400 dark:hover:border-primary-600 cursor-pointer group transition-all hover:-translate-y-1 shadow-xs hover:shadow-md flex flex-col justify-between"
+                        className="card-3d-hover bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-primary-400 dark:hover:border-primary-600 cursor-pointer group transition-colors shadow-xs hover:shadow-lg flex flex-col justify-between"
                       >
                         <div>
                           {/* Folder Card Header */}
@@ -886,7 +915,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                             Open <ChevronRight className="w-3.5 h-3.5" />
                           </span>
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
                 </div>
@@ -974,15 +1003,20 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredNotes.map(note => {
+                    {filteredNotes.map((note, nIdx) => {
                       const noteFolder = getFolderConfig(note.folder || 'General Notes');
                       const col = FOLDER_COLORS[noteFolder.color] || FOLDER_COLORS.indigo;
 
                       return (
-                        <div 
+                        <motion.div 
                           key={note.id}
+                          initial={{ opacity: 0, y: 16 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, delay: Math.min(nIdx * 0.04, 0.32), ease: [0.16, 1, 0.3, 1] }}
+                          whileHover={{ y: -4, scale: 1.01 }}
+                          whileTap={{ scale: 0.985 }}
                           onClick={() => { setEditingNote(note); setViewMode('EDITOR'); }}
-                          className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-primary-400 dark:hover:border-primary-600 transition-all cursor-pointer group relative flex flex-col justify-between"
+                          className="card-3d-hover bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:shadow-lg hover:border-primary-400 dark:hover:border-primary-600 transition-colors cursor-pointer group relative flex flex-col justify-between"
                         >
                           <div>
                             {/* Card Top: Folder badge & Action Controls */}
@@ -1065,7 +1099,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                               </span>
                             </div>
                           </div>
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </div>
@@ -1185,12 +1219,36 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                       <Trash2 className="w-4 h-4" />
                     </button>
 
-                    <button 
+                    <motion.button 
+                      whileHover={{ y: -1, scale: 1.03 }}
+                      whileTap={{ scale: 0.95 }}
                       onClick={handleSaveNote} 
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition active:scale-95"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition cursor-pointer"
                     >
-                      <Save className="w-3.5 h-3.5" /> Save Note
-                    </button>
+                      <AnimatePresence mode="wait" initial={false}>
+                        {justSavedNote ? (
+                          <motion.span
+                            key="saved"
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.5, opacity: 0 }}
+                            className="flex items-center gap-1.5"
+                          >
+                            <Check className="w-3.5 h-3.5 text-white" /> Saved!
+                          </motion.span>
+                        ) : (
+                          <motion.span
+                            key="save"
+                            initial={{ scale: 0.85, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.85, opacity: 0 }}
+                            className="flex items-center gap-1.5"
+                          >
+                            <Save className="w-3.5 h-3.5" /> Save Note
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </motion.button>
                   </div>
                 </div>
 
@@ -1566,147 +1624,173 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
         )}
 
         {/* CREATE / EDIT FOLDER MODAL */}
-        {isFolderModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                  <FolderPlus className="w-5 h-5 text-primary-600" />
-                  <span>{editingFolder ? 'Edit Folder' : 'Create Study Folder'}</span>
-                </h3>
-                <button onClick={() => setIsFolderModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveFolderForm} className="space-y-4">
-                {/* Folder Name */}
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Folder / Category Name</label>
-                  <input
-                    type="text"
-                    required
-                    autoFocus
-                    placeholder="e.g. Biology & Anatomy, AP Calculus, History Unit 2"
-                    value={folderFormName}
-                    onChange={(e) => setFolderFormName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 dark:text-white"
-                  />
+        <AnimatePresence>
+          {isFolderModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs"
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.94, y: 12 }}
+                transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    <FolderPlus className="w-5 h-5 text-primary-600" />
+                    <span>{editingFolder ? 'Edit Folder' : 'Create Study Folder'}</span>
+                  </h3>
+                  <button onClick={() => setIsFolderModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
 
-                {/* Icon Selection */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Folder Icon</label>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {FOLDER_ICONS.map((emoji) => (
-                      <button
-                        type="button"
-                        key={emoji}
-                        onClick={() => setFolderFormIcon(emoji)}
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg border transition ${
-                          folderFormIcon === emoji 
-                            ? 'bg-primary-50 dark:bg-primary-950/40 border-primary-500 scale-110 shadow-xs' 
-                            : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
+                <form onSubmit={handleSaveFolderForm} className="space-y-4">
+                  {/* Folder Name */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Folder / Category Name</label>
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      placeholder="e.g. Biology & Anatomy, AP Calculus, History Unit 2"
+                      value={folderFormName}
+                      onChange={(e) => setFolderFormName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 dark:text-white"
+                    />
                   </div>
-                </div>
 
-                {/* Color Selection */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Color Accent</label>
-                  <div className="flex items-center gap-2">
-                    {Object.keys(FOLDER_COLORS).map((cKey) => {
-                      const cObj = FOLDER_COLORS[cKey];
-                      return (
+                  {/* Icon Selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Folder Icon</label>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {FOLDER_ICONS.map((emoji) => (
                         <button
                           type="button"
-                          key={cKey}
-                          onClick={() => setFolderFormColor(cKey)}
-                          className={`w-7 h-7 rounded-full ${cObj.bg} transition transform ${
-                            folderFormColor === cKey ? 'ring-2 ring-offset-2 ring-primary-500 scale-110' : 'opacity-70 hover:opacity-100'
+                          key={emoji}
+                          onClick={() => setFolderFormIcon(emoji)}
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg border transition ${
+                            folderFormIcon === emoji 
+                              ? 'bg-primary-50 dark:bg-primary-950/40 border-primary-500 scale-110 shadow-xs' 
+                              : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
                           }`}
-                        />
-                      );
-                    })}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                {/* Description */}
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Midterm revision notes and formula cheat sheets"
-                    value={folderFormDesc}
-                    onChange={(e) => setFolderFormDesc(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 dark:text-white"
-                  />
-                </div>
+                  {/* Color Selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Color Accent</label>
+                    <div className="flex items-center gap-2">
+                      {Object.keys(FOLDER_COLORS).map((cKey) => {
+                        const cObj = FOLDER_COLORS[cKey];
+                        return (
+                          <button
+                            type="button"
+                            key={cKey}
+                            onClick={() => setFolderFormColor(cKey)}
+                            className={`w-7 h-7 rounded-full ${cObj.bg} transition transform ${
+                              folderFormColor === cKey ? 'ring-2 ring-offset-2 ring-primary-500 scale-110' : 'opacity-70 hover:opacity-100'
+                            }`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
 
-                <div className="flex gap-3 pt-2">
+                  {/* Description */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Midterm revision notes and formula cheat sheets"
+                      value={folderFormDesc}
+                      onChange={(e) => setFolderFormDesc(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary-500 text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsFolderModalOpen(false)}
+                      className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs hover:bg-slate-200 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-xl text-xs shadow-md transition"
+                    >
+                      {editingFolder ? 'Save Changes' : 'Create Folder'}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* DELETE FOLDER CONFIRMATION MODAL */}
+        <AnimatePresence>
+          {isDeleteFolderModalOpen && deleteFolderTarget && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs"
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 12 }}
+                transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-3">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <h4 className="font-bold text-base text-slate-900 dark:text-white mb-1">
+                  Delete &quot;{deleteFolderTarget.name}&quot;?
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+                  Choose what happens to the notes inside this folder:
+                </p>
+
+                <div className="flex flex-col gap-2">
                   <button
-                    type="button"
-                    onClick={() => setIsFolderModalOpen(false)}
-                    className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs hover:bg-slate-200 transition"
+                    onClick={() => confirmDeleteFolder(false)}
+                    className="w-full py-2.5 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-xl text-xs shadow-sm transition"
+                  >
+                    Move Notes to &quot;General Notes&quot; (Keep Notes)
+                  </button>
+                  <button
+                    onClick={() => confirmDeleteFolder(true)}
+                    className="w-full py-2.5 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-bold rounded-xl text-xs hover:bg-rose-100 transition"
+                  >
+                    Delete Folder and All Notes
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsDeleteFolderModalOpen(false);
+                      setDeleteFolderTarget(null);
+                    }}
+                    className="w-full py-2 text-slate-400 hover:text-slate-600 font-medium rounded-xl text-xs"
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-xl text-xs shadow-md transition"
-                  >
-                    {editingFolder ? 'Save Changes' : 'Create Folder'}
-                  </button>
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* DELETE FOLDER CONFIRMATION MODAL */}
-        {isDeleteFolderModalOpen && deleteFolderTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center animate-in zoom-in-95 duration-200">
-              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-3">
-                <Trash2 className="w-6 h-6" />
-              </div>
-              <h4 className="font-bold text-base text-slate-900 dark:text-white mb-1">
-                Delete &quot;{deleteFolderTarget.name}&quot;?
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-                Choose what happens to the notes inside this folder:
-              </p>
-
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={() => confirmDeleteFolder(false)}
-                  className="w-full py-2.5 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-xl text-xs shadow-sm transition"
-                >
-                  Move Notes to &quot;General Notes&quot; (Keep Notes)
-                </button>
-                <button
-                  onClick={() => confirmDeleteFolder(true)}
-                  className="w-full py-2.5 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-bold rounded-xl text-xs hover:bg-rose-100 transition"
-                >
-                  Delete Folder and All Notes
-                </button>
-                <button
-                  onClick={() => {
-                    setIsDeleteFolderModalOpen(false);
-                    setDeleteFolderTarget(null);
-                  }}
-                  className="w-full py-2 text-slate-400 hover:text-slate-600 font-medium rounded-xl text-xs"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </div>
     </div>

@@ -433,7 +433,7 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
     <div className="w-full max-w-md mx-auto">
       {/* Global Error Notice */}
       {errorAlert && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl flex items-start gap-2.5 text-xs text-red-700 dark:text-red-300">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl flex items-start gap-2.5 text-xs text-red-700 dark:text-red-300 animate-error-shake">
           <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
           <span>{errorAlert}</span>
         </div>
@@ -454,14 +454,16 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
           </div>
 
           <div className="space-y-3">
-            <button
+            <motion.button
+              whileHover={{ y: -2, scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => handleSocialLogin('google')}
               disabled={loading}
               className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-slate-800 rounded-xl font-semibold hover:bg-slate-100 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
             >
               <GoogleIcon className="w-5 h-5" />
               <span>Continue with Google</span>
-            </button>
+            </motion.button>
 
             <button
               onClick={() => handleSocialLogin('apple')}

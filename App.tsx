@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { motion } from "motion/react";
 import {
   AppMode,
   StudyRequestData,
@@ -3540,7 +3541,7 @@ const App: React.FC = () => {
               onOpenUpgrade={openPremiumModal}
             />
             {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center justify-between gap-3 animate-in slide-in-from-top-2 border border-red-100">
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center justify-between gap-3 animate-error-shake border border-red-100">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
                   <p className="text-sm font-medium">{error}</p>
@@ -3554,13 +3555,15 @@ const App: React.FC = () => {
                 </button>
               </div>
             )}
-            <button
+            <motion.button
+              whileHover={{ y: -2, scale: 1.01 }}
+              whileTap={{ scale: 0.985 }}
               onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+              className="btn-glow-border w-full py-4 bg-gradient-to-r from-primary-500 via-indigo-600 to-primary-700 hover:from-primary-600 hover:via-indigo-500 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group cursor-pointer"
             >
-              <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
-              Generate Summary
-            </button>
+              <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
+              <span>Generate Summary</span>
+            </motion.button>
           </div>
         );
 
@@ -3616,7 +3619,7 @@ const App: React.FC = () => {
               homeworkFiles={homeworkFiles}
             />
             {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center justify-between gap-3 animate-in slide-in-from-top-2 border border-red-100">
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center justify-between gap-3 animate-error-shake border border-red-100">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
                   <p className="text-sm font-medium">{error}</p>
@@ -3630,18 +3633,20 @@ const App: React.FC = () => {
                 </button>
               </div>
             )}
-            <button
+            <motion.button
+              whileHover={{ y: -2, scale: 1.01 }}
+              whileTap={{ scale: 0.985 }}
               onClick={handleGenerate}
               disabled={
                 !formData.subject &&
                 homeworkFiles.length === 0 &&
                 !formData.homeworkQuery
               }
-              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:transform-none"
+              className="btn-glow-border w-full py-4 bg-gradient-to-r from-primary-500 via-indigo-600 to-primary-700 hover:from-primary-600 hover:via-indigo-500 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group disabled:opacity-50 cursor-pointer"
             >
-              <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
-              Solve Homework
-            </button>
+              <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
+              <span>Solve Homework</span>
+            </motion.button>
           </div>
         );
 
@@ -3717,7 +3722,7 @@ const App: React.FC = () => {
               onOpenUpgrade={openPremiumModal}
             />
             {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center justify-between gap-3 animate-in slide-in-from-top-2 border border-red-100">
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4 flex items-center justify-between gap-3 animate-error-shake border border-red-100">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
                   <p className="text-sm font-medium">{error}</p>
@@ -3731,13 +3736,15 @@ const App: React.FC = () => {
                 </button>
               </div>
             )}
-            <button
+            <motion.button
+              whileHover={{ y: -2, scale: 1.01 }}
+              whileTap={{ scale: 0.985 }}
               onClick={handleGenerate}
-              className="w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2 group"
+              className="btn-glow-border w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group cursor-pointer"
             >
-              <BrainCircuit className="w-5 h-5 group-hover:animate-pulse" />
-              Generate Quiz
-            </button>
+              <BrainCircuit className="w-5 h-5 group-hover:scale-110 transition-transform duration-300" />
+              <span>Generate Quiz</span>
+            </motion.button>
           </div>
         );
 
@@ -4274,19 +4281,26 @@ const App: React.FC = () => {
                     }
                   }}
                   title={!isExpanded ? item.label : undefined}
-                  className={`w-full flex items-center ${isExpanded ? "gap-3 px-3" : "justify-center px-2"} py-2.5 rounded-lg transition-all duration-200 group text-sm ${
+                  className={`relative w-full flex items-center ${isExpanded ? "gap-3 px-3" : "justify-center px-2"} py-2.5 rounded-lg transition-all duration-200 group text-sm ${
                     isActive
-                      ? "bg-primary-50 dark:bg-slate-800 text-primary-700 dark:text-primary-400 font-semibold shadow-sm"
+                      ? "text-primary-700 dark:text-primary-400 font-semibold"
                       : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
+                  {isActive && (
+                    <motion.div
+                      layoutId="sidebar-active-pill"
+                      transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                      className="absolute inset-0 bg-primary-50 dark:bg-slate-800 rounded-lg shadow-sm border border-primary-200/50 dark:border-slate-700"
+                    />
+                  )}
                   <Icon
-                    className={`w-4 h-4 flex-shrink-0 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
+                    className={`relative z-10 w-4 h-4 flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${isActive ? "text-primary-600 dark:text-primary-400" : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
                   />
-                  {isExpanded && <span className="truncate">{item.label}</span>}
+                  {isExpanded && <span className="relative z-10 truncate">{item.label}</span>}
                   {isExpanded && !user &&
                     item.id !== AppMode.DASHBOARD && (
-                      <div className="ml-auto flex-shrink-0">
+                      <div className="relative z-10 ml-auto flex-shrink-0">
                         <ArrowLeft className="w-3 h-3 text-slate-300 rotate-180" />
                       </div>
                     )}
@@ -4466,14 +4480,15 @@ const App: React.FC = () => {
 
             {/* Daily Streak Badge */}
             {((streakData.currentStreak > 0) || (userProfile.streak !== undefined && userProfile.streak > 0)) && (
-              <div 
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-bold shadow-xs select-none"
+              <motion.div 
+                whileHover={{ scale: 1.05 }}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/60 border border-blue-200/80 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-bold shadow-[0_0_14px_rgba(37,99,235,0.16)] select-none"
                 title={`${streakData.currentStreak || userProfile.streak} Day Learning Streak`}
               >
-                <span className="text-sm leading-none">🔥</span>
+                <span className="text-sm leading-none animate-pulse">🔥</span>
                 <span className="font-mono tabular-nums">{streakData.currentStreak || userProfile.streak}</span>
                 <span className="hidden sm:inline text-[11px] font-medium text-blue-600/80 dark:text-blue-300/80">days</span>
-              </div>
+              </motion.div>
             )}
 
             {/* User Account & Direct Log Out Dropdown */}

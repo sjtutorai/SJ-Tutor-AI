@@ -1375,7 +1375,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         {/* Sleek Glassmorphic Header */}
         <div className="px-6 py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 flex justify-between items-center z-10">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-tr from-primary-500 to-amber-500 rounded-xl text-white shadow-lg shadow-primary-500/25">
+            <div className="p-2 bg-gradient-to-tr from-primary-500 to-amber-500 rounded-xl text-white shadow-lg shadow-primary-500/25 animate-subtle-float">
               <Sparkles className="w-5 h-5 fill-white" />
             </div>
             <div>
@@ -1647,7 +1647,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               >
                 {/* AI Avatar */}
                 {msg.role === 'model' && (
-                  <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm flex items-center justify-center bg-white dark:bg-slate-900">
+                  <div className="w-9 h-9 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-shrink-0 shadow-sm flex items-center justify-center bg-white dark:bg-slate-900 animate-subtle-float">
                     <Logo className="w-full h-full" iconOnly noBorder />
                   </div>
                 )}
@@ -2040,7 +2040,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           )}
           {/* Floating error bar */}
           {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 rounded-xl flex items-center justify-between text-xs text-red-600 dark:text-red-400 animate-in fade-in slide-in-from-bottom-2 font-bold">
+            <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 rounded-xl flex items-center justify-between text-xs text-red-600 dark:text-red-400 animate-error-shake font-bold">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{error}</span>
@@ -2059,7 +2059,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
           {/* Floating voice error bar */}
           {voiceError && (
-            <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900 rounded-xl flex items-center justify-between text-xs text-rose-600 dark:text-rose-400 animate-in fade-in slide-in-from-bottom-2 font-bold">
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900 rounded-xl flex items-center justify-between text-xs text-rose-600 dark:text-rose-400 animate-error-shake font-bold">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-500" />
                 <span>{voiceError}</span>
@@ -2187,7 +2187,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={isListening ? "Dictating your query..." : "Ask SJ Tutor AI about concepts, formulas, code, or tasks..."}
-              className="w-full pl-4 pr-12 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none text-[14px] max-h-32 text-slate-900 dark:text-white placeholder:text-slate-400"
+              className="w-full pl-4 pr-12 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 focus:shadow-[0_0_20px_rgba(37,99,235,0.14)] transition-all duration-300 outline-none resize-none text-[14px] max-h-32 text-slate-900 dark:text-white placeholder:text-slate-400"
               rows={1}
               disabled={isTyping || thinkingStep !== null}
             />

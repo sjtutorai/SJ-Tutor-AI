@@ -6,7 +6,7 @@ import {
   Mail, MessageCircle, Link, RefreshCw, Check, 
   Copy, Layers, ArrowRight, Eye, Sparkles, BookOpen, AlertCircle
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ExportModal } from './ExportModal';
 import { useNotifications } from './NotificationContext';
 
@@ -91,19 +91,19 @@ const ResultsView: React.FC<ResultsViewProps> = ({
   const { triggerToast } = useNotifications();
   const [isPlaying, setIsPlaying] = useState(false);
   const [localSaved, setLocalSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isSharingPublic, setIsSharingPublic] = useState(false);
+  const [revealedContent, setRevealedContent] = useState(content);
+  const [isRevealing, setIsRevealing] = useState(false);
 
   const handleSharePublicLinkClick = async () => {
     if (isSharingPublic) return;
     setIsSharingPublic(true);
-    console.log("ResultsView Share button click event detected.");
     try {
       if (onSharePublicLink) {
         const shareType = type === 'Summary' ? 'summary' : 'homework';
         await onSharePublicLink(shareType, title, content);
-      } else {
-        console.warn("onSharePublicLink prop is not provided to ResultsView.");
       }
     } catch (err) {
       console.error("Error inside ResultsView handleSharePublicLinkClick:", err);
@@ -138,14 +138,48 @@ const ResultsView: React.FC<ResultsViewProps> = ({
     }
   }, [isLoading, content]);
 
-  // Parse content into study cards automatically when content is generated
+  // Progressive smooth word-chunk reveal when new content arrives
   useEffect(() => {
-    if (content) {
-      setFlashcards(generateFlashcardsFromContent(content, title));
-      setCurrentCardIdx(0);
-      setIsFlipped(false);
+    if (!content) {
+      setRevealedContent('');
+      setIsRevealing(false);
+      return;
     }
-  }, [content, title]);
+    setFlashcards(generateFlashcardsFromContent(content, title));
+    setCurrentCardIdx(0);
+    setIsFlipped(false);
+
+    if (isViewingShared || content.length > 6500) {
+      setRevealedContent(content);
+      setIsRevealing(false);
+      return;
+    }
+
+    const words = content.split(/(?=\s+)/);
+    if (words.length <= 25) {
+      setRevealedContent(content);
+      setIsRevealing(false);
+      return;
+    }
+
+    setIsRevealing(true);
+    let idx = Math.min(20, words.length);
+    setRevealedContent(words.slice(0, idx).join(''));
+
+    const stepSize = Math.max(8, Math.ceil(words.length / 45));
+    const timer = window.setInterval(() => {
+      idx += stepSize;
+      if (idx >= words.length) {
+        setRevealedContent(content);
+        setIsRevealing(false);
+        window.clearInterval(timer);
+      } else {
+        setRevealedContent(words.slice(0, idx).join(''));
+      }
+    }, 24);
+
+    return () => window.clearInterval(timer);
+  }, [content, title, isViewingShared]);
 
   const toggleSpeech = () => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
@@ -295,20 +329,34 @@ const ResultsView: React.FC<ResultsViewProps> = ({
   const currentCard = flashcards[currentCardIdx];
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-[24px] shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <motion.div
+      initial={{ opacity: 0, y: 18, scale: 0.99 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+      className="bg-white dark:bg-slate-900 rounded-[24px] shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full"
+    >
       {/* Header Toolbar */}
       <div className="flex-shrink-0 bg-slate-50 dark:bg-slate-800/60 px-4 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          <button 
+          <motion.button 
+            whileHover={{ x: -2, scale: 1.05 }}
+            whileTap={{ scale: 0.94 }}
             onClick={onBack}
             className="p-2 -ml-2 text-slate-400 hover:text-primary-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             title="Back to Form"
           >
             <ArrowLeft className="w-5 h-5" />
-          </button>
+          </motion.button>
           <div className="flex flex-col overflow-hidden text-left">
             <h3 className="font-bold text-slate-800 dark:text-white truncate max-w-[200px] sm:max-w-xs">{title}</h3>
-            <span className="text-xs text-slate-500 font-medium font-mono uppercase tracking-wider">{type}</span>
+            <span className="text-xs text-slate-500 font-medium font-mono uppercase tracking-wider flex items-center gap-1.5">
+              {type}
+              {isRevealing && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-primary-600 dark:text-primary-400 font-bold">
+                  <Sparkles className="w-3 h-3 animate-spin" /> Writing...
+                </span>
+              )}
+            </span>
           </div>
         </div>
         
@@ -316,7 +364,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({
           {!isLoading && content && (
             <>
               {/* "Study Flashcards 🎴" Toggle */}
-              <button
+              <motion.button
+                whileHover={{ y: -1, scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
                 onClick={() => {
                   setShowFlashcards(!showFlashcards);
                   setIsFlipped(false);
@@ -330,12 +380,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({
               >
                 {showFlashcards ? <Eye className="w-4 h-4" /> : <Layers className="w-4 h-4" />}
                 <span>{showFlashcards ? "View Notes" : "Study Flashcards"}</span>
-              </button>
+              </motion.button>
 
               {/* Action Buttons Toolbar */}
               <div className="flex flex-wrap items-center gap-2 bg-slate-50 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 {/* Save Button */}
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={handleSaveClick}
                   disabled={isAddedToList || localSaved}
                   className={`px-3 py-1.5 border rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs ${
@@ -347,38 +399,73 @@ const ResultsView: React.FC<ResultsViewProps> = ({
                 >
                   <Check className={`w-3.5 h-3.5 ${(isAddedToList || localSaved) ? 'text-emerald-500' : 'text-slate-400'}`} />
                   <span>{(isAddedToList || localSaved) ? "Saved" : "Save"}</span>
-                </button>
+                </motion.button>
 
                 {/* Export Button */}
-                <button
+                <motion.button
+                  whileHover={{ y: -1, scale: 1.03 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setIsExportOpen(true)}
-                  className="px-3.5 py-1.5 bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-400 rounded-lg text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95"
+                  className="px-3.5 py-1.5 bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-400 rounded-lg text-xs font-black transition flex items-center gap-1.5 shadow-sm"
                 >
                   <Download className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
                   <span>Export</span>
-                </button>
+                </motion.button>
 
                 {/* Copy Button */}
-                <button
+                <motion.button
+                  whileHover={{ y: -1, scale: 1.03 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(content);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
                       triggerToast('Content Copied! 📋', 'Successfully copied generated notes to clipboard.', 'Important Alerts');
                     } catch {
                       triggerToast('Copy Failed', 'Failed to copy text to clipboard.', 'Important Alerts');
                     }
                   }}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                  className={`px-3 py-1.5 border rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs ${
+                    copied
+                      ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300'
+                  }`}
                 >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copy</span>
-                </button>
+                  <AnimatePresence mode="wait" initial={false}>
+                    {copied ? (
+                      <motion.span
+                        key="copied"
+                        initial={{ scale: 0.5, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.5, opacity: 0 }}
+                        className="flex items-center gap-1"
+                      >
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Copied!</span>
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="copy"
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.8, opacity: 0 }}
+                        className="flex items-center gap-1.5"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy</span>
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
 
                  {/* Share Link Button */}
-                <button
+                <motion.button
+                  whileHover={{ y: -1, scale: 1.03 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={handleSharePublicLinkClick}
                   disabled={isSharingPublic}
-                  className="px-3 py-1.5 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-lg text-xs font-extrabold transition flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed min-w-[75px]"
+                  className="px-3 py-1.5 bg-gradient-to-r from-primary-500 to-primary-700 text-white rounded-lg text-xs font-extrabold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed min-w-[75px]"
                 >
                   {isSharingPublic ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -386,11 +473,13 @@ const ResultsView: React.FC<ResultsViewProps> = ({
                     <Share2 className="w-3.5 h-3.5" />
                   )}
                   <span>{isSharingPublic ? "Sharing..." : "Share"}</span>
-                </button>
+                </motion.button>
               </div>
 
               {/* Listen Button */}
-              <button
+              <motion.button
+                whileHover={{ y: -1, scale: 1.03 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={toggleSpeech}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition border shadow-sm ${
                   isPlaying 
@@ -400,7 +489,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({
               >
                 {isPlaying ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                 <span>{isPlaying ? "Stop" : "Listen"}</span>
-              </button>
+              </motion.button>
             </>
           )}
         </div>
@@ -522,7 +611,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({
 
             {/* Navigation buttons with slide animations */}
             <div className="flex justify-between gap-4">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
                 disabled={currentCardIdx === 0}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -532,9 +623,11 @@ const ResultsView: React.FC<ResultsViewProps> = ({
                 className="px-5 py-3 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-bold transition disabled:opacity-30 disabled:cursor-not-allowed flex-1 flex items-center justify-center gap-1 shadow-xs"
               >
                 Previous Card
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (currentCardIdx === flashcards.length - 1) {
@@ -544,11 +637,11 @@ const ResultsView: React.FC<ResultsViewProps> = ({
                   }
                   setIsFlipped(false);
                 }}
-                className="px-5 py-3 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex-1 flex items-center justify-center gap-1 shadow-sm hover:scale-[1.01]"
+                className="px-5 py-3 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex-1 flex items-center justify-center gap-1 shadow-sm"
               >
                 <span>{currentCardIdx === flashcards.length - 1 ? "Start Over" : "Next Card"}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              </motion.button>
             </div>
 
             <div className="mt-8 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-150 dark:border-slate-800 flex items-start gap-3 text-left">
@@ -566,58 +659,73 @@ const ResultsView: React.FC<ResultsViewProps> = ({
           // STANDARD MARKDOWN CONTENT DISPLAY WITH RECHARTING
           // ==========================================
           <div className="prose prose-slate max-w-none dark:prose-invert text-left" ref={contentRef}>
-            <div className="markdown-body">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="markdown-body [&_h1]:animate-fade-in-up [&_h2]:animate-fade-in-up [&_h3]:animate-fade-in-up [&_blockquote]:animate-fade-in-up [&_li]:transition-all [&_li:hover]:translate-x-1"
+            >
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content}
+                {revealedContent || content}
               </ReactMarkdown>
-            </div>
+            </motion.div>
             
             {/* Unified Sharing Footer Options */}
             <div className="border-t border-slate-100 dark:border-slate-800 pt-8 mt-12">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center mb-5">Quick Share Document</p>
               <div className="flex flex-wrap justify-center gap-3">
-                  <button 
+                  <motion.button 
+                    whileHover={{ y: -2, scale: 1.03 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => handleShare('whatsapp')} 
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-full transition shadow-xs active:scale-95 border border-emerald-100/60" 
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-full transition shadow-xs border border-emerald-100/60" 
                     title="Share via WhatsApp"
                   >
                       <MessageCircle className="w-4 h-4 text-emerald-500" />
                       <span className="text-xs font-bold">WhatsApp</span>
-                  </button>
-                  <button 
+                  </motion.button>
+                  <motion.button 
+                    whileHover={{ y: -2, scale: 1.03 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => handleShare('facebook')} 
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full transition shadow-xs active:scale-95 border border-blue-100/60" 
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full transition shadow-xs border border-blue-100/60" 
                     title="Share via Facebook"
                   >
                       <Share2 className="w-4 h-4 text-blue-500" />
                       <span className="text-xs font-bold">Facebook</span>
-                  </button>
-                  <button 
+                  </motion.button>
+                  <motion.button 
+                    whileHover={{ y: -2, scale: 1.03 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => handleShare('gmail')} 
-                    className="flex items-center gap-2 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-full transition shadow-xs active:scale-95 border border-rose-100/60" 
+                    className="flex items-center gap-2 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-full transition shadow-xs border border-rose-100/60" 
                     title="Email via Gmail"
                   >
                       <Mail className="w-4 h-4 text-rose-500" />
                       <span className="text-xs font-bold">Gmail</span>
-                  </button>
-                  <button 
+                  </motion.button>
+                  <motion.button 
+                    whileHover={{ y: -2, scale: 1.03 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => handleShare('copy')} 
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-900 transition shadow-sm active:scale-95" 
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-full hover:bg-slate-900 transition shadow-sm" 
                     title="Copy Public Link"
                   >
                       <Link className="w-4 h-4" />
                       <span className="text-xs font-bold">Copy Link</span>
-                  </button>
+                  </motion.button>
               </div>
               
               <div className="flex justify-center mt-6">
-                <button 
+                <motion.button 
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={onBack}
-                  className="text-xs font-bold text-primary-600 hover:text-primary-700 hover:underline flex items-center gap-2 group"
+                  className="text-xs font-bold text-primary-600 hover:text-primary-700 hover:underline flex items-center gap-2 group px-4 py-2 rounded-xl hover:bg-primary-50 dark:hover:bg-primary-950/30 transition-colors"
                 >
                   <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-500" />
                   Generate Another Version
-                </button>
+                </motion.button>
               </div>
             </div>
           </div>
@@ -634,7 +742,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({
           query: title
         }}
       />
-    </div>
+    </motion.div>
   );
 };
 

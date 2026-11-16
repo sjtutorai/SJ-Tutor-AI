@@ -4,7 +4,7 @@ import { AppMode } from "../types";
 import Logo from "./Logo";
 import { 
   BookOpen, BrainCircuit, Sparkles, FileText, Upload, 
-  CheckCircle, FileUp, Cpu, Hourglass, Star
+  CheckCircle, FileUp, Cpu
 } from "lucide-react";
 
 interface LoadingStateProps {
@@ -23,23 +23,20 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
 
   // 1. QUIZ GENERATION WORKFLOW
   const quizSteps = [
-    { label: "Reading Chapter", desc: "Parsing syllabus context...", icon: BookOpen },
-    { label: "Understanding Concepts", desc: "Mapping scholastic themes...", icon: Cpu },
-    { label: "Selecting Important Topics", desc: "Prioritizing exam weightage...", icon: Star },
-    { label: "Generating Questions", desc: "Formulating challenge options...", icon: BrainCircuit },
-    { label: "Balancing Difficulty", desc: "Calibrating student-level pace...", icon: Hourglass },
-    { label: "Reviewing Quiz", desc: "Validating logical accuracy...", icon: CheckCircle },
-    { label: "Quiz Ready", desc: "Finalizing challenge setup...", icon: Sparkles }
+    { label: "Understanding your topic...", desc: "Parsing syllabus & chapter context...", icon: BookOpen },
+    { label: "Preparing questions...", desc: "Selecting high-yield exam concepts...", icon: Cpu },
+    { label: "Generating answer options...", desc: "Formulating balanced challenge choices...", icon: BrainCircuit },
+    { label: "Reviewing quiz accuracy...", desc: "Validating solutions & explanations...", icon: CheckCircle },
+    { label: "Your quiz is ready!", desc: "Launching interactive challenge...", icon: Sparkles }
   ];
 
   // 2. PDF ANALYSIS / HOMEWORK SOLVING WORKFLOW
   const pdfSteps = [
-    { label: "Uploading PDF...", desc: "Ingesting files to cloud space...", icon: FileUp },
-    { label: "Reading Pages...", desc: "Scanning document contents...", icon: BookOpen },
-    { label: "Extracting Text...", desc: "Running advanced optical reading...", icon: Cpu },
-    { label: "Understanding Concepts...", desc: "Analyzing core queries and formulas...", icon: BrainCircuit },
-    { label: "Generating Summary...", desc: "Crafting final step-by-step guidance...", icon: FileText },
-    { label: "Ready!", desc: "Preparing premium interface view...", icon: Sparkles }
+    { label: "Reading your content...", desc: "Scanning uploaded files & questions...", icon: FileUp },
+    { label: "Identifying key concepts...", desc: "Extracting formulas, definitions & queries...", icon: BookOpen },
+    { label: "Organizing important points...", desc: "Structuring step-by-step derivations...", icon: Cpu },
+    { label: "Generating step-by-step solution...", desc: "Validating accuracy & formatting...", icon: BrainCircuit },
+    { label: "Your solution is ready!", desc: "Preparing interactive study view...", icon: Sparkles }
   ];
 
   // 3. AI TUTOR THINKING STATUSES
@@ -56,12 +53,12 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
 
   // 4. NOTES / SUMMARY WRITING EFFECTS
   const notesPhrases = [
-    "Opening study module...",
-    "SJ Tutor AI is structuring summaries...",
+    "Reading your content...",
+    "Identifying key concepts...",
+    "Organizing important points...",
+    "Creating your summary...",
     "Highlighting critical academic keywords...",
-    "Adding exam-aligned callouts...",
-    "Injecting beautiful formatting...",
-    "Compiling interactive PDF view..."
+    "Compiling interactive study guide..."
   ];
 
   // Setup state timers based on the loaded mode
@@ -69,9 +66,8 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
     let interval: NodeJS.Timeout;
 
     if (mode === AppMode.QUIZ) {
-      // Transition steps smoothly over 10 seconds
       setActiveStep(0);
-      setProgress(5);
+      setProgress(12);
 
       interval = setInterval(() => {
         setActiveStep((prev) => {
@@ -80,15 +76,14 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
             clearInterval(interval);
             return prev;
           }
-          setProgress((next / (quizSteps.length - 1)) * 100);
+          setProgress(Math.round(((next + 0.2) / quizSteps.length) * 100));
           return next;
         });
       }, 1500);
 
     } else if (mode === AppMode.HOMEWORK || mode === AppMode.ESSAY) {
-      // Transition PDF analysis steps
       setActiveStep(0);
-      setProgress(10);
+      setProgress(15);
 
       interval = setInterval(() => {
         setActiveStep((prev) => {
@@ -100,23 +95,21 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
           setProgress((next / (pdfSteps.length - 1)) * 100);
           return next;
         });
-      }, 1800);
+      }, 1600);
 
     } else if (mode === AppMode.TUTOR) {
-      // Rotate statuses
       setActiveStep(0);
       interval = setInterval(() => {
         setActiveStep((prev) => (prev + 1) % tutorStatuses.length);
-      }, 2000);
+      }, 1800);
 
     } else if (mode === AppMode.SUMMARY || mode === AppMode.NOTES) {
-      // Notebook simulated writing phase
       setActiveStep(0);
-      setProgress(15);
+      setProgress(18);
       interval = setInterval(() => {
         setActiveStep((prev) => (prev + 1) % notesPhrases.length);
-        setProgress((prev) => Math.min(prev + 15, 95));
-      }, 2000);
+        setProgress((prev) => Math.min(prev + 18, 96));
+      }, 1600);
     }
 
     return () => clearInterval(interval);
@@ -126,11 +119,10 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
   useEffect(() => {
     if (mode === AppMode.SUMMARY || mode === AppMode.NOTES) {
       const texts = [
-        "SJ Tutor AI is writing your study guide...",
-        "Important equations: E = mc², F = ma, A = πr²...",
-        "💡 Key terms are being highlighted automatically...",
-        "🎓 Generating syllabus cheat sheets...",
-        "📋 Drafting summary bullet points..."
+        "Reading your content & syllabus context...",
+        "Identifying key concepts, formulas & definitions...",
+        "Organizing important points into clear headings...",
+        "Creating your summary & active recall flashcards..."
       ];
       let currentTextIdx = 0;
       let charIdx = 0;
@@ -143,28 +135,20 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
           textBuffer = fullText.substring(0, charIdx + 1);
           charIdx++;
           if (charIdx === fullText.length) {
-            isDeleting = true;
-            // Pause at completion
-            clearInterval(typeTimer);
             setTimeout(() => {
-              // Restart interval
-              startTyping();
-            }, 1500);
+              isDeleting = true;
+            }, 900);
           }
         } else {
-          textBuffer = fullText.substring(0, charIdx - 1);
-          charIdx--;
+          textBuffer = fullText.substring(0, Math.max(0, charIdx - 1));
+          charIdx = Math.max(0, charIdx - 1);
           if (charIdx === 0) {
             isDeleting = false;
             currentTextIdx = (currentTextIdx + 1) % texts.length;
           }
         }
         setTypingMessage(textBuffer);
-      }, 60);
-
-      const startTyping = () => {
-        // Re-triggers typewriter
-      };
+      }, 45);
 
       return () => clearInterval(typeTimer);
     }
@@ -262,15 +246,48 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
 
   // 2. QUIZ GENERATION WORKFLOW ANIMATION
   const renderQuizGeneration = () => {
+    const activeLabel = quizSteps[Math.min(activeStep, quizSteps.length - 1)]?.label || "Understanding your topic...";
     return (
       <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-center p-2 sm:p-4 overflow-y-auto custom-scrollbar">
-        <div className="p-6 sm:p-8 md:p-10 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-xl w-full relative overflow-y-auto max-h-[82vh] sm:max-h-[85vh] custom-scrollbar my-auto">
-          {/* Subtle Ambient Light */}
-          <div className="absolute top-0 right-0 w-48 h-48 bg-primary-500/5 rounded-full blur-3xl pointer-events-none" />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.94, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className="p-6 sm:p-8 md:p-10 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-xl w-full relative overflow-hidden max-h-[85vh] custom-scrollbar my-auto"
+        >
+          {/* Subtle Ambient Light & Floating AI Particles */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-primary-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-40 h-40 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+          {[0, 1, 2, 3, 4, 5].map((particleIdx) => (
+            <motion.span
+              key={particleIdx}
+              animate={{
+                y: [0, -24, 0],
+                x: [0, particleIdx % 2 === 0 ? 10 : -10, 0],
+                opacity: [0.2, 0.65, 0.2],
+                scale: [0.85, 1.2, 0.85],
+              }}
+              transition={{
+                duration: 3 + particleIdx * 0.45,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+              className="absolute w-2 h-2 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 pointer-events-none"
+              style={{
+                top: `${16 + particleIdx * 13}%`,
+                left: `${12 + (particleIdx * 17) % 76}%`,
+              }}
+            />
+          ))}
 
-          <div className="flex flex-col sm:flex-row items-center gap-6 mb-6 sm:mb-8 border-b border-slate-100 dark:border-slate-800 pb-6 shrink-0">
-            {/* Progress Ring (Circular Progress) */}
-            <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center flex-shrink-0">
+          <div className="flex flex-col sm:flex-row items-center gap-6 mb-6 border-b border-slate-100 dark:border-slate-800 pb-6 shrink-0 relative z-10">
+            {/* Animated Glowing AI Orb + Progress Ring */}
+            <div className="relative w-24 h-24 flex items-center justify-center flex-shrink-0">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                className="absolute inset-0 rounded-full border border-dashed border-primary-400/40"
+              />
               <svg className="w-full h-full -rotate-90">
                 <circle
                   cx="48"
@@ -285,29 +302,54 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
                   r="40"
                   className="stroke-primary-500 fill-none"
                   strokeWidth="6"
+                  strokeLinecap="round"
                   strokeDasharray="251.2"
                   strokeDashoffset={251.2 - (251.2 * progress) / 100}
-                  transition={{ ease: "easeInOut" }}
+                  transition={{ ease: "easeInOut", duration: 0.5 }}
                 />
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-lg sm:text-xl font-black text-slate-800 dark:text-white">{Math.round(progress)}%</span>
-              </div>
+              <motion.div
+                animate={{
+                  scale: [1, 1.07, 1],
+                  boxShadow: [
+                    "0 0 14px rgba(37,99,235,0.22)",
+                    "0 0 26px rgba(124,58,237,0.42)",
+                    "0 0 14px rgba(37,99,235,0.22)",
+                  ],
+                }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute w-14 h-14 rounded-full bg-gradient-to-tr from-primary-600 via-indigo-600 to-violet-600 text-white flex flex-col items-center justify-center pointer-events-none shadow-md"
+              >
+                <span className="text-xs font-black font-mono tabular-nums">{Math.round(progress)}%</span>
+              </motion.div>
             </div>
 
-            <div className="text-center sm:text-left">
+            <div className="text-center sm:text-left flex-1">
               <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center justify-center sm:justify-start gap-2">
-                <BrainCircuit className="w-5 h-5 text-primary-500" />
+                <BrainCircuit className="w-5 h-5 text-primary-500 animate-pulse" />
                 Crafting Your Custom Quiz
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                Building exam-aligned challenge questions with answers, diagrams, and feedback sheets...
-              </p>
+              {/* Rotating AI Status Message Pill */}
+              <div className="mt-2 h-7 flex items-center justify-center sm:justify-start">
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={activeLabel}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.25 }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-50 dark:bg-primary-950/40 border border-primary-200/70 dark:border-primary-800 text-xs font-bold text-primary-700 dark:text-primary-300"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-primary-500 animate-spin" style={{ animationDuration: "3s" }} />
+                    {activeLabel}
+                  </motion.span>
+                </AnimatePresence>
+              </div>
             </div>
           </div>
 
-          {/* Checklist Steps with Green Checkmark Animations & scroll support */}
-          <div className="space-y-3 sm:space-y-4 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
+          {/* Checklist Steps with Green Checkmark Animations */}
+          <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar relative z-10">
             {quizSteps.map((step, idx) => {
               const isCompleted = idx < activeStep;
               const isActive = idx === activeStep;
@@ -318,17 +360,17 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
                   key={idx}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ 
-                    opacity: isCompleted || isActive ? 1 : 0.4, 
+                    opacity: isCompleted || isActive ? 1 : 0.45, 
                     x: 0,
-                    scale: isActive ? 1.02 : 1
+                    scale: isActive ? 1.015 : 1
                   }}
-                  className={`flex items-start gap-4 p-3 sm:p-3.5 rounded-xl border transition-all duration-300 ${
+                  className={`flex items-start gap-3.5 p-3 rounded-xl border transition-all duration-300 ${
                     isActive 
-                      ? "bg-primary-50/50 dark:bg-primary-950/20 border-primary-200 dark:border-primary-900/50 shadow-xs" 
+                      ? "bg-primary-50/60 dark:bg-primary-950/25 border-primary-200 dark:border-primary-900/50 shadow-xs" 
                       : "border-transparent"
                   }`}
                 >
-                  {/* Step Indicator (Checkbox vs Bullet) */}
+                  {/* Step Indicator */}
                   <div className="flex-shrink-0 mt-0.5">
                     {isCompleted ? (
                       <motion.div
@@ -358,21 +400,21 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
                       {step.label}
                     </h4>
                     {isActive && (
-                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium font-mono mt-0.5 animate-pulse">
+                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium font-mono mt-0.5">
                         {step.desc}
                       </p>
                     )}
                   </div>
 
                   {/* Animated Right Icon */}
-                  <div className={`text-slate-300 ${isActive ? "text-primary-400 animate-pulse" : isCompleted ? "text-emerald-400" : ""}`}>
+                  <div className={`text-slate-300 ${isActive ? "text-primary-500 animate-pulse" : isCompleted ? "text-emerald-500" : ""}`}>
                     <Icon className="w-4.5 h-4.5" />
                   </div>
                 </motion.div>
               );
             })}
           </div>
-        </div>
+        </motion.div>
       </div>
     );
   };
@@ -411,7 +453,7 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
               rotate: [0, 2, -2, 0]
             }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="w-18 h-18 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 flex flex-col items-center justify-center shadow-md relative z-10"
+            className="w-18 h-18 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 flex flex-col items-center justify-center shadow-md relative z-10 scan-line-overlay"
           >
             <Upload className="w-5 h-5 animate-pulse mb-1" />
             <span className="text-xs font-black">{Math.round(progress)}%</span>
@@ -423,7 +465,7 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
           SJ Tutor AI Homework Solver
         </h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-          Scanning images, parsing complex queries, and drafting deep step-by-step solutions...
+          Scanning documents, parsing complex queries, and drafting deep step-by-step solutions...
         </p>
 
         {/* Step List with dynamic animations */}
@@ -476,15 +518,26 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
 
   // 4. NOTES / SUMMARY WRITING ANIMATION
   const renderNotesWriting = () => {
+    const summaryStageItems = [
+      "Reading your content...",
+      "Identifying key concepts...",
+      "Organizing important points...",
+      "Creating your summary..."
+    ];
     return (
-      <div className="p-8 sm:p-10 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-xl w-full mx-auto relative overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="p-8 sm:p-10 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl max-w-xl w-full mx-auto relative overflow-hidden"
+      >
         {/* Notebook opens simulation */}
-        <div className="relative mb-8 w-full max-w-[280px] mx-auto h-[160px] flex items-center justify-center">
+        <div className="relative mb-6 w-full max-w-[280px] mx-auto h-[150px] flex items-center justify-center">
           <motion.div
             initial={{ rotateY: -30, opacity: 0 }}
             animate={{ rotateY: 0, opacity: 1 }}
-            transition={{ duration: 1.5, ease: "easeOut" }}
-            className="w-full h-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl relative shadow-lg flex p-4"
+            transition={{ duration: 1.2, ease: "easeOut" }}
+            className="w-full h-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl relative shadow-lg flex p-4 scan-line-overlay"
             style={{ perspective: 1000 }}
           >
             {/* Binder ring effect */}
@@ -500,7 +553,6 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
               <div className="h-3 w-16 bg-primary-400/30 rounded animate-pulse" />
               <div className="h-2 w-full bg-slate-200 dark:bg-slate-750 rounded" />
               <div className="h-2 w-5/6 bg-slate-200 dark:bg-slate-750 rounded" />
-              {/* Highlight bar glow */}
               <motion.div 
                 animate={{ width: ["0%", "100%", "0%"] }}
                 transition={{ duration: 4, repeat: Infinity }}
@@ -514,18 +566,16 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
               <div className="space-y-2">
                 <div className="h-3 w-12 bg-purple-400/30 rounded animate-pulse" />
                 <div className="h-2 w-full bg-slate-200 dark:bg-slate-750 rounded" />
-                {/* Glowing academic keywords */}
                 <motion.div
                   animate={{ scale: [1, 1.05, 1], filter: ["brightness(1)", "brightness(1.2)", "brightness(1)"] }}
                   transition={{ duration: 2, repeat: Infinity }}
                   className="h-2 w-2/3 bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 text-[6px] text-blue-600 px-1 font-bold rounded flex items-center"
                 >
-                  IMPORTANT KEYWORD
+                  KEY CONCEPT
                 </motion.div>
                 <div className="h-2 w-5/6 bg-slate-200 dark:bg-slate-750 rounded" />
               </div>
 
-              {/* Float Document icon */}
               <div className="flex justify-end pr-1">
                 <FileText className="w-6 h-6 text-primary-400 animate-bounce" />
               </div>
@@ -538,26 +588,69 @@ const LoadingState: React.FC<LoadingStateProps> = ({ mode }) => {
             <Sparkles className="w-5 h-5 text-primary-500 animate-spin" style={{ animationDuration: "3s" }} />
             {mode === AppMode.SUMMARY ? "Generating Comprehensive Summary" : "Creating Comprehensive Study Notes"}
           </h3>
-          <p className="text-xs text-slate-400 dark:text-slate-500 font-mono mt-1 mb-6 uppercase tracking-wider">
-            {notesPhrases[activeStep]}
-          </p>
+
+          {/* Rotating Processing Stage Pill */}
+          <div className="h-7 flex items-center justify-center mt-2 mb-4">
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={activeStep}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.25 }}
+                className="text-xs font-bold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950/40 border border-primary-200/70 dark:border-primary-800 px-3.5 py-1 rounded-full uppercase tracking-wider font-mono"
+              >
+                {notesPhrases[activeStep]}
+              </motion.p>
+            </AnimatePresence>
+          </div>
+
+          {/* 4-Stage Summary Processing Checklist */}
+          <div className="grid grid-cols-2 gap-2 mb-5 text-left">
+            {summaryStageItems.map((stageText, sIdx) => {
+              const isStageDone = activeStep > sIdx;
+              const isStageCurrent = activeStep % summaryStageItems.length === sIdx;
+              return (
+                <div
+                  key={stageText}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[11px] font-semibold transition-all ${
+                    isStageCurrent
+                      ? 'bg-primary-50/70 dark:bg-primary-950/30 border-primary-200 dark:border-primary-800 text-primary-700 dark:text-primary-300'
+                      : isStageDone
+                      ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400'
+                      : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 text-slate-400'
+                  }`}
+                >
+                  {isStageDone ? (
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  ) : isStageCurrent ? (
+                    <span className="w-2 h-2 rounded-full bg-primary-500 animate-ping shrink-0" />
+                  ) : (
+                    <span className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
+                  )}
+                  <span className="truncate">{stageText}</span>
+                </div>
+              );
+            })}
+          </div>
 
           {/* Handwriting / Typewriting Simulation */}
-          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 text-left min-h-[56px] flex items-center">
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 font-mono border-r-2 border-primary-500 pr-1 animate-caret">
+          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-3.5 border border-slate-100 dark:border-slate-800 text-left min-h-[48px] flex items-center">
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 font-mono border-r-2 border-primary-500 pr-1">
               {typingMessage}
             </span>
           </div>
 
-          {/* Simple progress bar */}
-          <div className="mt-6 w-full h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          {/* Smooth progress bar */}
+          <div className="mt-5 w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
             <motion.div 
-              className="h-full bg-gradient-to-r from-blue-500 to-purple-500" 
-              style={{ width: `${progress}%` }} 
+              className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" 
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: 0.45, ease: "easeOut" }}
             />
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   };
 
