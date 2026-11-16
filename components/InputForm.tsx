@@ -783,6 +783,11 @@ const InputForm: React.FC<InputFormProps> = ({
                       onChange('questionCount', 0);
                     }
                   }}
+                  onBlur={() => {
+                    if (!data.questionCount || data.questionCount < 1) {
+                      onChange('questionCount', 5);
+                    }
+                  }}
                   disabled={disabled}
                   min="1"
                   max={isPremium ? 50 : 15}

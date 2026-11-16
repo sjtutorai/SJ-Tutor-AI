@@ -373,14 +373,9 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 shrink-0">
             <Logo className="w-9 h-9" iconOnly />
-            <div className="flex flex-col leading-none">
-              <span className="font-extrabold text-lg tracking-tight text-white flex items-center gap-1 whitespace-nowrap">
-                SJ Tutor <span className="text-blue-400 font-black">AI</span>
-              </span>
-              <span className="text-[9px] uppercase tracking-[0.22em] font-bold text-violet-300/80 whitespace-nowrap mt-0.5">
-                Personalized Learning
-              </span>
-            </div>
+            <span className="font-extrabold text-lg tracking-tight text-white flex items-center gap-1 whitespace-nowrap">
+              SJ Tutor <span className="text-blue-400 font-black">AI</span>
+            </span>
           </div>
 
           {/* Nav Links */}
@@ -1079,7 +1074,7 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
                                       step="0.1"
                                       value={parabolaCoeffA}
                                       onChange={(e) => setParabolaCoeffA(parseFloat(e.target.value))}
-                                      className="w-full accent-cyan-400 h-1 roundedbg-slate-700 pointer-events-auto"
+                                      className="w-full accent-cyan-400 h-1 rounded bg-slate-700 pointer-events-auto"
                                     />
                                   </div>
                                   <div className="flex-1 flex items-center gap-1">
@@ -1166,7 +1161,7 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
 
                           {/* Interactive Practice Question Widget */}
                           <div className="border border-slate-800 bg-[#0F172A]/70 rounded-xl p-5 mt-4 space-y-3 shadow-inner">
-                            <span className="text-[10px] font-black text-amber-500 tracking-wider block bg-amber-950/40 border border-amber-800/30 px-2 py-0.5 rounded-full w-fit">
+                            <span className="text-[10px] font-black text-cyan-400 tracking-wider block bg-cyan-950/40 border border-cyan-500/30 px-2 py-0.5 rounded-full w-fit">
                               TEST YOUR RETENTION PROGRESS
                             </span>
                             
@@ -1566,7 +1561,7 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
                   
                   <div className="space-y-1">
                     <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Innovators &amp; Inventors</span>
-                    <p className="text-base font-bold text-amber-400">
+                    <p className="text-base font-bold text-blue-300">
                       Sadanand Jyoti <span className="text-slate-400 font-normal">&amp;</span> Samanyu S Patil
                     </p>
                   </div>
@@ -1709,7 +1704,7 @@ export default function LandingPage({ onGetStarted, onNavigateToLegal }: Landing
 
               <button 
                 onClick={() => onGetStarted('signup')}
-                className="w-full mt-8 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-505 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/35 border border-blue-400/40 transition-all hover:scale-[1.03]"
+                className="w-full mt-8 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:via-indigo-500 hover:to-purple-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-blue-500/35 border border-blue-400/40 transition-all hover:scale-[1.03]"
               >
                 Claim My Academic Pro Plan
               </button>

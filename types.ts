@@ -330,8 +330,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   appearance: {
     theme: 'Light',
     animations: true,
-    primaryColor: 'Gold',
-    fontFamily: 'Inter',
+    primaryColor: 'Sapphire',
+    fontFamily: 'Plus Jakarta Sans',
   },
   privacy: {
     twoFactor: false,

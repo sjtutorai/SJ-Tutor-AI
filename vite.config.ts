@@ -11,6 +11,7 @@ export default defineConfig(() => {
       host: '0.0.0.0',
       allowedHosts: true,
       hmr: false,
+      ws: false,
     },
     build: {
       outDir: 'dist',

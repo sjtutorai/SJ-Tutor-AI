@@ -9,20 +9,19 @@ function buildLowLatencyThinkingConfig(model: string) {
 }
 
 function safeParseJson<T>(raw: string): T {
-  const trimmed = (raw || "").trim();
+  const trimmed = (raw || "").replace(/^\uFEFF/, "").trim();
   if (!trimmed) {
-    throw new Error("AI returned an empty JSON response. Retrying...");
+    throw new Error("AI returned an empty JSON response. Please try again.");
   }
   const cleaned = trimmed
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
+    .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
 
   try {
     return JSON.parse(cleaned) as T;
   } catch {
-    // Attempt to recover a complete JSON array or object surrounded by extra text
+    // Attempt to recover a complete JSON array or object surrounded by extra prose
     const firstBracket = cleaned.indexOf("[");
     const lastBracket = cleaned.lastIndexOf("]");
     if (firstBracket !== -1 && lastBracket > firstBracket) {
@@ -41,8 +40,136 @@ function safeParseJson<T>(raw: string): T {
         // fall through to clean retryable error
       }
     }
-    throw new Error("AI returned an incomplete JSON response. Please try again.");
+    throw new Error("AI returned an invalid or incomplete JSON response. Please try again.");
   }
+}
+
+interface NormalizedQuizQuestion {
+  question: string;
+  options: string[];
+  correctAnswerIndex: number;
+  explanation: string;
+}
+
+function resolveCorrectAnswerIndex(rawIndex: unknown, optionsLength: number): number | null {
+  if (typeof rawIndex === "number" && Number.isInteger(rawIndex)) {
+    return rawIndex >= 0 && rawIndex < optionsLength ? rawIndex : null;
+  }
+  if (typeof rawIndex === "string") {
+    const trimmed = rawIndex.trim();
+    if (/^\d+$/.test(trimmed)) {
+      const parsed = parseInt(trimmed, 10);
+      return parsed >= 0 && parsed < optionsLength ? parsed : null;
+    }
+    const letterMatch = trimmed.match(/^(?:option\s*)?([A-Za-z])(?:[.)])?$/i);
+    if (letterMatch) {
+      const idx = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+      return idx >= 0 && idx < optionsLength ? idx : null;
+    }
+  }
+  return null;
+}
+
+function validateAndNormalizeQuizQuestions(parsed: unknown, requestedCount: number): NormalizedQuizQuestion[] {
+  const rawQuestions: any[] = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray((parsed as any)?.questions)
+    ? (parsed as any).questions
+    : [];
+
+  if (rawQuestions.length === 0) {
+    throw new Error("Quiz generator returned an empty question list. Please try again.");
+  }
+
+  const validQuestions: NormalizedQuizQuestion[] = [];
+
+  for (const q of rawQuestions) {
+    if (!q || typeof q !== "object") continue;
+
+    const questionText = typeof q.question === "string" ? q.question.trim() : "";
+    if (!questionText) continue;
+
+    if (!Array.isArray(q.options)) continue;
+    const rawOptions = q.options.map((opt: unknown) => (typeof opt === "string" ? opt.trim() : String(opt ?? "").trim()));
+
+    // Keep track of original index mapping if any blank trailing options were omitted
+    const nonEmptyWithOriginalIdx = rawOptions
+      .map((text: string, originalIdx: number) => ({ text, originalIdx }))
+      .filter((entry: { text: string; originalIdx: number }) => entry.text.length > 0);
+
+    if (nonEmptyWithOriginalIdx.length < 2) continue;
+
+    const rawResolvedIdx = resolveCorrectAnswerIndex(q.correctAnswerIndex, rawOptions.length);
+    if (rawResolvedIdx === null) continue;
+
+    const mappedIdx = nonEmptyWithOriginalIdx.findIndex(
+      (entry: { text: string; originalIdx: number }) => entry.originalIdx === rawResolvedIdx
+    );
+    if (mappedIdx === -1) continue;
+
+    const options = nonEmptyWithOriginalIdx.map((entry: { text: string }) => entry.text);
+    const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
+    if (!explanation) continue;
+
+    validQuestions.push({
+      question: questionText,
+      options,
+      correctAnswerIndex: mappedIdx,
+      explanation,
+    });
+  }
+
+  const minimumRequired = Math.min(requestedCount, Math.max(1, Math.ceil(requestedCount * 0.7)));
+  if (validQuestions.length < minimumRequired) {
+    throw new Error(
+      `Quiz generator returned incomplete or malformed questions (${validQuestions.length}/${requestedCount} valid). Please try again.`
+    );
+  }
+
+  return validQuestions.slice(0, requestedCount);
+}
+
+function classifyGeminiHttpError(error: any, fallbackMessage: string): { status: number; message: string } {
+  const rawMsg = String(error?.message || error || "");
+  const lower = rawMsg.toLowerCase();
+  const explicitStatus = Number(error?.status || error?.statusCode || 0);
+
+  if (lower.includes("timed out") || explicitStatus === 504) {
+    return {
+      status: 504,
+      message: "Quiz generation took too long to respond. Please try again or use fewer questions.",
+    };
+  }
+  if (
+    explicitStatus === 429 ||
+    lower.includes("resource_exhausted") ||
+    lower.includes("quota") ||
+    lower.includes("rate limit") ||
+    lower.includes("too many requests") ||
+    lower.includes("high demand") ||
+    lower.includes("overloaded")
+  ) {
+    return {
+      status: 429,
+      message: "The AI service is temporarily busy due to high demand or quota limits. Please wait a moment and click Retry.",
+    };
+  }
+  if (explicitStatus === 403 || lower.includes("permission_denied") || lower.includes("api key not valid") || lower.includes("api_key_invalid")) {
+    return {
+      status: 403,
+      message: "Server Gemini API configuration could not be authorized. Please verify your server API key settings.",
+    };
+  }
+  if (lower.includes("invalid or incomplete json") || lower.includes("incomplete or malformed questions") || lower.includes("empty json") || lower.includes("empty question list")) {
+    return {
+      status: 502,
+      message: rawMsg || "The AI returned an invalid quiz format. Please click Retry.",
+    };
+  }
+  return {
+    status: 500,
+    message: rawMsg || fallbackMessage,
+  };
 }
 
 function withAttemptTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -166,7 +293,8 @@ export class ServerGeminiKeyManager {
 
   public async executeWithRotation<T>(
     operation: (ai: ReturnType<typeof createDedicatedGeminiClient>, model: string, slot: ServerKeySlot) => Promise<T>,
-    modelsOverride?: string[]
+    modelsOverride?: string[],
+    timeouts?: { attemptTimeoutMs?: number; overallDeadlineMs?: number }
   ): Promise<T> {
     const slots = this.getSlots();
     if (slots.length === 0) {
@@ -174,6 +302,8 @@ export class ServerGeminiKeyManager {
     }
 
     const preferredModels = modelsOverride && modelsOverride.length > 0 ? modelsOverride : DEFAULT_GEMINI_MODELS;
+    const attemptTimeoutMs = timeouts?.attemptTimeoutMs ?? 20000;
+    const overallDeadlineMs = timeouts?.overallDeadlineMs ?? 50000;
     const totalSlots = slots.length;
     const startIdx = this.currentIndex % totalSlots;
     this.currentIndex = (this.currentIndex + 1) % totalSlots;
@@ -190,7 +320,7 @@ export class ServerGeminiKeyManager {
     }
 
     let lastErr: any = null;
-    const overallDeadline = Date.now() + 48000;
+    const overallDeadline = Date.now() + overallDeadlineMs;
 
     for (let mIdx = 0; mIdx < preferredModels.length; mIdx++) {
       const currentModel = preferredModels[mIdx];
@@ -209,7 +339,7 @@ export class ServerGeminiKeyManager {
           const ai = createDedicatedGeminiClient(currentSlot.key);
           const result = await withAttemptTimeout(
             operation(ai, currentModel, currentSlot),
-            18000,
+            attemptTimeoutMs,
             `Gemini ${currentModel}`
           );
           currentSlot.status = "ACTIVE";
@@ -481,89 +611,105 @@ Generate notes based on:
 router.post("/quiz", async (req, res) => {
   try {
     const { data } = req.body || {};
-    if (!data) return res.status(400).json({ error: "Quiz data payload is required" });
+    if (!data || typeof data !== "object") {
+      return res.status(400).json({ success: false, error: "Quiz request data is required." });
+    }
 
-    const language = data.language || "English";
-    const count = data.questionCount || 5;
-    const difficulty = data.difficulty || "Medium";
+    const subject = typeof data.subject === "string" ? data.subject.trim() : "";
+    const chapterName = typeof data.chapterName === "string" ? data.chapterName.trim() : "";
+    const gradeClass =
+      typeof (data.gradeClass || data.grade) === "string" && (data.gradeClass || data.grade).trim()
+        ? (data.gradeClass || data.grade).trim()
+        : "General";
+    const board = typeof data.board === "string" && data.board.trim() ? data.board.trim() : "CBSE";
+    const language = typeof data.language === "string" && data.language.trim() ? data.language.trim() : "English";
+    const difficulty =
+      data.difficulty === "Easy" || data.difficulty === "Medium" || data.difficulty === "Hard"
+        ? data.difficulty
+        : "Medium";
+
+    const rawCount = data.questionCount === undefined || data.questionCount === null || data.questionCount === ""
+      ? 5
+      : Number(data.questionCount);
+
+    if (!subject) {
+      return res.status(400).json({ success: false, error: "Subject is required to generate a quiz." });
+    }
+    if (!chapterName) {
+      return res.status(400).json({ success: false, error: "Chapter or topic name is required to generate a quiz." });
+    }
+    if (!Number.isFinite(rawCount) || !Number.isInteger(rawCount) || rawCount < 1 || rawCount > 50) {
+      return res.status(400).json({
+        success: false,
+        error: "Question count must be a whole number between 1 and 50.",
+      });
+    }
+
+    const count = rawCount;
+    const authorLine = typeof data.author === "string" && data.author.trim() ? `\n      Author/Textbook Reference: ${data.author.trim()}` : "";
 
     const prompt = `
-      Create a ${count}-question multiple-choice quiz based on the following chapter details.
-      EVERYTHING INCLUDING QUESTIONS, OPTIONS, AND EXPLANATIONS MUST BE IN ${language.toUpperCase()}.
-      
-      The difficulty level of the questions should be: ${difficulty}.
-      Return the result as a JSON array.
-      
-      IMPORTANT: Randomize the position of the correct answer for every question.
-      
-      Subject: ${data.subject}
-      Chapter: ${data.chapterName}
-      Class: ${data.gradeClass || data.grade || "General"}
-      Board: ${data.board}
-      Language: ${language}
+      Create an academic multiple-choice quiz with EXACTLY ${count} questions based on the details below.
+      EVERYTHING INCLUDING QUESTIONS, OPTIONS, AND EXPLANATIONS MUST BE WRITTEN STRICTLY IN ${language.toUpperCase()}.
+
+      Requirements:
+      - Difficulty level: ${difficulty} (appropriate for ${gradeClass} under ${board}).
+      - Return a valid JSON array of EXACTLY ${count} question objects.
+      - Each question MUST have 4 distinct, non-empty options in the "options" array.
+      - "correctAnswerIndex" MUST be the zero-based integer index (0, 1, 2, or 3) of the single correct option.
+      - Randomize the position of the correct answer across questions (do not always put the answer at index 0).
+      - "explanation" MUST clearly and concisely explain why the correct option is right.
+
+      Subject: ${subject}
+      Chapter: ${chapterName}
+      Class: ${gradeClass}
+      Board: ${board}
+      Language: ${language}${authorLine}
     `;
 
-    const questions = await serverGeminiKeyManager.executeWithRotation(async (ai, model) => {
-      const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          ...buildLowLatencyThinkingConfig(model),
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                question: { type: Type.STRING },
-                options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                correctAnswerIndex: { type: Type.INTEGER },
-                explanation: { type: Type.STRING },
+    const attemptTimeoutMs = count >= 25 ? 35000 : count >= 12 ? 25000 : 20000;
+    const overallDeadlineMs = count >= 25 ? 70000 : 50000;
+
+    const questions = await serverGeminiKeyManager.executeWithRotation(
+      async (ai, model) => {
+        const response = await ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            ...buildLowLatencyThinkingConfig(model),
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  question: { type: Type.STRING },
+                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  correctAnswerIndex: { type: Type.INTEGER },
+                  explanation: { type: Type.STRING },
+                },
+                required: ["question", "options", "correctAnswerIndex", "explanation"],
               },
-              required: ["question", "options", "correctAnswerIndex", "explanation"],
             },
           },
-        },
-      });
-
-      if (!response.text) {
-        throw new Error("No text response from quiz generator");
-      }
-
-      const parsed = safeParseJson<any>(response.text);
-      const rawQuestions: any[] = Array.isArray(parsed)
-        ? parsed
-        : Array.isArray(parsed?.questions)
-        ? parsed.questions
-        : [];
-
-      const validQuestions = rawQuestions
-        .filter((q) => q && typeof q.question === "string" && Array.isArray(q.options) && q.options.length >= 2)
-        .map((q) => {
-          const options = q.options.map((opt: any) => String(opt));
-          const idx = Number.isInteger(q.correctAnswerIndex) ? q.correctAnswerIndex : parseInt(String(q.correctAnswerIndex || "0"), 10);
-          const safeIdx = !isNaN(idx) && idx >= 0 && idx < options.length ? idx : 0;
-          return {
-            question: q.question.trim(),
-            options,
-            correctAnswerIndex: safeIdx,
-            explanation: typeof q.explanation === "string" && q.explanation.trim()
-              ? q.explanation.trim()
-              : "Review the chapter concepts to verify this answer.",
-          };
         });
 
-      if (validQuestions.length === 0) {
-        throw new Error("Quiz generator returned an invalid question list. Please try again.");
-      }
+        if (!response.text || !response.text.trim()) {
+          throw new Error("AI returned an empty JSON response. Please try again.");
+        }
 
-      return validQuestions;
-    });
+        const parsed = safeParseJson<any>(response.text);
+        return validateAndNormalizeQuizQuestions(parsed, count);
+      },
+      undefined,
+      { attemptTimeoutMs, overallDeadlineMs }
+    );
 
     res.json({ success: true, questions });
   } catch (error: any) {
     console.error("[Server Quiz Error]:", error);
-    res.status(500).json({ success: false, error: error?.message || "Failed to generate quiz" });
+    const classified = classifyGeminiHttpError(error, "Failed to generate quiz. Please try again.");
+    res.status(classified.status).json({ success: false, error: classified.message });
   }
 });
 

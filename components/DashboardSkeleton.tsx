@@ -59,7 +59,7 @@ const DashboardSkeleton: React.FC = () => {
             {/* Title & Info */}
             <div className="space-y-2">
               <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-              <div className="h-3 w-16 bg-slate-150 dark:bg-slate-750 rounded animate-pulse" />
+              <div className="h-3 w-16 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
             </div>
           </div>
         ))}
@@ -73,7 +73,7 @@ const DashboardSkeleton: React.FC = () => {
           
           <div className="space-y-3">
             <div className="h-5 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-            <div className="h-3 w-48 bg-slate-150 dark:bg-slate-750 rounded animate-pulse" />
+            <div className="h-3 w-48 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
           </div>
 
           {/* Large Circular/Streak Ring Placeholder */}
@@ -90,7 +90,7 @@ const DashboardSkeleton: React.FC = () => {
           
           <div className="space-y-3 mb-6">
             <div className="h-5 w-40 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-            <div className="h-3 w-64 bg-slate-150 dark:bg-slate-750 rounded animate-pulse" />
+            <div className="h-3 w-64 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
           </div>
 
           {/* Subjects horizontal scroll or grid items */}
@@ -120,10 +120,10 @@ const DashboardSkeleton: React.FC = () => {
                   <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 animate-pulse" />
                   <div className="space-y-2">
                     <div className="h-4 w-44 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                    <div className="h-3 w-28 bg-slate-150 dark:bg-slate-750 rounded animate-pulse" />
+                    <div className="h-3 w-28 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
                   </div>
                 </div>
-                <div className="w-4 h-4 rounded bg-slate-150 dark:bg-slate-700 animate-pulse" />
+                <div className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-700 animate-pulse" />
               </div>
             ))}
           </div>
@@ -137,16 +137,16 @@ const DashboardSkeleton: React.FC = () => {
             <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 animate-pulse" />
             <div className="space-y-1.5">
               <div className="h-4.5 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-              <div className="h-3 w-16 bg-slate-150 dark:bg-slate-750 rounded animate-pulse" />
+              <div className="h-3 w-16 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
             </div>
           </div>
 
           <div className="space-y-2 my-4">
-            <div className="h-3.5 w-full bg-slate-150 dark:bg-slate-700 rounded animate-pulse" />
-            <div className="h-3.5 w-[85%] bg-slate-150 dark:bg-slate-700 rounded animate-pulse" />
+            <div className="h-3.5 w-full bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
+            <div className="h-3.5 w-[85%] bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
           </div>
 
-          <div className="h-9 w-full bg-blue-100 dark:bg-slate-750 rounded-lg animate-pulse" />
+          <div className="h-9 w-full bg-blue-100 dark:bg-slate-700/60 rounded-lg animate-pulse" />
         </div>
       </motion.div>
 

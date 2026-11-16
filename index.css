@@ -83,6 +83,15 @@
   animation: floatFormula 6s ease-in-out infinite;
 }
 
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.8s infinite;
+}
+
 .animate-perspective-orbit {
   animation: perspectiveOrbit 18s linear infinite;
 }
@@ -99,7 +108,8 @@
   .animate-blob,
   .animate-orb-breathe,
   .animate-float-formula,
-  .animate-perspective-orbit {
+  .animate-perspective-orbit,
+  .animate-shimmer {
     animation: none !important;
   }
 }

@@ -175,7 +175,7 @@ export const CinematicLoginStage: React.FC<CinematicLoginStageProps> = ({
 
       {/* Floating Mathematical Formulas & Educational Symbols */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-        {formulas.map((item) => (
+        {formulas.map((item, idx) => (
           <motion.div
             key={item.id}
             initial={{ opacity: 0, y: 18 }}
@@ -194,7 +194,9 @@ export const CinematicLoginStage: React.FC<CinematicLoginStageProps> = ({
               repeat: Infinity,
               ease: 'easeInOut',
             }}
-            className={`absolute px-2.5 py-1 rounded-lg border backdrop-blur-xs font-mono text-[11px] sm:text-xs font-semibold tracking-tight select-none hidden sm:block ${item.color}`}
+            className={`absolute px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border backdrop-blur-xs font-mono text-[10px] sm:text-xs font-semibold tracking-tight select-none ${
+              idx < 6 ? 'block' : 'hidden sm:block'
+            } ${item.color}`}
             style={{
               left: `${item.x}%`,
               top: `${item.y}%`,
@@ -319,9 +321,9 @@ export const CinematicLoginStage: React.FC<CinematicLoginStageProps> = ({
                 : {
                     opacity: 0,
                     scale: 0.9,
-                    rotateX: 11,
-                    rotateY: -9,
-                    y: 32,
+                    rotateX: 12,
+                    rotateY: -10,
+                    y: 34,
                   }
             }
             animate={{
@@ -331,12 +333,12 @@ export const CinematicLoginStage: React.FC<CinematicLoginStageProps> = ({
               rotateY: 0,
               y: 0,
             }}
-            transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
             onClick={(e) => e.stopPropagation()}
             className="relative z-20 w-full max-w-lg my-auto preserve-3d"
           >
             {/* Outer subtle electric-blue & violet glass rim */}
-            <div className="relative rounded-3xl p-[1px] bg-gradient-to-br from-blue-400/45 via-violet-500/30 to-cyan-400/40 shadow-[0_28px_90px_-15px_rgba(37,99,235,0.5)]">
+            <div className="relative rounded-3xl p-[1px] bg-gradient-to-br from-blue-400/50 via-violet-500/35 to-cyan-400/45 shadow-[0_28px_90px_-15px_rgba(37,99,235,0.52)]">
               <div className="relative rounded-[23px] bg-[#091128]/82 backdrop-blur-2xl p-6 sm:p-8 overflow-hidden border border-white/10">
                 {/* Soft internal top luminescence */}
                 <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-40 bg-blue-500/20 blur-3xl pointer-events-none" />

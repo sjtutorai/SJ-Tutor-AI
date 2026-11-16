@@ -26,6 +26,8 @@ import PremiumModal from "./components/PremiumModal";
 import LoadingState from "./components/LoadingState";
 import SplashScreen from "./components/SplashScreen";
 import DashboardSkeleton from "./components/DashboardSkeleton";
+import DashboardTransition from "./components/DashboardTransition";
+import StudentDashboardCharts from "./components/StudentDashboardCharts";
 import NotesView from "./components/NotesView";
 import GroupsView from "./components/GroupsView";
 import GroupInviteView from "./components/GroupInviteView";
@@ -119,6 +121,18 @@ import { motion, AnimatePresence } from "motion/react";
 const sanitizeSlug = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") : "general";
 
 const THEME_COLORS: Record<string, Record<string, string>> = {
+  Sapphire: {
+    50: "#EFF6FF",
+    100: "#DBEAFE",
+    200: "#BFDBFE",
+    300: "#93C5FD",
+    400: "#60A5FA",
+    500: "#2563EB",
+    600: "#1D4ED8",
+    700: "#1E40AF",
+    800: "#1E3A8A",
+    900: "#172554",
+  },
   Gold: {
     50: "#FFFAF0",
     100: "#FDF5E6",
@@ -309,6 +323,8 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(initialRoute.isAuthModalOpen);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>(initialRoute.authModalMode);
   const [authPrefilledIdentifier, setAuthPrefilledIdentifier] = useState<string>('');
+  const [showDashboardTransition, setShowDashboardTransition] = useState(false);
+  const [transitionStudentName, setTransitionStudentName] = useState("Student");
 
   const openAuthModal = (authMode?: 'signin' | 'signup', prefilledId?: string) => {
     const targetMode = authMode || (getDeviceRegisteredUser().hasRegistered ? 'signin' : 'signup');
@@ -499,7 +515,14 @@ const App: React.FC = () => {
       console.warn("Could not write sidebar open state", e);
     }
   }, [isSidebarOpen]);
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => {
+    if (initialRoute.isAuthModalOpen) return false;
+    try {
+      return sessionStorage.getItem("sjtutor_splash_seen") !== "true";
+    } catch {
+      return false;
+    }
+  });
   const [historySearchQuery, setHistorySearchQuery] = useState("");
 
   // Profile State
@@ -636,7 +659,26 @@ const App: React.FC = () => {
   const [quizData, setQuizData] = useState<QuizQuestion[] | null>(() => {
     try {
       const saved = localStorage.getItem('sjtutor_autosave_quiz');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      const list = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.questions)
+        ? parsed.questions
+        : null;
+      if (!list || list.length === 0) return null;
+      const valid = list.filter(
+        (q: any) =>
+          q &&
+          typeof q.question === 'string' &&
+          q.question.trim().length > 0 &&
+          Array.isArray(q.options) &&
+          q.options.length >= 2 &&
+          Number.isInteger(q.correctAnswerIndex) &&
+          q.correctAnswerIndex >= 0 &&
+          q.correctAnswerIndex < q.options.length
+      );
+      return valid.length > 0 ? valid : null;
     } catch { return null; }
   });
   const [existingQuizScore, setExistingQuizScore] = useState<
@@ -1119,7 +1161,12 @@ const App: React.FC = () => {
               setHomeworkContent(item.content);
               setMode(AppMode.HOMEWORK);
             } else if (item.type === AppMode.QUIZ || item.type === "Interactive Quiz" || item.type === "Quiz Creator") {
-              setQuizData(item.content);
+              const rawSharedQuiz = Array.isArray(item.content)
+                ? item.content
+                : Array.isArray(item.content?.questions)
+                ? item.content.questions
+                : [];
+              setQuizData(rawSharedQuiz.length > 0 ? rawSharedQuiz : null);
               setMode(AppMode.QUIZ);
             }
             // Update form data for context
@@ -1209,8 +1256,8 @@ const App: React.FC = () => {
     const applyTheme = () => {
       const settings = SettingsService.getSettings();
       const theme = settings.appearance.theme;
-      const primaryColorName = settings.appearance.primaryColor || "Gold";
-      const fontFamily = settings.appearance.fontFamily || "Inter";
+      const primaryColorName = settings.appearance.primaryColor || "Sapphire";
+      const fontFamily = settings.appearance.fontFamily || "Plus Jakarta Sans";
       const animationsEnabled = settings.appearance.animations;
 
       const root = window.document.documentElement;
@@ -1226,7 +1273,7 @@ const App: React.FC = () => {
         root.classList.remove("dark");
       }
 
-      const palette = THEME_COLORS[primaryColorName] || THEME_COLORS["Gold"];
+      const palette = THEME_COLORS[primaryColorName] || THEME_COLORS["Sapphire"];
       Object.entries(palette).forEach(([shade, value]) => {
         root.style.setProperty(`--color-primary-${shade}`, value);
       });
@@ -1967,6 +2014,20 @@ const App: React.FC = () => {
         }));
       }
 
+      const currentAppearance = SettingsService.getSettings().appearance;
+      SettingsService.updateSettings({
+        appearance: {
+          ...currentAppearance,
+          theme: "Light",
+          primaryColor:
+            currentAppearance.primaryColor === "Gold"
+              ? "Sapphire"
+              : currentAppearance.primaryColor || "Sapphire",
+        },
+      });
+
+      setTransitionStudentName(mergedProfile.displayName || "Student");
+      setShowDashboardTransition(true);
       setMode(AppMode.DASHBOARD);
       setDashboardView("OVERVIEW");
       setShowAuthModal(false);
@@ -1979,6 +2040,19 @@ const App: React.FC = () => {
           isRegisteredInFirestore: true,
         };
         setUserProfile(mergedProfile as any);
+        const currentAppearance = SettingsService.getSettings().appearance;
+        SettingsService.updateSettings({
+          appearance: {
+            ...currentAppearance,
+            theme: "Light",
+            primaryColor:
+              currentAppearance.primaryColor === "Gold"
+                ? "Sapphire"
+                : currentAppearance.primaryColor || "Sapphire",
+          },
+        });
+        setTransitionStudentName(mergedProfile.displayName || "Student");
+        setShowDashboardTransition(true);
         if (!userProf.hasCompletedOnboarding) {
           setMode(AppMode.PROFILE);
         } else {
@@ -2068,10 +2142,34 @@ const App: React.FC = () => {
   };
 
   const validateForm = () => {
-    if (!formData.subject || !formData.gradeClass || !formData.chapterName) {
-      setError("Please fill in at least Subject, Class, and Chapter Name.");
+    const cleanSubject = (formData.subject || "").trim();
+    const cleanGrade = (formData.gradeClass || userProfile.grade || "").trim();
+    const cleanChapter = (formData.chapterName || "").trim();
+
+    if (mode === AppMode.HOMEWORK) {
+      if (!cleanSubject && homeworkFiles.length === 0 && !(formData.homeworkQuery || "").trim()) {
+        setError("Please enter a subject, homework question, or upload a homework file.");
+        return false;
+      }
+      setError(null);
+      return true;
+    }
+
+    if (!cleanSubject || !cleanGrade || !cleanChapter) {
+      setError("Please fill in Subject, Class / Grade, and Chapter Name before generating.");
       return false;
     }
+
+    if (mode === AppMode.QUIZ) {
+      const qCount = Number(formData.questionCount || 5);
+      const isPrem = Boolean(userProfile.planType && userProfile.planType !== "Free");
+      const maxAllowed = isPrem ? 50 : 15;
+      if (!Number.isFinite(qCount) || qCount < 1 || qCount > maxAllowed) {
+        setError(`Please enter a valid number of questions between 1 and ${maxAllowed}.`);
+        return false;
+      }
+    }
+
     setError(null);
     return true;
   };
@@ -2436,9 +2534,10 @@ const App: React.FC = () => {
       if (
         errorMessage.includes("quota") ||
         errorMessage.includes("RESOURCE_EXHAUSTED") ||
-        errorMessage.includes("429")
+        errorMessage.includes("429") ||
+        errorMessage === "QUOTA_EXHAUSTED"
       ) {
-        errorMessage = "QUOTA_EXHAUSTED";
+        errorMessage = "The AI service is currently experiencing high demand or quota limits. Please wait a few seconds and click Retry.";
       } else if (
         errorMessage.toLowerCase().includes("high demand") ||
         errorMessage.toLowerCase().includes("spikes in demand") ||
@@ -2448,11 +2547,15 @@ const App: React.FC = () => {
         errorMessage = "The AI server is experiencing temporary traffic. Backup failover is engaged—click Retry below to proceed immediately.";
       } else if (
         errorMessage.includes("Generative Language API has not been used") ||
-        errorMessage.includes("PERMISSION_DENIED")
+        errorMessage.includes("PERMISSION_DENIED") ||
+        errorMessage === "API_DISABLED"
       ) {
-        errorMessage = "API_DISABLED";
-      } else if (errorMessage.includes("API key not valid")) {
-        errorMessage = "API_KEY_INVALID_ERROR";
+        errorMessage = "The AI service permission check failed on the server. Please verify the server API configuration and try again.";
+      } else if (
+        errorMessage.includes("API key not valid") ||
+        errorMessage === "API_KEY_INVALID_ERROR"
+      ) {
+        errorMessage = "The configured server API key could not be validated. Please check Settings > Secrets and try again.";
       }
       setError(errorMessage);
     } finally {
@@ -2473,7 +2576,12 @@ const App: React.FC = () => {
       setHomeworkContent(item.content);
       setMode(AppMode.HOMEWORK);
     } else if (item.type === AppMode.QUIZ) {
-      setQuizData(item.content);
+      const rawQuestions = Array.isArray(item.content)
+        ? item.content
+        : Array.isArray(item.content?.questions)
+        ? item.content.questions
+        : [];
+      setQuizData(rawQuestions.length > 0 ? rawQuestions : null);
       setExistingQuizScore(item.score);
       setMode(AppMode.QUIZ);
     } else if (item.type === AppMode.TUTOR) {
@@ -2766,40 +2874,40 @@ const App: React.FC = () => {
         label: "Study Groups",
         count: null,
         icon: Users,
-        color: "text-emerald-600 dark:text-emerald-400",
-        bg: "bg-[#FDF5E6] dark:bg-emerald-900/30",
+        color: "text-blue-600 dark:text-blue-400",
+        bg: "bg-blue-50 dark:bg-blue-950/50",
       },
       {
         id: AppMode.ID_CARD,
         label: "My ID Card",
         count: null,
         icon: CreditCard,
-        color: "text-indigo-600 dark:text-indigo-400",
-        bg: "bg-[#FDF5E6] dark:bg-indigo-900/30",
+        color: "text-violet-600 dark:text-violet-400",
+        bg: "bg-violet-50 dark:bg-violet-950/50",
       },
       {
         id: AppMode.SUMMARY,
         label: "Summaries",
         count: stats.summaries,
         icon: FileText,
-        color: "text-amber-800 dark:text-amber-300",
-        bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
+        color: "text-blue-600 dark:text-blue-400",
+        bg: "bg-blue-50 dark:bg-blue-950/50",
       },
       {
         id: AppMode.QUIZ,
         label: "Quizzes",
         count: stats.quizzes,
         icon: BrainCircuit,
-        color: "text-amber-700 dark:text-amber-400",
-        bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
+        color: "text-violet-600 dark:text-violet-400",
+        bg: "bg-violet-50 dark:bg-violet-950/50",
       },
       {
         id: AppMode.HOMEWORK,
         label: "Homework Solutions",
         count: stats.homeworks + stats.essays,
         icon: BookOpen,
-        color: "text-amber-600 dark:text-amber-500",
-        bg: "bg-[#FDF5E6] dark:bg-amber-900/30",
+        color: "text-indigo-600 dark:text-indigo-400",
+        bg: "bg-indigo-50 dark:bg-indigo-950/50",
       },
       {
         id: AppMode.TUTOR,
@@ -2807,7 +2915,7 @@ const App: React.FC = () => {
         count: stats.chats,
         icon: MessageCircle,
         color: "text-blue-600 dark:text-blue-400",
-        bg: "bg-[#FDF5E6] dark:bg-blue-900/30",
+        bg: "bg-blue-50 dark:bg-blue-950/50",
       },
       {
         id: AppMode.NOTIFICATIONS,
@@ -2815,15 +2923,15 @@ const App: React.FC = () => {
         count: unreadCount,
         icon: Bell,
         color: "text-violet-600 dark:text-violet-400",
-        bg: "bg-[#FDF5E6] dark:bg-violet-900/30",
+        bg: "bg-violet-50 dark:bg-violet-950/50",
       },
       {
         id: AppMode.NOTES,
         label: "Notes",
         count: noteCount,
         icon: Calendar,
-        color: "text-emerald-700 dark:text-emerald-400",
-        bg: "bg-[#FDF5E6] dark:bg-emerald-900/30",
+        color: "text-sky-600 dark:text-sky-400",
+        bg: "bg-sky-50 dark:bg-sky-950/50",
       },
     ];
 
@@ -3057,16 +3165,39 @@ const App: React.FC = () => {
 
     return (
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full h-full">
-        <div className="mb-6">
+        {/* Clean Light Student Dashboard Greeting Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_6px_28px_-6px_rgba(37,99,235,0.08)] p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+        >
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-              Welcome back, {userProfile.displayName || "Scholar"}! 👋
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              Welcome Back, {userProfile.displayName || userProfile.name || "Student"}!
             </h2>
-            <p className="text-slate-500 dark:text-slate-400">
-              Ready to learn something new today?
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+              Track your study streak, daily learning goals, subject mastery, and recent sessions.
             </p>
           </div>
-        </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => navigateToMode(AppMode.TUTOR)}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Ask AI Tutor</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateToMode(AppMode.QUIZ)}
+              className="px-4 py-2.5 rounded-xl bg-[#F1F5F9] dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Practice Quiz
+            </button>
+          </div>
+        </motion.div>
 
         <TrialBannerCard 
           userProfile={userProfile} 
@@ -3086,101 +3217,124 @@ const App: React.FC = () => {
           />
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {dashboardCards.map((card, idx) => (
-            <motion.button
-              key={card.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ 
-                duration: 0.45, 
-                delay: idx * 0.07, 
-                ease: [0.16, 1, 0.3, 1] 
-              }}
-              whileHover={{ y: -4, transition: { duration: 0.2 } }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                if (card.id === AppMode.ID_CARD && !user) {
-                  setShowAuthModal(true);
-                  return;
-                }
+        {/* Animated Study Streak, Daily Study Goals, Subject Progress Cards & Charts */}
+        <StudentDashboardCharts
+          history={history}
+          userProfile={userProfile}
+          userId={user?.uid || null}
+          onNavigateMode={navigateToMode}
+          onQuickSubjectStudy={(subj, targetMode) => {
+            setFormData((prev) => ({
+              ...prev,
+              subject: subj,
+            }));
+            navigateToMode(targetMode);
+          }}
+        />
 
-                if (card.id === AppMode.NOTES) {
-                  setMode(AppMode.NOTES);
-                } else if (card.id === AppMode.GROUPS) {
-                  setMode(AppMode.GROUPS);
-                } else if (card.id === AppMode.ID_CARD) {
-                  setMode(AppMode.ID_CARD);
-                } else if (card.id === AppMode.NOTIFICATIONS) {
-                  setMode(AppMode.NOTIFICATIONS);
-                } else {
-                  setDashboardView(card.id as any);
-                }
-              }}
-              className={`p-5 rounded-xl border border-transparent hover:border-amber-200 dark:hover:border-amber-800 transition-all hover:shadow-md text-left group bg-white dark:bg-slate-800 shadow-sm border-slate-100 dark:border-slate-700 relative overflow-hidden`}
-            >
-              <div
-                className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${card.color}`}
+        {/* Workspace Modules Grid */}
+        <div className="bg-[#F1F5F9]/80 dark:bg-slate-900/50 rounded-2xl border border-slate-200/70 dark:border-slate-800 p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+              Study Modules &amp; Tools
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {dashboardCards.map((card, idx) => (
+              <motion.button
+                key={card.id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.4,
+                  delay: idx * 0.04,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  if (card.id === AppMode.ID_CARD && !user) {
+                    setShowAuthModal(true);
+                    return;
+                  }
+
+                  if (card.id === AppMode.NOTES) {
+                    setMode(AppMode.NOTES);
+                  } else if (card.id === AppMode.GROUPS) {
+                    setMode(AppMode.GROUPS);
+                  } else if (card.id === AppMode.ID_CARD) {
+                    setMode(AppMode.ID_CARD);
+                  } else if (card.id === AppMode.NOTIFICATIONS) {
+                    setMode(AppMode.NOTIFICATIONS);
+                  } else {
+                    setDashboardView(card.id as any);
+                  }
+                }}
+                className="p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 transition-all hover:shadow-[0_10px_30px_-8px_rgba(37,99,235,0.16)] text-left group bg-white dark:bg-slate-900 shadow-sm relative overflow-hidden cursor-pointer"
               >
-                <card.icon className="w-16 h-16" />
-              </div>
-              <div className="flex justify-between items-start mb-3 relative z-10">
                 <div
-                  className={`p-2.5 rounded-lg shadow-sm ${card.color} ${card.bg}`}
+                  className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${card.color}`}
                 >
-                  <card.icon className="w-5 h-5" />
+                  <card.icon className="w-16 h-16" />
                 </div>
-                {card.count !== null && (
-                  historyLoadedUid === "none" ? (
-                    <div className="h-6 w-10 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
-                  ) : (
-                    <span className="text-2xl font-bold text-slate-800 dark:text-white">
-                      {card.count}
-                    </span>
-                  )
-                )}
-              </div>
-              <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-1 relative z-10">
-                {card.label}
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors flex items-center gap-1 relative z-10">
-                View Details <ChevronRight className="w-3 h-3" />
-              </p>
-            </motion.button>
-          ))}
+                <div className="flex justify-between items-start mb-3 relative z-10">
+                  <div
+                    className={`p-2.5 rounded-xl shadow-xs ${card.color} ${card.bg}`}
+                  >
+                    <card.icon className="w-5 h-5" />
+                  </div>
+                  {card.count !== null && (
+                    historyLoadedUid === "none" ? (
+                      <div className="h-6 w-10 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                    ) : (
+                      <span className="text-2xl font-extrabold font-mono tabular-nums text-slate-900 dark:text-white">
+                        {card.count}
+                      </span>
+                    )
+                  )}
+                </div>
+                <h4 className="font-bold text-slate-900 dark:text-slate-100 mb-1 relative z-10">
+                  {card.label}
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-1 relative z-10">
+                  Open Module <ChevronRight className="w-3 h-3" />
+                </p>
+              </motion.button>
+            ))}
+          </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
-          <h3 className="font-bold text-slate-800 dark:text-white mb-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-[0_6px_28px_-6px_rgba(15,23,42,0.06)] border border-slate-200/80 dark:border-slate-800 p-6">
+          <h3 className="font-bold text-slate-900 dark:text-white mb-4">
             Quick Actions
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <button
               onClick={() => navigateToMode(AppMode.SUMMARY)}
-              className="p-4 bg-white dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900"
+              className="p-4 bg-[#F1F5F9]/80 dark:bg-slate-800/60 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl text-sm font-semibold transition-all text-slate-700 dark:text-slate-200 flex flex-col items-center gap-2 border border-slate-200/70 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800 cursor-pointer"
             >
-              <FileText className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+              <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               New Summary
             </button>
             <button
               onClick={() => navigateToMode(AppMode.HOMEWORK)}
-              className="p-4 bg-white dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-emerald-100 dark:hover:border-emerald-900"
+              className="p-4 bg-[#F1F5F9]/80 dark:bg-slate-800/60 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-700 dark:hover:text-indigo-300 rounded-xl text-sm font-semibold transition-all text-slate-700 dark:text-slate-200 flex flex-col items-center gap-2 border border-slate-200/70 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-800 cursor-pointer"
             >
-              <BookOpen className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              <BookOpen className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
               Homework Solver
             </button>
             <button
               onClick={() => navigateToMode(AppMode.QUIZ)}
-              className="p-4 bg-white dark:bg-slate-700/50 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-700 dark:hover:text-amber-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-amber-100 dark:hover:border-amber-900"
+              className="p-4 bg-[#F1F5F9]/80 dark:bg-slate-800/60 hover:bg-violet-50 dark:hover:bg-violet-950/40 hover:text-violet-700 dark:hover:text-violet-300 rounded-xl text-sm font-semibold transition-all text-slate-700 dark:text-slate-200 flex flex-col items-center gap-2 border border-slate-200/70 dark:border-slate-700 hover:border-violet-200 dark:hover:border-violet-800 cursor-pointer"
             >
-              <BrainCircuit className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+              <BrainCircuit className="w-6 h-6 text-violet-600 dark:text-violet-400" />
               New Quiz
             </button>
             <button
               onClick={() => navigateToMode(AppMode.TUTOR)}
-              className="p-4 bg-white dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-400 rounded-xl text-sm font-medium transition-colors text-slate-600 dark:text-slate-300 flex flex-col items-center gap-2 border border-slate-100 dark:border-slate-600 hover:border-purple-100 dark:hover:border-purple-900"
+              className="p-4 bg-[#F1F5F9]/80 dark:bg-slate-800/60 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-700 dark:hover:text-blue-300 rounded-xl text-sm font-semibold transition-all text-slate-700 dark:text-slate-200 flex flex-col items-center gap-2 border border-slate-200/70 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800 cursor-pointer"
             >
-              <MessageCircle className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              <MessageCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               Ask Tutor
             </button>
           </div>
@@ -3188,13 +3342,13 @@ const App: React.FC = () => {
 
         {/* Recent Study History */}
         {history.length > 0 && (
-          <div className="mt-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-in slide-in-from-bottom-6 duration-700">
+          <div className="mt-6 bg-white dark:bg-slate-900 rounded-2xl shadow-[0_6px_28px_-6px_rgba(15,23,42,0.06)] border border-slate-200/80 dark:border-slate-800 p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-500" />
+              <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 Recent Study History
               </h3>
-              <span className="text-xs text-slate-400 font-medium font-mono bg-slate-150 dark:bg-slate-900 px-2.5 py-1 rounded">
+              <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold font-mono tabular-nums bg-[#F1F5F9] dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200/70 dark:border-slate-700">
                 {history.length} items
               </span>
             </div>
@@ -3203,28 +3357,28 @@ const App: React.FC = () => {
                 <div
                   key={item.id}
                   onClick={() => loadHistoryItem(item)}
-                  className="bg-slate-50/50 dark:bg-slate-700/30 p-4 rounded-xl border border-slate-100 dark:border-slate-700 hover:border-amber-200 dark:hover:border-amber-800 shadow-sm hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
+                  className="bg-[#F8FAFC] dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200/75 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-white dark:hover:bg-slate-800 shadow-xs hover:shadow-md transition-all duration-300 flex justify-between items-center group cursor-pointer"
                 >
                   <div className="flex items-start gap-3">
                     <div
-                      className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-primary-50 dark:bg-slate-750 text-primary-600 dark:text-primary-400`}
+                      className="mt-1 w-8 h-8 rounded-full flex items-center justify-center bg-blue-50 dark:bg-slate-700 text-blue-600 dark:text-blue-400"
                     >
                       {item.type === AppMode.QUIZ ? (
-                        <BrainCircuit className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                        <BrainCircuit className="w-4 h-4 text-violet-600 dark:text-violet-400" />
                       ) : item.type === AppMode.SUMMARY ? (
-                        <FileText className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       ) : (item.type === AppMode.HOMEWORK || item.type === AppMode.ESSAY) ? (
-                        <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        <BookOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                       ) : (
                         <MessageCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       )}
                     </div>
                     <div>
-                      <h4 className="font-semibold text-slate-800 dark:text-white text-sm group-hover:text-amber-700 dark:group-hover:text-amber-405 transition-colors">
+                      <h4 className="font-semibold text-slate-900 dark:text-white text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                         {item.title}
                       </h4>
                       <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-3 mt-1">
-                        <span className="font-medium bg-slate-200/50 dark:bg-slate-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-350">
+                        <span className="font-medium bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-300">
                           {getSingularName(item.type)}
                         </span>
                         <span className="flex items-center gap-1 text-slate-400">
@@ -3253,7 +3407,7 @@ const App: React.FC = () => {
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-                    <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center border border-slate-100 dark:border-slate-700 shadow-sm opacity-60 group-hover:opacity-100 group-hover:text-amber-600 transition-all">
+                    <div className="w-7 h-7 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center border border-slate-200/80 dark:border-slate-700 shadow-xs opacity-70 group-hover:opacity-100 group-hover:text-blue-600 transition-all">
                       <ChevronRight className="w-4 h-4" />
                     </div>
                   </div>
@@ -3891,7 +4045,18 @@ const App: React.FC = () => {
   }
 
   if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} />;
+    return (
+      <SplashScreen
+        onComplete={() => {
+          try {
+            sessionStorage.setItem("sjtutor_splash_seen", "true");
+          } catch {
+            // ignore
+          }
+          setShowSplash(false);
+        }}
+      />
+    );
   }
 
   if (authLoading) {
@@ -4220,7 +4385,7 @@ const App: React.FC = () => {
               <button
                 onClick={openPremiumModal}
                 title={!isExpanded ? "Upgrade Plan" : undefined}
-                className={`w-full flex items-center justify-center ${isExpanded ? "py-2 gap-1.5 text-xs font-bold" : "p-2"} bg-gradient-to-r from-amber-200 to-yellow-400 hover:from-amber-300 hover:to-yellow-500 text-amber-900 rounded-lg shadow-sm transition-all`}
+                className={`w-full flex items-center justify-center ${isExpanded ? "py-2 gap-1.5 text-xs font-bold" : "p-2"} bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-xl shadow-sm shadow-blue-600/20 transition-all cursor-pointer`}
               >
                 <Crown className="w-3.5 h-3.5 flex-shrink-0" />
                 {isExpanded && <span>Upgrade Plan</span>}
@@ -4300,12 +4465,12 @@ const App: React.FC = () => {
             {/* Daily Streak Badge */}
             {((streakData.currentStreak > 0) || (userProfile.streak !== undefined && userProfile.streak > 0)) && (
               <div 
-                className="flex items-center gap-1 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-bold shadow-xs select-none"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-bold shadow-xs select-none"
                 title={`${streakData.currentStreak || userProfile.streak} Day Learning Streak`}
               >
                 <span className="text-sm leading-none">🔥</span>
-                <span className="font-mono">{streakData.currentStreak || userProfile.streak}</span>
-                <span className="hidden sm:inline text-[11px] font-medium text-amber-600/80 dark:text-amber-400/80">days</span>
+                <span className="font-mono tabular-nums">{streakData.currentStreak || userProfile.streak}</span>
+                <span className="hidden sm:inline text-[11px] font-medium text-blue-600/80 dark:text-blue-300/80">days</span>
               </div>
             )}
 
@@ -4451,6 +4616,13 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {showDashboardTransition && (
+        <DashboardTransition
+          studentName={transitionStudentName}
+          onComplete={() => setShowDashboardTransition(false)}
+        />
+      )}
 
       {showAuthModal && (
         <Auth

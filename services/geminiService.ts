@@ -54,16 +54,35 @@ let cachedStatus: KeyManagerStatus = {
   ],
 };
 
-async function fetchWithWarmupRetry(url: string, init: RequestInit, retries = 1): Promise<Response> {
-  const res = await fetch(url, init);
+async function fetchWithWarmupRetry(
+  url: string,
+  init: RequestInit,
+  retries = 1,
+  timeoutMs = 60000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, signal: init.signal || controller.signal });
+  } catch (err: any) {
+    clearTimeout(timer);
+    if (err?.name === "AbortError") {
+      throw new Error("The request timed out while waiting for the AI server. Please try again.");
+    }
+    throw new Error("Unable to reach the AI server. Please check your internet connection and click Retry.");
+  } finally {
+    clearTimeout(timer);
+  }
+
   if (retries > 0 && (res.status === 502 || res.status === 503 || res.status === 504)) {
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    return fetchWithWarmupRetry(url, init, retries - 1);
+    return fetchWithWarmupRetry(url, init, retries - 1, timeoutMs);
   }
   const contentType = (res.headers.get("content-type") || "").toLowerCase();
   if (retries > 0 && contentType.includes("text/html")) {
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    return fetchWithWarmupRetry(url, init, retries - 1);
+    return fetchWithWarmupRetry(url, init, retries - 1, timeoutMs);
   }
   return res;
 }
@@ -357,11 +376,31 @@ export const GeminiService = {
    * Generates a syllabus-aligned multiple choice quiz.
    */
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
-    const res = await fetchWithWarmupRetry("/api/gemini/quiz", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data }),
-    });
+    const normalizedPayload: StudyRequestData = {
+      ...data,
+      subject: (data.subject || "").trim(),
+      chapterName: (data.chapterName || "").trim(),
+      gradeClass: (data.gradeClass || "General").trim(),
+      board: (data.board || "CBSE").trim(),
+      language: (data.language || "English").trim(),
+      questionCount: Number.isFinite(Number(data.questionCount)) && Number(data.questionCount) >= 1
+        ? Math.min(50, Math.round(Number(data.questionCount)))
+        : 5,
+      difficulty: data.difficulty || "Medium",
+    };
+
+    const timeoutMs = (normalizedPayload.questionCount || 5) >= 20 ? 80000 : 60000;
+
+    const res = await fetchWithWarmupRetry(
+      "/api/gemini/quiz",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: normalizedPayload }),
+      },
+      1,
+      timeoutMs
+    );
 
     const body = await safeReadJsonResponse(res, "Quiz Generation");
     if (!body.success) {
@@ -370,7 +409,27 @@ export const GeminiService = {
     if (!Array.isArray(body.questions) || body.questions.length === 0) {
       throw new Error("The AI did not return any quiz questions. Please try again.");
     }
-    return body.questions;
+
+    const validated: QuizQuestion[] = body.questions.filter(
+      (q: any) =>
+        q &&
+        typeof q.question === "string" &&
+        q.question.trim().length > 0 &&
+        Array.isArray(q.options) &&
+        q.options.length >= 2 &&
+        q.options.every((opt: any) => typeof opt === "string" && opt.trim().length > 0) &&
+        Number.isInteger(q.correctAnswerIndex) &&
+        q.correctAnswerIndex >= 0 &&
+        q.correctAnswerIndex < q.options.length &&
+        typeof q.explanation === "string" &&
+        q.explanation.trim().length > 0
+    );
+
+    if (validated.length === 0) {
+      throw new Error("The AI returned malformed quiz questions. Please click Retry to generate a fresh quiz.");
+    }
+
+    return validated;
   },
 
   /**

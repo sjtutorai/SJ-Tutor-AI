@@ -27,7 +27,7 @@ export function getServerGeminiClient(explicitKey?: string): { ai: GoogleGenAI; 
   const ai = new GoogleGenAI({
     apiKey: activeKey,
     httpOptions: {
-      timeout: 30000,
+      timeout: 45000,
       headers: {
         "User-Agent": "aistudio-build",
       },
@@ -46,7 +46,7 @@ export function createDedicatedGeminiClient(apiKey: string): GoogleGenAI {
   return new GoogleGenAI({
     apiKey,
     httpOptions: {
-      timeout: 30000,
+      timeout: 45000,
       headers: {
         "User-Agent": "aistudio-build",
       },

@@ -253,6 +253,22 @@ const QuizView: React.FC<QuizViewProps> = ({
     }
   };
 
+  if (!Array.isArray(questions) || questions.length === 0 || !currentQuestion) {
+    return (
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md border border-slate-200 dark:border-slate-800 p-8 text-center">
+        <p className="text-slate-700 dark:text-slate-200 font-semibold mb-4">
+          Unable to load quiz questions. Please generate a new quiz.
+        </p>
+        <button
+          onClick={onReset}
+          className="px-6 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-sm transition"
+        >
+          Back to Quiz Creator
+        </button>
+      </div>
+    );
+  }
+
   // ==========================================
   // RENDER: QUIZ INITIAL LOADING SCREEN
   // ==========================================
