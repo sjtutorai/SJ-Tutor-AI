@@ -90,12 +90,24 @@ export const transcribeAudioViaAI = async (
       }),
     });
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `Transcription request failed (${res.status})`);
+    const rawText = await res.text();
+    let data: any = {};
+    if (rawText && rawText.trim()) {
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error(`Transcription returned an invalid response (HTTP ${res.status}).`);
+      }
+    } else if (!res.ok) {
+      throw new Error(`Transcription request failed (HTTP ${res.status}).`);
+    } else {
+      throw new Error('Transcription server returned an empty response. Please try again.');
     }
 
-    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || `Transcription request failed (${res.status})`);
+    }
+
     return data.transcript || '';
   } catch (err: any) {
     console.error('AI Audio Transcription error:', err);

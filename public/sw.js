@@ -1,6 +1,6 @@
 // Service Worker to handle Offline Sync, Push Notifications and FCM background messages
 
-const CACHE_NAME = 'sjtutor-offline-v2';
+const CACHE_NAME = 'sjtutor-offline-v3';
 const STATIC_ASSETS = [
   '/',
   '/SJ-Tutor-AI-Logo.jpg',
@@ -40,20 +40,35 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
-  // Skip Firebase/Firestore/Google API calls from service worker cache
+  // Skip Firebase/Firestore/Google API calls, internal endpoints, and Vite dev modules from service worker cache
   if (
     url.hostname.includes('firestore.googleapis.com') ||
     url.hostname.includes('firebaseio.com') ||
     url.hostname.includes('googleapis.com') ||
-    url.pathname.startsWith('/api/')
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/__') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/services/') ||
+    url.pathname.startsWith('/components/') ||
+    url.pathname.startsWith('/utils/')
   ) {
     return;
   }
 
   event.respondWith(
     fetch(event.request)
-      .then((networkResponse) => {
+      .then(async (networkResponse) => {
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const contentType = (networkResponse.headers.get('content-type') || '').toLowerCase();
+          if (contentType.includes('text/html')) {
+            const cloneForCheck = networkResponse.clone();
+            const htmlText = await cloneForCheck.text().catch(() => '');
+            if (htmlText.includes('Starting Server...') || htmlText.includes('Please wait while your application starts')) {
+              return networkResponse;
+            }
+          }
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache).catch(() => {});

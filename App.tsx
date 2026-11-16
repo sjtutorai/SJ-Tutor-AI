@@ -1094,7 +1094,8 @@ const App: React.FC = () => {
             try {
               console.log("[SHARE AUDIT] Calling API route fallback /api/auth/share/" + shareId);
               const response = await fetch(`/api/auth/share/${shareId}`);
-              const data = await response.json();
+              const rawText = await response.text();
+              const data = rawText && rawText.trim() ? JSON.parse(rawText) : {};
               if (response.ok && data.success) {
                 item = data.data;
                 console.log("[SHARE AUDIT] API route fallback Success:", item);
@@ -2371,6 +2372,9 @@ const App: React.FC = () => {
             setSummaryContent(text);
           }
         }
+        if (!text.trim()) {
+          throw new Error("The AI did not return any summary content. Please click Retry.");
+        }
         addToHistory(AppMode.SUMMARY, text);
         deductCredit(cost);
         sendNotification(
@@ -2394,6 +2398,9 @@ const App: React.FC = () => {
           }
         }
 
+        if (!text.trim()) {
+          throw new Error("The AI did not return a homework solution. Please click Retry.");
+        }
         addToHistory(AppMode.HOMEWORK, text);
         deductCredit(cost);
         sendNotification(
@@ -2505,7 +2512,8 @@ const App: React.FC = () => {
           });
 
           if (response.ok) {
-            const data = await response.json();
+            const rawText = await response.text();
+            const data = rawText && rawText.trim() ? JSON.parse(rawText) : {};
             if (data.id) {
               shareId = data.id;
             }

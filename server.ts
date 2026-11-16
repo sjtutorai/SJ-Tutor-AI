@@ -1,5 +1,4 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./server/routes/auth";
@@ -13,6 +12,7 @@ import fs from "fs";
 // Load .env with override to ensure it takes precedence over system defaults
 const envPath = path.resolve(process.cwd(), ".env");
 dotenv.config({ path: envPath, override: true });
+serverGeminiKeyManager.refresh();
 
 const app = express();
 const PORT = 3000;
@@ -431,11 +431,24 @@ If the audio is completely silent or contains no discernible speech, return an e
   }
 });
 
+// Ensure any unmatched /api/* route always returns JSON rather than falling through to Vite/SPA with an empty 404
+app.use("/api", (_req, res) => {
+  res.status(404).json({
+    success: false,
+    error: "API endpoint not found",
+  });
+});
+
 // Global Error Handler
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("❌ Global Error Handler:", err);
-  res.status(500).json({ 
+  if (res.headersSent) {
+    if (!res.writableEnded) res.end();
+    return;
+  }
+  res.status(err?.status || 500).json({ 
+    success: false,
     message: "Internal Server Error", 
     error: err.message || "Unknown error" 
   });
@@ -516,9 +529,10 @@ async function startServer() {
     }
   });
 
-  let viteServer: Awaited<ReturnType<typeof createViteServer>> | null = null;
+  let viteServer: any = null;
 
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     viteServer = await createViteServer({
       server: { middlewareMode: true, allowedHosts: true, hmr: false },
       appType: "spa",

@@ -9,13 +9,40 @@ function buildLowLatencyThinkingConfig(model: string) {
 }
 
 function safeParseJson<T>(raw: string): T {
-  const cleaned = raw
-    .trim()
+  const trimmed = (raw || "").trim();
+  if (!trimmed) {
+    throw new Error("AI returned an empty JSON response. Retrying...");
+  }
+  const cleaned = trimmed
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
-  return JSON.parse(cleaned) as T;
+
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    // Attempt to recover a complete JSON array or object surrounded by extra text
+    const firstBracket = cleaned.indexOf("[");
+    const lastBracket = cleaned.lastIndexOf("]");
+    if (firstBracket !== -1 && lastBracket > firstBracket) {
+      try {
+        return JSON.parse(cleaned.slice(firstBracket, lastBracket + 1)) as T;
+      } catch {
+        // continue to object check
+      }
+    }
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      try {
+        return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1)) as T;
+      } catch {
+        // fall through to clean retryable error
+      }
+    }
+    throw new Error("AI returned an incomplete JSON response. Please try again.");
+  }
 }
 
 function withAttemptTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -163,20 +190,26 @@ export class ServerGeminiKeyManager {
     }
 
     let lastErr: any = null;
+    const overallDeadline = Date.now() + 48000;
 
     for (let mIdx = 0; mIdx < preferredModels.length; mIdx++) {
       const currentModel = preferredModels[mIdx];
+      let attemptsOnThisModel = 0;
       for (let i = 0; i < orderedIndices.length; i++) {
+        if (Date.now() > overallDeadline && mIdx > 0) {
+          break;
+        }
         const slotIdx = orderedIndices[i];
         const currentSlot = slots[slotIdx];
         currentSlot.requests++;
+        attemptsOnThisModel++;
         const startedAt = Date.now();
 
         try {
           const ai = createDedicatedGeminiClient(currentSlot.key);
           const result = await withAttemptTimeout(
             operation(ai, currentModel, currentSlot),
-            26000,
+            18000,
             `Gemini ${currentModel}`
           );
           currentSlot.status = "ACTIVE";
@@ -187,6 +220,7 @@ export class ServerGeminiKeyManager {
           const elapsed = Date.now() - startedAt;
           const highDemand = this.isHighDemandError(err);
           const modelMissing = this.isModelNotFoundError(err);
+          const timedOut = String(err?.message || "").includes("timed out");
 
           if (highDemand) {
             currentSlot.status = "HIGH_DEMAND";
@@ -198,8 +232,8 @@ export class ServerGeminiKeyManager {
             `[Server Gemini] Error (${elapsed}ms) on ${currentSlot.id} (${currentSlot.masked}) model ${currentModel}: ${err?.message || err}`
           );
 
-          if (modelMissing && mIdx < preferredModels.length - 1) {
-            break; // Immediately move to next model instead of retrying all keys on a missing model
+          if ((modelMissing || timedOut || attemptsOnThisModel >= 2) && mIdx < preferredModels.length - 1) {
+            break; // Quickly fall back to next model instead of burning timeout budget across all keys
           }
 
           if (i === orderedIndices.length - 1 && mIdx === preferredModels.length - 1) {
@@ -236,20 +270,26 @@ export class ServerGeminiKeyManager {
     }
 
     let lastErr: any = null;
+    const overallDeadline = Date.now() + 48000;
 
     for (let mIdx = 0; mIdx < preferredModels.length; mIdx++) {
       const currentModel = preferredModels[mIdx];
+      let attemptsOnThisModel = 0;
       for (let i = 0; i < orderedIndices.length; i++) {
+        if (Date.now() > overallDeadline && mIdx > 0) {
+          break;
+        }
         const slotIdx = orderedIndices[i];
         const currentSlot = slots[slotIdx];
         currentSlot.requests++;
+        attemptsOnThisModel++;
         const startedAt = Date.now();
 
         try {
           const ai = createDedicatedGeminiClient(currentSlot.key);
           const stream = await withAttemptTimeout(
             streamBuilder(ai, currentModel, currentSlot),
-            26000,
+            18000,
             `Gemini stream ${currentModel}`
           );
           currentSlot.status = "ACTIVE";
@@ -260,6 +300,7 @@ export class ServerGeminiKeyManager {
           const elapsed = Date.now() - startedAt;
           const highDemand = this.isHighDemandError(err);
           const modelMissing = this.isModelNotFoundError(err);
+          const timedOut = String(err?.message || "").includes("timed out");
 
           if (highDemand) {
             currentSlot.status = "HIGH_DEMAND";
@@ -271,7 +312,7 @@ export class ServerGeminiKeyManager {
             `[Server Gemini Stream] Error (${elapsed}ms) on ${currentSlot.id} (${currentSlot.masked}) model ${currentModel}: ${err?.message || err}`
           );
 
-          if (modelMissing && mIdx < preferredModels.length - 1) {
+          if ((modelMissing || timedOut || attemptsOnThisModel >= 2) && mIdx < preferredModels.length - 1) {
             break;
           }
 
@@ -302,7 +343,7 @@ router.post("/refresh", (_req, res) => {
 // 2. Note AI processing (summarize, simplify, mcq, translate)
 router.post("/note-ai", async (req, res) => {
   try {
-    const { content, task, language = "English" } = req.body;
+    const { content, task, language = "English" } = req.body || {};
     if (!content) return res.status(400).json({ error: "Note content is required" });
 
     const taskPrompts: Record<string, string> = {
@@ -319,6 +360,7 @@ router.post("/note-ai", async (req, res) => {
         model,
         contents: promptText,
         config: {
+          ...buildLowLatencyThinkingConfig(model),
           systemInstruction: `You are an AI study assistant. You must communicate and generate content strictly in ${language}.`,
         },
       });
@@ -335,7 +377,7 @@ router.post("/note-ai", async (req, res) => {
 // 3. Note structural template
 router.post("/note-template", async (req, res) => {
   try {
-    const { subject, chapter, templateType, language = "English" } = req.body;
+    const { subject, chapter, templateType, language = "English" } = req.body || {};
     const prompt = `
       Create a highly structured academic template for a study note in ${language}.
       Subject: ${subject}
@@ -355,6 +397,9 @@ router.post("/note-template", async (req, res) => {
       const response = await ai.models.generateContent({
         model,
         contents: prompt,
+        config: {
+          ...buildLowLatencyThinkingConfig(model),
+        },
       });
       return response.text || "";
     });
@@ -369,7 +414,7 @@ router.post("/note-template", async (req, res) => {
 // 4. Generate AI Syllabus Notes
 router.post("/ai-notes", async (req, res) => {
   try {
-    const { classGrade, board, subject, language = "English", chapterName, author, maxCharacters = 4000, difficulty = "Medium" } = req.body;
+    const { classGrade, board, subject, language = "English", chapterName, author, maxCharacters = 4000, difficulty = "Medium" } = req.body || {};
 
     const systemInstruction = `You are SJ Tutor AI Notes Generator, an expert AI teacher that creates high-quality, syllabus-aligned notes for students.`;
     const prompt = `
@@ -417,7 +462,10 @@ Generate notes based on:
       const response = await ai.models.generateContent({
         model,
         contents: prompt,
-        config: { systemInstruction },
+        config: {
+          ...buildLowLatencyThinkingConfig(model),
+          systemInstruction,
+        },
       });
       return response.text || "";
     });
@@ -432,7 +480,7 @@ Generate notes based on:
 // 5. Generate Quiz
 router.post("/quiz", async (req, res) => {
   try {
-    const { data } = req.body;
+    const { data } = req.body || {};
     if (!data) return res.status(400).json({ error: "Quiz data payload is required" });
 
     const language = data.language || "English";
@@ -522,7 +570,7 @@ router.post("/quiz", async (req, res) => {
 // 6. Generate Study Timetable
 router.post("/timetable", async (req, res) => {
   try {
-    const { examDate, subjects, hoursPerDay, language = "English" } = req.body;
+    const { examDate, subjects, hoursPerDay, language = "English" } = req.body || {};
     const today = new Date().toDateString();
     const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
@@ -572,7 +620,7 @@ router.post("/timetable", async (req, res) => {
 // 7. Update Study Timetable
 router.post("/timetable/update", async (req, res) => {
   try {
-    const { currentTimetable, instruction, language = "English" } = req.body;
+    const { currentTimetable, instruction, language = "English" } = req.body || {};
     const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
 
     const timetable = await serverGeminiKeyManager.executeWithRotation(async (ai, model) => {
@@ -621,7 +669,7 @@ router.post("/timetable/update", async (req, res) => {
 // 8. Chat With Tutor (Non-streaming)
 router.post("/tutor-chat", async (req, res) => {
   try {
-    const { text, history = [], imagesBase64 = [], systemInstruction } = req.body;
+    const { text, history = [], imagesBase64 = [], systemInstruction } = req.body || {};
 
     const currentParts: any[] = [{ text: (text || "").trim() || "Hello" }];
     imagesBase64.forEach((img: string) => {
@@ -670,7 +718,10 @@ router.post("/tutor-chat", async (req, res) => {
       const response = await ai.models.generateContent({
         model,
         contents: [...alternatingHistory, { role: "user", parts: currentParts }],
-        config: { systemInstruction },
+        config: {
+          ...buildLowLatencyThinkingConfig(model),
+          systemInstruction,
+        },
       });
       return response.text || "";
     });
@@ -684,12 +735,18 @@ router.post("/tutor-chat", async (req, res) => {
 
 // 9. Streaming endpoints (Summary, Homework, Tutor Chat) using Server-Sent Events (SSE)
 router.post("/summary-stream", async (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
+  res.write(": connected\n\n");
 
   try {
-    const { data, systemInstruction } = req.body;
+    const { data, systemInstruction } = req.body || {};
+    if (!data) {
+      throw new Error("Study request data is required");
+    }
     const language = data.language || "English";
     const maxChars = data.maxCharacters || 5000;
     const difficulty = data.difficulty || "Medium";
@@ -721,33 +778,50 @@ router.post("/summary-stream", async (req, res) => {
         model,
         contents: prompt,
         config: {
+          ...buildLowLatencyThinkingConfig(model),
           systemInstruction: systemInstruction || `You are an expert academic tutor and notes creator. You generate high quality, structured syllabus-aligned notes only in ${language}.`,
         },
       });
     });
 
+    let emitted = false;
     for await (const chunk of stream) {
+      if (res.writableEnded) break;
       const text = chunk.text || "";
       if (text) {
+        emitted = true;
         res.write(`data: ${JSON.stringify({ text })}\n\n`);
       }
     }
-    res.write("data: [DONE]\n\n");
-    res.end();
+    if (!res.writableEnded) {
+      if (!emitted) {
+        res.write(`data: ${JSON.stringify({ error: "AI returned an empty summary. Please click Retry." })}\n\n`);
+      }
+      res.write("data: [DONE]\n\n");
+      res.end();
+    }
   } catch (error: any) {
     console.error("[Server Summary Stream Error]:", error);
-    res.write(`data: ${JSON.stringify({ error: error?.message || "Stream failed" })}\n\n`);
-    res.end();
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ error: error?.message || "Stream failed" })}\n\n`);
+      res.end();
+    }
   }
 });
 
 router.post("/homework-stream", async (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
+  res.write(": connected\n\n");
 
   try {
-    const { data, files = [], systemInstruction } = req.body;
+    const { data, files = [], systemInstruction } = req.body || {};
+    if (!data) {
+      throw new Error("Homework request data is required");
+    }
     const language = data.language || "English";
 
     const prompt = `
@@ -789,33 +863,47 @@ router.post("/homework-stream", async (req, res) => {
         model,
         contents: { parts: contents },
         config: {
+          ...buildLowLatencyThinkingConfig(model),
           systemInstruction: systemInstruction || `You are an expert Homework Solver and Academic Tutor. You generate content only in ${language}.`,
         },
       });
     });
 
+    let emitted = false;
     for await (const chunk of stream) {
+      if (res.writableEnded) break;
       const text = chunk.text || "";
       if (text) {
+        emitted = true;
         res.write(`data: ${JSON.stringify({ text })}\n\n`);
       }
     }
-    res.write("data: [DONE]\n\n");
-    res.end();
+    if (!res.writableEnded) {
+      if (!emitted) {
+        res.write(`data: ${JSON.stringify({ error: "AI returned an empty solution. Please click Retry." })}\n\n`);
+      }
+      res.write("data: [DONE]\n\n");
+      res.end();
+    }
   } catch (error: any) {
     console.error("[Server Homework Stream Error]:", error);
-    res.write(`data: ${JSON.stringify({ error: error?.message || "Stream failed" })}\n\n`);
-    res.end();
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ error: error?.message || "Stream failed" })}\n\n`);
+      res.end();
+    }
   }
 });
 
 router.post("/tutor-stream", async (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
+  res.write(": connected\n\n");
 
   try {
-    const { text, history = [], imagesBase64 = [], extraFiles = [], userContext, systemInstruction } = req.body;
+    const { text, history = [], imagesBase64 = [], extraFiles = [], userContext, systemInstruction } = req.body || {};
 
     const fullInstruction =
       (systemInstruction ||
@@ -902,29 +990,42 @@ Your mission:
       return ai.models.generateContentStream({
         model,
         contents,
-        config: { systemInstruction: fullInstruction },
+        config: {
+          ...buildLowLatencyThinkingConfig(model),
+          systemInstruction: fullInstruction,
+        },
       });
     });
 
+    let emitted = false;
     for await (const chunk of stream) {
+      if (res.writableEnded) break;
       const chunkText = chunk.text || "";
       if (chunkText) {
+        emitted = true;
         res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
       }
     }
-    res.write("data: [DONE]\n\n");
-    res.end();
+    if (!res.writableEnded) {
+      if (!emitted) {
+        res.write(`data: ${JSON.stringify({ error: "AI returned an empty response. Please click Retry." })}\n\n`);
+      }
+      res.write("data: [DONE]\n\n");
+      res.end();
+    }
   } catch (error: any) {
     console.error("[Server Tutor Stream Error]:", error);
-    res.write(`data: ${JSON.stringify({ error: error?.message || "Tutor stream failed" })}\n\n`);
-    res.end();
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ error: error?.message || "Tutor stream failed" })}\n\n`);
+      res.end();
+    }
   }
 });
 
 // 10. Payment screenshot validation
 router.post("/validate-payment", async (req, res) => {
   try {
-    const { imageBase64, planName, price } = req.body;
+    const { imageBase64, planName, price } = req.body || {};
     if (!imageBase64) return res.status(400).json({ error: "Screenshot image is required" });
 
     const matches = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
@@ -966,7 +1067,7 @@ router.post("/validate-payment", async (req, res) => {
 // 11. Group AI Tutor
 router.post("/group-tutor", async (req, res) => {
   try {
-    const { groupName, subject, prompt, language = "English" } = req.body;
+    const { groupName, subject, prompt, language = "English" } = req.body || {};
     const systemInstruction = `You are @AI Tutor, an empathetic, smart, and encouraging academic AI assistant participating in a student study group chat named "${groupName}" focused on "${subject}".
 Your responses should be concise, helpful, friendly, and formatted nicely with clear explanations or bullet points. Keep it engaging like a group message. Respond in ${language}.`;
 
@@ -974,7 +1075,10 @@ Your responses should be concise, helpful, friendly, and formatted nicely with c
       const response = await ai.models.generateContent({
         model,
         contents: prompt,
-        config: { systemInstruction },
+        config: {
+          ...buildLowLatencyThinkingConfig(model),
+          systemInstruction,
+        },
       });
       return response.text || "";
     });

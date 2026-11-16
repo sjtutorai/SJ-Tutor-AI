@@ -54,14 +54,77 @@ let cachedStatus: KeyManagerStatus = {
   ],
 };
 
+async function fetchWithWarmupRetry(url: string, init: RequestInit, retries = 1): Promise<Response> {
+  const res = await fetch(url, init);
+  if (retries > 0 && (res.status === 502 || res.status === 503 || res.status === 504)) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    return fetchWithWarmupRetry(url, init, retries - 1);
+  }
+  const contentType = (res.headers.get("content-type") || "").toLowerCase();
+  if (retries > 0 && contentType.includes("text/html")) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    return fetchWithWarmupRetry(url, init, retries - 1);
+  }
+  return res;
+}
+
+async function safeReadJsonResponse(res: Response, actionLabel: string): Promise<any> {
+  const rawText = await res.text();
+  if (!rawText || !rawText.trim()) {
+    throw new Error(
+      res.ok
+        ? `${actionLabel}: Server returned an empty response. Please click Retry.`
+        : `${actionLabel} failed (HTTP ${res.status}). Please click Retry.`
+    );
+  }
+  let parsed: any;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch {
+    const trimmed = rawText.trim();
+    if (trimmed.includes("Please wait while your application starts") || trimmed.includes("Starting Server...")) {
+      throw new Error(`${actionLabel}: Server is warming up. Please wait a few seconds and click Retry.`);
+    }
+    if (trimmed.startsWith("<")) {
+      throw new Error(`${actionLabel}: Server returned an unexpected page (HTTP ${res.status}). Please click Retry.`);
+    }
+    throw new Error(`${actionLabel}: Invalid response format from server (HTTP ${res.status}).`);
+  }
+  if (!res.ok) {
+    throw new Error(parsed?.error || parsed?.message || `${actionLabel} failed (HTTP ${res.status}).`);
+  }
+  return parsed;
+}
+
+async function safeReadErrorResponse(res: Response, fallbackMessage: string): Promise<string> {
+  try {
+    const rawText = await res.text();
+    if (!rawText || !rawText.trim()) return fallbackMessage;
+    if (rawText.includes("Please wait while your application starts") || rawText.includes("Starting Server...")) {
+      return "The server is warming up. Please wait a few seconds and click Retry.";
+    }
+    try {
+      const parsed = JSON.parse(rawText);
+      return parsed?.error || parsed?.message || fallbackMessage;
+    } catch {
+      return fallbackMessage;
+    }
+  } catch {
+    return fallbackMessage;
+  }
+}
+
 // Asynchronously fetch live key pool status from backend
 async function fetchKeyStatus(): Promise<KeyManagerStatus> {
   try {
     const res = await fetch("/api/gemini/status");
     if (res.ok) {
-      const data = await res.json();
-      if (data.success) {
-        cachedStatus = data;
+      const text = await res.text();
+      if (text && text.trim() && !text.trim().startsWith("<")) {
+        const data = JSON.parse(text);
+        if (data?.success) {
+          cachedStatus = data;
+        }
       }
     }
   } catch (err) {
@@ -86,6 +149,7 @@ async function* parseSSEStream(response: Response): AsyncGenerator<{ text?: stri
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
+  let receivedAnyText = false;
 
   try {
     while (true) {
@@ -98,10 +162,13 @@ async function* parseSSEStream(response: Response): AsyncGenerator<{ text?: stri
 
       for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith("data:")) continue;
+        if (!trimmed || trimmed.startsWith(":") || !trimmed.startsWith("data:")) continue;
 
         const payload = trimmed.replace(/^data:\s*/, "");
         if (payload === "[DONE]") {
+          if (!receivedAnyText) {
+            throw new Error("The AI did not return any content. Please click Retry.");
+          }
           return;
         }
 
@@ -119,6 +186,7 @@ async function* parseSSEStream(response: Response): AsyncGenerator<{ text?: stri
           throw new Error(parsed.error);
         }
         if (parsed?.text !== undefined) {
+          if (parsed.text) receivedAnyText = true;
           yield { text: parsed.text };
         }
       }
@@ -137,9 +205,14 @@ async function* parseSSEStream(response: Response): AsyncGenerator<{ text?: stri
           throw new Error(parsed.error);
         }
         if (parsed?.text) {
+          receivedAnyText = true;
           yield { text: parsed.text };
         }
       }
+    }
+
+    if (!receivedAnyText) {
+      throw new Error("The AI stream ended without content. Please click Retry.");
     }
   } finally {
     reader.releaseLock();
@@ -158,14 +231,14 @@ export const GeminiService = {
     const settings = SettingsService.getSettings();
     const language = targetLang || settings.learning.language;
 
-    const res = await fetch("/api/gemini/note-ai", {
+    const res = await fetchWithWarmupRetry("/api/gemini/note-ai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content, task, language }),
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
+    const data = await safeReadJsonResponse(res, "Note AI");
+    if (!data.success) {
       throw new Error(data.error || "Failed to process note");
     }
     return data.text || "";
@@ -178,14 +251,14 @@ export const GeminiService = {
     const settings = SettingsService.getSettings();
     const language = settings.learning.language;
 
-    const res = await fetch("/api/gemini/note-template", {
+    const res = await fetchWithWarmupRetry("/api/gemini/note-template", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ subject, chapter, templateType, language }),
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
+    const data = await safeReadJsonResponse(res, "Note Template");
+    if (!data.success) {
       throw new Error(data.error || "Failed to generate note template");
     }
     return data.text || "";
@@ -204,14 +277,14 @@ export const GeminiService = {
     maxCharacters: number;
     difficulty?: DifficultyLevel;
   }): Promise<string> => {
-    const res = await fetch("/api/gemini/ai-notes", {
+    const res = await fetchWithWarmupRetry("/api/gemini/ai-notes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
+    const data = await safeReadJsonResponse(res, "AI Notes");
+    if (!data.success) {
       throw new Error(data.error || "Failed to generate AI notes");
     }
     return data.text || "";
@@ -238,7 +311,7 @@ export const GeminiService = {
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
-    const res = await fetch("/api/gemini/summary-stream", {
+    const res = await fetchWithWarmupRetry("/api/gemini/summary-stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -248,8 +321,8 @@ export const GeminiService = {
     });
 
     if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      throw new Error(errJson.error || `Summary generation failed (status ${res.status})`);
+      const msg = await safeReadErrorResponse(res, `Summary generation failed (status ${res.status})`);
+      throw new Error(msg);
     }
 
     return parseSSEStream(res);
@@ -262,7 +335,7 @@ export const GeminiService = {
     const settings = SettingsService.getSettings();
     const language = data.language || settings.learning.language;
 
-    const res = await fetch("/api/gemini/homework-stream", {
+    const res = await fetchWithWarmupRetry("/api/gemini/homework-stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -273,8 +346,8 @@ export const GeminiService = {
     });
 
     if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      throw new Error(errJson.error || `Homework solver failed (status ${res.status})`);
+      const msg = await safeReadErrorResponse(res, `Homework solver failed (status ${res.status})`);
+      throw new Error(msg);
     }
 
     return parseSSEStream(res);
@@ -284,14 +357,14 @@ export const GeminiService = {
    * Generates a syllabus-aligned multiple choice quiz.
    */
   generateQuiz: async (data: StudyRequestData): Promise<QuizQuestion[]> => {
-    const res = await fetch("/api/gemini/quiz", {
+    const res = await fetchWithWarmupRetry("/api/gemini/quiz", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data }),
     });
 
-    const body = await res.json();
-    if (!res.ok || !body.success) {
+    const body = await safeReadJsonResponse(res, "Quiz Generation");
+    if (!body.success) {
       throw new Error(body.error || "Failed to generate quiz");
     }
     if (!Array.isArray(body.questions) || body.questions.length === 0) {
@@ -307,14 +380,14 @@ export const GeminiService = {
     const settings = SettingsService.getSettings();
     const language = settings.learning.language;
 
-    const res = await fetch("/api/gemini/timetable", {
+    const res = await fetchWithWarmupRetry("/api/gemini/timetable", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ examDate, subjects, hoursPerDay, language }),
     });
 
-    const body = await res.json();
-    if (!res.ok || !body.success) {
+    const body = await safeReadJsonResponse(res, "Study Timetable");
+    if (!body.success) {
       throw new Error(body.error || "Failed to generate timetable");
     }
     return body.timetable || [];
@@ -327,14 +400,14 @@ export const GeminiService = {
     const settings = SettingsService.getSettings();
     const language = settings.learning.language;
 
-    const res = await fetch("/api/gemini/timetable/update", {
+    const res = await fetchWithWarmupRetry("/api/gemini/timetable/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currentTimetable, instruction, language }),
     });
 
-    const body = await res.json();
-    if (!res.ok || !body.success) {
+    const body = await safeReadJsonResponse(res, "Update Timetable");
+    if (!body.success) {
       throw new Error(body.error || "Failed to update timetable");
     }
     return body.timetable || [];
@@ -346,14 +419,14 @@ export const GeminiService = {
   chatWithTutor: async (text: string, history: any[], imagesBase64: string[] = []): Promise<string> => {
     const systemInstruction = SettingsService.getTutorSystemInstruction();
 
-    const res = await fetch("/api/gemini/tutor-chat", {
+    const res = await fetchWithWarmupRetry("/api/gemini/tutor-chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, history, imagesBase64, systemInstruction }),
     });
 
-    const body = await res.json();
-    if (!res.ok || !body.success) {
+    const body = await safeReadJsonResponse(res, "Tutor Chat");
+    if (!body.success) {
       throw new Error(body.error || "Failed to chat with tutor");
     }
     return body.text || "";
@@ -371,7 +444,7 @@ export const GeminiService = {
   ): Promise<AsyncIterable<{ text?: string }>> => {
     const systemInstruction = SettingsService.getTutorSystemInstruction();
 
-    const res = await fetch("/api/gemini/tutor-stream", {
+    const res = await fetchWithWarmupRetry("/api/gemini/tutor-stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -385,8 +458,8 @@ export const GeminiService = {
     });
 
     if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      throw new Error(errJson.error || `Tutor chat stream failed (status ${res.status})`);
+      const msg = await safeReadErrorResponse(res, `Tutor chat stream failed (status ${res.status})`);
+      throw new Error(msg);
     }
 
     return parseSSEStream(res);
@@ -396,14 +469,14 @@ export const GeminiService = {
    * Validates a UPI payment screenshot.
    */
   validatePaymentScreenshot: async (imageBase64: string, planName: string, price: number): Promise<{ isValid: boolean; reason: string }> => {
-    const res = await fetch("/api/gemini/validate-payment", {
+    const res = await fetchWithWarmupRetry("/api/gemini/validate-payment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageBase64, planName, price }),
     });
 
-    const body = await res.json();
-    if (!res.ok || !body.success) {
+    const body = await safeReadJsonResponse(res, "Payment Validation");
+    if (!body.success) {
       throw new Error(body.error || "Failed to validate payment");
     }
     return { isValid: body.isValid, reason: body.reason };
@@ -416,14 +489,14 @@ export const GeminiService = {
     const settings = SettingsService.getSettings();
     const language = settings.learning.language || "English";
 
-    const res = await fetch("/api/gemini/group-tutor", {
+    const res = await fetchWithWarmupRetry("/api/gemini/group-tutor", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ groupName, subject, prompt, language }),
     });
 
-    const body = await res.json();
-    if (!res.ok || !body.success) {
+    const body = await safeReadJsonResponse(res, "Group AI Tutor");
+    if (!body.success) {
       throw new Error(body.error || "Failed to get group tutor response");
     }
     return body.text || "";
@@ -508,9 +581,9 @@ export const GeminiService = {
   getKeyStatus: () => cachedStatus,
   refreshKeyPool: () => {
     fetch("/api/gemini/refresh", { method: "POST" })
-      .then((r) => r.json())
+      .then((r) => safeReadJsonResponse(r, "Refresh Key Pool"))
       .then((d) => {
-        if (d.success) cachedStatus = d;
+        if (d?.success) cachedStatus = d;
       })
       .catch((e) => console.debug("Refresh key pool notice:", e));
     return cachedStatus.keys as any[];

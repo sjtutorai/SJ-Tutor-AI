@@ -1042,19 +1042,32 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       }
 
       // Generation Complete: append custom smart suggestions
-      const smartSuggestions = generateSmartSuggestionsForTopic(textToSend, accumulatedText);
-      setMessages(prev => prev.map(m => {
-        if (m.id === modelMessageId) {
-          return { 
-            ...m, 
-            text: accumulatedText,
-            isStreaming: false, 
-            suggestions: smartSuggestions,
-            thinkingStepsFinished: true
-          };
-        }
-        return m;
-      }));
+      if (!accumulatedText.trim()) {
+        setMessages(prev => prev.map(m => {
+          if (m.id === modelMessageId) {
+            return {
+              ...m,
+              text: "⚠️ Something went wrong with SJ Tutor AI. Please verify your connection or click Retry.",
+              isStreaming: false,
+            };
+          }
+          return m;
+        }));
+      } else {
+        const smartSuggestions = generateSmartSuggestionsForTopic(textToSend, accumulatedText);
+        setMessages(prev => prev.map(m => {
+          if (m.id === modelMessageId) {
+            return { 
+              ...m, 
+              text: accumulatedText,
+              isStreaming: false, 
+              suggestions: smartSuggestions,
+              thinkingStepsFinished: true
+            };
+          }
+          return m;
+        }));
+      }
 
     } catch (err: any) {
       console.error("Streaming error:", err);

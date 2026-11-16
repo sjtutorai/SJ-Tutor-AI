@@ -32,6 +32,16 @@ import { getMembershipByEmail } from "../utils/userService";
 import { SecurityPinService } from "./securityPinService";
 import type { AuthProviderType } from "../types";
 
+async function safeParseAuthJson(response: Response): Promise<any> {
+  const rawText = await response.text();
+  if (!rawText || !rawText.trim()) return {};
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    return {};
+  }
+}
+
 export type AuthResultStatus =
   | "SUCCESS"
   | "ACCOUNT_ALREADY_EXISTS"
@@ -90,7 +100,7 @@ export async function checkIdentityExists(params: {
       body: JSON.stringify(params),
     });
     if (response.ok) {
-      const data = await response.json();
+      const data = await safeParseAuthJson(response);
       if (data.exists) return true;
     }
   } catch (e) {
@@ -133,7 +143,11 @@ export async function checkUsernameAvailability(username: string): Promise<{ ava
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username }),
     });
-    return await res.json();
+    const data = await safeParseAuthJson(res);
+    return {
+      available: Boolean(data.available),
+      message: data.message || "Username checked",
+    };
   } catch (err) {
     console.error(err);
     return { available: true, message: "Username checked" };
@@ -533,12 +547,7 @@ export async function createAccountAndGenerateSjTutorId(params: {
       }),
     });
 
-    let data: any = {};
-    try {
-      data = await response.json();
-    } catch {
-      data = {};
-    }
+    const data = await safeParseAuthJson(response);
 
     let generatedId = data.sjTutorId;
     if (!generatedId) {
@@ -644,7 +653,7 @@ export async function saveAccountSecurity(params: {
       body: JSON.stringify(params),
     });
 
-    const data = await response.json();
+    const data = await safeParseAuthJson(response);
     if (!response.ok) {
       return {
         status: "ERROR",
@@ -702,7 +711,7 @@ export async function updateSecurityPin(params: {
       body: JSON.stringify(params),
     });
 
-    const data = await response.json();
+    const data = await safeParseAuthJson(response);
     if (!response.ok) {
       return {
         status: "ERROR",
@@ -742,7 +751,7 @@ export async function updateTwoStepPassword(params: {
       body: JSON.stringify(params),
     });
 
-    const data = await response.json();
+    const data = await safeParseAuthJson(response);
     if (!response.ok) {
       return {
         status: "ERROR",
@@ -779,7 +788,7 @@ export async function disableSecuritySetting(params: {
       body: JSON.stringify(params),
     });
 
-    const data = await response.json();
+    const data = await safeParseAuthJson(response);
     if (!response.ok) {
       return {
         status: "ERROR",
@@ -816,7 +825,7 @@ export async function verifySecuritySecret(params: {
       body: JSON.stringify(params),
     });
     if (response.ok) {
-      const data = await response.json();
+      const data = await safeParseAuthJson(response);
       return !!data.valid;
     }
   } catch (e) {
@@ -844,7 +853,7 @@ export async function loginSjTutorIdStep1(
       body: JSON.stringify({ sjTutorId: normalizedId, password }),
     });
 
-    const data = await response.json();
+    const data = await safeParseAuthJson(response);
 
     if (!response.ok) {
       if (data.error === "ACCOUNT_NOT_FOUND" || response.status === 404) {
@@ -906,7 +915,7 @@ export async function verifySjTutorIdStep2Pin(
       body: JSON.stringify({ challengeId, pin: pin.trim() }),
     });
 
-    const data = await response.json();
+    const data = await safeParseAuthJson(response);
 
     if (!response.ok) {
       if (data.error === "INCORRECT_PIN") {
@@ -974,7 +983,7 @@ export async function recoverAccountStep1(emailOrId: string): Promise<{
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ emailOrId }),
     });
-    const data = await response.json();
+    const data = await safeParseAuthJson(response);
     if (!response.ok) {
       return { success: false, message: data.message || "No account found matching this identifier." };
     }
@@ -1001,7 +1010,7 @@ export async function recoverAccountStep2Verify(params: {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
-    const data = await response.json();
+    const data = await safeParseAuthJson(response);
     if (!response.ok) {
       return { success: false, message: data.message || "Could not reset credentials." };
     }
@@ -1040,7 +1049,7 @@ export async function sendPasswordReset(emailOrId: string): Promise<{ success: b
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ emailOrId: input }),
     });
-    const data = await res.json();
+    const data = await safeParseAuthJson(res);
     return {
       success: true,
       message: data.message || "Recovery instructions have been dispatched.",
@@ -1208,7 +1217,7 @@ export async function findAccountAndLoginWithIdCard(
           body: JSON.stringify({ identifier: cleanId, email: emailToSearch, raw }),
         });
         if (serverRes.ok) {
-          const serverData = await serverRes.json();
+          const serverData = await safeParseAuthJson(serverRes);
           if (serverData.user) {
             foundUserDoc = serverData.user;
             foundUserId = serverData.user.uid || cleanId;

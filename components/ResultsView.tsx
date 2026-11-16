@@ -225,9 +225,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({
         });
 
         if (response.ok) {
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const data = await response.json();
+          const rawText = await response.text();
+          if (rawText && rawText.trim() && !rawText.trim().startsWith('<')) {
+            const data = JSON.parse(rawText);
             if (data.id) {
               shareUrl = `${window.location.origin}?share=${data.id}`;
             }

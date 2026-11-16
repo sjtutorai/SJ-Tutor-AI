@@ -103,9 +103,12 @@ export const PublicShareViewer: React.FC<PublicShareViewerProps> = ({
           try {
             const response = await fetch(`/api/auth/share/${shareId}`);
             if (response.ok) {
-              const resData = await response.json();
-              if (resData.success && resData.data) {
-                data = resData.data;
+              const rawText = await response.text();
+              if (rawText && rawText.trim() && !rawText.trim().startsWith('<')) {
+                const resData = JSON.parse(rawText);
+                if (resData.success && resData.data) {
+                  data = resData.data;
+                }
               }
             }
           } catch (apiErr) {

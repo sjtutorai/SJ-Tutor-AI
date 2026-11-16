@@ -207,9 +207,12 @@ export class NotificationService {
       try {
         const res = await fetch('/api/push/vapid-public-key');
         if (res.ok) {
-          const data = await res.json();
-          if (data.publicKey) {
-            vapidPublicKey = data.publicKey;
+          const rawText = await res.text();
+          if (rawText && rawText.trim() && !rawText.trim().startsWith('<')) {
+            const data = JSON.parse(rawText);
+            if (data.publicKey) {
+              vapidPublicKey = data.publicKey;
+            }
           }
         }
       } catch (err) {
