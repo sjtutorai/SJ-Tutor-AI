@@ -39,16 +39,6 @@ interface InputFormProps {
   onOpenUpgrade?: () => void;
 }
 
-const QUICK_SUBJECTS = [
-  'Mathematics',
-  'Physics',
-  'Chemistry',
-  'Biology',
-  'Geography',
-  'History',
-  'English',
-  'Computer Science',
-];
 
 const DIFFICULTY_OPTIONS: { value: DifficultyLevel; label: string; subLabel: string }[] = [
   { value: 'Easy', label: 'Easy', subLabel: 'Foundations' },
@@ -314,7 +304,7 @@ const InputForm: React.FC<InputFormProps> = ({
     >
       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{label}</label>
       <div className="relative group">
-        <Icon className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 group-focus-within:text-primary-600 transition-colors" />
+        <Icon className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 group-focus-within:text-primary-600 group-focus-within:scale-110 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300" />
         <input
           type="text"
           value={data[field] as string}
@@ -423,49 +413,15 @@ const InputForm: React.FC<InputFormProps> = ({
               whileTap={{ scale: 0.95 }}
               onClick={onFillSample}
               disabled={disabled}
-              className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-100 rounded-full transition-colors disabled:opacity-50 uppercase tracking-wide cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-100 rounded-full transition-colors disabled:opacity-50 uppercase tracking-wide cursor-pointer group"
               title="Fill with sample data"
             >
-              <Sparkles className="w-3 h-3 fill-primary-400 text-primary-600" />
+              <Sparkles className="w-3 h-3 fill-primary-400 text-primary-600 group-hover:rotate-12 transition-transform duration-300" />
               Try Example
             </motion.button>
           )}
         </div>
       </div>
-
-      {/* Quick Subject Selection Cards with subtle 3D Tilt on Hover */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, delay: 0.04 }}
-        className="mb-4 relative z-10 perspective-1200"
-      >
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 custom-scrollbar">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
-            Quick Subject:
-          </span>
-          {QUICK_SUBJECTS.map((subj) => {
-            const isSelected = (data.subject || '').toLowerCase() === subj.toLowerCase();
-            return (
-              <motion.button
-                key={subj}
-                type="button"
-                disabled={disabled}
-                whileHover={{ y: -2, scale: 1.04, rotateX: 8, rotateY: -6 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => onChange('subject', subj)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border whitespace-nowrap transition-colors cursor-pointer preserve-3d ${
-                  isSelected
-                    ? 'bg-primary-600 text-white border-primary-600 shadow-xs'
-                    : 'bg-slate-50 hover:bg-primary-50/70 text-slate-600 hover:text-primary-700 border-slate-200/80 hover:border-primary-200'
-                }`}
-              >
-                {subj}
-              </motion.button>
-            );
-          })}
-        </div>
-      </motion.div>
 
       {mode === AppMode.HOMEWORK && (
         <div className="mb-6 space-y-4">

@@ -3740,9 +3740,9 @@ const App: React.FC = () => {
               whileHover={{ y: -2, scale: 1.01 }}
               whileTap={{ scale: 0.985 }}
               onClick={handleGenerate}
-              className="btn-glow-border w-full py-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group cursor-pointer"
+              className="btn-glow-border w-full py-4 bg-gradient-to-r from-primary-500 via-indigo-600 to-primary-700 hover:from-primary-600 hover:via-indigo-500 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group cursor-pointer"
             >
-              <BrainCircuit className="w-5 h-5 group-hover:scale-110 transition-transform duration-300" />
+              <BrainCircuit className="w-5 h-5 group-hover:rotate-12 group-hover:scale-110 transition-transform duration-300" />
               <span>Generate Quiz</span>
             </motion.button>
           </div>

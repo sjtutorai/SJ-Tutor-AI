@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Square, RotateCcw, Shield, AlertTriangle, Settings2, Smartphone, Check, Cloud } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { motion } from 'motion/react';
 import { UserProfile, TimerStateType, UserTimerState } from '../types';
 import { saveUserTimerState, subscribeToUserTimerState, saveStudySessionToFirestore } from '../utils/firebaseUtils';
 
@@ -625,9 +626,21 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
       )}
 
       {/* MAIN TIMER UI */}
-      <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden relative">
-        <div className="p-8 text-center bg-gradient-to-b from-primary-50 to-white dark:from-slate-900 dark:to-slate-800 border-b border-slate-100 dark:border-slate-700">
-          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Study Timer</h2>
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700 overflow-hidden relative"
+      >
+        <div className="p-8 text-center bg-gradient-to-b from-primary-50 to-white dark:from-slate-900 dark:to-slate-800 border-b border-slate-100 dark:border-slate-700 perspective-1200">
+          <motion.h2
+            initial={{ opacity: 0, scale: 0.88, rotateX: 16, y: 6 }}
+            animate={{ opacity: 1, scale: 1, rotateX: 0, y: 0 }}
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight preserve-3d"
+          >
+            Study Timer
+          </motion.h2>
           <p className="text-slate-500 dark:text-slate-400 mt-2 font-medium">Set your duration and stay focused across all your devices</p>
         </div>
 
@@ -636,7 +649,12 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
           {timerState === 'IDLE' ? (
             /* Input View */
             <div className="flex items-center justify-center gap-4 mb-10 w-full max-w-sm mx-auto">
-              <div className="flex flex-col items-center gap-2 flex-1">
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+                className="flex flex-col items-center gap-2 flex-1"
+              >
                 <input
                   type="number"
                   value={inputH}
@@ -645,10 +663,15 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
                   className="w-full aspect-square text-center text-5xl font-mono font-bold bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white rounded-3xl border-2 border-slate-200 dark:border-slate-700 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/20 outline-none transition-all"
                 />
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Hours</span>
-              </div>
+              </motion.div>
               <span className="text-4xl font-bold text-slate-300 dark:text-slate-600 pb-6">:</span>
               
-              <div className="flex flex-col items-center gap-2 flex-1">
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: 0.11, ease: [0.16, 1, 0.3, 1] }}
+                className="flex flex-col items-center gap-2 flex-1"
+              >
                 <input
                   type="number"
                   value={inputM}
@@ -657,10 +680,15 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
                   className="w-full aspect-square text-center text-5xl font-mono font-bold bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white rounded-3xl border-2 border-slate-200 dark:border-slate-700 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/20 outline-none transition-all"
                 />
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Minutes</span>
-              </div>
+              </motion.div>
               <span className="text-4xl font-bold text-slate-300 dark:text-slate-600 pb-6">:</span>
               
-              <div className="flex flex-col items-center gap-2 flex-1">
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: 0.17, ease: [0.16, 1, 0.3, 1] }}
+                className="flex flex-col items-center gap-2 flex-1"
+              >
                 <input
                   type="number"
                   value={inputS}
@@ -669,12 +697,17 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
                   className="w-full aspect-square text-center text-5xl font-mono font-bold bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white rounded-3xl border-2 border-slate-200 dark:border-slate-700 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/20 outline-none transition-all"
                 />
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Seconds</span>
-              </div>
+              </motion.div>
             </div>
           ) : (
             /* Running / Paused View with Circular Progress */
-            <div className="relative w-72 h-72 flex items-center justify-center mb-10">
-              <svg className="w-full h-full transform -rotate-90 drop-shadow-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              className="relative w-72 h-72 flex items-center justify-center mb-10"
+            >
+              <svg viewBox="0 0 288 288" className="w-full h-full transform -rotate-90 drop-shadow-md">
                 <circle
                   cx="144"
                   cy="144"
@@ -697,75 +730,85 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
                   strokeLinecap="round"
                 />
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-5xl font-extrabold text-slate-800 dark:text-white font-mono tracking-tighter tabular-nums drop-shadow-sm">
+              <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+                <span className="whitespace-nowrap text-3xl sm:text-4xl font-extrabold text-slate-800 dark:text-white font-mono tracking-tight tabular-nums leading-none drop-shadow-sm">
                   {dH} : {dM} : {dS}
                 </span>
-                <div className="flex items-center gap-2 mt-3 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-2 mt-3.5 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
                   <div className={`w-2 h-2 rounded-full ${timerState === 'RUNNING' ? 'bg-primary-500 animate-pulse' : 'bg-amber-500'}`} />
                   <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     {timerState === 'RUNNING' ? 'Focusing' : 'Paused'}
                   </span>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* Controls */}
           <div className="flex items-center justify-center gap-4 w-full max-w-sm">
             {timerState === 'IDLE' && (
-              <button
+              <motion.button
+                whileHover={{ y: -2, scale: 1.01 }}
+                whileTap={{ scale: 0.985 }}
                 onClick={handleStartRequest}
-                className="w-full py-5 bg-primary-600 hover:bg-primary-500 text-white rounded-2xl font-bold text-xl shadow-xl shadow-primary-600/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                className="btn-glow-border w-full py-4 bg-gradient-to-r from-primary-500 via-indigo-600 to-primary-700 hover:from-primary-600 hover:via-indigo-500 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group cursor-pointer"
               >
-                <Play className="w-6 h-6 fill-current" />
-                Start Focus Session
-              </button>
+                <Play className="w-5 h-5 fill-current group-hover:rotate-12 group-hover:scale-110 transition-transform duration-300" />
+                <span>Start Focus Session</span>
+              </motion.button>
             )}
 
             {timerState !== 'IDLE' && (
               <>
                 {timerState === 'RUNNING' ? (
-                  <button
+                  <motion.button
+                    whileHover={{ y: -2, scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={handlePause}
-                    className="flex-1 py-4 bg-amber-100 hover:bg-amber-200 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-2xl font-bold text-lg transition-colors flex flex-col items-center justify-center gap-1"
+                    className="flex-1 py-4 bg-amber-100 hover:bg-amber-200 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-2xl font-bold text-lg transition-colors flex flex-col items-center justify-center gap-1 group cursor-pointer"
                   >
-                    <Pause className="w-6 h-6 fill-current" />
+                    <Pause className="w-6 h-6 fill-current group-hover:scale-110 transition-transform duration-300" />
                     Pause
-                  </button>
+                  </motion.button>
                 ) : (
-                  <button
+                  <motion.button
+                    whileHover={{ y: -2, scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={handleResume}
-                    className="flex-1 py-4 bg-primary-100 hover:bg-primary-200 text-primary-700 dark:bg-primary-900/40 dark:text-primary-400 rounded-2xl font-bold text-lg transition-colors flex flex-col items-center justify-center gap-1"
+                    className="flex-1 py-4 bg-primary-100 hover:bg-primary-200 text-primary-700 dark:bg-primary-900/40 dark:text-primary-400 rounded-2xl font-bold text-lg transition-colors flex flex-col items-center justify-center gap-1 group cursor-pointer"
                   >
-                    <Play className="w-6 h-6 fill-current" />
+                    <Play className="w-6 h-6 fill-current group-hover:rotate-12 group-hover:scale-110 transition-transform duration-300" />
                     Resume
-                  </button>
+                  </motion.button>
                 )}
                 
-                <button
+                <motion.button
+                  whileHover={{ y: -2, scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={handleStopRequest}
-                  className="w-24 py-4 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 rounded-2xl font-bold transition-colors flex flex-col items-center justify-center gap-1"
+                  className="w-24 py-4 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 rounded-2xl font-bold transition-colors flex flex-col items-center justify-center gap-1 group cursor-pointer"
                 >
-                  <Square className="w-6 h-6 fill-current" />
+                  <Square className="w-6 h-6 fill-current group-hover:scale-110 transition-transform duration-300" />
                   Stop
-                </button>
+                </motion.button>
                 
                 {timerState === 'PAUSED' && (
-                  <button
+                  <motion.button
+                    whileHover={{ y: -2, scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={handleReset}
-                    className="w-24 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 rounded-2xl font-bold transition-colors flex flex-col items-center justify-center gap-1"
+                    className="w-24 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 rounded-2xl font-bold transition-colors flex flex-col items-center justify-center gap-1 group cursor-pointer"
                   >
-                    <RotateCcw className="w-6 h-6" />
+                    <RotateCcw className="w-6 h-6 group-hover:-rotate-45 transition-transform duration-300" />
                     Reset
-                  </button>
+                  </motion.button>
                 )}
               </>
             )}
           </div>
 
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

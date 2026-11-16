@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   NoteItem, ReminderItem, TimetableEntry, NoteStatus, NoteTemplate, 
-  UserProfile, DifficultyLevel, NoteFolder, DEFAULT_NOTE_FOLDERS 
+  UserProfile, DifficultyLevel, NoteFolder, DEFAULT_NOTE_FOLDERS, AppMode 
 } from '../types';
 import { 
   Plus, Trash2, Calendar, Clock, CheckSquare, Save, X, Sparkles, 
   StickyNote, Bell, Edit3, Loader2, Folder, FolderPlus, FolderOpen, 
   ChevronRight, Star,
   CheckCircle2, Circle, Download, Mic, MicOff, Square,
-  FolderCheck, Check
+  FolderCheck, Check, Type, GraduationCap, School, Languages, BookOpen,
+  User, FileText, BarChart, Crown, Zap
 } from 'lucide-react';
 import { GeminiService } from '../services/geminiService';
 import { SettingsService } from '../services/settingsService';
@@ -16,6 +17,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
 import Logo from './Logo';
+import LoadingState from './LoadingState';
 import { 
   saveNotesToFirestore, getNotesFromFirestore, 
   saveNoteFoldersToFirestore, getNoteFoldersFromFirestore 
@@ -44,7 +46,7 @@ const FOLDER_COLORS: Record<string, { bg: string; text: string; border: string; 
 
 const FOLDER_ICONS = ['📁', '📐', '🔬', '📖', '🧪', '🎯', '💡', '⚡', '📝', '🧠', '🏛️', '🌍', '🎨', '🎵', '💻'];
 
-const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfile }) => {
+const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfile, onOpenUpgrade }) => {
   const { triggerToast } = useNotifications();
   const isPremium = Boolean(userProfile?.planType && userProfile.planType !== 'Free');
   const [activeTab, setActiveTab] = useState<'NOTES' | 'REMINDERS' | 'TIMETABLE'>('NOTES');
@@ -740,10 +742,10 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                       whileHover={{ y: -2, scale: 1.02 }}
                       whileTap={{ scale: 0.96 }}
                       onClick={openCreateFolderModal}
-                      className="px-3.5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                      className="px-3.5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer group"
                       title="Create a new study category/folder"
                     >
-                      <FolderPlus className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                      <FolderPlus className="w-4 h-4 text-primary-600 dark:text-primary-400 group-hover:rotate-12 group-hover:scale-110 transition-transform duration-300" />
                       <span>+ New Folder</span>
                     </motion.button>
 
@@ -751,9 +753,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                       whileHover={{ y: -2, scale: 1.03 }}
                       whileTap={{ scale: 0.96 }}
                       onClick={() => setViewMode('AI_GENERATOR')} 
-                      className="btn-glow-border px-3.5 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md shadow-indigo-500/20 transition cursor-pointer"
+                      className="btn-glow-border px-4 py-2.5 bg-gradient-to-r from-primary-500 via-indigo-600 to-primary-700 hover:from-primary-600 hover:via-indigo-500 hover:to-primary-800 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md transition cursor-pointer group"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" /> 
+                      <Sparkles className="w-3.5 h-3.5 group-hover:rotate-12 group-hover:scale-110 transition-transform duration-300" /> 
                       <span className="hidden sm:inline">AI Notes</span>
                     </motion.button>
 
@@ -761,9 +763,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                       whileHover={{ y: -2, scale: 1.03 }}
                       whileTap={{ scale: 0.96 }}
                       onClick={() => handleCreateNote('Blank', selectedFolder || undefined)} 
-                      className="btn-glow-border px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md shadow-primary-500/20 transition cursor-pointer"
+                      className="btn-glow-border px-4 py-2.5 bg-gradient-to-r from-primary-500 via-indigo-600 to-primary-700 hover:from-primary-600 hover:via-indigo-500 hover:to-primary-800 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md transition cursor-pointer group"
                     >
-                      <Plus className="w-4 h-4" /> 
+                      <Plus className="w-4 h-4 group-hover:rotate-90 group-hover:scale-110 transition-transform duration-300" /> 
                       <span>New Note</span>
                     </motion.button>
                   </div>
@@ -1326,135 +1328,366 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
 
             {/* AI GENERATOR VIEW */}
             {viewMode === 'AI_GENERATOR' && (
-              <div className="space-y-4 max-w-4xl mx-auto animate-in zoom-in-95 duration-300">
-                <button 
+              <div className="space-y-4 max-w-4xl mx-auto">
+                <motion.button 
+                  whileHover={{ x: -3 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => setViewMode('FOLDERS')}
-                  className="flex items-center text-sm font-bold text-slate-500 hover:text-primary-600 mb-1 transition-colors"
+                  className="flex items-center text-sm font-bold text-slate-500 hover:text-primary-600 mb-1 transition-colors group cursor-pointer"
                 >
-                  <ChevronRight className="w-4 h-4 rotate-180 mr-1" /> Back to Folders Hub
-                </button>
-                
-                <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 relative overflow-hidden">
-                  <div className="flex justify-between items-center mb-6">
-                    <div>
-                      <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-indigo-500" />
-                        AI Syllabus Notes Generator
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Generate comprehensive, high-yield study notes with diagrams, key formulas, and explanations.
-                      </p>
-                    </div>
+                  <ChevronRight className="w-4 h-4 rotate-180 mr-1 group-hover:-translate-x-0.5 transition-transform" /> Back to Folders Hub
+                </motion.button>
 
-                    <button
-                      type="button"
-                      onClick={handleFillSample}
-                      className="px-3 py-1.5 text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/30 dark:text-primary-300 rounded-xl transition"
+                {isGeneratingNotes ? (
+                  <LoadingState mode={AppMode.NOTES} />
+                ) : (
+                  <form onSubmit={handleGenerateAiNotesSubmit} className="space-y-5">
+                    <motion.div
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                      className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 relative overflow-hidden"
                     >
-                      Try Example
-                    </button>
-                  </div>
+                      {/* Background decoration */}
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-primary-50 dark:bg-primary-900/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
 
-                  <form onSubmit={handleGenerateAiNotesSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {/* Subject */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Subject</label>
-                        <input
-                          type="text"
-                          required
-                          value={subjectInput}
-                          onChange={(e) => setSubjectInput(e.target.value)}
-                          placeholder="e.g. Science"
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none focus:ring-1 focus:ring-primary-500"
-                        />
-                      </div>
-
-                      {/* Class Grade */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Grade / Class</label>
-                        <input
-                          type="text"
-                          value={classGradeInput}
-                          onChange={(e) => setClassGradeInput(e.target.value)}
-                          disabled={!isPremium}
-                          placeholder="e.g. 10th Grade"
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none disabled:opacity-60"
-                        />
-                      </div>
-
-                      {/* Target Folder / Category */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Target Folder</label>
-                        <select
-                          value={targetFolderForAi}
-                          onChange={(e) => setTargetFolderForAi(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none"
-                        >
-                          {foldersList.map(f => (
-                            <option key={f.id} value={f.name}>{f.icon || '📁'} {f.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Chapter Name with Voice Dictate */}
-                      <div className="md:col-span-2 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Chapter / Topic</label>
-                          <button
-                            type="button"
-                            onClick={toggleChapterVoice}
-                            className="text-[10px] font-bold text-primary-600 dark:text-primary-400 flex items-center gap-1"
+                      <div className="flex flex-wrap justify-between items-center gap-3 mb-5 relative z-10 perspective-1200">
+                        <div>
+                          <motion.h2
+                            initial={{ opacity: 0, scale: 0.88, rotateX: 16, y: 6 }}
+                            animate={{ opacity: 1, scale: 1, rotateX: 0, y: 0 }}
+                            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                            className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2 preserve-3d group"
                           >
-                            {isListeningChapter ? <MicOff className="w-3 h-3 text-rose-500 animate-pulse" /> : <Mic className="w-3 h-3" />}
-                            <span>{isListeningChapter ? 'Listening...' : 'Voice Dictate'}</span>
-                          </button>
+                            <BookOpen className="w-4 h-4 text-primary-600 group-hover:rotate-12 transition-transform duration-300" />
+                            <span>AI Syllabus Notes Generator — Study Details</span>
+                          </motion.h2>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Generate comprehensive, high-yield study notes with diagrams, key formulas, and explanations.
+                          </p>
                         </div>
-                        <input
-                          type="text"
-                          required
-                          value={chapterNameInput}
-                          onChange={(e) => setChapterNameInput(e.target.value)}
-                          placeholder="e.g. Chemical Reactions and Equations"
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none focus:ring-1 focus:ring-primary-500"
-                        />
+
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wide bg-amber-50 text-amber-700 border-amber-100">
+                            <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
+                            Cost: 20 Credits
+                          </div>
+
+                          <motion.button
+                            type="button"
+                            whileHover={{ scale: 1.05, y: -1 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={handleFillSample}
+                            className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-100 rounded-full transition-colors uppercase tracking-wide cursor-pointer group"
+                            title="Fill with sample data"
+                          >
+                            <Sparkles className="w-3 h-3 fill-primary-400 text-primary-600 group-hover:rotate-12 transition-transform duration-300" />
+                            Try Example
+                          </motion.button>
+                        </div>
                       </div>
 
-                      {/* Language */}
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Language</label>
-                        <select
-                          value={languageInput}
-                          onChange={(e) => setLanguageInput(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none"
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 relative z-10">
+                        {/* 1. Subject */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, delay: 1 * 0.055, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-1"
                         >
-                          <option value="English">English</option>
-                          <option value="Hindi">Hindi</option>
-                          <option value="Spanish">Spanish</option>
-                          <option value="French">French</option>
-                        </select>
-                      </div>
-                    </div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Subject</label>
+                          <div className="relative group">
+                            <Type className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 group-focus-within:text-primary-600 group-focus-within:scale-110 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300" />
+                            <input
+                              type="text"
+                              required
+                              value={subjectInput}
+                              onChange={(e) => setSubjectInput(e.target.value)}
+                              placeholder="e.g. Science"
+                              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white dark:focus:bg-slate-900 outline-none transition-all duration-200 text-slate-900 dark:text-white text-sm"
+                            />
+                          </div>
+                        </motion.div>
 
-                    <button
+                        {/* 2. Class / Grade */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, delay: 2 * 0.055, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class / Grade</label>
+                            {!isPremium ? (
+                              <button
+                                type="button"
+                                onClick={() => onOpenUpgrade?.()}
+                                className="text-[9px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1 transition-all hover:scale-105 active:scale-95"
+                              >
+                                <Crown className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                                Upgrade to Change
+                              </button>
+                            ) : (
+                              <span className="text-[9px] font-semibold text-emerald-600 flex items-center gap-1">
+                                <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Premium Unlocked
+                              </span>
+                            )}
+                          </div>
+                          <div className="relative group">
+                            <GraduationCap className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 group-focus-within:text-primary-600 group-focus-within:scale-110 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300" />
+                            <input
+                              type="text"
+                              value={classGradeInput}
+                              onChange={(e) => setClassGradeInput(e.target.value)}
+                              disabled={!isPremium}
+                              placeholder="e.g. 10th Grade"
+                              className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all text-slate-900 dark:text-white text-sm disabled:opacity-60"
+                            />
+                            {!isPremium && (
+                              <div className="absolute right-2.5 top-2.5 text-amber-500" title="Locked: Premium required to change">
+                                <Crown className="w-4 h-4 fill-amber-500" />
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+
+                        {/* 3. Board */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, delay: 3 * 0.055, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Board</label>
+                            {!isPremium ? (
+                              <button
+                                type="button"
+                                onClick={() => onOpenUpgrade?.()}
+                                className="text-[9px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1 transition-all hover:scale-105 active:scale-95"
+                              >
+                                <Crown className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                                Upgrade to Change
+                              </button>
+                            ) : (
+                              <span className="text-[9px] font-semibold text-emerald-600 flex items-center gap-1">
+                                <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Premium Unlocked
+                              </span>
+                            )}
+                          </div>
+                          <div className="relative group">
+                            <School className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 group-focus-within:text-primary-600 group-focus-within:scale-110 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300" />
+                            <input
+                              type="text"
+                              value={boardInput}
+                              onChange={(e) => setBoardInput(e.target.value)}
+                              disabled={!isPremium}
+                              placeholder="e.g. CBSE"
+                              className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all text-slate-900 dark:text-white text-sm disabled:opacity-60"
+                            />
+                            {!isPremium && (
+                              <div className="absolute right-2.5 top-2.5 text-amber-500" title="Locked: Premium required to change">
+                                <Crown className="w-4 h-4 fill-amber-500" />
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+
+                        {/* 4. Language */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, delay: 4 * 0.055, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-1"
+                        >
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Language</label>
+                          <div className="relative group">
+                            <Languages className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 group-focus-within:text-primary-600 group-focus-within:scale-110 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 pointer-events-none" />
+                            <select
+                              value={languageInput}
+                              onChange={(e) => setLanguageInput(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all text-slate-900 dark:text-white text-sm"
+                            >
+                              <option value="English">English</option>
+                              <option value="Hindi">Hindi</option>
+                              <option value="Spanish">Spanish</option>
+                              <option value="French">French</option>
+                            </select>
+                          </div>
+                        </motion.div>
+
+                        {/* 5. Chapter / Topic with Voice Dictate */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, delay: 5 * 0.055, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Chapter Name</label>
+                            <button
+                              type="button"
+                              onClick={toggleChapterVoice}
+                              className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] uppercase font-bold transition-colors ${
+                                isListeningChapter ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                              }`}
+                            >
+                              {isListeningChapter ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                              <span>{isListeningChapter ? 'Listening...' : 'Dictate'}</span>
+                            </button>
+                          </div>
+                          <div className="relative group">
+                            <BookOpen className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 group-focus-within:text-primary-600 group-focus-within:scale-110 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300" />
+                            <input
+                              type="text"
+                              required
+                              value={chapterNameInput}
+                              onChange={(e) => setChapterNameInput(e.target.value)}
+                              placeholder="e.g. Chemical Reactions and Equations"
+                              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white dark:focus:bg-slate-900 outline-none transition-all duration-200 text-slate-900 dark:text-white text-sm"
+                            />
+                          </div>
+                        </motion.div>
+
+                        {/* 6. Author (Optional) */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, delay: 6 * 0.055, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-1"
+                        >
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Author (Optional)</label>
+                          <div className="relative group">
+                            <User className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 group-focus-within:text-primary-600 group-focus-within:scale-110 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300" />
+                            <input
+                              type="text"
+                              value={authorInput}
+                              onChange={(e) => setAuthorInput(e.target.value)}
+                              placeholder="e.g. NCERT"
+                              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white dark:focus:bg-slate-900 outline-none transition-all duration-200 text-slate-900 dark:text-white text-sm"
+                            />
+                          </div>
+                        </motion.div>
+
+                        {/* 7. Target Folder */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, delay: 7 * 0.055, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-1"
+                        >
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Target Folder</label>
+                          <div className="relative group">
+                            <Folder className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 group-focus-within:text-primary-600 group-focus-within:scale-110 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 pointer-events-none" />
+                            <select
+                              value={targetFolderForAi}
+                              onChange={(e) => setTargetFolderForAi(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all text-slate-900 dark:text-white text-sm"
+                            >
+                              {foldersList.map(f => (
+                                <option key={f.id} value={f.name}>{f.icon || '📁'} {f.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </motion.div>
+
+                        {/* 8. Max Characters */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, delay: 8 * 0.055, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">No. of Characters</label>
+                            {!isPremium ? (
+                              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Crown className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                                Max 10,000 (Free)
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-semibold text-emerald-600 flex items-center gap-1">
+                                <Crown className="w-2.5 h-2.5 fill-emerald-500" /> Up to 20,000 Chars
+                              </span>
+                            )}
+                          </div>
+                          <div className="relative group">
+                            <FileText className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 group-focus-within:text-primary-600 group-focus-within:scale-110 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300" />
+                            <input
+                              type="number"
+                              value={maxCharactersInput}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                if (!isNaN(val)) {
+                                  if (!isPremium && val > 10000) {
+                                    setMaxCharactersInput(10000);
+                                    onOpenUpgrade?.();
+                                  } else {
+                                    setMaxCharactersInput(val);
+                                  }
+                                } else {
+                                  setMaxCharactersInput(5000);
+                                }
+                              }}
+                              min="500"
+                              max={isPremium ? 20000 : 10000}
+                              step="500"
+                              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all text-slate-900 dark:text-white text-sm"
+                            />
+                          </div>
+                        </motion.div>
+
+                        {/* 9. Animated Segmented Difficulty Selector */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, delay: 9 * 0.055, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-1"
+                        >
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                            <BarChart className="w-3 h-3 text-slate-400" />
+                            Difficulty
+                          </label>
+                          <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100/90 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700 rounded-xl relative">
+                            {(['Easy', 'Medium', 'Hard'] as DifficultyLevel[]).map((lvl) => {
+                              const isSelected = difficultyInput === lvl;
+                              return (
+                                <button
+                                  key={lvl}
+                                  type="button"
+                                  onClick={() => setDifficultyInput(lvl)}
+                                  className={`relative z-10 py-1.5 px-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center cursor-pointer ${
+                                    isSelected ? 'text-primary-700 dark:text-primary-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                  }`}
+                                >
+                                  {isSelected && (
+                                    <motion.div
+                                      layoutId="ai-notes-difficulty-pill"
+                                      transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+                                      className="absolute inset-0 bg-white dark:bg-slate-800 rounded-lg shadow-xs border border-primary-200/80 dark:border-primary-700 -z-10"
+                                    />
+                                  )}
+                                  <span>{lvl}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      </div>
+                    </motion.div>
+
+                    <motion.button
                       type="submit"
                       disabled={isGeneratingNotes}
-                      className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl font-bold text-sm shadow-lg shadow-indigo-500/20 transition active:scale-[0.99] flex items-center justify-center gap-2"
+                      whileHover={{ y: -2, scale: 1.01 }}
+                      whileTap={{ scale: 0.985 }}
+                      className="btn-glow-border w-full py-4 bg-gradient-to-r from-primary-500 via-indigo-600 to-primary-700 hover:from-primary-600 hover:via-indigo-500 hover:to-primary-800 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group cursor-pointer disabled:opacity-50"
                     >
-                      {isGeneratingNotes ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Generating Syllabus Notes...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4 text-amber-300" />
-                          <span>Generate Notes & Save into Folder</span>
-                        </>
-                      )}
-                    </button>
+                      <Sparkles className="w-5 h-5 group-hover:rotate-12 group-hover:scale-110 transition-transform duration-300" />
+                      <span>Generate Notes & Save into Folder</span>
+                    </motion.button>
                   </form>
-                </div>
+                )}
               </div>
             )}
 
@@ -1490,7 +1723,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                     className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-600 dark:text-slate-300 text-xs"
                   />
                 </div>
-                <button 
+                <motion.button 
+                  whileHover={{ y: -2, scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => {
                     if (!newReminder.trim()) return;
                     const dueTimeString = newDate ? `${newDate}T${newTime || '23:59'}` : '';
@@ -1504,10 +1739,11 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                     setNewReminder(''); setNewDate(''); setNewTime('');
                     triggerToast('Task Added ✅', 'New task added to your list.', 'Important Alerts');
                   }}
-                  className="px-5 py-2.5 bg-primary-600 text-white rounded-xl font-bold text-xs hover:bg-primary-700 transition"
+                  className="btn-glow-border px-5 py-2.5 bg-gradient-to-r from-primary-500 via-indigo-600 to-primary-700 hover:from-primary-600 hover:via-indigo-500 hover:to-primary-800 text-white rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 group cursor-pointer shadow-md"
                 >
-                  Add Task
-                </button>
+                  <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
+                  <span>Add Task</span>
+                </motion.button>
               </div>
             </div>
 
@@ -1541,8 +1777,15 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
         {/* --- TIMETABLE TAB --- */}
         {activeTab === 'TIMETABLE' && (
           <div className="animate-in fade-in duration-300">
-            {timetable.length === 0 && !isGenerating ? (
-              <div className="max-w-2xl mx-auto bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-8 text-center">
+            {isGenerating ? (
+              <LoadingState mode={AppMode.NOTES} />
+            ) : timetable.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="max-w-2xl mx-auto bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-8 text-center"
+              >
                 <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary-100 overflow-hidden">
                   <Logo className="w-full h-full" iconOnly noBorder />
                 </div>
@@ -1558,7 +1801,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                     <label className="text-xs font-bold text-slate-500 uppercase">Syllabus / Subjects</label>
                     <textarea placeholder="e.g. Physics (Mechanics), Math (Calculus), Chemistry (Periodic Table)..." value={examSubjects} onChange={e => setExamSubjects(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 min-h-[90px] resize-none text-sm dark:text-white" />
                   </div>
-                  <button 
+                  <motion.button 
+                    whileHover={{ y: -2, scale: 1.01 }}
+                    whileTap={{ scale: 0.985 }}
                     onClick={async () => {
                       if (!examDate || !examSubjects) return;
                       setIsGenerating(true);
@@ -1571,12 +1816,13 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                         setIsGenerating(false);
                       }
                     }}
-                    className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-bold text-sm shadow-md"
+                    className="btn-glow-border w-full py-4 bg-gradient-to-r from-primary-500 via-indigo-600 to-primary-700 hover:from-primary-600 hover:via-indigo-500 hover:to-primary-800 text-white rounded-xl font-bold text-base shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group cursor-pointer"
                   >
-                    Generate Study Schedule
-                  </button>
+                    <Sparkles className="w-5 h-5 group-hover:rotate-12 group-hover:scale-110 transition-transform duration-300" />
+                    <span>Generate Study Schedule</span>
+                  </motion.button>
                 </div>
-              </div>
+              </motion.div>
             ) : (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
