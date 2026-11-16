@@ -77,8 +77,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Mount Server-side Gemini API Routes
-app.use("/api/gemini", geminiRoutes);
+// Mount Server-side Gemini API Routes (aliased at /api/ai and /api/gemini)
+app.use(["/api/ai", "/api/gemini"], geminiRoutes);
 
 // SEO Crawler endpoints
 app.get("/robots.txt", (req, res) => {
@@ -421,7 +421,7 @@ If the audio is completely silent or contains no discernible speech, return an e
 
         return response.text?.trim() || "";
       },
-      ['gemini-3.5-transcribe', 'gemini-4-hydrogen', 'gemini-3.1-flash-lite']
+      ['gemini-3-flash-preview', 'gemini-3.1-flash-lite', 'gemini-3.5-transcribe']
     );
 
     res.json({ success: true, transcript });

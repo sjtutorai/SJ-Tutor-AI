@@ -23,6 +23,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    },
+    {
       "source": "/((?!api/|favicon|android-chrome|apple-touch-icon|icon-|logo|SJ-Tutor-AI-Logo|sj_tutor_bg|manifest\\.json|site\\.webmanifest|robots\\.txt|sitemap\\.xml|sw\\.js|firebase-messaging-sw\\.js).*)",
       "destination": "/index.html"
     }

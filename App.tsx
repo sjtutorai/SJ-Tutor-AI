@@ -3745,7 +3745,7 @@ const App: React.FC = () => {
         return (
           <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex-1 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
             <TutorChat
-              key={currentHistoryId || 'new_tutor_session'}
+              key="tutor_chat_instance"
               onDeductCredit={deductCredit}
               currentCredits={userProfile.credits}
               onSharePublicLink={async (type, title, content) => {
@@ -3765,7 +3765,7 @@ const App: React.FC = () => {
                 const customMessage = `🎓 SJ Tutor AI - ${title} 🎓\nClass: ${formData.gradeClass || "General"}\nSubject: ${formData.subject || "General"}\n\nReview this study content here:`;
                 await handleSharePublicLink(type, title, content, customId, customUrl, customMessage);
               }}
-              onSaveSession={(msgs, sessionTitle, sessionId) => {
+              onSaveSession={(msgs, sessionTitle, sessionId, isEndingSession) => {
                 if (msgs.length > 1) {
                   const tutorItemContent = {
                     messages: msgs,
@@ -3774,7 +3774,7 @@ const App: React.FC = () => {
                   // Check if already in history to update or add
                   const existing = history.find(
                     (h) =>
-                      (h.id === targetSessionId || (currentHistoryId && h.id === currentHistoryId)) &&
+                      (h.id === targetSessionId || (!sessionId && currentHistoryId && h.id === currentHistoryId)) &&
                       h.type === AppMode.TUTOR,
                   );
 
@@ -3794,7 +3794,7 @@ const App: React.FC = () => {
                           : h,
                       ),
                     );
-                    if (currentHistoryId !== existing.id) {
+                    if (!isEndingSession && currentHistoryId !== existing.id) {
                       setCurrentHistoryId(existing.id);
                     }
                     if (user) {
@@ -3811,7 +3811,9 @@ const App: React.FC = () => {
                       formData: { ...formData },
                     };
                     setHistory((prev) => [newItem, ...prev.filter((h) => h.id !== targetSessionId)]);
-                    setCurrentHistoryId(targetSessionId);
+                    if (!isEndingSession) {
+                      setCurrentHistoryId(targetSessionId);
+                    }
                     if (user) {
                       saveHistoryItemToFirestore(user.uid, newItem);
                     }

@@ -2,10 +2,12 @@ import { Router } from "express";
 import { Type, ThinkingLevel } from "@google/genai";
 import { createDedicatedGeminiClient } from "../geminiClient";
 
-const DEFAULT_GEMINI_MODELS = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
+const DEFAULT_GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-4-hydrogen"];
 
 function buildLowLatencyThinkingConfig(model: string) {
-  return model === "gemini-4-hydrogen" ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {};
+  return model === "gemini-4-hydrogen" || model === "gemini-3-flash-preview"
+    ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+    : {};
 }
 
 function safeParseJson<T>(raw: string): T {

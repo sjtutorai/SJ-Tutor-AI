@@ -216,7 +216,7 @@ interface AttachedFile {
 interface TutorChatProps {
   onDeductCredit: (amount: number) => boolean;
   currentCredits: number;
-  onSaveSession: (messages: ChatMessage[], sessionTitle?: string, sessionId?: string) => void;
+  onSaveSession: (messages: ChatMessage[], sessionTitle?: string, sessionId?: string, isEndingSession?: boolean) => void;
   initialMessages?: ChatMessage[];
   onSharePublicLink?: (type: string, title: string, content: any) => Promise<void> | void;
   recentSessions?: any[];
@@ -269,9 +269,6 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   // Stable session identifier across continuous messages
   const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
     if (activeSessionId) return activeSessionId;
-    if (recentSessions && recentSessions.length > 0) {
-      return recentSessions[0].id;
-    }
     try {
       const saved = localStorage.getItem('sjtutor_active_chat_state');
       if (saved) {
@@ -291,14 +288,13 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       const found = recentSessions.find(s => s.id === activeSessionId);
       if (found?.title) return found.title;
     }
-    if (recentSessions && recentSessions.length > 0 && recentSessions[0].title) {
-      return recentSessions[0].title;
-    }
     try {
       const saved = localStorage.getItem('sjtutor_active_chat_state');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed?.sessionTitle) return parsed.sessionTitle;
+        if (parsed?.sessionTitle && Array.isArray(parsed?.messages) && parsed.messages.length > 1) {
+          return parsed.sessionTitle;
+        }
       }
     } catch (e) {
       console.debug("No previous chat session title", e);
@@ -307,7 +303,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   });
 
   const [messages, setMessages] = useState<ExtendedChatMessage[]>(() => {
-    if (initialMessages && initialMessages.length > 0) {
+    if (activeSessionId && initialMessages && initialMessages.length > 0) {
       return initialMessages.map((m, i) => ({
         id: m.id || `msg-${i}-${Date.now()}`,
         role: m.role,
@@ -317,17 +313,20 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         suggestions: m.suggestions
       }));
     }
-    if (recentSessions && recentSessions.length > 0 && recentSessions[0].content?.messages?.length > 0) {
-      return recentSessions[0].content.messages.map((m: any, i: number) => ({
-        id: m.id || `msg-${i}-${Date.now()}`,
-        role: m.role,
-        text: m.text,
-        images: m.images,
-        timestamp: m.timestamp || Date.now(),
-        suggestions: m.suggestions,
-        liked: m.liked,
-        disliked: m.disliked,
-      }));
+    if (activeSessionId && recentSessions && recentSessions.length > 0) {
+      const matched = recentSessions.find(s => s.id === activeSessionId);
+      if (matched?.content?.messages?.length > 0) {
+        return matched.content.messages.map((m: any, i: number) => ({
+          id: m.id || `msg-${i}-${Date.now()}`,
+          role: m.role,
+          text: m.text,
+          images: m.images,
+          timestamp: m.timestamp || Date.now(),
+          suggestions: m.suggestions,
+          liked: m.liked,
+          disliked: m.disliked,
+        }));
+      }
     }
     // Check if we have an autosaved ongoing active session in localStorage to recover from accidental refresh
     try {
@@ -363,6 +362,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
   
   const [isSessionsOpen, setIsSessionsOpen] = useState(false);
   const [showResumePrompt, setShowResumePrompt] = useState(true);
+  const [sessionStatusNotice, setSessionStatusNotice] = useState<string | null>(null);
   const [isBgModalOpen, setIsBgModalOpen] = useState(false);
 
   // Background Settings with Local Persistence
@@ -536,26 +536,91 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     };
   }, [subject, grade]);
 
-  // Start a fresh, clean chat session
-  const handleStartNewSession = () => {
-    if (messagesRef.current.length > 1) {
-      performAutoSave(messagesRef.current);
+  // Load an existing session explicitly when selected from Resume Prompt or Sessions Drawer
+  const handleLoadExistingSession = (session: any) => {
+    if (!session) return;
+    if (isGeneratingRef.current) {
+      isGeneratingRef.current = false;
+      setIsTyping(false);
+      setThinkingStep(null);
     }
-    const newId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    setCurrentSessionId(newId);
-    currentSessionIdRef.current = newId;
-    const defaultTitle = `${subject} (${grade})`;
-    setSessionTitle(defaultTitle);
-    sessionTitleRef.current = defaultTitle;
+    setCurrentSessionId(session.id);
+    currentSessionIdRef.current = session.id;
+    const nextTitle = session.title || `${subject} (${grade})`;
+    setSessionTitle(nextTitle);
+    sessionTitleRef.current = nextTitle;
 
-    setMessages([
+    const rawMsgs = Array.isArray(session.content?.messages)
+      ? session.content.messages
+      : Array.isArray(session.content)
+      ? session.content
+      : [];
+
+    if (rawMsgs.length > 0) {
+      const mapped = rawMsgs.map((m: any, i: number) => ({
+        id: m.id || `msg-${i}-${Date.now()}`,
+        role: m.role,
+        text: m.text,
+        images: m.images,
+        timestamp: m.timestamp || Date.now(),
+        suggestions: m.suggestions,
+        liked: m.liked,
+        disliked: m.disliked,
+      }));
+      messagesRef.current = mapped;
+      setMessages(mapped);
+    }
+    if (onSelectSession) onSelectSession(session.id);
+    setIsSessionsOpen(false);
+    setShowResumePrompt(false);
+  };
+
+  // Start a fresh, clean chat session (or end current active session)
+  const handleStartNewSession = (actionType: 'new' | 'end' = 'new') => {
+    const hadConversation = messagesRef.current.length > 1;
+
+    // 1. Stop any active AI generation or speech synthesis
+    if (isGeneratingRef.current) {
+      isGeneratingRef.current = false;
+      setIsTyping(false);
+      setThinkingStep(null);
+    }
+    try {
+      window.speechSynthesis?.cancel();
+    } catch {
+      // ignore speech cancel errors
+    }
+    setSpeakingMessageId(null);
+    setSpeakingId(null);
+    setError(null);
+    setInput('');
+    setAttachedFiles([]);
+
+    // 2. Archive previous conversation to History / Firestore WITHOUT writing back to sjtutor_active_chat_state
+    if (hadConversation) {
+      const derivedTitle = generateSessionTitleFromChat(messagesRef.current, subject, grade);
+      onSaveSession(messagesRef.current, derivedTitle, currentSessionIdRef.current, true);
+    }
+
+    // 3. Synchronously reset session refs & state so no interval or unmount handler can re-save old messages
+    const newId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    currentSessionIdRef.current = newId;
+    setCurrentSessionId(newId);
+
+    const defaultTitle = `${subject} (${grade})`;
+    sessionTitleRef.current = defaultTitle;
+    setSessionTitle(defaultTitle);
+
+    const freshWelcomeMessages: ExtendedChatMessage[] = [
       {
         id: `msg-welcome-${Date.now()}`,
         role: 'model',
         text: `Hi there! I'm **SJ Tutor AI**, your premium, intelligent learning companion. 🎓\n\nI have fully customized our lesson for your **${grade} Grade ${subject}** studies. What are we exploring today? Let's break it down step-by-step together!`,
         timestamp: Date.now()
       }
-    ]);
+    ];
+    messagesRef.current = freshWelcomeMessages;
+    setMessages(freshWelcomeMessages);
 
     try {
       localStorage.removeItem('sjtutor_active_chat_state');
@@ -567,6 +632,19 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
     if (onNewSession) onNewSession();
     setIsSessionsOpen(false);
     setShowResumePrompt(false);
+
+    const noticeText =
+      actionType === 'end'
+        ? hadConversation
+          ? 'Session ended and saved to My Sessions. Ready for a new topic!'
+          : 'Current session reset. Ready for your questions!'
+        : hadConversation
+        ? 'Previous chat saved. Started a new session!'
+        : 'Started a fresh AI Tutor session!';
+    setSessionStatusNotice(noticeText);
+    setTimeout(() => {
+      setSessionStatusNotice((prev) => (prev === noticeText ? null : prev));
+    }, 3500);
   };
 
   const [input, setInput] = useState('');
@@ -1333,7 +1411,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             )}
             <button 
               id="btn-terminate-tutor-session"
-              onClick={handleStartNewSession} 
+              onClick={() => handleStartNewSession('end')} 
               className="p-2 rounded-xl transition-all flex items-center gap-1.5 text-rose-600 dark:text-rose-400 bg-rose-50/80 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 shadow-xs cursor-pointer active:scale-95 border border-rose-200/50 dark:border-rose-800/40" 
               title="End / Terminate this AI Tutor Session & Start Fresh"
             >
@@ -1503,6 +1581,14 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                   tutorBgSettings.imageUrl || tutorBgSettings.bgColor ? '' : 'bg-slate-50/40 dark:bg-slate-950/20'
                 }`}
               >
+          {/* Session Status Feedback Toast */}
+          {sessionStatusNotice && (
+            <div className="max-w-md mx-auto mb-3 px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center justify-center gap-2 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+              <span>{sessionStatusNotice}</span>
+            </div>
+          )}
+
           {/* Resume Session Prompt card */}
           {activeSessionId === null && messages.length === 1 && recentSessions && recentSessions.length > 0 && showResumePrompt && (
             (() => {
@@ -1522,17 +1608,14 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                       </p>
                       <div className="flex items-center gap-3 mt-4">
                         <button
-                          onClick={() => {
-                            if (onSelectSession) onSelectSession(lastSession.id);
-                            setShowResumePrompt(false);
-                          }}
+                          onClick={() => handleLoadExistingSession(lastSession)}
                           className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-black rounded-lg transition shadow-sm hover:shadow active:scale-95 flex items-center gap-1.5 cursor-pointer"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
                           Resume Session
                         </button>
                         <button
-                          onClick={handleStartNewSession}
+                          onClick={() => handleStartNewSession('new')}
                           className="px-4 py-2 bg-slate-200 hover:bg-slate-350 dark:bg-slate-850 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition cursor-pointer"
                         >
                           Start Fresh Chat
@@ -2230,7 +2313,7 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
 
             {/* New Session Button */}
             <button
-              onClick={handleStartNewSession}
+              onClick={() => handleStartNewSession('new')}
               className="w-full mb-4 p-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-sm active:scale-98 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -2244,14 +2327,11 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             <div className="space-y-2 overflow-y-auto flex-1 pr-1 custom-scrollbar">
               {recentSessions && recentSessions.length > 0 ? (
                 recentSessions.map((session) => {
-                  const isActive = session.id === activeSessionId;
+                  const isActive = session.id === activeSessionId || (messages.length > 1 && session.id === currentSessionId);
                   return (
                     <div key={session.id} className="relative group">
                       <button
-                        onClick={() => {
-                          if (onSelectSession) onSelectSession(session.id);
-                          setIsSessionsOpen(false);
-                        }}
+                        onClick={() => handleLoadExistingSession(session)}
                         className={`w-full text-left p-3 pr-9 rounded-xl border transition-all duration-200 flex flex-col gap-1 relative overflow-hidden cursor-pointer ${
                           isActive
                             ? 'bg-primary-50/70 border-primary-300 dark:bg-primary-950/20 dark:border-primary-900'
@@ -2275,12 +2355,13 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (session.id === currentSessionIdRef.current || session.id === activeSessionId) {
+                              messagesRef.current = [];
                               try {
                                 localStorage.removeItem('sjtutor_active_chat_state');
                               } catch (e) {
                                 console.debug("Failed to clear local chat state:", e);
                               }
-                              handleStartNewSession();
+                              handleStartNewSession('new');
                             }
                             onDeleteSession(session.id);
                           }}
