@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  NoteItem, ReminderItem, TimetableEntry, NoteStatus, NoteTemplate, 
+  NoteItem, ReminderItem, NoteStatus, NoteTemplate, 
   UserProfile, DifficultyLevel, NoteFolder, DEFAULT_NOTE_FOLDERS, AppMode 
 } from '../types';
 import { 
@@ -16,8 +16,8 @@ import { SettingsService } from '../services/settingsService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExportModal } from './ExportModal';
-import Logo from './Logo';
 import LoadingState from './LoadingState';
+import SmartTimetableGenerator from './SmartTimetableGenerator';
 import { 
   saveNotesToFirestore, getNotesFromFirestore, 
   saveNoteFoldersToFirestore, getNoteFoldersFromFirestore 
@@ -105,11 +105,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
   const [newReminder, setNewReminder] = useState('');
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
-  const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
-  const [examDate, setExamDate] = useState('');
-  const [examSubjects, setExamSubjects] = useState('');
-  const [studyHours] = useState(4);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
 
   // Voice-to-Text Dictation States & MediaRecorder
@@ -144,7 +139,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     const savedNotes = localStorage.getItem(`notes_${key}`);
     const savedFolders = localStorage.getItem(`notes_folders_${key}`);
     const savedReminders = localStorage.getItem(`reminders_${key}`);
-    const savedTimetable = localStorage.getItem(`timetable_${key}`);
 
     if (savedNotes) {
       try {
@@ -166,7 +160,6 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     }
 
     if (savedReminders) setReminders(JSON.parse(savedReminders));
-    if (savedTimetable) setTimetable(JSON.parse(savedTimetable));
 
     if (userId && userId !== 'guest') {
       getNotesFromFirestore(userId).then((firestoreNotes) => {
@@ -216,17 +209,16 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     }
   }, [notes, foldersList]);
 
-  // Save notes & reminders & timetable changes
+  // Save notes & reminders changes
   useEffect(() => {
     const key = userId || 'guest';
     localStorage.setItem(`notes_${key}`, JSON.stringify(notes));
     localStorage.setItem(`reminders_${key}`, JSON.stringify(reminders));
-    localStorage.setItem(`timetable_${key}`, JSON.stringify(timetable));
 
     if (userId && userId !== 'guest' && notes.length > 0) {
       saveNotesToFirestore(userId, notes);
     }
-  }, [notes, reminders, timetable, userId]);
+  }, [notes, reminders, userId]);
 
   // Save folders list changes
   useEffect(() => {
@@ -1776,81 +1768,13 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
 
         {/* --- TIMETABLE TAB --- */}
         {activeTab === 'TIMETABLE' && (
-          <div className="animate-in fade-in duration-300">
-            {isGenerating ? (
-              <LoadingState mode={AppMode.NOTES} />
-            ) : timetable.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="max-w-2xl mx-auto bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-8 text-center"
-              >
-                <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary-100 overflow-hidden">
-                  <Logo className="w-full h-full" iconOnly noBorder />
-                </div>
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Exam Study Planner</h2>
-                <p className="text-sm text-slate-500 mt-1 mb-6">Enter your upcoming exam date and subjects to get a personalized daily study breakdown.</p>
-
-                <div className="space-y-4 text-left max-w-md mx-auto">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Exam Date</label>
-                    <input type="date" value={examDate} onChange={e => setExamDate(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:text-white" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Syllabus / Subjects</label>
-                    <textarea placeholder="e.g. Physics (Mechanics), Math (Calculus), Chemistry (Periodic Table)..." value={examSubjects} onChange={e => setExamSubjects(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 min-h-[90px] resize-none text-sm dark:text-white" />
-                  </div>
-                  <motion.button 
-                    whileHover={{ y: -2, scale: 1.01 }}
-                    whileTap={{ scale: 0.985 }}
-                    onClick={async () => {
-                      if (!examDate || !examSubjects) return;
-                      setIsGenerating(true);
-                      try {
-                        const schedule = await GeminiService.generateStudyTimetable(examDate, examSubjects, studyHours);
-                        if (schedule) setTimetable(schedule);
-                      } catch {
-                        triggerToast('Error', 'Failed to generate timetable.', 'Important Alerts');
-                      } finally {
-                        setIsGenerating(false);
-                      }
-                    }}
-                    className="btn-glow-border w-full py-4 bg-gradient-to-r from-primary-500 via-indigo-600 to-primary-700 hover:from-primary-600 hover:via-indigo-500 hover:to-primary-800 text-white rounded-xl font-bold text-base shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group cursor-pointer"
-                  >
-                    <Sparkles className="w-5 h-5 group-hover:rotate-12 group-hover:scale-110 transition-transform duration-300" />
-                    <span>Generate Study Schedule</span>
-                  </motion.button>
-                </div>
-              </motion.div>
-            ) : (
-              <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-bold text-slate-800 dark:text-white">Your Study Plan</h3>
-                  <button onClick={() => setTimetable([])} className="text-xs font-bold text-rose-500 hover:underline">Reset Plan</button>
-                </div>
-                {timetable.map((day, idx) => (
-                  <div key={idx} className="bg-white dark:bg-slate-800 rounded-2xl shadow-xs border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    <div className="bg-slate-50 dark:bg-slate-900/50 px-6 py-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                      <span className="font-bold text-sm text-slate-800 dark:text-white">{day.day}</span>
-                      <span className="text-xs text-slate-500">{day.date}</span>
-                    </div>
-                    <div className="p-6 space-y-3">
-                      {day.slots.map((slot, sIdx) => (
-                        <div key={sIdx} className="flex gap-4 items-start text-xs">
-                          <div className="min-w-[100px] font-bold text-primary-600 bg-primary-50 dark:bg-primary-900/20 px-2 py-1 rounded text-center">{slot.time}</div>
-                          <div>
-                            <p className="font-bold text-slate-800 dark:text-white">{slot.subject}</p>
-                            <p className="text-slate-500 dark:text-slate-400 mt-0.5">{slot.activity}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <SmartTimetableGenerator
+            userId={userId}
+            userProfile={userProfile}
+            reminders={reminders}
+            onUpdateReminders={setReminders}
+            onDeductCredit={onDeductCredit}
+          />
         )}
 
         {/* EXPORT MODAL */}

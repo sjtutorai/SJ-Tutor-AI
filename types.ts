@@ -73,6 +73,8 @@ export interface ChatMessage {
   timestamp: number;
   id?: string;
   suggestions?: string[];
+  practiceQuestions?: QuizQuestion[];
+  practiceAnswers?: Record<number, number>;
 }
 
 export interface HistoryItem {
@@ -591,4 +593,142 @@ export interface GroupCall {
   endedAt?: number;
   participants: Record<string, GroupCallParticipant>;
 }
+
+export type TimetablePlanType =
+  | 'Daily Study Timetable'
+  | 'Weekly Study Timetable'
+  | 'Exam Preparation Timetable'
+  | 'Holiday Timetable'
+  | 'Custom Timetable';
+
+export type TimetableSubjectDifficulty = 'Easy' | 'Medium' | 'Difficult';
+export type TimetableConfidenceLevel = 'Strong' | 'Average' | 'Needs Improvement';
+export type TimetablePriorityLevel = 'Low' | 'Medium' | 'High';
+
+export interface TimetableSubjectConfig {
+  id: string;
+  name: string;
+  targetHours: number; // hours per day or week
+  targetMode: 'daily' | 'weekly';
+  difficulty: TimetableSubjectDifficulty;
+  confidence: TimetableConfidenceLevel;
+  priority: TimetablePriorityLevel;
+  color: string; // e.g. 'blue' | 'violet' | 'emerald' | 'amber' | 'rose' | 'cyan' | 'indigo' | 'orange'
+}
+
+export type DayOfWeek =
+  | 'Monday'
+  | 'Tuesday'
+  | 'Wednesday'
+  | 'Thursday'
+  | 'Friday'
+  | 'Saturday'
+  | 'Sunday';
+
+export interface TimeWindow {
+  id: string;
+  label: string;
+  startTime: string; // "HH:MM"
+  endTime: string;   // "HH:MM"
+  type: 'study' | 'school' | 'coaching' | 'travel' | 'unavailable';
+  days: DayOfWeek[];
+}
+
+export interface TimetableAvailabilityConfig {
+  preset: 'Morning Study' | 'Evening Study' | 'Full-Day Holiday Study' | 'Custom Schedule';
+  preferredDays: DayOfWeek[];
+  morningAvailable: boolean;
+  afternoonAvailable: boolean;
+  eveningAvailable: boolean;
+  nightAvailable: boolean;
+  studyStartTime: string;
+  studyEndTime: string;
+  schoolStartTime: string;
+  schoolEndTime: string;
+  hasSchoolHours: boolean;
+  coachingStartTime: string;
+  coachingEndTime: string;
+  hasCoachingHours: boolean;
+  travelMinutesPerDay: number;
+  customWindows: TimeWindow[];
+}
+
+export interface TimetableBreakPreferences {
+  sessionDurationMinutes: 25 | 30 | 45 | 60 | 90;
+  maxContinuousStudyMinutes: number;
+  shortBreakMinutes: number;
+  longBreakMinutes: number;
+  lunchBreakTime: string;
+  lunchBreakDuration: number;
+  dinnerBreakTime: string;
+  dinnerBreakDuration: number;
+  sleepStartTime: string;
+  sleepEndTime: string;
+  revisionFrequency: 'Daily' | 'Every 2 Days' | 'Weekly' | 'Weekends Only';
+  autoInsertBreaks: boolean;
+}
+
+export interface SubjectExamDateItem {
+  subject: string;
+  examDate: string;
+  chaptersToComplete: string;
+}
+
+export interface TimetableExamInfo {
+  examName: string;
+  examStartDate: string;
+  examEndDate: string;
+  revisionRequirements: string;
+  syllabusNotes: string;
+  subjectExams: SubjectExamDateItem[];
+}
+
+export type TimetableSessionType =
+  | 'Study'
+  | 'Revision'
+  | 'Practice'
+  | 'Break'
+  | 'Assessment';
+
+export type ReminderOffsetType = 'none' | 'at_time' | '5m' | '10m' | '15m' | 'custom';
+
+export interface SmartTimetableSession {
+  id: string;
+  day: DayOfWeek;
+  date?: string; // optional YYYY-MM-DD
+  startTime: string; // "HH:MM" 24h
+  endTime: string;   // "HH:MM" 24h
+  durationMinutes: number;
+  subject: string;
+  topic: string;
+  sessionType: TimetableSessionType;
+  color: string;
+  completed: boolean;
+  completedAt?: number;
+  notes?: string;
+  reminderOffset?: ReminderOffsetType;
+  customReminderMinutes?: number;
+  reminderId?: string;
+}
+
+export interface SmartTimetable {
+  id: string;
+  name: string;
+  gradeClass: string;
+  board: string;
+  planType: TimetablePlanType;
+  templateId?: string;
+  isActive: boolean;
+  isArchived: boolean;
+  subjects: TimetableSubjectConfig[];
+  availability: TimetableAvailabilityConfig;
+  breakPreferences: TimetableBreakPreferences;
+  examInfo: TimetableExamInfo;
+  sessions: SmartTimetableSession[];
+  aiAdvice?: string;
+  conflictWarning?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 

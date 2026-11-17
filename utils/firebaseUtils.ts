@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, collection, getDocs, increment, deleteDoc, query, where, serverTimestamp, onSnapshot, orderBy, limit, updateDoc, writeBatch, arrayUnion } from "firebase/firestore";
 import { db } from "../firebaseConfig";
-import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember, Friendship, DirectChat, DirectMessage, UserTimerState, StudySessionRecord } from "../types";
+import { UserProfile, HistoryItem, LeaderboardEntry, StudyGroup, GroupMessage, GroupMember, Friendship, DirectChat, DirectMessage, UserTimerState, StudySessionRecord, SmartTimetable } from "../types";
 
 
 export const saveProfileToFirestore = async (uid: string, profile: Partial<UserProfile>) => {
@@ -1680,4 +1680,66 @@ export const getStudySessionsFromFirestore = async (
   }
 };
 
+export const saveSmartTimetablesToFirestore = async (
+  uid: string | null,
+  timetables: SmartTimetable[]
+): Promise<boolean> => {
+  const storageKey = uid && uid !== "guest" ? `smart_timetables_${uid}` : "smart_timetables_guest";
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(timetables));
+  } catch (e) {
+    console.warn("Could not save smart timetables to localStorage:", e);
+  }
+  if (!uid || uid === "guest") return true;
+  try {
+    const docRef = doc(db, "users", uid, "smart_timetables", "all_timetables");
+    const sanitized = sanitizeForFirestore({
+      items: timetables,
+      updatedAt: Date.now(),
+    });
+    await setDoc(docRef, sanitized, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn("Error saving smart timetables to Firestore:", err);
+    return false;
+  }
+};
 
+export const getSmartTimetablesFromFirestore = async (
+  uid: string | null
+): Promise<SmartTimetable[]> => {
+  const storageKey = uid && uid !== "guest" ? `smart_timetables_${uid}` : "smart_timetables_guest";
+  let localList: SmartTimetable[] = [];
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) localList = parsed;
+    }
+  } catch (e) {
+    console.warn("Could not read smart timetables from localStorage:", e);
+  }
+  if (!uid || uid === "guest") return localList;
+  try {
+    const docRef = doc(db, "users", uid, "smart_timetables", "all_timetables");
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      if (Array.isArray(data?.items) && data.items.length > 0) {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(data.items));
+        } catch {
+          // ignore localStorage quota errors
+        }
+        return data.items as SmartTimetable[];
+      }
+    }
+    if (localList.length > 0) {
+      await saveSmartTimetablesToFirestore(uid, localList);
+    }
+    return localList;
+  } catch (err) {
+    console.warn("Error fetching smart timetables from Firestore:", err);
+    return localList;
+  }
+};

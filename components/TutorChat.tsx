@@ -239,6 +239,7 @@ interface ExtendedChatMessage extends ChatMessage {
   disliked?: boolean;
   suggestions?: string[];
   thinkingStepsFinished?: boolean;
+  isLoadingPractice?: boolean;
 }
 
 const TutorChat: React.FC<TutorChatProps> = (props) => {
@@ -310,7 +311,9 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
         text: m.text,
         images: m.images,
         timestamp: m.timestamp || Date.now(),
-        suggestions: m.suggestions
+        suggestions: m.suggestions,
+        practiceQuestions: m.practiceQuestions,
+        practiceAnswers: m.practiceAnswers,
       }));
     }
     if (activeSessionId && recentSessions && recentSessions.length > 0) {
@@ -323,6 +326,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
           images: m.images,
           timestamp: m.timestamp || Date.now(),
           suggestions: m.suggestions,
+          practiceQuestions: m.practiceQuestions,
+          practiceAnswers: m.practiceAnswers,
           liked: m.liked,
           disliked: m.disliked,
         }));
@@ -341,6 +346,8 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
             images: m.images,
             timestamp: m.timestamp || Date.now(),
             suggestions: m.suggestions,
+            practiceQuestions: m.practiceQuestions,
+            practiceAnswers: m.practiceAnswers,
             liked: m.liked,
             disliked: m.disliked,
           }));
@@ -1140,11 +1147,41 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
               text: accumulatedText,
               isStreaming: false, 
               suggestions: smartSuggestions,
-              thinkingStepsFinished: true
+              thinkingStepsFinished: true,
+              isLoadingPractice: true,
             };
           }
           return m;
         }));
+
+        // Generate topic-related multiple-choice practice questions and follow-up prompts in background
+        GeminiService.generateTutorTopicQuestions(textToSend, accumulatedText, subject, grade)
+          .then(({ practiceQuestions, followUpPrompts }) => {
+            setMessages(prev =>
+              prev.map(m => {
+                if (m.id === modelMessageId) {
+                  return {
+                    ...m,
+                    isLoadingPractice: false,
+                    practiceQuestions:
+                      practiceQuestions && practiceQuestions.length > 0
+                        ? practiceQuestions
+                        : m.practiceQuestions,
+                    suggestions:
+                      followUpPrompts && followUpPrompts.length > 0
+                        ? followUpPrompts
+                        : m.suggestions,
+                  };
+                }
+                return m;
+              })
+            );
+          })
+          .catch(() => {
+            setMessages(prev =>
+              prev.map(m => (m.id === modelMessageId ? { ...m, isLoadingPractice: false } : m))
+            );
+          });
       }
 
     } catch (err: any) {
@@ -1319,6 +1356,24 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       }
       return m;
     }));
+  };
+
+  // Handle selecting an answer option on an inline AI Tutor Topic Check question
+  const handleSelectPracticeOption = (messageId: string, questionIdx: number, optionIdx: number) => {
+    setMessages(prev =>
+      prev.map(m => {
+        if (m.id !== messageId) return m;
+        const currentAnswers = m.practiceAnswers || {};
+        if (currentAnswers[questionIdx] !== undefined) return m; // lock once answered
+        return {
+          ...m,
+          practiceAnswers: {
+            ...currentAnswers,
+            [questionIdx]: optionIdx,
+          },
+        };
+      })
+    );
   };
 
   // User Message Action: Edit Prompt
@@ -1819,6 +1874,121 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                     </div>
                   )}
 
+                  {/* Interactive Topic Check: Questions & Options related to the topic */}
+                  {msg.role === 'model' && !msg.isStreaming && (msg.isLoadingPractice || (msg.practiceQuestions && msg.practiceQuestions.length > 0)) && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.35 }}
+                      className="mt-3 rounded-2xl border border-indigo-200/80 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/60 dark:from-slate-900 dark:via-slate-900/95 dark:to-indigo-950/30 p-4 shadow-xs space-y-3.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-lg bg-gradient-to-r from-primary-500 via-indigo-600 to-primary-700 text-white flex items-center justify-center shadow-2xs">
+                            <BrainCircuit className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-black text-slate-800 dark:text-white tracking-tight">
+                              Topic Practice Questions
+                            </h4>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                              Test your understanding of this topic right away
+                            </p>
+                          </div>
+                        </div>
+                        {msg.isLoadingPractice && (
+                          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2.5 py-1 rounded-full">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Preparing topic questions...
+                          </span>
+                        )}
+                      </div>
+
+                      {msg.practiceQuestions && msg.practiceQuestions.length > 0 && (
+                        <div className="space-y-3">
+                          {msg.practiceQuestions.map((pq, qIdx) => {
+                            const selectedOpt = msg.practiceAnswers?.[qIdx];
+                            const isAnswered = selectedOpt !== undefined;
+                            return (
+                              <div
+                                key={qIdx}
+                                className="rounded-xl bg-white dark:bg-slate-950/80 border border-slate-200/80 dark:border-slate-800 p-3.5 space-y-2.5"
+                              >
+                                <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug">
+                                  <span className="text-indigo-600 dark:text-indigo-400 mr-1.5">Q{qIdx + 1}.</span>
+                                  {pq.question}
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {pq.options.map((optText, oIdx) => {
+                                    const isCorrectOpt = oIdx === pq.correctAnswerIndex;
+                                    const isChosenOpt = selectedOpt === oIdx;
+                                    let btnStyle =
+                                      'bg-slate-50 hover:bg-indigo-50/70 dark:bg-slate-900 dark:hover:bg-indigo-950/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-indigo-400';
+                                    if (isAnswered) {
+                                      if (isCorrectOpt) {
+                                        btnStyle =
+                                          'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-800 dark:text-emerald-200 font-bold';
+                                      } else if (isChosenOpt) {
+                                        btnStyle =
+                                          'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-800 dark:text-rose-200 font-bold';
+                                      } else {
+                                        btnStyle =
+                                          'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200/50 dark:border-slate-800/50 text-slate-400 opacity-65';
+                                      }
+                                    }
+                                    const optLetter = String.fromCharCode(65 + oIdx);
+                                    return (
+                                      <motion.button
+                                        key={oIdx}
+                                        type="button"
+                                        whileHover={!isAnswered ? { y: -1, scale: 1.01 } : undefined}
+                                        whileTap={!isAnswered ? { scale: 0.98 } : undefined}
+                                        disabled={isAnswered}
+                                        onClick={() => handleSelectPracticeOption(msg.id, qIdx, oIdx)}
+                                        className={`text-left px-3 py-2 rounded-xl border text-xs transition-all flex items-start gap-2 cursor-pointer disabled:cursor-default ${btnStyle}`}
+                                      >
+                                        <span className="w-5 h-5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">
+                                          {optLetter}
+                                        </span>
+                                        <span className="flex-1 leading-snug">{optText}</span>
+                                        {isAnswered && isCorrectOpt && (
+                                          <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                        )}
+                                        {isAnswered && isChosenOpt && !isCorrectOpt && (
+                                          <X className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                                        )}
+                                      </motion.button>
+                                    );
+                                  })}
+                                </div>
+
+                                <AnimatePresence>
+                                  {isAnswered && (
+                                    <motion.div
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: 'auto' }}
+                                      exit={{ opacity: 0, height: 0 }}
+                                      className={`rounded-lg px-3 py-2 text-[11px] leading-relaxed border ${
+                                        selectedOpt === pq.correctAnswerIndex
+                                          ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-200'
+                                          : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200'
+                                      }`}
+                                    >
+                                      <span className="font-black mr-1">
+                                        {selectedOpt === pq.correctAnswerIndex ? '✅ Correct!' : '💡 Explanation:'}
+                                      </span>
+                                      {pq.explanation}
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
                   {/* Suggestion tags block for student action queries */}
                   {msg.suggestions && msg.suggestions.length > 0 && !msg.isStreaming && (
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -1831,10 +2001,10 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
                           whileHover={{ y: -2, scale: 1.02 }}
                           whileTap={{ scale: 0.96 }}
                           onClick={() => sendMessageToAi(suggestion)}
-                          className="px-3 py-1 bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-xs font-bold text-slate-600 dark:text-slate-300 rounded-full transition shadow-xs flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1 bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-xs font-bold text-slate-600 dark:text-slate-300 rounded-full transition shadow-xs flex items-center gap-1 cursor-pointer group"
                         >
                           <span>{suggestion}</span>
-                          <ArrowUpRight className="w-3 h-3 text-slate-400" />
+                          <ArrowUpRight className="w-3 h-3 text-slate-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                         </motion.button>
                       ))}
                     </div>

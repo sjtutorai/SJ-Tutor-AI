@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
-import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate, HomeworkFile, DifficultyLevel } from "../types";
+import { StudyRequestData, QuizQuestion, TimetableEntry, NoteTemplate, HomeworkFile, DifficultyLevel, SmartTimetable, SmartTimetableSession, DayOfWeek, TimetableSessionType } from "../types";
 import { SettingsService } from "./settingsService";
 
 declare const __FALLBACK_GEMINI_KEYS__: string[] | undefined;
@@ -977,6 +977,329 @@ Generate notes based on:
         if (response.text) return safeParseJsonClient<TimetableEntry[]>(response.text);
         throw new Error("Failed to update timetable");
       });
+    }
+  },
+
+  /**
+   * Generates a complete, conflict-free AI Smart Timetable based on the 6-step wizard inputs.
+   */
+  generateSmartTimetable: async (
+    config: Omit<SmartTimetable, "id" | "sessions" | "createdAt" | "updatedAt" | "isActive" | "isArchived">
+  ): Promise<{ sessions: SmartTimetableSession[]; aiAdvice: string; conflictWarning?: string }> => {
+    const settings = SettingsService.getSettings();
+    const language = settings.learning.language || "English";
+
+    const subjectColorMap: Record<string, string> = {};
+    config.subjects.forEach((s) => {
+      subjectColorMap[s.name.toLowerCase().trim()] = s.color || "blue";
+    });
+
+    const parseTimeMins = (t: string): number => {
+      const m = String(t || "").match(/^(\d{1,2}):(\d{2})/);
+      if (!m) return 8 * 60;
+      const hh = Math.max(0, Math.min(23, parseInt(m[1], 10)));
+      const mm = Math.max(0, Math.min(59, parseInt(m[2], 10)));
+      return hh * 60 + mm;
+    };
+
+    const formatTimeMins = (mins: number): string => {
+      const clamped = Math.max(0, Math.min(23 * 60 + 55, Math.round(mins)));
+      const hh = Math.floor(clamped / 60);
+      const mm = clamped % 60;
+      return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    };
+
+    // Validate & resolve overlaps in AI-generated sessions
+    const validateAndSanitizeSessions = (rawSessions: any[]): SmartTimetableSession[] => {
+      const validDays: DayOfWeek[] = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ];
+      const allowedDays =
+        config.availability.preferredDays.length > 0
+          ? config.availability.preferredDays
+          : validDays;
+
+      const byDay: Record<string, SmartTimetableSession[]> = {};
+      allowedDays.forEach((d) => {
+        byDay[d] = [];
+      });
+
+      const defaultSubj = config.subjects[0]?.name || "General Study";
+
+      for (let i = 0; i < rawSessions.length; i++) {
+        const s = rawSessions[i];
+        if (!s || typeof s !== "object") continue;
+        const rawDay = String(s.day || "").trim() as DayOfWeek;
+        const day: DayOfWeek = allowedDays.includes(rawDay)
+          ? rawDay
+          : allowedDays[i % allowedDays.length];
+
+        const startMins = parseTimeMins(s.startTime || "16:00");
+        let dur = Number(s.durationMinutes) || config.breakPreferences.sessionDurationMinutes || 45;
+        dur = Math.max(10, Math.min(180, dur));
+        let endMins = s.endTime ? parseTimeMins(s.endTime) : startMins + dur;
+        if (endMins <= startMins) {
+          endMins = startMins + dur;
+        } else {
+          dur = endMins - startMins;
+        }
+
+        const rawType = String(s.sessionType || "Study").trim();
+        const validTypes: TimetableSessionType[] = ["Study", "Revision", "Practice", "Break", "Assessment"];
+        const sessionType: TimetableSessionType = validTypes.includes(rawType as TimetableSessionType)
+          ? (rawType as TimetableSessionType)
+          : "Study";
+
+        const subjectName =
+          sessionType === "Break"
+            ? "Break & Recharge"
+            : String(s.subject || defaultSubj).trim() || defaultSubj;
+
+        const matchedColor =
+          sessionType === "Break"
+            ? "amber"
+            : subjectColorMap[subjectName.toLowerCase()] ||
+              config.subjects.find((sub) =>
+                subjectName.toLowerCase().includes(sub.name.toLowerCase())
+              )?.color ||
+              "blue";
+
+        byDay[day] = byDay[day] || [];
+        byDay[day].push({
+          id: `st_sess_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
+          day,
+          startTime: formatTimeMins(startMins),
+          endTime: formatTimeMins(endMins),
+          durationMinutes: dur,
+          subject: subjectName,
+          topic: String(s.topic || (sessionType === "Break" ? "Short rest & hydration" : `${subjectName} Core Concepts`)).trim(),
+          sessionType,
+          color: matchedColor,
+          completed: false,
+          notes: s.notes ? String(s.notes) : "",
+          reminderOffset: "10m",
+        });
+      }
+
+      // Sort each day chronologically and shift any overlapping session so two sessions never overlap
+      const finalSessions: SmartTimetableSession[] = [];
+      for (const day of allowedDays) {
+        const dayList = (byDay[day] || []).sort(
+          (a, b) => parseTimeMins(a.startTime) - parseTimeMins(b.startTime)
+        );
+        let cursor = -1;
+        for (const sess of dayList) {
+          let sM = parseTimeMins(sess.startTime);
+          const dur = sess.durationMinutes;
+          if (cursor >= 0 && sM < cursor) {
+            sM = cursor + 5; // 5-minute buffer to prevent overlap
+          }
+          if (sM + dur > 23 * 60 + 30) continue; // skip if pushed past 23:30
+          const eM = sM + dur;
+          cursor = eM;
+          finalSessions.push({
+            ...sess,
+            startTime: formatTimeMins(sM),
+            endTime: formatTimeMins(eM),
+          });
+        }
+      }
+
+      return finalSessions;
+    };
+
+    const prompt = `You are SJ Tutor AI's Smart Timetable Architect. Create a realistic, conflict-free weekly study timetable in ${language} based strictly on this student profile:
+- Timetable Name: ${config.name}
+- Class / Grade: ${config.gradeClass} (${config.board})
+- Timetable Type: ${config.planType}
+- Subjects: ${JSON.stringify(config.subjects)}
+- Study Availability:
+  - Preferred Days: ${config.availability.preferredDays.join(", ")}
+  - Primary Study Window: ${config.availability.studyStartTime} to ${config.availability.studyEndTime}
+  - Periods Available: Morning=${config.availability.morningAvailable}, Afternoon=${config.availability.afternoonAvailable}, Evening=${config.availability.eveningAvailable}, Night=${config.availability.nightAvailable}
+  - School Hours (DO NOT SCHEDULE HERE): ${config.availability.hasSchoolHours ? `${config.availability.schoolStartTime} to ${config.availability.schoolEndTime} (Mon-Sat)` : "None"}
+  - Coaching/Tuition Hours (DO NOT SCHEDULE HERE): ${config.availability.hasCoachingHours ? `${config.availability.coachingStartTime} to ${config.availability.coachingEndTime}` : "None"}
+  - Daily Travel Buffer: ${config.availability.travelMinutesPerDay} mins
+- Break & Session Preferences:
+  - Preferred Session Duration: ${config.breakPreferences.sessionDurationMinutes} mins
+  - Max Continuous Study: ${config.breakPreferences.maxContinuousStudyMinutes} mins
+  - Short Break: ${config.breakPreferences.shortBreakMinutes} mins, Long Break: ${config.breakPreferences.longBreakMinutes} mins
+  - Sleep Schedule (DO NOT SCHEDULE HERE): ${config.breakPreferences.sleepStartTime} to ${config.breakPreferences.sleepEndTime}
+  - Revision Frequency: ${config.breakPreferences.revisionFrequency}
+  - Auto-Insert Breaks: ${config.breakPreferences.autoInsertBreaks}
+- Exam Info: ${JSON.stringify(config.examInfo)}
+
+STRICT SCHEDULING RULES:
+1. Never schedule two subjects at the same time.
+2. Never schedule during School Hours, Coaching Hours, or Sleep Schedule.
+3. Schedule sessions across all Preferred Days (${config.availability.preferredDays.join(", ")}).
+4. Give extra study and revision sessions to 'Difficult' subjects, 'Needs Improvement' confidence subjects, and 'High' priority subjects.
+5. Include 'Revision', 'Practice', and 'Break' sessions (if autoInsertBreaks is true).
+6. For each day in Preferred Days, generate 3 to 5 focused sessions (plus breaks) with specific chapter/topic names.
+7. Return JSON matching { aiAdvice: string, conflictWarning?: string, sessions: Array<{ day, startTime, endTime, durationMinutes, subject, topic, sessionType }> }.`;
+
+    return executeDirectGeminiFallback(async (ai, model) => {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          ...buildThinkingConfig(model),
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              aiAdvice: { type: Type.STRING },
+              conflictWarning: { type: Type.STRING },
+              sessions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    day: { type: Type.STRING },
+                    startTime: { type: Type.STRING },
+                    endTime: { type: Type.STRING },
+                    durationMinutes: { type: Type.INTEGER },
+                    subject: { type: Type.STRING },
+                    topic: { type: Type.STRING },
+                    sessionType: { type: Type.STRING },
+                  },
+                  required: ["day", "startTime", "endTime", "durationMinutes", "subject", "topic", "sessionType"],
+                },
+              },
+            },
+            required: ["aiAdvice", "sessions"],
+          },
+        },
+      });
+
+      if (!response.text) {
+        throw new Error("The AI did not return a timetable response. Please click Retry.");
+      }
+      const parsed = safeParseJsonClient<{
+        aiAdvice?: string;
+        conflictWarning?: string;
+        sessions?: any[];
+      }>(response.text);
+
+      const cleanSessions = validateAndSanitizeSessions(parsed.sessions || []);
+      if (cleanSessions.length === 0) {
+        throw new Error("The AI returned an empty schedule. Please adjust your availability window and retry.");
+      }
+
+      return {
+        sessions: cleanSessions,
+        aiAdvice:
+          parsed.aiAdvice ||
+          "Prioritize high-difficulty subjects during your peak focus hours and review key formulas before sleep.",
+        conflictWarning: parsed.conflictWarning || undefined,
+      };
+    });
+  },
+
+  /**
+   * Regenerates / improves an existing SmartTimetable with a specific optimization goal.
+   */
+  improveSmartTimetable: async (
+    current: SmartTimetable,
+    optimizationGoal: string
+  ): Promise<{ sessions: SmartTimetableSession[]; aiAdvice: string }> => {
+    const updatedConfig = {
+      name: current.name,
+      gradeClass: current.gradeClass,
+      board: current.board,
+      planType: current.planType,
+      templateId: current.templateId,
+      subjects: current.subjects,
+      availability: current.availability,
+      breakPreferences: current.breakPreferences,
+      examInfo: {
+        ...current.examInfo,
+        revisionRequirements: `${current.examInfo.revisionRequirements || ""} | Optimization Goal: ${optimizationGoal}`.trim(),
+      },
+    };
+    const res = await GeminiService.generateSmartTimetable(updatedConfig);
+    return {
+      sessions: res.sessions,
+      aiAdvice: res.aiAdvice,
+    };
+  },
+
+  /**
+   * Generates 2 interactive multiple-choice topic check questions + 4 topic-specific follow-up prompts
+   * for the AI Tutor chat based on the student's question and the AI's explanation.
+   */
+  generateTutorTopicQuestions: async (
+    userQuestion: string,
+    aiAnswer: string,
+    subject: string,
+    grade: string
+  ): Promise<{ practiceQuestions: QuizQuestion[]; followUpPrompts: string[] }> => {
+    const prompt = `Based on the student's question and the tutor's explanation below for ${grade} ${subject}, generate:
+1. Exactly 2 multiple-choice practice questions (4 options each, 0-based correctAnswerIndex, and a concise explanation) that test the exact concept discussed.
+2. Exactly 4 short, engaging follow-up questions the student can click to explore this topic deeper.
+
+Student Question: "${userQuestion.slice(0, 400)}"
+Tutor Explanation: "${aiAnswer.slice(0, 1200)}"`;
+
+    try {
+      return await executeDirectGeminiFallback(async (ai, model) => {
+        const response = await ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            ...buildThinkingConfig(model),
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                practiceQuestions: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      question: { type: Type.STRING },
+                      options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      correctAnswerIndex: { type: Type.INTEGER },
+                      explanation: { type: Type.STRING },
+                    },
+                    required: ["question", "options", "correctAnswerIndex", "explanation"],
+                  },
+                },
+                followUpPrompts: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                },
+              },
+              required: ["practiceQuestions", "followUpPrompts"],
+            },
+          },
+        });
+        if (!response.text) throw new Error("Empty tutor topic questions response");
+        const parsed = safeParseJsonClient<{
+          practiceQuestions?: any[];
+          followUpPrompts?: string[];
+        }>(response.text);
+        const validPractice = validateQuizQuestionsClient(parsed.practiceQuestions || [], 2);
+        const prompts = Array.isArray(parsed.followUpPrompts)
+          ? parsed.followUpPrompts.filter((p) => typeof p === "string" && p.trim().length > 0).slice(0, 4)
+          : [];
+        return {
+          practiceQuestions: validPractice,
+          followUpPrompts: prompts,
+        };
+      });
+    } catch (err) {
+      console.debug("[TutorTopicQuestions] Fallback notice:", err);
+      return {
+        practiceQuestions: [],
+        followUpPrompts: [],
+      };
     }
   },
 

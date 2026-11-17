@@ -256,7 +256,7 @@ export const CinematicLoginStage: React.FC<CinematicLoginStageProps> = ({
               filter: 'blur(8px)',
               transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
             }}
-            className="relative z-20 flex flex-col items-center justify-center text-center max-w-2xl px-4 select-none preserve-3d"
+            className="relative z-20 flex flex-col items-center justify-center text-center w-full max-w-6xl px-4 select-none preserve-3d"
           >
             {/* 3D Zoom Animation on SJ Tutor AI Logo */}
             <motion.div
@@ -273,10 +273,10 @@ export const CinematicLoginStage: React.FC<CinematicLoginStageProps> = ({
               </div>
             </motion.div>
 
-            {/* Letter-by-Letter "WELCOME TO SJ TUTOR AI" Animation */}
+            {/* Letter-by-Letter "WELCOME TO SJ TUTOR AI" Animation (Single Line) */}
             <h1
               aria-label={WELCOME_LINE}
-              className="text-2xl sm:text-4xl md:text-5xl font-black tracking-[0.14em] text-white flex flex-wrap justify-center gap-y-2 drop-shadow-[0_4px_24px_rgba(59,130,246,0.45)]"
+              className="text-base sm:text-3xl md:text-4xl lg:text-5xl font-black tracking-[0.08em] sm:tracking-[0.12em] text-white flex items-center justify-center whitespace-nowrap drop-shadow-[0_4px_24px_rgba(59,130,246,0.45)]"
             >
               {letters.map((char, index) => (
                 <motion.span
@@ -290,10 +290,10 @@ export const CinematicLoginStage: React.FC<CinematicLoginStageProps> = ({
                   }}
                   className={
                     char === ' '
-                      ? 'w-2.5 sm:w-3.5 inline-block'
+                      ? 'w-1.5 sm:w-3 md:w-3.5 inline-block shrink-0'
                       : index >= WELCOME_LINE.indexOf('SJ')
-                      ? 'inline-block text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-blue-400 to-violet-400'
-                      : 'inline-block text-white'
+                      ? 'inline-block shrink-0 text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-blue-400 to-violet-400'
+                      : 'inline-block shrink-0 text-white'
                   }
                 >
                   {char}
