@@ -1,5 +1,5 @@
-import { db } from "../firebaseConfig";
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db, isFirestoreOfflineError } from "../firebaseConfig";
+import { doc, getDoc, getDocFromCache, setDoc, serverTimestamp } from "firebase/firestore";
 import type { User } from "firebase/auth";
 
 /**
@@ -48,38 +48,49 @@ export const getMembershipByEmail = (email?: string | null) => {
  * @param initialData Optional initial profile data (e.g. language)
  */
 export const createUserProfile = async (user: User, initialData?: Partial<any>) => {
+  const membership = getMembershipByEmail(user.email);
+  const userRef = doc(db, "users", user.uid);
+  const newProfile = {
+    uid: user.uid,
+    name: user.displayName || initialData?.displayName || "",
+    displayName: user.displayName || initialData?.displayName || "",
+    email: user.email || "",
+    photoURL: user.photoURL || initialData?.photoURL || "",
+    provider: user.providerData[0]?.providerId || "password",
+    class: "",
+    language: initialData?.language || "English",
+    role: membership?.role || "student",
+    phoneNumber: user.phoneNumber || "",
+    hasCompletedOnboarding: membership ? true : false,
+    streak: 0,
+    totalStudyTime: 0,
+    points: 0,
+    credits: membership ? membership.credits : 100,
+    planType: membership ? membership.planType : "Free",
+    trialStartDate: Date.now(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    lastLoginAt: serverTimestamp(),
+    isActive: true,
+    ...initialData,
+  };
+
   try {
-    const membership = getMembershipByEmail(user.email);
-    const userRef = doc(db, "users", user.uid);
-    const newProfile = {
-      uid: user.uid,
-      name: user.displayName || initialData?.displayName || "",
-      displayName: user.displayName || initialData?.displayName || "",
-      email: user.email || "",
-      photoURL: user.photoURL || initialData?.photoURL || "",
-      provider: user.providerData[0]?.providerId || "password",
-      class: "",
-      language: initialData?.language || "English",
-      role: membership?.role || "student",
-      phoneNumber: user.phoneNumber || "",
-      hasCompletedOnboarding: membership ? true : false,
-      streak: 0,
-      totalStudyTime: 0,
-      points: 0,
-      credits: membership ? membership.credits : 100,
-      planType: membership ? membership.planType : "Free",
-      trialStartDate: Date.now(),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      lastLoginAt: serverTimestamp(),
-      isActive: true,
-      ...initialData,
-    };
-    await setDoc(userRef, newProfile);
+    localStorage.setItem(`profile_${user.uid}`, JSON.stringify(newProfile));
+  } catch (err) {
+    console.debug("Local profile cache write notice:", err);
+  }
+
+  try {
+    await setDoc(userRef, newProfile, { merge: true });
     return newProfile;
   } catch (error) {
-    console.error("Error creating user profile in Firestore:", error);
-    throw error;
+    if (isFirestoreOfflineError(error)) {
+      console.warn("Creating user profile deferred to offline cache:", (error as Error)?.message || error);
+      return newProfile;
+    }
+    console.warn("Error creating user profile in Firestore:", error);
+    return newProfile;
   }
 };
 
@@ -89,26 +100,36 @@ export const createUserProfile = async (user: User, initialData?: Partial<any>) 
  * @param data The data to update
  */
 export const updateUserProfile = async (uid: string, data: Partial<any>) => {
+  // Remove undefined values to avoid Firestore serialization errors
+  const cleaned = Object.fromEntries(
+    Object.entries(data).filter(([, v]) => v !== undefined)
+  );
+
+  // Keep local cache in sync immediately
+  try {
+    const currentRaw = localStorage.getItem(`profile_${uid}`);
+    const current = currentRaw ? JSON.parse(currentRaw) : {};
+    localStorage.setItem(`profile_${uid}`, JSON.stringify({ ...current, ...cleaned }));
+  } catch (err) {
+    console.debug("Local profile cache write notice:", err);
+  }
+
   try {
     const userRef = doc(db, "users", uid);
-    // Remove undefined values to avoid Firestore serialization errors
-    const cleaned = Object.fromEntries(
-      Object.entries(data).filter(([, v]) => v !== undefined)
+    await setDoc(
+      userRef,
+      {
+        ...cleaned,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
     );
-    await updateDoc(userRef, {
-      ...cleaned,
-      updatedAt: serverTimestamp()
-    });
-    // Keep local cache in sync
-    try {
-      const currentRaw = localStorage.getItem(`profile_${uid}`);
-      const current = currentRaw ? JSON.parse(currentRaw) : {};
-      localStorage.setItem(`profile_${uid}`, JSON.stringify({ ...current, ...cleaned }));
-    } catch (err) {
-      console.debug("Local profile cache write notice:", err);
-    }
   } catch (error) {
-    console.error("Error updating user profile in Firestore:", error);
+    if (isFirestoreOfflineError(error)) {
+      console.warn("Updating user profile deferred (offline mode):", (error as Error)?.message || error);
+      return;
+    }
+    console.warn("Error updating user profile in Firestore:", error);
     throw error;
   }
 };
@@ -133,12 +154,56 @@ export const getCurrentUserProfile = async (user: User) => {
 
   const membership = getMembershipByEmail(user.email);
 
+  const buildFallbackProfile = () => {
+    if (cachedProfile) {
+      return {
+        ...cachedProfile,
+        uid: user.uid,
+        email: cachedProfile.email || user.email || "",
+        displayName: cachedProfile.displayName || cachedProfile.name || user.displayName || "",
+        name: cachedProfile.name || cachedProfile.displayName || user.displayName || "",
+        photoURL: cachedProfile.photoURL || user.photoURL || "",
+      };
+    }
+    const synthesized = {
+      uid: user.uid,
+      name: user.displayName || "",
+      displayName: user.displayName || "",
+      email: user.email || "",
+      photoURL: user.photoURL || "",
+      credits: membership ? membership.credits : 100,
+      planType: membership ? membership.planType : "Free",
+      hasCompletedOnboarding: membership ? true : false,
+      role: membership?.role || "student",
+      trialStartDate: Date.now(),
+    };
+    try {
+      localStorage.setItem(`profile_${user.uid}`, JSON.stringify(synthesized));
+    } catch {
+      // Ignore storage quota issues
+    }
+    return synthesized;
+  };
+
   const fetchProfileFromDb = async () => {
     try {
       const userRef = doc(db, "users", user.uid);
-      const docSnap = await getDoc(userRef);
+      let docSnap;
+      try {
+        docSnap = await getDoc(userRef);
+      } catch (readErr) {
+        if (isFirestoreOfflineError(readErr)) {
+          try {
+            docSnap = await getDocFromCache(userRef);
+          } catch {
+            return buildFallbackProfile();
+          }
+        } else {
+          throw readErr;
+        }
+      }
 
-      if (docSnap.exists()) {
+      if (docSnap && docSnap.exists()) {
         const data = docSnap.data();
         const trialStartDate = data.trialStartDate || Date.now();
         const planType = membership 
@@ -171,11 +236,11 @@ export const getCurrentUserProfile = async (user: User) => {
           const cleanedPayload = Object.fromEntries(
             Object.entries(updatePayload).filter(([, v]) => v !== undefined)
           );
-          updateDoc(userRef, cleanedPayload).catch((err) => {
-            console.warn("Background update login info warning:", err);
+          setDoc(userRef, cleanedPayload, { merge: true }).catch((err) => {
+            console.debug("Background update login info notice:", err);
           });
         } catch (updateError) {
-          console.warn("Error preparing user login update:", updateError);
+          console.debug("Error preparing user login update:", updateError);
         }
 
         const fullProfile = {
@@ -215,21 +280,12 @@ export const getCurrentUserProfile = async (user: User) => {
         return res;
       }
     } catch (error) {
-      console.error("Error getting user profile from Firestore:", error);
-      if (cachedProfile) {
-        return cachedProfile;
+      if (isFirestoreOfflineError(error)) {
+        console.warn("User profile loaded from local cache (client is offline).");
+      } else {
+        console.warn("Could not fetch user profile from Firestore, using local cache:", error);
       }
-      return {
-        uid: user.uid,
-        name: user.displayName || "",
-        displayName: user.displayName || "",
-        email: user.email || "",
-        photoURL: user.photoURL || "",
-        credits: membership ? membership.credits : 100,
-        planType: membership ? membership.planType : "Free",
-        hasCompletedOnboarding: membership ? true : false,
-        role: membership?.role || "student",
-      };
+      return buildFallbackProfile();
     }
   };
 
@@ -247,3 +303,4 @@ export const getCurrentUserProfile = async (user: User) => {
   // Otherwise wait for Firestore to respond
   return fetchProfileFromDb();
 };
+

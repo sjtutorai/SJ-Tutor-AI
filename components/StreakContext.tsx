@@ -12,7 +12,7 @@ import {
   getDocs,
   Timestamp 
 } from 'firebase/firestore';
-import { auth, db } from '../firebaseConfig';
+import { auth, db, isFirestoreOfflineError } from '../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
 export interface StreakMilestone {
@@ -216,6 +216,10 @@ interface FirestoreErrorInfo {
 }
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  if (isFirestoreOfflineError(error)) {
+    console.warn(`Firestore Streak operation (${operationType} on ${path}) deferred while offline.`);
+    return;
+  }
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -232,8 +236,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     operationType,
     path
   };
-  console.error('Firestore Streak Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.warn('Firestore Streak Notice: ', JSON.stringify(errInfo));
 }
 
 export const getLocalDateString = (d: Date = new Date()): string => {

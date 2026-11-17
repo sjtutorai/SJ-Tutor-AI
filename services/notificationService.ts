@@ -598,7 +598,7 @@ export class NotificationService {
           this.saveLocalNotifications(finalized);
           onChange(finalized);
         }).catch(err => {
-          console.error("Global notifications fetch fail:", err);
+          console.warn("Global notifications fetch fallback:", err);
           // Fallback to direct and seeded only
           const allSeeds = DEFAULT_NOTIFICATIONS.map((n, idx) => sanitizeAppNotification(n, `seed-${idx}`));
           const map = new Map<string, AppNotification>();
@@ -608,7 +608,7 @@ export class NotificationService {
           onChange(Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt));
         });
       }, (err) => {
-        console.error("Direct notifications sync error:", err);
+        console.warn("Direct notifications sync notice:", err);
       });
 
       return () => {
@@ -616,7 +616,7 @@ export class NotificationService {
         navigator.serviceWorker?.removeEventListener('message', messageHandler);
       };
     } catch (e) {
-      console.error("Firestore sync subscription boot failed:", e);
+      console.warn("Firestore sync subscription boot fallback:", e);
       return () => {
         navigator.serviceWorker?.removeEventListener('message', messageHandler);
       };
@@ -662,7 +662,7 @@ export class NotificationService {
         await updateDoc(docRef, { read: true });
       }
     } catch (e) {
-      console.error("Failed updating read status in Firestore, falls back to local:", e);
+      console.warn("Failed updating read status in Firestore, falls back to local:", e);
     }
   }
 
@@ -735,7 +735,7 @@ export class NotificationService {
         return true;
       }
     } catch (e) {
-      console.error("Database notification insert failed:", e);
+      console.warn("Database notification insert fallback:", e);
       
       // Local simulation fallback
       const list = this.getLocalNotifications();
@@ -774,7 +774,7 @@ export class NotificationService {
         await deleteDoc(docRef);
       }
     } catch (e) {
-      console.error("Failed to delete from Firestore:", e);
+      console.warn("Failed to delete from Firestore:", e);
     }
   }
 
@@ -803,7 +803,7 @@ export class NotificationService {
       );
       await Promise.all(promises);
     } catch (e) {
-      console.error("Failed to bulk mark as read:", e);
+      console.warn("Failed to bulk mark as read:", e);
     }
   }
 }

@@ -3,7 +3,7 @@ import {
   collection, query, addDoc, doc, updateDoc, limit, orderBy, onSnapshot, 
   arrayUnion, setDoc, writeBatch, getDocs, deleteDoc 
 } from 'firebase/firestore';
-import { auth, db, getFCM } from '../firebaseConfig';
+import { auth, db, getFCM, isFirestoreOfflineError } from '../firebaseConfig';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { getToken, onMessage } from 'firebase/messaging';
 import { motion, AnimatePresence } from 'motion/react';
@@ -58,6 +58,10 @@ interface FirestoreErrorInfo {
 }
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  if (isFirestoreOfflineError(error)) {
+    console.warn(`Firestore Notification operation (${operationType} on ${path}) deferred while offline.`);
+    return;
+  }
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -75,9 +79,8 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   };
   if (process.env.NODE_ENV === 'development') {
-    console.error('Firestore Error details: ', JSON.stringify(errInfo));
+    console.warn('Firestore Notification Notice: ', JSON.stringify(errInfo));
   }
-  throw new Error(JSON.stringify(errInfo));
 }
 
 interface NotificationContextProps {
