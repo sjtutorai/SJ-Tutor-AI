@@ -109,6 +109,11 @@ export interface UserProfile {
   learningStyle?: 'Visual' | 'Auditory' | 'Reading/Writing' | 'Kinesthetic';
   credits: number;
   planType?: 'Free' | 'Starter' | 'Scholar' | 'Achiever';
+  provider?: string;
+  planActivatedAt?: number;
+  planExpiryDate?: number;
+  planDurationLabel?: string;
+  isGoogleFreeYear?: boolean;
   phoneVerified?: boolean;
   registrationNumber?: string;
   dob?: string;

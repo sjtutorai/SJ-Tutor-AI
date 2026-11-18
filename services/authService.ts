@@ -28,7 +28,11 @@ import {
   appleProvider,
   yahooProvider,
 } from "../firebaseConfig";
-import { getMembershipByEmail } from "../utils/userService";
+import {
+  getMembershipByEmail,
+  resolveGoogleOneYearPremiumPlan,
+  ONE_YEAR_MS,
+} from "../utils/userService";
 import { SecurityPinService } from "./securityPinService";
 import type { AuthProviderType } from "../types";
 
@@ -220,8 +224,62 @@ export async function handleSocialAuth(
 
     // ----------------------------------------------------
     // CASE B: User is in LOGIN mode, but account does NOT exist!
+    // For Google Login, automatically provision account with 1-Year Free Achiever Plan!
     // ----------------------------------------------------
     if (mode === "signin" && !isRegistered) {
+      if (providerType === "google") {
+        const now = Date.now();
+        const generatedId = generateSjTutorId();
+        const autoGoogleProfile = {
+          uid: currentUser.uid,
+          sjTutorId: generatedId,
+          registrationNumber: generatedId,
+          displayName: currentUser.displayName || "Google Scholar",
+          name: currentUser.displayName || "Google Scholar",
+          email: (currentUser.email || "").toLowerCase(),
+          photoURL: currentUser.photoURL || "",
+          provider: "google.com",
+          linkedProviders: ["google"],
+          institution: "SJ Tutor AI Academy",
+          grade: "10th Grade",
+          classGrade: "10th Grade",
+          board: "CBSE",
+          credits: 99999,
+          planType: "Achiever" as const,
+          planActivatedAt: now,
+          planExpiryDate: now + ONE_YEAR_MS,
+          planDurationLabel: "1 Year Free (Google Login Offer)",
+          isGoogleFreeYear: true,
+          hasCompletedOnboarding: true,
+          isRegisteredInFirestore: true,
+          trialStartDate: now,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          lastLoginAt: serverTimestamp(),
+        };
+        try {
+          await setDoc(userDocRef, autoGoogleProfile, { merge: true });
+          await setDoc(doc(db, "sj_tutor_ids", generatedId), {
+            sjTutorId: generatedId,
+            userId: currentUser.uid,
+            displayName: autoGoogleProfile.displayName,
+            email: autoGoogleProfile.email,
+            twoStepEnabled: false,
+            createdAt: now,
+            updatedAt: now,
+          });
+          localStorage.setItem(`profile_${currentUser.uid}`, JSON.stringify(autoGoogleProfile));
+        } catch (autoErr) {
+          console.warn("Google auto-provision notice:", autoErr);
+        }
+        return {
+          status: "SUCCESS",
+          sjTutorId: generatedId,
+          user: { ...currentUser, ...autoGoogleProfile },
+          message: "Welcome! Your Google account unlocked the Achiever Premium Plan free for 1 year!",
+        };
+      }
+
       console.warn(`[AUTH] Account not found for ${providerType} (${currentUser.email || currentUser.uid})`);
       await signOut(auth);
       return {
@@ -252,10 +310,39 @@ export async function handleSocialAuth(
     // CASE D: User is in LOGIN mode and account EXISTS -> Authenticate
     // ----------------------------------------------------
     const profileData = userDocSnap.data() || {};
+    const googleOffer =
+      providerType === "google"
+        ? resolveGoogleOneYearPremiumPlan(currentUser, {
+            ...profileData,
+            provider: "google.com",
+          })
+        : resolveGoogleOneYearPremiumPlan(currentUser, profileData);
+
+    const upgradedFields = googleOffer
+      ? {
+          planType: googleOffer.planType,
+          credits: Math.max(googleOffer.credits, Number(profileData.credits) || 0),
+          planActivatedAt: googleOffer.planActivatedAt,
+          planExpiryDate: googleOffer.planExpiryDate,
+          planDurationLabel: googleOffer.planDurationLabel,
+          isGoogleFreeYear: true,
+          provider: profileData.provider || "google.com",
+          hasCompletedOnboarding: true,
+        }
+      : {};
+
+    if (googleOffer) {
+      setDoc(userDocRef, { ...upgradedFields, updatedAt: serverTimestamp() }, { merge: true }).catch(
+        () => {}
+      );
+    }
+
     return {
       status: "SUCCESS",
-      user: { ...currentUser, ...profileData },
-      message: "Welcome back to SJ Tutor AI!",
+      user: { ...currentUser, ...profileData, ...upgradedFields },
+      message: googleOffer
+        ? "Welcome back! Your 1-Year Free Achiever Premium Plan is active."
+        : "Welcome back to SJ Tutor AI!",
     };
   } catch (error: any) {
     const errorCode = error?.code || "";
@@ -557,6 +644,21 @@ export async function createAccountAndGenerateSjTutorId(params: {
     }
 
     const finalUid = data.user?.uid || authUid || `sjta_${generatedId.toLowerCase()}`;
+    const membership = getMembershipByEmail(email);
+    const googleOffer = resolveGoogleOneYearPremiumPlan(auth.currentUser, {
+      provider,
+      email,
+    });
+    const finalPlanType = membership
+      ? membership.planType
+      : googleOffer
+      ? googleOffer.planType
+      : "Free";
+    const finalCredits = membership
+      ? membership.credits
+      : googleOffer
+      ? googleOffer.credits
+      : 100;
 
     // Sync to Firestore for real-time app queries
     try {
@@ -570,6 +672,8 @@ export async function createAccountAndGenerateSjTutorId(params: {
           lastName: params.lastName,
           username: params.username,
           email,
+          provider,
+          linkedProviders: [provider],
           phoneNumber: params.phoneNumber || "",
           institution: params.institution || "",
           grade: classGrade,
@@ -588,8 +692,16 @@ export async function createAccountAndGenerateSjTutorId(params: {
           learningStyle: (params.learningPreferences || []).join(", "),
           learningPreferences: params.learningPreferences || [],
           preferredLanguage,
-          credits: 100,
-          planType: "Free",
+          credits: finalCredits,
+          planType: finalPlanType,
+          ...(googleOffer
+            ? {
+                planActivatedAt: googleOffer.planActivatedAt,
+                planExpiryDate: googleOffer.planExpiryDate,
+                planDurationLabel: googleOffer.planDurationLabel,
+                isGoogleFreeYear: true,
+              }
+            : {}),
           hasCompletedOnboarding: true,
           twoFactorEnabled: true,
           createdAt: serverTimestamp(),
@@ -619,8 +731,20 @@ export async function createAccountAndGenerateSjTutorId(params: {
         ...data.user,
         uid: finalUid,
         sjTutorId: generatedId,
+        planType: finalPlanType,
+        credits: finalCredits,
+        ...(googleOffer
+          ? {
+              planActivatedAt: googleOffer.planActivatedAt,
+              planExpiryDate: googleOffer.planExpiryDate,
+              planDurationLabel: googleOffer.planDurationLabel,
+              isGoogleFreeYear: true,
+            }
+          : {}),
       },
-      message: "Your SJ Tutor AI account has been successfully created!",
+      message: googleOffer
+        ? "Account created! Your 1-Year Free Achiever Premium Plan is now active!"
+        : "Your SJ Tutor AI account has been successfully created!",
     };
   } catch (error: any) {
     console.error("Error creating account and generating ID:", error);

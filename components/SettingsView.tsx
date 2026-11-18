@@ -1760,13 +1760,23 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
                      <div className="relative z-10">
                         <div className="flex items-center gap-3 mb-2">
                            <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm"><Crown className="w-5 h-5 text-amber-400" /></div>
-                           <span className="font-bold text-amber-400 tracking-wider text-sm uppercase">Current Plan</span>
+                           <span className="font-bold text-amber-400 tracking-wider text-sm uppercase">
+                              {userProfile.isGoogleFreeYear ? 'Current Plan • Google 1-Year Free Offer' : 'Current Plan'}
+                           </span>
                         </div>
                         <h2 className="text-3xl font-bold mb-1">
-                           {isPro ? `${userProfile.planType} Plan` : isTrialActive ? '10-Day Free Trial' : 'Free Tier (100 Credits)'}
+                           {userProfile.isGoogleFreeYear && userProfile.planType === 'Achiever'
+                             ? 'Achiever Plan (1 Year Free)'
+                             : isPro
+                             ? `${userProfile.planType} Plan`
+                             : isTrialActive
+                             ? '10-Day Free Trial'
+                             : 'Free Tier (100 Credits)'}
                         </h2>
                         <p className="text-slate-400 text-sm mb-6">
-                           {isPro 
+                           {userProfile.isGoogleFreeYear && userProfile.planType === 'Achiever'
+                             ? `Unlocked via Google Login — Most Featured Achiever Plan free for 1 full year (${trialInfo.daysLeft} days remaining). Unlimited AI generations, Turbo Speed & 24/7 Priority Support.`
+                             : isPro 
                              ? 'Unlimited access to all AI models and advanced learning tools.' 
                              : isTrialActive 
                              ? 'Complete free unlimited access to all AI models for 10 days, followed by 100 Free Credits.' 

@@ -484,7 +484,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({
                <div className="flex justify-between text-sm mb-2">
                  <span className="text-slate-500">Plan</span>
                  <span className="font-semibold px-2 py-0.5 rounded text-xs text-primary-600 bg-primary-50">
-                    {formData.planType && formData.planType !== 'Free'
+                    {formData.isGoogleFreeYear && formData.planType === 'Achiever'
+                      ? `Achiever Plan (1 Yr Free • ${calculateTrialInfo(formData).daysLeft}d left)`
+                      : formData.planType && formData.planType !== 'Free'
                       ? `${formData.planType} Plan`
                       : !calculateTrialInfo(formData).isExpired
                       ? "10-Day Free Trial"

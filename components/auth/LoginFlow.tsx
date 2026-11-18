@@ -454,16 +454,24 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
           </div>
 
           <div className="space-y-3">
-            <motion.button
-              whileHover={{ y: -2, scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleSocialLogin('google')}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-slate-800 rounded-xl font-semibold hover:bg-slate-100 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-            >
-              <GoogleIcon className="w-5 h-5" />
-              <span>Continue with Google</span>
-            </motion.button>
+            <div className="space-y-1.5">
+              <motion.button
+                whileHover={{ y: -2, scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleSocialLogin('google')}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white text-slate-800 rounded-xl font-semibold hover:bg-slate-100 transition-colors shadow-sm disabled:opacity-50 cursor-pointer relative overflow-hidden"
+              >
+                <GoogleIcon className="w-5 h-5" />
+                <span>Continue with Google</span>
+                <span className="ml-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-sm">
+                  1 Yr Achiever Free
+                </span>
+              </motion.button>
+              <p className="text-[11px] text-center font-semibold text-amber-300/95">
+                🎁 Login with Google to unlock our Most Featured Achiever Plan FREE for 1 Year
+              </p>
+            </div>
 
             <button
               onClick={() => handleSocialLogin('apple')}
@@ -985,15 +993,23 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => handleSocialLogin('google')}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 rounded-xl font-semibold text-sm transition-all shadow-sm hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-55 cursor-pointer"
-            >
-              <GoogleIcon className="w-5 h-5" />
-              <span>Continue with Google</span>
-            </button>
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={() => handleSocialLogin('google')}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-3 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 rounded-xl font-semibold text-sm transition-all shadow-sm hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-55 cursor-pointer"
+              >
+                <GoogleIcon className="w-5 h-5" />
+                <span>Continue with Google</span>
+                <span className="ml-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-sm">
+                  1 Yr Achiever Free
+                </span>
+              </button>
+              <p className="text-[11px] text-center font-semibold text-amber-300/95">
+                🎁 Login with Google to get the Most Featured Achiever Plan FREE for 1 Year
+              </p>
+            </div>
           </motion.div>
 
           {/* Sequential Field 6: Other Existing Sign-In Options (Apple, Yahoo, GitHub, ID Card, SJ Tutor ID) */}

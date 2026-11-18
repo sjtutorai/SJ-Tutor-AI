@@ -23,18 +23,29 @@ export function calculateTrialInfo(userProfile?: UserProfile, uid?: string): Tri
     userProfile.planType !== 'Free'
   );
 
+  const now = Date.now();
+  const oneYearMs = 365 * 24 * 60 * 60 * 1000;
+  const startDate = userProfile?.planActivatedAt || userProfile?.trialStartDate || now;
+  const endDate = userProfile?.planExpiryDate || (isPro ? startDate + oneYearMs : now);
+  const remainingMs = Math.max(0, endDate - now);
+  const days = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+  const percentRemaining = Math.min(100, Math.max(0, Math.round((remainingMs / oneYearMs) * 100)));
+
   return {
-    trialStartDate: Date.now(),
-    trialEndDate: Date.now(),
-    remainingMs: 0,
-    days: 0,
-    hours: 0,
-    minutes: 0,
-    seconds: 0,
-    isExpired: true,
+    trialStartDate: startDate,
+    trialEndDate: endDate,
+    remainingMs,
+    days,
+    hours,
+    minutes,
+    seconds,
+    isExpired: !isPro && remainingMs <= 0,
     isPro,
-    percentRemaining: 0,
-    formattedTime: "0d",
+    percentRemaining,
+    formattedTime: `${days}d`,
   };
 }
 
@@ -51,6 +62,7 @@ export const TrialHeaderBadge: React.FC<TrialHeaderBadgeProps> = ({
   const [showModal, setShowModal] = useState(false);
   const credits = userProfile?.credits ?? 100;
   const isPro = Boolean(userProfile?.planType && userProfile.planType !== 'Free');
+  const trialInfo = calculateTrialInfo(userProfile);
 
   // Color dynamics based on credit level
   const isLow = credits < 15;
@@ -105,7 +117,14 @@ export const TrialHeaderBadge: React.FC<TrialHeaderBadgeProps> = ({
                 <span className="text-sm font-semibold text-slate-300 ml-1.5">Credits Available</span>
               </div>
 
-              <p className="text-xs text-slate-300 max-w-xs mx-auto">
+              {userProfile?.isGoogleFreeYear && (
+                <div className="mt-2 mb-1 inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[11px] font-bold">
+                  <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                  <span>Achiever Plan Free for 1 Year ({trialInfo.days}d left)</span>
+                </div>
+              )}
+
+              <p className="text-xs text-slate-300 max-w-xs mx-auto mt-1">
                 Credits are deducted as you use AI features. Keep your streak active to earn free bonus credits daily!
               </p>
             </div>

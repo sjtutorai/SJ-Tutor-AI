@@ -80,7 +80,11 @@ import { SEOService } from "./services/seoService";
 import { parseCurrentRoute, syncBrowserUrl } from "./utils/routeUtils";
 import { db, auth } from "./firebaseConfig";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
-import { getCurrentUserProfile, getMembershipByEmail } from "./utils/userService";
+import {
+  getCurrentUserProfile,
+  getMembershipByEmail,
+  resolveGoogleOneYearPremiumPlan,
+} from "./utils/userService";
 import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo, } from "firebase/auth";
 import type { User } from "firebase/auth";
 import {
@@ -1417,11 +1421,16 @@ const App: React.FC = () => {
             if (docSnap.exists()) {
               const fsData = docSnap.data();
               const membership = getMembershipByEmail(fsData.email || userEmail);
+              const googleOffer = resolveGoogleOneYearPremiumPlan(auth.currentUser, fsData);
               const credits = membership
                 ? Math.max(membership.credits, fsData.credits || membership.credits)
+                : googleOffer
+                ? Math.max(googleOffer.credits, fsData.credits || googleOffer.credits)
                 : (fsData.credits ?? 100);
               const planType = membership
                 ? membership.planType
+                : googleOffer
+                ? googleOffer.planType
                 : (fsData.planType || "Free");
 
               const fullProfile: UserProfile = {
@@ -1429,6 +1438,14 @@ const App: React.FC = () => {
                 ...fsData,
                 credits,
                 planType,
+                ...(googleOffer
+                  ? {
+                      planActivatedAt: googleOffer.planActivatedAt,
+                      planExpiryDate: googleOffer.planExpiryDate,
+                      planDurationLabel: googleOffer.planDurationLabel,
+                      isGoogleFreeYear: true,
+                    }
+                  : {}),
                 trialStartDate: fsData.trialStartDate || Date.now(),
                 uid: targetUid,
                 name: fsData.displayName || fsData.name || "Scholar",
@@ -1436,7 +1453,7 @@ const App: React.FC = () => {
                 email: fsData.email || userEmail || "",
                 photoURL: fsData.photoURL || "",
                 isRegisteredInFirestore: true,
-                hasCompletedOnboarding: membership ? true : (fsData.hasCompletedOnboarding ?? true),
+                hasCompletedOnboarding: membership || googleOffer ? true : (fsData.hasCompletedOnboarding ?? true),
                 securityPin: fsData.securityPin || "",
                 securityPinLength: fsData.securityPinLength || 4,
                 pinLockEnabled: !!fsData.pinLockEnabled,
@@ -1458,11 +1475,26 @@ const App: React.FC = () => {
                 };
               });
 
-              // Ensure upgraded membership (e.g. Achiever for sadanandj2011@gmail.com) is persisted to Firestore
+              // Ensure upgraded membership or Google 1-Year Free Achiever Plan is persisted to Firestore
               if (membership && (fsData.planType !== membership.planType || (fsData.credits ?? 0) < membership.credits)) {
                 saveProfileToFirestore(targetUid, {
                   planType: membership.planType,
                   credits,
+                  hasCompletedOnboarding: true,
+                }).catch(() => {});
+              } else if (
+                googleOffer &&
+                (fsData.planType !== googleOffer.planType ||
+                  (fsData.credits ?? 0) < googleOffer.credits ||
+                  !fsData.isGoogleFreeYear)
+              ) {
+                saveProfileToFirestore(targetUid, {
+                  planType: googleOffer.planType,
+                  credits,
+                  planActivatedAt: googleOffer.planActivatedAt,
+                  planExpiryDate: googleOffer.planExpiryDate,
+                  planDurationLabel: googleOffer.planDurationLabel,
+                  isGoogleFreeYear: true,
                   hasCompletedOnboarding: true,
                 }).catch(() => {});
               }

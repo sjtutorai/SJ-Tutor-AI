@@ -12,7 +12,7 @@ interface PremiumModalProps {
 }
 
 const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }) => {
-  const [selectedPlan, setSelectedPlan] = useState<'STARTER' | 'SCHOLAR' | 'ACHIEVER'>('SCHOLAR');
+  const [selectedPlan, setSelectedPlan] = useState<'STARTER' | 'SCHOLAR' | 'ACHIEVER'>('ACHIEVER');
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [copiedUid, setCopiedUid] = useState(false);
   const [trial, setTrial] = useState<TrialInfo>(() => calculateTrialInfo(userProfile, uid));
@@ -70,7 +70,7 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
       price: 499,
       creditAmount: 99999,
       generations: 'Unlimited Generations',
-      features: ['Unlimited Generations', '24/7 Priority Support', 'Turbo Speed', 'All Future AI Features', 'Lifetime Access'],
+      features: ['Unlimited Generations (99,999 Cr)', '24/7 Priority Support', 'Turbo Speed', 'All Future AI Features', 'Free for 1 Year with Google Login'],
       color: 'bg-purple-50/70 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700 text-purple-950 dark:text-purple-100',
       btnColor: 'bg-purple-600 hover:bg-purple-700'
     }
@@ -121,11 +121,35 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
               <h2 className="text-2xl font-black text-slate-800 dark:text-white">Upgrade Your Plan</h2>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              Select your preferred plan and complete manual payment verification.
+              Log in with Google for 1 Year FREE of our Most Featured Achiever Plan, or upgrade manually below.
             </p>
 
-            {/* Trial Status Callout */}
-            {!trial.isPro && (
+            {/* Google 1-Year Free Achiever Plan Active Callout */}
+            {userProfile?.planType === 'Achiever' ? (
+              <div className="mt-4 p-3.5 bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 text-white rounded-2xl border border-amber-400/40 shadow-md flex items-center justify-between gap-3 text-left">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-400/20 text-amber-300 rounded-xl">
+                    <Crown className="w-4 h-4 fill-amber-300" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 block">
+                      {userProfile?.isGoogleFreeYear
+                        ? 'Google Login Offer • 1 Year Free Active'
+                        : 'Most Featured Plan Active'}
+                    </span>
+                    <span className="text-xs font-mono font-extrabold text-white">
+                      Achiever Plan • {trial.days > 0 ? `${trial.days} Days Remaining` : 'Unlimited Access'}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-slate-300 block">Credits</span>
+                  <span className="text-xs font-extrabold text-emerald-400">
+                    {userProfile?.credits ?? 99999} Cr
+                  </span>
+                </div>
+              </div>
+            ) : (
               <div className="mt-4 p-3 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl border border-indigo-500/30 shadow-sm flex items-center justify-between gap-3 text-left">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
@@ -133,17 +157,17 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
-                      {trial.isExpired ? '10-Day Trial Concluded' : '10-Day Free Trial Active'}
+                      Google Login Special Offer
                     </span>
-                    <span className="text-xs font-mono font-extrabold text-white">
-                      {trial.isExpired ? '100 Free Credits Active' : `${trial.days}d ${trial.hours}h ${trial.minutes}m Remaining`}
+                    <span className="text-xs font-extrabold text-white">
+                      Sign in with Google to get the Achiever Plan FREE for 1 Year!
                     </span>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <span className="text-[10px] font-bold text-slate-300 block">Status</span>
                   <span className="text-xs font-extrabold text-amber-300">
-                    {trial.isExpired ? `${userProfile?.credits ?? 100} Credits` : 'Unlimited'}
+                    {userProfile?.credits ?? 100} Credits
                   </span>
                 </div>
               </div>
@@ -166,12 +190,21 @@ const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, userProfile, uid }
                   }`}
                 >
                   <div className="flex justify-between items-center mb-1.5">
-                    <h3 className="font-bold text-base flex items-center gap-2 text-slate-900 dark:text-white">
-                      {key === 'ACHIEVER' && <Sparkles className="w-4 h-4 text-purple-500 fill-purple-500" />}
-                      {plan.name}
-                    </h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-base flex items-center gap-2 text-slate-900 dark:text-white">
+                        {key === 'ACHIEVER' && <Sparkles className="w-4 h-4 text-purple-500 fill-purple-500" />}
+                        {plan.name}
+                      </h3>
+                      {key === 'ACHIEVER' && (
+                        <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-xs">
+                          {userProfile?.planType === 'Achiever' ? 'Active • 1 Year Free' : 'Most Featured • Free 1 Yr with Google'}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xl font-black text-slate-900 dark:text-white">₹{plan.price}</span>
+                      <span className="text-xl font-black text-slate-900 dark:text-white">
+                        {key === 'ACHIEVER' && userProfile?.isGoogleFreeYear ? 'FREE (1 Yr)' : `₹${plan.price}`}
+                      </span>
                       {isSelected ? (
                         <div className="bg-primary-600 text-white rounded-full p-1 shadow-xs">
                           <Check className="w-3.5 h-3.5" />

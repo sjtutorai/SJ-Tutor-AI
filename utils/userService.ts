@@ -2,6 +2,76 @@ import { db, isFirestoreOfflineError } from "../firebaseConfig";
 import { doc, getDoc, getDocFromCache, setDoc, serverTimestamp } from "firebase/firestore";
 import type { User } from "firebase/auth";
 
+export const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000; // 1 Year (365 days) in milliseconds
+
+/**
+ * Checks whether a Firebase User or Firestore profile belongs to a Google account login
+ */
+export const isGoogleUserAccount = (
+  user?: Partial<User> | null,
+  profileData?: Record<string, any> | null
+): boolean => {
+  if (user?.providerData && Array.isArray(user.providerData)) {
+    if (
+      user.providerData.some(
+        (p) => p?.providerId === "google.com" || p?.providerId === "google"
+      )
+    ) {
+      return true;
+    }
+  }
+  const provider = String(
+    profileData?.provider || (user as any)?.provider || ""
+  ).toLowerCase();
+  if (provider === "google" || provider === "google.com") {
+    return true;
+  }
+  if (Array.isArray(profileData?.linkedProviders)) {
+    if (
+      profileData.linkedProviders.some(
+        (p: string) =>
+          String(p).toLowerCase() === "google" ||
+          String(p).toLowerCase() === "google.com"
+      )
+    ) {
+      return true;
+    }
+  }
+  if (profileData?.isGoogleFreeYear) {
+    return true;
+  }
+  return false;
+};
+
+/**
+ * Resolves the 1-Year Free Achiever (Most Featured) Premium Plan for Google login users
+ */
+export const resolveGoogleOneYearPremiumPlan = (
+  user?: Partial<User> | null,
+  profileData?: Record<string, any> | null
+) => {
+  if (!isGoogleUserAccount(user, profileData)) {
+    return null;
+  }
+  const now = Date.now();
+  const planActivatedAt = Number(profileData?.planActivatedAt) || now;
+  const planExpiryDate =
+    Number(profileData?.planExpiryDate) || planActivatedAt + ONE_YEAR_MS;
+
+  if (now < planExpiryDate) {
+    return {
+      planType: "Achiever" as const,
+      credits: Math.max(99999, Number(profileData?.credits) || 99999),
+      planActivatedAt,
+      planExpiryDate,
+      planDurationLabel: "1 Year Free (Google Login Offer)",
+      isGoogleFreeYear: true,
+      hasCompletedOnboarding: true,
+    };
+  }
+  return null;
+};
+
 /**
  * Helper to get predefined membership & credits by email
  */
@@ -49,25 +119,47 @@ export const getMembershipByEmail = (email?: string | null) => {
  */
 export const createUserProfile = async (user: User, initialData?: Partial<any>) => {
   const membership = getMembershipByEmail(user.email);
+  const googleOffer = resolveGoogleOneYearPremiumPlan(user, initialData);
   const userRef = doc(db, "users", user.uid);
+  const now = Date.now();
+  const providerId = user.providerData[0]?.providerId || initialData?.provider || "password";
+  const isGoogle = providerId === "google.com" || providerId === "google" || Boolean(googleOffer);
+
   const newProfile = {
     uid: user.uid,
     name: user.displayName || initialData?.displayName || "",
     displayName: user.displayName || initialData?.displayName || "",
     email: user.email || "",
     photoURL: user.photoURL || initialData?.photoURL || "",
-    provider: user.providerData[0]?.providerId || "password",
+    provider: providerId,
+    linkedProviders: isGoogle ? ["google"] : [providerId],
     class: "",
     language: initialData?.language || "English",
     role: membership?.role || "student",
     phoneNumber: user.phoneNumber || "",
-    hasCompletedOnboarding: membership ? true : false,
+    hasCompletedOnboarding: membership || googleOffer ? true : false,
     streak: 0,
     totalStudyTime: 0,
     points: 0,
-    credits: membership ? membership.credits : 100,
-    planType: membership ? membership.planType : "Free",
-    trialStartDate: Date.now(),
+    credits: membership
+      ? membership.credits
+      : googleOffer
+      ? googleOffer.credits
+      : 100,
+    planType: membership
+      ? membership.planType
+      : googleOffer
+      ? googleOffer.planType
+      : "Free",
+    ...(googleOffer
+      ? {
+          planActivatedAt: googleOffer.planActivatedAt,
+          planExpiryDate: googleOffer.planExpiryDate,
+          planDurationLabel: googleOffer.planDurationLabel,
+          isGoogleFreeYear: true,
+        }
+      : {}),
+    trialStartDate: now,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     lastLoginAt: serverTimestamp(),
@@ -153,6 +245,7 @@ export const getCurrentUserProfile = async (user: User) => {
   }
 
   const membership = getMembershipByEmail(user.email);
+  const googleOffer = resolveGoogleOneYearPremiumPlan(user, cachedProfile);
 
   const buildFallbackProfile = () => {
     if (cachedProfile) {
@@ -163,6 +256,16 @@ export const getCurrentUserProfile = async (user: User) => {
         displayName: cachedProfile.displayName || cachedProfile.name || user.displayName || "",
         name: cachedProfile.name || cachedProfile.displayName || user.displayName || "",
         photoURL: cachedProfile.photoURL || user.photoURL || "",
+        ...(googleOffer
+          ? {
+              planType: googleOffer.planType,
+              credits: Math.max(googleOffer.credits, cachedProfile.credits || 0),
+              planActivatedAt: googleOffer.planActivatedAt,
+              planExpiryDate: googleOffer.planExpiryDate,
+              planDurationLabel: googleOffer.planDurationLabel,
+              isGoogleFreeYear: true,
+            }
+          : {}),
       };
     }
     const synthesized = {
@@ -171,9 +274,25 @@ export const getCurrentUserProfile = async (user: User) => {
       displayName: user.displayName || "",
       email: user.email || "",
       photoURL: user.photoURL || "",
-      credits: membership ? membership.credits : 100,
-      planType: membership ? membership.planType : "Free",
-      hasCompletedOnboarding: membership ? true : false,
+      credits: membership
+        ? membership.credits
+        : googleOffer
+        ? googleOffer.credits
+        : 100,
+      planType: membership
+        ? membership.planType
+        : googleOffer
+        ? googleOffer.planType
+        : "Free",
+      ...(googleOffer
+        ? {
+            planActivatedAt: googleOffer.planActivatedAt,
+            planExpiryDate: googleOffer.planExpiryDate,
+            planDurationLabel: googleOffer.planDurationLabel,
+            isGoogleFreeYear: true,
+          }
+        : {}),
+      hasCompletedOnboarding: membership || googleOffer ? true : false,
       role: membership?.role || "student",
       trialStartDate: Date.now(),
     };
@@ -205,12 +324,17 @@ export const getCurrentUserProfile = async (user: User) => {
 
       if (docSnap && docSnap.exists()) {
         const data = docSnap.data();
+        const activeGoogleOffer = resolveGoogleOneYearPremiumPlan(user, data);
         const trialStartDate = data.trialStartDate || Date.now();
         const planType = membership 
           ? membership.planType 
+          : activeGoogleOffer
+          ? activeGoogleOffer.planType
           : (data.planType || "Free");
         const credits = membership 
           ? Math.max(membership.credits, data.credits || membership.credits) 
+          : activeGoogleOffer
+          ? Math.max(activeGoogleOffer.credits, data.credits || activeGoogleOffer.credits)
           : (data.credits ?? 100);
 
         // Background update login info without blocking profile return
@@ -227,6 +351,15 @@ export const getCurrentUserProfile = async (user: User) => {
             updatePayload.planType = membership.planType;
             updatePayload.credits = credits;
             if (membership.role) updatePayload.role = membership.role;
+            updatePayload.hasCompletedOnboarding = true;
+          } else if (activeGoogleOffer) {
+            updatePayload.planType = activeGoogleOffer.planType;
+            updatePayload.credits = credits;
+            updatePayload.planActivatedAt = activeGoogleOffer.planActivatedAt;
+            updatePayload.planExpiryDate = activeGoogleOffer.planExpiryDate;
+            updatePayload.planDurationLabel = activeGoogleOffer.planDurationLabel;
+            updatePayload.isGoogleFreeYear = true;
+            updatePayload.provider = data.provider || "google.com";
             updatePayload.hasCompletedOnboarding = true;
           }
           if (!data.trialStartDate) {
@@ -247,6 +380,14 @@ export const getCurrentUserProfile = async (user: User) => {
           ...data,
           planType,
           credits,
+          ...(activeGoogleOffer
+            ? {
+                planActivatedAt: activeGoogleOffer.planActivatedAt,
+                planExpiryDate: activeGoogleOffer.planExpiryDate,
+                planDurationLabel: activeGoogleOffer.planDurationLabel,
+                isGoogleFreeYear: true,
+              }
+            : {}),
           trialStartDate,
           uid: user.uid,
           name: data.displayName || data.name || user.displayName || "",
@@ -254,7 +395,7 @@ export const getCurrentUserProfile = async (user: User) => {
           email: data.email || user.email || "",
           photoURL: data.photoURL || user.photoURL || "",
           isRegisteredInFirestore: true,
-          hasCompletedOnboarding: membership ? true : (data.hasCompletedOnboarding ?? true),
+          hasCompletedOnboarding: membership || activeGoogleOffer ? true : (data.hasCompletedOnboarding ?? true),
         };
 
         // Cache the complete, hydrated profile
@@ -270,7 +411,7 @@ export const getCurrentUserProfile = async (user: User) => {
         const newProfile = await createUserProfile(user);
         const res = {
           ...newProfile,
-          isRegisteredInFirestore: false,
+          isRegisteredInFirestore: Boolean(googleOffer),
         };
         try {
           localStorage.setItem(`profile_${user.uid}`, JSON.stringify(res));
@@ -294,7 +435,7 @@ export const getCurrentUserProfile = async (user: User) => {
   if (cachedProfile && (cachedProfile.displayName || cachedProfile.class || cachedProfile.sjTutorId)) {
     const timeoutFallback = new Promise<any>((resolve) => {
       setTimeout(() => {
-        resolve(cachedProfile);
+        resolve(buildFallbackProfile());
       }, 2500);
     });
     return Promise.race([fetchProfileFromDb(), timeoutFallback]);

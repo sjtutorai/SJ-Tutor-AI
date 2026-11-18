@@ -442,14 +442,22 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({
 
           {/* Social Auth Options */}
           <div className="space-y-3">
-            <button
-              onClick={() => handleSocialSignUp('google')}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors shadow-sm disabled:opacity-50"
-            >
-              <GoogleIcon className="w-5 h-5" />
-              <span>Continue with Google</span>
-            </button>
+            <div className="space-y-1.5">
+              <button
+                onClick={() => handleSocialSignUp('google')}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors shadow-sm disabled:opacity-50"
+              >
+                <GoogleIcon className="w-5 h-5" />
+                <span>Continue with Google</span>
+                <span className="ml-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-extrabold uppercase tracking-wider shadow-sm">
+                  1 Yr Achiever Free
+                </span>
+              </button>
+              <p className="text-[11px] text-center font-semibold text-amber-600 dark:text-amber-400">
+                🎁 Sign in with Google to get the Most Featured Achiever Plan FREE for 1 Year
+              </p>
+            </div>
 
             <button
               onClick={() => handleSocialSignUp('apple')}
