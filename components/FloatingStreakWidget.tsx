@@ -31,10 +31,12 @@ import {
 } from './StreakContext';
 import { 
   STREAK_TIERS, 
+  StreakTier,
   getStreakTier, 
   getStreakTierProgress, 
   StreakTierIcon, 
-  StreakBadgePill 
+  StreakBadgePill,
+  AnimatedStreakLevelCrest
 } from './StreakTierBadge';
 import { UserProfile } from '../types';
 
@@ -56,6 +58,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'weekly' | 'tiers' | 'roadmap' | 'calendar' | 'leaderboard' | 'guide'>('weekly');
+  const [previewBoardTierId, setPreviewBoardTierId] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [claimStatusMsg, setClaimStatusMsg] = useState<string | null>(null);
@@ -200,6 +203,12 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
 
   // Active streak tier and progress
   const userTier = useMemo(() => getStreakTier(currentStreak), [currentStreak]);
+  const activeBoardTier: StreakTier = useMemo(() => {
+    if (previewBoardTierId) {
+      return STREAK_TIERS.find((t) => t.id === previewBoardTierId) || userTier;
+    }
+    return userTier;
+  }, [previewBoardTierId, userTier]);
   const tierProgress = useMemo(() => getStreakTierProgress(currentStreak), [currentStreak]);
   const nextMilestone = useMemo(
     () => STREAK_MILESTONES.find((m) => currentStreak < m.days) || null,
@@ -625,32 +634,48 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
               className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[92vh] flex flex-col"
             >
               {/* Header Hero Banner with Dynamic Tier Gradient */}
-              <div className={`relative p-5 sm:p-6 bg-gradient-to-br ${userTier.gradient} text-white overflow-hidden shrink-0`}>
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/15 rounded-full blur-3xl pointer-events-none" />
+              <div className={`relative p-5 sm:p-6 bg-gradient-to-br ${activeBoardTier.gradient} text-white overflow-hidden shrink-0 transition-all duration-500`}>
+                <motion.div
+                  animate={{ rotate: 360, scale: [1, 1.08, 1] }}
+                  transition={{ duration: 22, repeat: Infinity, ease: 'linear' }}
+                  className="absolute -top-16 -right-16 w-64 h-64 bg-white/15 rounded-full blur-3xl pointer-events-none"
+                />
                 <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-black/15 rounded-full blur-2xl pointer-events-none" />
 
                 <div className="relative flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3.5">
-                    <div className="relative w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center shadow-inner">
-                      <StreakTierIcon tier={userTier} size="xl" animate={true} className="text-white fill-white/80 drop-shadow-md" />
-                    </div>
+                    <AnimatedStreakLevelCrest
+                      tier={activeBoardTier}
+                      size="md"
+                      isUnlocked={currentStreak >= activeBoardTier.minDays}
+                      isCurrent={activeBoardTier.id === userTier.id}
+                    />
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="text-2xl sm:text-3xl font-black tracking-tight font-mono">
-                          {userTier.emoji} {currentStreak} Day Streak
+                        <h2 className="text-2xl sm:text-3xl font-black tracking-tight font-mono tabular-nums">
+                          {activeBoardTier.emoji} {currentStreak} Day Streak
                         </h2>
                         {isStudiedToday && (
                           <span className="px-2 py-0.5 bg-emerald-500/90 text-white text-[11px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1 shadow-xs">
                             <CheckCircle2 className="w-3 h-3" /> Done Today
                           </span>
                         )}
+                        {activeBoardTier.id !== userTier.id && (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewBoardTierId(null)}
+                            className="px-2 py-0.5 bg-slate-950/75 hover:bg-slate-950 text-amber-300 text-[10px] font-extrabold rounded-md uppercase tracking-wider cursor-pointer"
+                          >
+                            Previewing {activeBoardTier.levelLabel} • Reset
+                          </button>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="px-2 py-0.5 bg-black/20 text-white rounded-md text-xs font-black tracking-wider uppercase backdrop-blur-xs">
-                          {userTier.name}
+                        <span className="px-2 py-0.5 bg-black/25 text-white rounded-md text-xs font-black tracking-wider uppercase backdrop-blur-xs">
+                          {activeBoardTier.boardTitle}
                         </span>
                         <span className="text-xs text-white/90 font-medium">
-                          {userTier.title} • Tier {userTier.tierRank} of {STREAK_TIERS.length}
+                          {activeBoardTier.title} • Level {activeBoardTier.tierRank} of {STREAK_TIERS.length}
                         </span>
                       </div>
                     </div>
@@ -797,7 +822,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                   }`}
                 >
                   <Crown className="w-4 h-4" />
-                  <span>Streak Icons ({userTier.name})</span>
+                  <span>9 Board Levels ({userTier.levelLabel})</span>
                 </button>
                 <button
                   onClick={() => setActiveTab('roadmap')}
@@ -850,69 +875,114 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                 {/* TAB 1: WEEKLY VIEW & STATS */}
                 {activeTab === 'weekly' && (
                   <div className="space-y-5">
-                    {/* Active Streak Tier Highlight Card */}
+                    {/* Active Streak Tier Highlight Card + Interactive 9-Level Selector */}
                     <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 text-white border border-slate-700 shadow-md">
                       <div className="flex items-center justify-between gap-3 mb-3">
                         <div className="flex items-center gap-3">
-                          <div className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${userTier.gradient} flex items-center justify-center shadow-md`}>
-                            <StreakTierIcon tier={userTier} size="lg" animate={true} className="text-white fill-white/80" />
-                          </div>
+                          <AnimatedStreakLevelCrest
+                            tier={activeBoardTier}
+                            size="sm"
+                            isUnlocked={currentStreak >= activeBoardTier.minDays}
+                            isCurrent={activeBoardTier.id === userTier.id}
+                          />
                           <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-base font-black tracking-tight">{userTier.emoji} {userTier.name} Tier</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-base font-black tracking-tight">
+                                {activeBoardTier.emoji} {activeBoardTier.boardTitle}
+                              </span>
                               <span className="px-2 py-0.5 bg-white/20 text-white text-[10px] font-black uppercase rounded">
-                                Rank {userTier.tierRank}/9
+                                Level {activeBoardTier.tierRank}/9
                               </span>
                             </div>
                             <p className="text-xs text-slate-300 font-medium mt-0.5">
-                              {userTier.title} • {userTier.perk}
+                              {activeBoardTier.title} • {activeBoardTier.perk}
                             </p>
                           </div>
                         </div>
 
                         <button
                           onClick={() => setActiveTab('tiers')}
-                          className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0"
+                          className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer"
                         >
-                          <span>All Tiers</span>
+                          <span>All 9 Levels</span>
                           <ChevronRight className="w-3.5 h-3.5" />
                         </button>
+                      </div>
+
+                      {/* Quick 9-Level Study Streak Board Switcher */}
+                      <div className="grid grid-cols-9 gap-1 my-3">
+                        {STREAK_TIERS.map((t) => {
+                          const unlocked = currentStreak >= t.minDays;
+                          const selected = activeBoardTier.id === t.id;
+                          return (
+                            <motion.button
+                              key={t.id}
+                              type="button"
+                              whileHover={{ y: -2, scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() =>
+                                setPreviewBoardTierId(t.id === userTier.id ? null : t.id)
+                              }
+                              className={`py-1.5 px-1 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center ${
+                                selected
+                                  ? `bg-gradient-to-b ${t.gradient} text-white border-white shadow-md`
+                                  : unlocked
+                                  ? 'bg-slate-800/90 border-slate-600 text-white hover:border-amber-400'
+                                  : 'bg-slate-900/60 border-slate-800 text-slate-400 opacity-75 hover:opacity-100'
+                              }`}
+                              title={`Preview ${t.boardTitle} (${t.minDays}+ Days)`}
+                            >
+                              <span className="text-xs leading-none">{t.emoji}</span>
+                              <span className="text-[9px] font-mono font-extrabold mt-0.5">
+                                L{t.tierRank}
+                              </span>
+                            </motion.button>
+                          );
+                        })}
                       </div>
 
                       {/* Tier progress bar */}
                       <div className="space-y-1.5 pt-2 border-t border-white/10">
                         <div className="flex justify-between items-center text-[11px] font-semibold text-slate-300">
-                          <span>Progress to Next Icon:</span>
+                          <span>Progress to Next Study Streak Board Level:</span>
                           <span className="font-mono text-yellow-400">
-                            {tierProgress.nextTier ? `${tierProgress.daysToNext} days to ${tierProgress.nextTier.name}` : 'Maximum Tier Mastered!'}
+                            {tierProgress.nextTier
+                              ? `${tierProgress.daysToNext} days to ${tierProgress.nextTier.levelLabel} (${tierProgress.nextTier.name})`
+                              : 'Maximum Level 9 Mastered!'}
                           </span>
                         </div>
                         <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full bg-gradient-to-r ${userTier.gradient} rounded-full transition-all duration-500`}
-                            style={{ width: `${tierProgress.percentage}%` }}
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${tierProgress.percentage}%` }}
+                            transition={{ duration: 0.65 }}
+                            className={`h-full bg-gradient-to-r ${activeBoardTier.gradient} rounded-full`}
                           />
                         </div>
                       </div>
                     </div>
 
-                    {/* Weekly Calendar View */}
+                    {/* Animated Weekly Study Streak Board View */}
                     <div className="bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                           <CalendarIcon className="w-4 h-4 text-amber-500" />
-                          <span>This Week&apos;s Learning Schedule</span>
+                          <span>Weekly Study Streak Board ({activeBoardTier.levelLabel})</span>
                         </h3>
                         <span className="text-xs text-slate-500 font-medium">Mon – Sun</span>
                       </div>
 
                       <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                        {currentWeek.map((day) => (
-                          <div
-                            key={day.dateStr}
+                        {currentWeek.map((day, idx) => (
+                          <motion.div
+                            key={`${day.dateStr}-${activeBoardTier.id}`}
+                            initial={{ opacity: 0, y: 12, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            transition={{ duration: 0.35, delay: idx * 0.04 }}
+                            whileHover={{ y: -3, scale: 1.03 }}
                             className={`flex flex-col items-center justify-between p-2.5 sm:p-3 rounded-xl border text-center transition-all ${
                               day.completed
-                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300 shadow-xs'
+                                ? `bg-gradient-to-b ${activeBoardTier.gradient} text-white border-white/40 shadow-md`
                                 : day.isToday
                                 ? 'bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 text-amber-800 dark:text-amber-200 font-bold'
                                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
@@ -921,17 +991,30 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                             <span className="text-xs font-bold uppercase">{day.dayName}</span>
                             <div className="my-1.5">
                               {day.completed ? (
-                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white font-bold text-sm shadow-xs">
-                                  ✓
-                                </span>
+                                <motion.span
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: [0, 1.25, 1] }}
+                                  transition={{ duration: 0.4, delay: idx * 0.05 }}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/25 text-white font-bold text-sm shadow-xs"
+                                >
+                                  {activeBoardTier.emoji}
+                                </motion.span>
                               ) : (
-                                <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-base font-bold ${day.isToday ? 'border-2 border-dashed border-amber-400 text-amber-500' : 'text-slate-300 dark:text-slate-600'}`}>
+                                <span
+                                  className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-base font-bold ${
+                                    day.isToday
+                                      ? 'border-2 border-dashed border-amber-400 text-amber-500'
+                                      : 'text-slate-300 dark:text-slate-600'
+                                  }`}
+                                >
                                   ○
                                 </span>
                               )}
                             </div>
-                            <span className="text-[10px] font-medium opacity-80">{day.shortDate.split(' ')[1]}</span>
-                          </div>
+                            <span className="text-[10px] font-medium opacity-85">
+                              {day.shortDate.split(' ')[1]}
+                            </span>
+                          </motion.div>
                         ))}
                       </div>
                     </div>
@@ -1056,80 +1139,95 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                   </div>
                 )}
 
-                {/* TAB 2: STREAK ICON TIERS ROADMAP */}
+                {/* TAB 2: 9 STUDY STREAK BOARD LEVELS ROADMAP */}
                 {activeTab === 'tiers' && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                           <Crown className="w-4 h-4 text-amber-500" />
-                          <span>Streak Icon Progression Tiers</span>
+                          <span>9 Study Streak Board Levels &amp; Animated Crests</span>
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          As your daily streak grows, your floating badge transforms into rare dynamic icon forms!
+                          Click any level card below to preview its animated Study Streak Board theme and crest!
                         </p>
                       </div>
-                      <StreakBadgePill streakCount={currentStreak} size="sm" />
+                      <StreakBadgePill streakCount={currentStreak} size="sm" showTitle={true} />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {STREAK_TIERS.map((tier) => {
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {STREAK_TIERS.map((tier, idx) => {
                         const isCurrent = userTier.id === tier.id;
+                        const isPreviewing = activeBoardTier.id === tier.id;
                         const isUnlocked = currentStreak >= tier.minDays;
-                        const daysRemaining = tier.minDays - currentStreak;
+                        const daysRemaining = Math.max(0, tier.minDays - currentStreak);
 
                         return (
-                          <div
+                          <motion.div
                             key={tier.id}
-                            className={`relative p-4 rounded-2xl border transition-all ${
-                              isCurrent
-                                ? `bg-gradient-to-br ${tier.lightBg} border-2 ${tier.borderColor} shadow-md ring-2 ${tier.ringColor}`
+                            initial={{ opacity: 0, y: 14 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.35, delay: idx * 0.04 }}
+                            whileHover={{ y: -3 }}
+                            onClick={() =>
+                              setPreviewBoardTierId(tier.id === userTier.id ? null : tier.id)
+                            }
+                            className={`relative p-4 rounded-2xl border-2 transition-all cursor-pointer overflow-hidden ${
+                              isPreviewing
+                                ? `bg-gradient-to-br ${tier.boardBgGradient} ${tier.boardCardBorder} shadow-lg`
                                 : isUnlocked
-                                ? 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700'
-                                : 'bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/70 opacity-75'
+                                ? 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-amber-400'
+                                : 'bg-slate-50/70 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800/70 opacity-80 hover:opacity-100'
                             }`}
                           >
-                            {/* Current Badge Tag */}
-                            {isCurrent && (
-                              <div className="absolute top-3 right-3 px-2 py-0.5 bg-amber-500 text-white font-black text-[10px] rounded-full uppercase tracking-wider shadow-xs">
-                                Active Tier
-                              </div>
-                            )}
+                            {/* Current / Preview Badge Tag */}
+                            <div className="absolute top-3 right-3 flex items-center gap-1">
+                              {isCurrent && (
+                                <span className="px-2 py-0.5 bg-amber-500 text-white font-black text-[10px] rounded-full uppercase tracking-wider shadow-xs">
+                                  Active Level
+                                </span>
+                              )}
+                              {isPreviewing && !isCurrent && (
+                                <span className="px-2 py-0.5 bg-slate-900 text-amber-300 font-black text-[10px] rounded-full uppercase tracking-wider shadow-xs">
+                                  Previewing
+                                </span>
+                              )}
+                            </div>
 
-                            <div className="flex items-start gap-3">
-                              <div className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${tier.gradient} flex items-center justify-center text-white shadow-sm shrink-0`}>
-                                <StreakTierIcon tier={tier} size="lg" animate={isCurrent} />
-                              </div>
+                            <div className="flex items-start gap-3.5">
+                              <AnimatedStreakLevelCrest
+                                tier={tier}
+                                size="sm"
+                                isUnlocked={isUnlocked}
+                                isCurrent={isCurrent}
+                              />
 
                               <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-sm text-slate-900 dark:text-white">
-                                    {tier.emoji} {tier.name}
-                                  </span>
-                                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                                    ({tier.minDays === 0 ? '0-2' : tier.minDays === 365 ? '365+' : `${tier.minDays}+`} Days)
+                                <div className="flex items-center gap-1.5 flex-wrap pr-16">
+                                  <span className="font-extrabold text-sm text-slate-900 dark:text-white">
+                                    {tier.emoji} {tier.boardTitle}
                                   </span>
                                 </div>
                                 <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-0.5">
-                                  {tier.title}
+                                  {tier.title} ({tier.minDays === 0 ? '0–2' : tier.maxDays ? `${tier.minDays}–${tier.maxDays}` : '365+'} Days)
                                 </p>
                                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                                   {tier.description}
                                 </p>
-                                <div className="mt-2 text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                  <Sparkles className="w-3 h-3" />
-                                  <span>{tier.perk}</span>
+                                <div className="mt-2 text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 shrink-0" />
+                                  <span>{tier.perk} • {tier.creditBonusLabel}</span>
                                 </div>
 
                                 {/* Status Footer */}
                                 <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
                                   {isCurrent ? (
                                     <span className="font-bold text-amber-600 dark:text-amber-400">
-                                      Currently Equipped
+                                      Currently Equipped Board
                                     </span>
                                   ) : isUnlocked ? (
                                     <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                      <CheckCircle2 className="w-3 h-3" /> Unlocked
+                                      <CheckCircle2 className="w-3 h-3" /> Unlocked • Click to Preview
                                     </span>
                                   ) : (
                                     <span className="font-bold text-slate-400 flex items-center gap-1">
@@ -1137,13 +1235,13 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
                                     </span>
                                   )}
 
-                                  <span className="text-slate-400 text-[10px] uppercase font-mono">
-                                    Tier {tier.tierRank}
+                                  <span className="text-slate-400 text-[10px] uppercase font-mono font-bold">
+                                    Level {tier.tierRank}/9
                                   </span>
                                 </div>
                               </div>
                             </div>
-                          </div>
+                          </motion.div>
                         );
                       })}
                     </div>

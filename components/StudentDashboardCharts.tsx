@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Flame,
   Target,
@@ -14,14 +14,28 @@ import {
   Clock,
   ChevronRight,
   Award,
+  Crown,
+  Lock,
+  Layers,
+  X,
+  Zap,
+  Trophy,
+  RotateCcw,
 } from 'lucide-react';
 import { AppMode, HistoryItem, UserProfile } from '../types';
 import {
   useStreak,
   getLocalDateString,
   get24HourStreakProgress,
+  STREAK_MILESTONES,
 } from './StreakContext';
-import { getStreakTier } from './StreakTierBadge';
+import {
+  STREAK_TIERS,
+  StreakTier,
+  getStreakTier,
+  getStreakTierProgress,
+  AnimatedStreakLevelCrest,
+} from './StreakTierBadge';
 import { SettingsService } from '../services/settingsService';
 
 interface DailyGoalItem {
@@ -67,7 +81,7 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
   onNavigateMode,
   onQuickSubjectStudy,
 }) => {
-  const { streak } = useStreak();
+  const { streak, claimMilestone } = useStreak();
   const todayStr = getLocalDateString(new Date());
   const settings = SettingsService.getSettings();
   const dailyGoalMins = settings.learning.dailyGoalMins || 30;
@@ -78,6 +92,11 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
     streak.currentStreak || 0,
     userProfile.streak || 0,
     userProfile.currentStreak || 0
+  );
+  const highestStreak = Math.max(
+    streak.highestStreak || 0,
+    userProfile.highestStreak || 0,
+    currentStreak
   );
   const [animatedStreakCount, setAnimatedStreakCount] = useState(0);
 
@@ -101,7 +120,23 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
   }, [currentStreak]);
 
   const userTier = useMemo(() => getStreakTier(currentStreak), [currentStreak]);
+  const tierProgress = useMemo(() => getStreakTierProgress(currentStreak), [currentStreak]);
   const cycleProgress = useMemo(() => get24HourStreakProgress(streak), [streak]);
+
+  // Interactive Study Streak Board Level Preview State
+  const [previewTierId, setPreviewTierId] = useState<string | null>(null);
+  const [showBoardLevelsModal, setShowBoardLevelsModal] = useState(false);
+  const [claimFeedback, setClaimFeedback] = useState<string | null>(null);
+
+  const displayedTier: StreakTier = useMemo(() => {
+    if (previewTierId) {
+      return STREAK_TIERS.find((t) => t.id === previewTierId) || userTier;
+    }
+    return userTier;
+  }, [previewTierId, userTier]);
+
+  const isPreviewingOtherLevel = displayedTier.id !== userTier.id;
+  const isDisplayedLevelUnlocked = currentStreak >= displayedTier.minDays;
 
   // Daily Study Goals persisted per user & date in localStorage
   const goalsStorageKey = `sjtutor_daily_goals_${userId || 'guest'}_${todayStr}`;
@@ -298,7 +333,6 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
       .sort((a, b) => b[1].sessions - a[1].sessions)
       .slice(0, 4)
       .map(([name, data], idx) => {
-        // Real mastery % combines activity volume (up to 60%) + quiz performance if available (up to 40%), never inventing metrics for 0 sessions
         const volumePct = Math.min(100, data.sessions * 15);
         const progress =
           data.sessions === 0
@@ -391,117 +425,342 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
     return { linePath, areaPath, points, width, height };
   }, [weeklyActivity, maxWeeklySessions]);
 
+  const handleClaimMilestoneFromBoard = async (days: number) => {
+    const res = await claimMilestone(days);
+    setClaimFeedback(res.message);
+    window.setTimeout(() => setClaimFeedback(null), 3500);
+  };
+
   return (
     <div className="space-y-6 mb-8">
-      {/* ROW 1: Animated Study Streak + Daily Study Goals */}
+      {/* ROW 1: Animated Multi-Level Study Streak Board + Daily Study Goals */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Animated Study Streak Card */}
+        {/* Animated Multi-Level Study Streak Board Card */}
         <motion.div
+          layout
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_6px_28px_-6px_rgba(37,99,235,0.12)] p-6 flex flex-col justify-between relative overflow-hidden"
+          className={`lg:col-span-6 bg-white dark:bg-slate-900 rounded-2xl border-2 ${displayedTier.boardCardBorder} shadow-[0_8px_32px_-6px_rgba(37,99,235,0.14)] p-5 sm:p-6 flex flex-col justify-between relative overflow-hidden transition-colors duration-500`}
         >
-          {/* Soft blue-violet top accent wash */}
-          <div className="absolute -right-16 -top-16 w-48 h-48 rounded-full bg-gradient-to-br from-blue-500/10 to-violet-500/15 blur-2xl pointer-events-none" />
+          {/* Level-Adaptive Animated Background Wash & Floating Orbs */}
+          <motion.div
+            key={`bg-wash-${displayedTier.id}`}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.45 }}
+            className={`absolute inset-0 bg-gradient-to-br ${displayedTier.boardBgGradient} pointer-events-none`}
+          />
+          <motion.div
+            animate={{
+              x: [0, 14, -8, 0],
+              y: [0, -12, 8, 0],
+              scale: [1, 1.12, 0.95, 1],
+            }}
+            transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+            className={`absolute -right-14 -top-14 w-52 h-52 rounded-full bg-gradient-to-br ${displayedTier.gradient} opacity-15 blur-3xl pointer-events-none`}
+          />
+          <motion.div
+            animate={{
+              x: [0, -10, 10, 0],
+              y: [0, 10, -10, 0],
+            }}
+            transition={{ duration: 8.5, repeat: Infinity, ease: 'easeInOut' }}
+            className={`absolute -left-16 -bottom-16 w-44 h-44 rounded-full bg-gradient-to-tr ${displayedTier.gradient} opacity-10 blur-2xl pointer-events-none`}
+          />
 
-          <div className="flex items-start justify-between gap-4 relative z-10">
-            <div>
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1.5">
-                <Flame className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-                <span>Study Streak</span>
-              </div>
-              <div className="flex items-baseline gap-2.5">
-                <span className="text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white font-mono tabular-nums">
-                  {animatedStreakCount}
+          {/* Top Header: Study Streak Board Level Crest + Streak Metrics + 24h Gauge */}
+          <div className="relative z-10">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-extrabold uppercase tracking-wider bg-gradient-to-r ${displayedTier.gradient} text-white shadow-xs`}
+                >
+                  <Crown className="w-3.5 h-3.5" />
+                  <span>Study Streak Board • {displayedTier.levelLabel}</span>
                 </span>
-                <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                  {currentStreak === 1 ? 'Day Active' : 'Days Streak'}
-                </span>
+                {isPreviewingOtherLevel ? (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTierId(null)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-900/80 dark:bg-white/15 text-white text-[10px] font-bold hover:opacity-90 transition-opacity cursor-pointer"
+                    title="Return to your active streak level"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    <span>Preview Mode • Reset</span>
+                  </button>
+                ) : (
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    Active Board Level ({userTier.tierRank} of {STREAK_TIERS.length})
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {userTier.emoji} {userTier.name} Tier • Best record:{' '}
-                <strong className="text-slate-700 dark:text-slate-200 font-mono tabular-nums">
-                  {Math.max(streak.highestStreak || 0, currentStreak)}d
-                </strong>
-              </p>
+
+              <button
+                type="button"
+                onClick={() => setShowBoardLevelsModal(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/85 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 text-[11px] font-bold shadow-2xs transition-all cursor-pointer shrink-0"
+              >
+                <Layers className="w-3.5 h-3.5 text-amber-500" />
+                <span>All 9 Levels</span>
+              </button>
             </div>
 
-            {/* 24h Streak Progress Mini Gauge */}
-            <div className="flex flex-col items-end shrink-0">
-              <div className="relative w-14 h-14 flex items-center justify-center">
-                <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
-                  <circle
-                    cx="28"
-                    cy="28"
-                    r="23"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="4.5"
-                    className="text-slate-100 dark:text-slate-800"
+            {/* Main Board Banner */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`board-hero-${displayedTier.id}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                className="flex items-center justify-between gap-4 p-3.5 rounded-2xl bg-white/80 dark:bg-slate-900/75 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/90 shadow-xs"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <AnimatedStreakLevelCrest
+                    tier={displayedTier}
+                    size="md"
+                    isUnlocked={isDisplayedLevelUnlocked}
+                    isCurrent={displayedTier.id === userTier.id}
                   />
-                  <motion.circle
-                    cx="28"
-                    cy="28"
-                    r="23"
-                    fill="none"
-                    stroke="url(#dashStreakGrad)"
-                    strokeWidth="4.5"
-                    strokeLinecap="round"
-                    strokeDasharray={144.5}
-                    initial={{ strokeDashoffset: 144.5 }}
-                    animate={{
-                      strokeDashoffset:
-                        144.5 - (144.5 * Math.max(4, cycleProgress.progressPercent)) / 100,
-                    }}
-                    transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                  <defs>
-                    <linearGradient id="dashStreakGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#2563EB" />
-                      <stop offset="100%" stopColor="#7C3AED" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <span className="absolute text-[11px] font-bold font-mono tabular-nums text-slate-800 dark:text-slate-100">
-                  {cycleProgress.progressPercent}%
+
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white font-mono tabular-nums">
+                        {isPreviewingOtherLevel ? `${displayedTier.minDays}+` : animatedStreakCount}
+                      </span>
+                      <span className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300">
+                        {isPreviewingOtherLevel
+                          ? 'Days Required'
+                          : currentStreak === 1
+                          ? 'Day Streak'
+                          : 'Days Streak'}
+                      </span>
+                      {!isPreviewingOtherLevel && (
+                        <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 font-mono tabular-nums">
+                          (Best: {highestStreak}d)
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">
+                        {displayedTier.emoji} {displayedTier.boardTitle}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 mt-0.5 truncate">
+                      {displayedTier.perk} • {displayedTier.creditBonusLabel}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 24h Streak Progress Mini Gauge */}
+                <div className="flex flex-col items-center shrink-0">
+                  <div className="relative w-13 h-13 flex items-center justify-center">
+                    <svg className="w-13 h-13 -rotate-90" viewBox="0 0 56 56">
+                      <circle
+                        cx="28"
+                        cy="28"
+                        r="23"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="4.5"
+                        className="text-slate-200/70 dark:text-slate-800"
+                      />
+                      <motion.circle
+                        cx="28"
+                        cy="28"
+                        r="23"
+                        fill="none"
+                        stroke={`url(#dashBoardGrad-${displayedTier.id})`}
+                        strokeWidth="4.5"
+                        strokeLinecap="round"
+                        strokeDasharray={144.5}
+                        initial={{ strokeDashoffset: 144.5 }}
+                        animate={{
+                          strokeDashoffset:
+                            144.5 - (144.5 * Math.max(5, cycleProgress.progressPercent)) / 100,
+                        }}
+                        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+                      />
+                      <defs>
+                        <linearGradient
+                          id={`dashBoardGrad-${displayedTier.id}`}
+                          x1="0%"
+                          y1="0%"
+                          x2="100%"
+                          y2="100%"
+                        >
+                          <stop offset="0%" stopColor={displayedTier.boardAccentHex} />
+                          <stop offset="100%" stopColor={displayedTier.boardSecondaryHex} />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    <span className="absolute text-[10px] font-extrabold font-mono tabular-nums text-slate-800 dark:text-slate-100">
+                      {cycleProgress.progressPercent}%
+                    </span>
+                  </div>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-0.5">
+                    {cycleProgress.canClaim ? 'Ready!' : '24h Cycle'}
+                  </span>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Level Progression Bar to Next Study Streak Board Level */}
+            <div className="mt-3.5 px-1">
+              <div className="flex items-center justify-between text-[11px] font-bold mb-1.5">
+                <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-amber-500" />
+                  {tierProgress.nextTier ? (
+                    <span>
+                      Level Up Progress to{' '}
+                      <strong className="text-slate-900 dark:text-white">
+                        {tierProgress.nextTier.levelLabel} ({tierProgress.nextTier.name})
+                      </strong>
+                    </span>
+                  ) : (
+                    <span>Max Study Streak Board Level Reached!</span>
+                  )}
+                </span>
+                <span className="font-mono font-extrabold text-slate-700 dark:text-slate-200 tabular-nums">
+                  {tierProgress.nextTier
+                    ? `${tierProgress.percentage}% • ${tierProgress.daysToNext}d left`
+                    : '100% MAX'}
                 </span>
               </div>
-              <span className="text-[10px] font-semibold text-slate-400 mt-1">
-                {cycleProgress.canClaim ? 'Next day ready' : '24h cycle'}
-              </span>
+              <div className="w-full h-2.5 bg-slate-200/80 dark:bg-slate-800 rounded-full overflow-hidden p-0.5">
+                <motion.div
+                  key={`prog-${displayedTier.id}-${tierProgress.percentage}`}
+                  initial={{ width: 0 }}
+                  animate={{
+                    width: `${
+                      isPreviewingOtherLevel
+                        ? isDisplayedLevelUnlocked
+                          ? 100
+                          : Math.min(95, Math.round((currentStreak / Math.max(1, displayedTier.minDays)) * 100))
+                        : Math.max(6, tierProgress.percentage)
+                    }%`,
+                  }}
+                  transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
+                  className={`h-full rounded-full bg-gradient-to-r ${displayedTier.gradient} relative overflow-hidden`}
+                >
+                  <motion.div
+                    animate={{ x: ['-100%', '220%'] }}
+                    transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }}
+                    className="w-1/2 h-full bg-gradient-to-r from-transparent via-white/45 to-transparent"
+                  />
+                </motion.div>
+              </div>
+            </div>
+
+            {/* Interactive 9-Level Study Streak Board Selector Strip */}
+            <div className="mt-3.5">
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 px-0.5">
+                <span>Interactive Streak Board Levels (Click to Preview Animation)</span>
+                <span className="font-mono tabular-nums">
+                  {STREAK_TIERS.filter((t) => currentStreak >= t.minDays).length}/{STREAK_TIERS.length} Unlocked
+                </span>
+              </div>
+              <div className="grid grid-cols-9 gap-1">
+                {STREAK_TIERS.map((tier) => {
+                  const unlocked = currentStreak >= tier.minDays;
+                  const isActivePreview = displayedTier.id === tier.id;
+                  const isUserCurrent = userTier.id === tier.id;
+
+                  return (
+                    <motion.button
+                      key={tier.id}
+                      type="button"
+                      whileHover={{ y: -2, scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() =>
+                        setPreviewTierId(tier.id === userTier.id ? null : tier.id)
+                      }
+                      title={`${tier.boardTitle} (${tier.minDays}+ Days) • ${
+                        unlocked ? 'Unlocked' : `Unlocks at ${tier.minDays} days`
+                      }`}
+                      className={`relative py-1.5 px-1 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                        isActivePreview
+                          ? `bg-gradient-to-b ${tier.gradient} text-white border-white shadow-md scale-105 z-10`
+                          : unlocked
+                          ? 'bg-white/90 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-amber-400'
+                          : 'bg-slate-100/70 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-800 text-slate-400 opacity-75 hover:opacity-100'
+                      }`}
+                    >
+                      <span className="text-xs leading-none">{tier.emoji}</span>
+                      <span className="text-[9px] font-extrabold font-mono mt-0.5 leading-none">
+                        L{tier.tierRank}
+                      </span>
+                      {isUserCurrent && (
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
+                            isActivePreview ? 'bg-white' : 'bg-emerald-500'
+                          }`}
+                        />
+                      )}
+                    </motion.button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* 7-day real activity strip */}
-          <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 relative z-10">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-2.5">
-              <span>Last 7 Days Consistency</span>
-              <span className="text-blue-600 dark:text-blue-400 font-mono tabular-nums">
-                {weeklyActivity.filter((d) => d.studied).length}/7 days active
+          {/* 7-Day Animated Study Streak Board Consistency Grid */}
+          <div className="mt-4 pt-3.5 border-t border-slate-200/70 dark:border-slate-800 relative z-10">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-2">
+              <span className="flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5 text-amber-500" />
+                <span>7-Day Streak Board Activity</span>
+              </span>
+              <span className="font-mono font-bold tabular-nums text-slate-800 dark:text-slate-100">
+                {weeklyActivity.filter((d) => d.studied).length}/7 Days Active
               </span>
             </div>
+
             <div className="grid grid-cols-7 gap-1.5">
-              {weeklyActivity.map((day) => (
-                <div
-                  key={day.dateStr}
-                  className={`py-2 px-1 rounded-xl border text-center transition-all ${
+              {weeklyActivity.map((day, idx) => (
+                <motion.div
+                  key={`${day.dateStr}-${displayedTier.id}`}
+                  initial={{ opacity: 0, y: 10, scale: 0.92 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{
+                    duration: 0.35,
+                    delay: idx * 0.04,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  whileHover={{ y: -2, scale: 1.03 }}
+                  className={`py-2 px-1 rounded-xl border text-center transition-all relative overflow-hidden ${
                     day.studied
-                      ? 'bg-gradient-to-b from-blue-50 to-violet-50/70 dark:from-blue-950/60 dark:to-violet-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+                      ? `bg-gradient-to-b ${displayedTier.gradient} text-white border-white/40 shadow-sm`
                       : day.isToday
-                      ? 'bg-slate-50 dark:bg-slate-800 border-blue-300 dark:border-blue-700 text-slate-700 dark:text-slate-200'
-                      : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-800 text-slate-400'
+                      ? 'bg-white dark:bg-slate-800 border-2 border-amber-400 dark:border-amber-500 text-slate-800 dark:text-slate-100'
+                      : 'bg-white/70 dark:bg-slate-800/45 border-slate-200/70 dark:border-slate-800 text-slate-400'
                   }`}
                 >
-                  <span className="block text-[10px] font-bold uppercase">{day.label}</span>
-                  <div className="mt-1 flex justify-center">
+                  <span className="block text-[10px] font-extrabold uppercase tracking-tight">
+                    {day.label}
+                  </span>
+                  <div className="mt-1 flex justify-center items-center h-4">
                     {day.studied ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <motion.span
+                        initial={{ scale: 0 }}
+                        animate={{ scale: [0, 1.25, 1] }}
+                        transition={{ duration: 0.4, delay: idx * 0.05 }}
+                        className="text-xs leading-none"
+                      >
+                        {displayedTier.emoji}
+                      </motion.span>
+                    ) : day.isToday ? (
+                      <span className="text-[9px] font-extrabold uppercase text-amber-600 dark:text-amber-400">
+                        Today
+                      </span>
                     ) : (
-                      <span className="w-3.5 h-3.5 rounded-full border border-slate-300 dark:border-slate-600 inline-block" />
+                      <span className="w-3 h-3 rounded-full border border-slate-300 dark:border-slate-600 inline-block" />
                     )}
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>
@@ -512,7 +771,7 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-          className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_6px_28px_-6px_rgba(15,23,42,0.06)] p-6 flex flex-col justify-between"
+          className="lg:col-span-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_6px_28px_-6px_rgba(15,23,42,0.06)] p-6 flex flex-col justify-between"
         >
           <div>
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -573,7 +832,7 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
             )}
 
             {/* Interactive Checklist */}
-            <div className="space-y-2 max-h-[168px] overflow-y-auto pr-1 custom-scrollbar">
+            <div className="space-y-2 max-h-[195px] overflow-y-auto pr-1 custom-scrollbar">
               {dailyGoals.map((goal) => (
                 <div
                   key={goal.id}
@@ -751,7 +1010,6 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
                 </linearGradient>
               </defs>
 
-              {/* Subtle Horizontal Grid Lines */}
               {[0.25, 0.5, 0.75, 1].map((frac) => {
                 const y = 14 + (118 - 28) * (1 - frac);
                 return (
@@ -769,7 +1027,6 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
                 );
               })}
 
-              {/* Area Fill */}
               {areaChartGeometry.areaPath && (
                 <motion.path
                   initial={{ opacity: 0 }}
@@ -780,7 +1037,6 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
                 />
               )}
 
-              {/* Smooth Curve */}
               {areaChartGeometry.linePath && (
                 <motion.path
                   initial={{ pathLength: 0 }}
@@ -794,7 +1050,6 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
                 />
               )}
 
-              {/* Data Points */}
               {areaChartGeometry.points.map((pt, i) => (
                 <g
                   key={pt.dateStr}
@@ -815,7 +1070,6 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
               ))}
             </svg>
 
-            {/* X-Axis Labels */}
             <div className="flex justify-between px-2 mt-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
               {weeklyActivity.map((d, idx) => (
                 <span
@@ -874,7 +1128,6 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
               )}
             </div>
 
-            {/* Learning Module Stacked Breakdown */}
             <div className="space-y-3 mb-5">
               {studyMix.breakdown.map((mod) => {
                 const pct =
@@ -903,7 +1156,6 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
             </div>
           </div>
 
-          {/* Recent Quiz Scores Mini Bar Chart or Empty Prompt */}
           <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
             {studyMix.scoredQuizzes.length > 0 ? (
               <div>
@@ -951,6 +1203,203 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
           </div>
         </motion.div>
       </div>
+
+      {/* FULL 9-LEVEL STUDY STREAK BOARD EXPLORER MODAL */}
+      <AnimatePresence>
+        {showBoardLevelsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 18 }}
+              transition={{ duration: 0.22 }}
+              className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              {/* Modal Hero Header */}
+              <div className={`relative p-5 sm:p-6 bg-gradient-to-r ${displayedTier.gradient} text-white shrink-0 overflow-hidden`}>
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 28, repeat: Infinity, ease: 'linear' }}
+                  className="absolute -right-20 -top-20 w-64 h-64 rounded-full border-2 border-dashed border-white/20 pointer-events-none"
+                />
+                <div className="relative z-10 flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <AnimatedStreakLevelCrest
+                      tier={displayedTier}
+                      size="lg"
+                      isUnlocked={true}
+                      isCurrent={true}
+                    />
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2.5 py-0.5 rounded-md bg-black/25 text-white text-[11px] font-extrabold uppercase tracking-wider">
+                          9-Level Study Streak Board System
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-md bg-white/20 text-white text-[11px] font-mono font-bold">
+                          Current Streak: {currentStreak} Days
+                        </span>
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-black tracking-tight mt-1">
+                        {displayedTier.emoji} {displayedTier.boardTitle}
+                      </h2>
+                      <p className="text-xs sm:text-sm text-white/90 font-medium mt-0.5">
+                        {displayedTier.description} — {displayedTier.perk}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowBoardLevelsModal(false)}
+                    className="p-2 rounded-xl bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer"
+                    aria-label="Close Study Streak Board Levels"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {claimFeedback && (
+                <div className="px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/60 border-b border-emerald-200 dark:border-emerald-800 text-xs font-bold text-emerald-800 dark:text-emerald-200 flex items-center justify-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <span>{claimFeedback}</span>
+                </div>
+              )}
+
+              {/* 9 Animated Study Streak Board Levels Grid */}
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {STREAK_TIERS.map((tier, idx) => {
+                    const isUnlocked = currentStreak >= tier.minDays;
+                    const isCurrent = userTier.id === tier.id;
+                    const isPreviewSelected = displayedTier.id === tier.id;
+                    const daysLeft = Math.max(0, tier.minDays - currentStreak);
+                    const matchingMilestone = STREAK_MILESTONES.find(
+                      (m) => m.days === tier.minDays
+                    );
+                    const canClaimMilestoneReward =
+                      matchingMilestone &&
+                      isUnlocked &&
+                      !(streak.claimedMilestones || []).includes(matchingMilestone.days);
+
+                    return (
+                      <motion.div
+                        key={tier.id}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.35, delay: idx * 0.04 }}
+                        whileHover={{ y: -4 }}
+                        onClick={() => setPreviewTierId(tier.id === userTier.id ? null : tier.id)}
+                        className={`relative p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between overflow-hidden ${
+                          isPreviewSelected
+                            ? `${tier.boardCardBorder} bg-gradient-to-br ${tier.boardBgGradient} shadow-lg`
+                            : isUnlocked
+                            ? 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 hover:border-amber-400'
+                            : 'border-slate-200/70 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-900/50 opacity-85 hover:opacity-100'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-3">
+                            <AnimatedStreakLevelCrest
+                              tier={tier}
+                              size="sm"
+                              isUnlocked={isUnlocked}
+                              isCurrent={isCurrent}
+                            />
+
+                            <div className="flex flex-col items-end gap-1">
+                              <span
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-gradient-to-r ${tier.gradient} text-white`}
+                              >
+                                Level {tier.tierRank}
+                              </span>
+                              {isCurrent && (
+                                <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                                  Active Level
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                            {tier.emoji} {tier.name} Board
+                          </h4>
+                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
+                            {tier.minDays === 0
+                              ? '0 – 2 Study Days'
+                              : tier.maxDays
+                              ? `${tier.minDays} – ${tier.maxDays} Study Days`
+                              : '365+ Study Days (Immortal)'}
+                          </p>
+                          <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
+                            {tier.description}
+                          </p>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-700/70 space-y-2">
+                          <div className="flex items-center justify-between text-[11px] font-bold">
+                            <span className="text-amber-600 dark:text-amber-400 truncate">
+                              {tier.creditBonusLabel}
+                            </span>
+                            {isUnlocked ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 shrink-0">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Unlocked
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 flex items-center gap-1 shrink-0 font-mono">
+                                <Lock className="w-3 h-3" /> {daysLeft}d left
+                              </span>
+                            )}
+                          </div>
+
+                          {canClaimMilestoneReward && matchingMilestone && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleClaimMilestoneFromBoard(matchingMilestone.days);
+                              }}
+                              className={`w-full py-1.5 px-3 rounded-xl bg-gradient-to-r ${tier.gradient} text-white text-xs font-extrabold shadow-sm hover:opacity-95 transition-opacity cursor-pointer flex items-center justify-center gap-1.5`}
+                            >
+                              <Trophy className="w-3.5 h-3.5" />
+                              <span>Claim +{matchingMilestone.rewardCredits} Credits</span>
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Click any level card above to preview its animated Study Streak Board on your dashboard.
+                </p>
+                <div className="flex items-center gap-2">
+                  {isPreviewingOtherLevel && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewTierId(null)}
+                      className="px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer"
+                    >
+                      Reset to My Active Level
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowBoardLevelsModal(false)}
+                    className={`px-4 py-2 rounded-xl bg-gradient-to-r ${displayedTier.gradient} text-white text-xs font-bold shadow-sm hover:opacity-95 transition-opacity cursor-pointer`}
+                  >
+                    Apply Board View
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
