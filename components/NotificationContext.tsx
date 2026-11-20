@@ -230,13 +230,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     isMutedRef.current = isNotificationsMuted;
   }, [isNotificationsMuted]);
 
+  const toastSeqRef = useRef<number>(0);
+
   const triggerToast = (title: string, body: string, category = 'Important Alerts') => {
     if (isMutedRef.current) {
       return; // Do not disturb during Deep Work Focus Mode
     }
-    const id = `toast-${Date.now()}-${Math.random()}`;
+    toastSeqRef.current += 1;
+    const id = `toast-${Date.now()}-${toastSeqRef.current}-${Math.random().toString(36).slice(2, 7)}`;
     const newToast: ActiveToast = { id, title, body, category };
-    setActiveToasts((prev) => [...prev, newToast]);
+    setActiveToasts((prev) => [...prev.filter((t) => t.id !== id), newToast]);
     setTimeout(() => {
       setActiveToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4500);
@@ -342,9 +345,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       initialLocal = SEED_NOTIFICATIONS.map((item, idx) => sanitizeNotification(item, `seed-${idx}`));
     }
 
-    setNotifications(initialLocal);
+    const uniqueInitialMap = new Map<string, NotificationItem>();
+    initialLocal.forEach((n) => {
+      if (n && n.id) uniqueInitialMap.set(n.id, n);
+    });
+    const dedupedInitialLocal = Array.from(uniqueInitialMap.values());
+    setNotifications(dedupedInitialLocal);
 
-    const loadedIds = new Set(initialLocal.map(n => n.id));
+    const loadedIds = new Set(dedupedInitialLocal.map(n => n.id));
     seenNotificationIdsRef.current = loadedIds;
 
     let active = true;
@@ -820,14 +828,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       console.warn('Could not add to Firestore directly. Adding locally instead.', err);
       
       const localNotification: NotificationItem = sanitizeNotification({
-        id: `local-custom-${timestamp}`,
+        id: `local-custom-${timestamp}-${Math.random().toString(36).slice(2, 7)}`,
         ...payload
       });
 
       const storageKey = currentUser ? `notifications_${currentUser.uid}` : 'notifications_guest';
-      const updated = [localNotification, ...notifications];
-      setNotifications(updated);
-      localStorage.setItem(storageKey, JSON.stringify(updated));
+      setNotifications((prev) => {
+        const updated = [localNotification, ...prev.filter((n) => n.id !== localNotification.id)];
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(updated));
+        } catch {
+          // ignore storage quota errors
+        }
+        return updated;
+      });
       return true;
     }
   };

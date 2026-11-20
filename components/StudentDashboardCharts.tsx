@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Flame,
   Target,
   CheckCircle2,
   Circle,
@@ -138,6 +137,15 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
   const isPreviewingOtherLevel = displayedTier.id !== userTier.id;
   const isDisplayedLevelUnlocked = currentStreak >= displayedTier.minDays;
 
+  const dedupeGoals = (items: DailyGoalItem[]): DailyGoalItem[] => {
+    const seen = new Set<string>();
+    return items.filter((g) => {
+      if (!g?.id || seen.has(g.id)) return false;
+      seen.add(g.id);
+      return true;
+    });
+  };
+
   // Daily Study Goals persisted per user & date in localStorage
   const goalsStorageKey = `sjtutor_daily_goals_${userId || 'guest'}_${todayStr}`;
   const [dailyGoals, setDailyGoals] = useState<DailyGoalItem[]>(() => {
@@ -145,7 +153,7 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
       const saved = localStorage.getItem(goalsStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return dedupeGoals(parsed);
       }
     } catch {
       // ignore storage error
@@ -161,7 +169,7 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setDailyGoals(parsed);
+          setDailyGoals(dedupeGoals(parsed));
           return;
         }
       }
@@ -172,9 +180,10 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
   }, [goalsStorageKey, dailyGoalMins, preferredSubject]);
 
   const persistGoals = (updated: DailyGoalItem[]) => {
-    setDailyGoals(updated);
+    const unique = dedupeGoals(updated);
+    setDailyGoals(unique);
     try {
-      localStorage.setItem(goalsStorageKey, JSON.stringify(updated));
+      localStorage.setItem(goalsStorageKey, JSON.stringify(unique));
     } catch {
       // ignore
     }
@@ -191,7 +200,7 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
     const trimmed = newGoalText.trim();
     if (!trimmed) return;
     const item: DailyGoalItem = {
-      id: `goal-${Date.now()}`,
+      id: `goal-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       title: trimmed,
       targetLabel: 'Today',
       completed: false,
@@ -653,115 +662,6 @@ export const StudentDashboardCharts: React.FC<StudentDashboardChartsProps> = ({
                   />
                 </motion.div>
               </div>
-            </div>
-
-            {/* Interactive 9-Level Study Streak Board Selector Strip */}
-            <div className="mt-3.5">
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 px-0.5">
-                <span>Interactive Streak Board Levels (Click to Preview Animation)</span>
-                <span className="font-mono tabular-nums">
-                  {STREAK_TIERS.filter((t) => currentStreak >= t.minDays).length}/{STREAK_TIERS.length} Unlocked
-                </span>
-              </div>
-              <div className="grid grid-cols-9 gap-1">
-                {STREAK_TIERS.map((tier) => {
-                  const unlocked = currentStreak >= tier.minDays;
-                  const isActivePreview = displayedTier.id === tier.id;
-                  const isUserCurrent = userTier.id === tier.id;
-
-                  return (
-                    <motion.button
-                      key={tier.id}
-                      type="button"
-                      whileHover={{ y: -2, scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() =>
-                        setPreviewTierId(tier.id === userTier.id ? null : tier.id)
-                      }
-                      title={`${tier.boardTitle} (${tier.minDays}+ Days) • ${
-                        unlocked ? 'Unlocked' : `Unlocks at ${tier.minDays} days`
-                      }`}
-                      className={`relative py-1.5 px-1 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
-                        isActivePreview
-                          ? `bg-gradient-to-b ${tier.gradient} text-white border-white shadow-md scale-105 z-10`
-                          : unlocked
-                          ? 'bg-white/90 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-amber-400'
-                          : 'bg-slate-100/70 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-800 text-slate-400 opacity-75 hover:opacity-100'
-                      }`}
-                    >
-                      <span className="text-xs leading-none">{tier.emoji}</span>
-                      <span className="text-[9px] font-extrabold font-mono mt-0.5 leading-none">
-                        L{tier.tierRank}
-                      </span>
-                      {isUserCurrent && (
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
-                            isActivePreview ? 'bg-white' : 'bg-emerald-500'
-                          }`}
-                        />
-                      )}
-                    </motion.button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* 7-Day Animated Study Streak Board Consistency Grid */}
-          <div className="mt-4 pt-3.5 border-t border-slate-200/70 dark:border-slate-800 relative z-10">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-2">
-              <span className="flex items-center gap-1.5">
-                <Flame className="w-3.5 h-3.5 text-amber-500" />
-                <span>7-Day Streak Board Activity</span>
-              </span>
-              <span className="font-mono font-bold tabular-nums text-slate-800 dark:text-slate-100">
-                {weeklyActivity.filter((d) => d.studied).length}/7 Days Active
-              </span>
-            </div>
-
-            <div className="grid grid-cols-7 gap-1.5">
-              {weeklyActivity.map((day, idx) => (
-                <motion.div
-                  key={`${day.dateStr}-${displayedTier.id}`}
-                  initial={{ opacity: 0, y: 10, scale: 0.92 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{
-                    duration: 0.35,
-                    delay: idx * 0.04,
-                    ease: [0.16, 1, 0.3, 1],
-                  }}
-                  whileHover={{ y: -2, scale: 1.03 }}
-                  className={`py-2 px-1 rounded-xl border text-center transition-all relative overflow-hidden ${
-                    day.studied
-                      ? `bg-gradient-to-b ${displayedTier.gradient} text-white border-white/40 shadow-sm`
-                      : day.isToday
-                      ? 'bg-white dark:bg-slate-800 border-2 border-amber-400 dark:border-amber-500 text-slate-800 dark:text-slate-100'
-                      : 'bg-white/70 dark:bg-slate-800/45 border-slate-200/70 dark:border-slate-800 text-slate-400'
-                  }`}
-                >
-                  <span className="block text-[10px] font-extrabold uppercase tracking-tight">
-                    {day.label}
-                  </span>
-                  <div className="mt-1 flex justify-center items-center h-4">
-                    {day.studied ? (
-                      <motion.span
-                        initial={{ scale: 0 }}
-                        animate={{ scale: [0, 1.25, 1] }}
-                        transition={{ duration: 0.4, delay: idx * 0.05 }}
-                        className="text-xs leading-none"
-                      >
-                        {displayedTier.emoji}
-                      </motion.span>
-                    ) : day.isToday ? (
-                      <span className="text-[9px] font-extrabold uppercase text-amber-600 dark:text-amber-400">
-                        Today
-                      </span>
-                    ) : (
-                      <span className="w-3 h-3 rounded-full border border-slate-300 dark:border-slate-600 inline-block" />
-                    )}
-                  </div>
-                </motion.div>
-              ))}
             </div>
           </div>
         </motion.div>

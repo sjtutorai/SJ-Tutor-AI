@@ -1538,6 +1538,11 @@ const App: React.FC = () => {
         }
         if (currentUser) {
           setUser(currentUser);
+          try {
+            window.dispatchEvent(new Event('sjtutor_user_logged_in'));
+          } catch {
+            // ignore
+          }
 
           // 1. Instant local cache hydration (0ms render time)
           try {
@@ -1903,17 +1908,27 @@ const App: React.FC = () => {
         }
       }
 
+      const dedupeHistoryById = (items: HistoryItem[]): HistoryItem[] => {
+        const seen = new Set<string>();
+        return items.filter((item) => {
+          if (!item?.id || seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
+        });
+      };
+
       // 1. Immediately (synchronously) populate history from local storage so that
       // counters and dashboard items render instantly without network delay!
+      const cleanInitialHistory = dedupeHistoryById(initialHistory);
       if (active) {
-        setHistory(initialHistory);
+        setHistory(cleanInitialHistory);
         setHistoryLoadedUid(user ? user.uid : "guest");
       }
 
       if (user) {
         try {
           // 2. background-sync/fetch from Firestore, reconciling offline modifications
-          const syncedHistory = await syncHistoryWithFirestore(user.uid, initialHistory);
+          const syncedHistory = dedupeHistoryById(await syncHistoryWithFirestore(user.uid, cleanInitialHistory));
           if (active) {
             setHistory(syncedHistory);
             localStorage.setItem(`history_${user.uid}`, JSON.stringify(syncedHistory));
@@ -1922,7 +1937,7 @@ const App: React.FC = () => {
         } catch (err) {
           console.warn("Firestore history sync failed, fallback to local:", err);
           if (active) {
-            setHistory(initialHistory);
+            setHistory(cleanInitialHistory);
             setHistoryLoadedUid(user.uid);
           }
         }
@@ -2208,7 +2223,7 @@ const App: React.FC = () => {
   };
 
   const addToHistory = (type: AppMode, content: any) => {
-    const newId = Date.now().toString();
+    const newId = `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const newItem: HistoryItem = {
       id: newId,
       type,
@@ -2218,7 +2233,7 @@ const App: React.FC = () => {
       content,
       formData: { ...formData },
     };
-    setHistory((prev) => [newItem, ...prev]);
+    setHistory((prev) => [newItem, ...prev.filter((h) => h.id !== newId)]);
     setCurrentHistoryId(newId);
 
     if (user) {
@@ -3461,7 +3476,7 @@ const App: React.FC = () => {
     if (!sharedContent) return;
 
     const newItem: HistoryItem = {
-      id: "shared-" + (sharedContent.shareId || sharedContent.id || "content") + "-" + Date.now(),
+      id: `shared-${sharedContent.shareId || sharedContent.id || "content"}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       type: sharedContent.type,
       title: sharedContent.title,
       subtitle: sharedContent.subtitle || `${sharedContent.type} Shared with you`,
@@ -3471,7 +3486,7 @@ const App: React.FC = () => {
 
     const success = await saveHistoryItemToFirestore(user.uid, newItem);
     if (success) {
-      setHistory(prev => [newItem, ...prev]);
+      setHistory(prev => [newItem, ...prev.filter((h) => h.id !== newItem.id)]);
       setIsAddedSharedContent(true);
       triggerToast("Added to List! 📂", "Successfully added to your Study History & Dashboard List!", "Important Alerts");
     } else {
@@ -3884,6 +3899,7 @@ const App: React.FC = () => {
                 triggerToast("Session Deleted 🗑️", "AI Tutor session was removed from your history.", "AI Tutor");
               }}
               onCreateQuiz={() => setMode(AppMode.QUIZ)}
+              onBackToDashboard={() => setMode(AppMode.DASHBOARD)}
               userId={user ? user.uid : undefined}
               currentTheme={SettingsService.getSettings().appearance.theme}
               onNavigateToNotes={() => setMode(AppMode.NOTES)}
@@ -4657,7 +4673,8 @@ const App: React.FC = () => {
                 <StudyTimerView 
                   userProfile={userProfile} 
                   userId={user ? user.uid : null} 
-                  userEmail={user ? user.email : null} 
+                  userEmail={user ? user.email : null}
+                  onProfileUpdate={(updates) => handleProfileSave({ ...userProfile, ...updates })}
                 />
               </div>
             </div>
@@ -4692,10 +4709,11 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Floating Daily Streak Hub Widget (hidden during Deep Work Focus) */}
-      {!isDeepWorkActive && (
+      {/* Floating Daily Streak Hub Widget (hidden during Deep Work Focus and Full-Screen AI Tutor) */}
+      {!isDeepWorkActive && mode !== AppMode.TUTOR && (
         <FloatingStreakWidget
           userProfile={userProfile}
+          userId={user ? user.uid : null}
           onProfileUpdate={handleProfileSave}
         />
       )}
@@ -4710,7 +4728,7 @@ const App: React.FC = () => {
             const key = user ? user.uid : 'guest';
             const local = JSON.parse(localStorage.getItem(`notes_${key}`) || '[]');
             const item: NoteItem = {
-              id: `note-${Date.now()}`,
+              id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
               title: noteData.title || 'Focus Note',
               content: noteData.content || '',
               subject: noteData.subject || 'General Notes',

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, RotateCcw, Shield, AlertTriangle, Settings2, Smartphone, Check, Cloud } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Shield, AlertTriangle, Settings2, Smartphone, Check, Cloud, Lock, KeyRound, X, Eye, EyeOff } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { motion } from 'motion/react';
 import { UserProfile, TimerStateType, UserTimerState } from '../types';
@@ -9,6 +9,28 @@ interface StudyTimerViewProps {
   userProfile?: UserProfile;
   userId?: string | null;
   userEmail?: string | null;
+  onProfileUpdate?: (updates: Partial<UserProfile>) => void;
+}
+
+async function hashParentPin(pin: string, scopeId: string): Promise<string> {
+  const payload = `sjtutor_parent_focus_pin::${scopeId || 'guest'}::${pin}`;
+  try {
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      const encoded = new TextEncoder().encode(payload);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
+      return Array.from(new Uint8Array(hashBuffer))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+  } catch {
+    // Fallback below if Web Crypto is unavailable
+  }
+  let hash = 2166136261;
+  for (let i = 0; i < payload.length; i++) {
+    hash ^= payload.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `fnv_${(hash >>> 0).toString(16)}`;
 }
 
 const APPS_TO_BLOCK = [
@@ -26,7 +48,7 @@ const APPS_TO_BLOCK = [
   { id: 'games', name: 'Games', default: false },
 ];
 
-const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) => {
+const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userProfile, userId, userEmail, onProfileUpdate }) => {
   // Generate or retrieve unique device session ID to identify local vs remote updates
   const deviceIdRef = useRef<string>(
     (() => {
@@ -67,6 +89,197 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
   const [isFocusModeActive, setIsFocusModeActive] = useState(false);
   const [hasAccessibilityPerm, setHasAccessibilityPerm] = useState<boolean | null>(null);
   const [showPermDialog, setShowPermDialog] = useState(false);
+
+  // Dedicated 4-digit Parent PIN state for Stay Focused Lock (Return & Terminate)
+  const pinScopeId = userId || 'guest';
+  const pinStorageKey = `sjtutor_parent_pin_${pinScopeId}`;
+  const [parentPinHash, setParentPinHash] = useState<string | null>(() => {
+    try {
+      return userProfile?.parentFocusPinHash || localStorage.getItem(`sjtutor_parent_pin_${userId || 'guest'}`) || null;
+    } catch {
+      return userProfile?.parentFocusPinHash || null;
+    }
+  });
+  const [pinModalMode, setPinModalMode] = useState<
+    null | 'setup' | 'setup-before-focus' | 'change' | 'verify-return' | 'verify-terminate'
+  >(null);
+  const [pinStep, setPinStep] = useState<'current' | 'new' | 'confirm'>('new');
+  const [pinDigits, setPinDigits] = useState<string[]>(['', '', '', '']);
+  const [pendingNewPin, setPendingNewPin] = useState<string>('');
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinNotice, setPinNotice] = useState<string | null>(null);
+  const [showPinDigits, setShowPinDigits] = useState<boolean>(false);
+  const [pinShakeKey, setPinShakeKey] = useState<number>(0);
+  const pinInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Keep parentPinHash synchronized with userProfile and localStorage when account changes
+  useEffect(() => {
+    try {
+      const localHash = localStorage.getItem(pinStorageKey);
+      const profileHash = userProfile?.parentFocusPinHash || null;
+      const resolved = profileHash || localHash || null;
+      setParentPinHash(resolved);
+      if (profileHash && profileHash !== localHash) {
+        localStorage.setItem(pinStorageKey, profileHash);
+      }
+    } catch {
+      setParentPinHash(userProfile?.parentFocusPinHash || null);
+    }
+  }, [pinStorageKey, userProfile?.parentFocusPinHash]);
+
+  // Auto-focus first PIN box whenever PIN modal opens or step changes
+  useEffect(() => {
+    if (pinModalMode) {
+      const timer = setTimeout(() => {
+        pinInputRefs.current[0]?.focus();
+      }, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [pinModalMode, pinStep]);
+
+  const openPinModal = (mode: 'setup' | 'setup-before-focus' | 'change' | 'verify-return' | 'verify-terminate') => {
+    setPinDigits(['', '', '', '']);
+    setPendingNewPin('');
+    setPinError(null);
+    setPinNotice(null);
+    setShowPinDigits(false);
+    setPinStep(mode === 'change' ? 'current' : 'new');
+    setPinModalMode(mode);
+  };
+
+  const closePinModal = () => {
+    setPinModalMode(null);
+    setPinDigits(['', '', '', '']);
+    setPendingNewPin('');
+    setPinError(null);
+  };
+
+  const persistParentPinHash = (hash: string) => {
+    setParentPinHash(hash);
+    try {
+      localStorage.setItem(pinStorageKey, hash);
+    } catch {
+      // ignore storage failure
+    }
+    if (onProfileUpdate) {
+      onProfileUpdate({ parentFocusPinHash: hash });
+    }
+  };
+
+  const triggerPinError = (message: string) => {
+    setPinError(message);
+    setPinShakeKey((k) => k + 1);
+    setPinDigits(['', '', '', '']);
+    setTimeout(() => {
+      pinInputRefs.current[0]?.focus();
+    }, 60);
+  };
+
+  const handlePinDigitChange = (idx: number, rawVal: string) => {
+    const clean = rawVal.replace(/\D/g, '');
+    setPinError(null);
+
+    if (clean.length > 1) {
+      const pasted = clean.slice(0, 4).split('');
+      const next = ['', '', '', ''];
+      pasted.forEach((ch, i) => {
+        next[i] = ch;
+      });
+      setPinDigits(next);
+      const focusIdx = Math.min(3, pasted.length);
+      pinInputRefs.current[focusIdx]?.focus();
+      return;
+    }
+
+    const next = [...pinDigits];
+    next[idx] = clean;
+    setPinDigits(next);
+    if (clean && idx < 3) {
+      pinInputRefs.current[idx + 1]?.focus();
+    }
+  };
+
+  const handlePinKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !pinDigits[idx] && idx > 0) {
+      pinInputRefs.current[idx - 1]?.focus();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSubmitParentPin();
+    }
+  };
+
+  const handleSubmitParentPin = async () => {
+    const enteredPin = pinDigits.join('');
+    if (enteredPin.length !== 4) {
+      triggerPinError('Please enter all 4 digits of the Parent PIN.');
+      return;
+    }
+
+    if (pinModalMode === 'verify-return' || pinModalMode === 'verify-terminate') {
+      if (!parentPinHash) {
+        // Fallback if no Parent PIN was configured yet: require setting one first
+        openPinModal('setup');
+        return;
+      }
+      const enteredHash = await hashParentPin(enteredPin, pinScopeId);
+      if (enteredHash !== parentPinHash) {
+        triggerPinError('Incorrect Parent PIN. Ask a parent to unlock this screen.');
+        return;
+      }
+
+      const action = pinModalMode;
+      closePinModal();
+      if (action === 'verify-return') {
+        setShowBlockingOverlay(false);
+      } else if (action === 'verify-terminate') {
+        setShowBlockingOverlay(false);
+        confirmStop();
+      }
+      return;
+    }
+
+    if (pinModalMode === 'change' && pinStep === 'current') {
+      const enteredHash = await hashParentPin(enteredPin, pinScopeId);
+      if (parentPinHash && enteredHash !== parentPinHash) {
+        triggerPinError('Current Parent PIN is incorrect. Please try again.');
+        return;
+      }
+      setPinDigits(['', '', '', '']);
+      setPinError(null);
+      setPinStep('new');
+      return;
+    }
+
+    if (pinStep === 'new') {
+      setPendingNewPin(enteredPin);
+      setPinDigits(['', '', '', '']);
+      setPinError(null);
+      setPinStep('confirm');
+      return;
+    }
+
+    if (pinStep === 'confirm') {
+      if (enteredPin !== pendingNewPin) {
+        setPendingNewPin('');
+        setPinStep('new');
+        triggerPinError('PINs did not match. Please enter your new 4-digit Parent PIN again.');
+        return;
+      }
+      const hashed = await hashParentPin(enteredPin, pinScopeId);
+      persistParentPinHash(hashed);
+      const wasSetupBeforeFocus = pinModalMode === 'setup-before-focus';
+      closePinModal();
+      setPinNotice('Parent PIN saved and active for Focus Lock.');
+      setTimeout(() => setPinNotice(null), 4000);
+      if (wasSetupBeforeFocus) {
+        if (hasAccessibilityPerm === null) {
+          setShowPermDialog(true);
+        } else {
+          startTimer(true);
+        }
+      }
+    }
+  };
 
   // Real-time synchronization across all devices for this user account
   useEffect(() => {
@@ -436,8 +649,8 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
   return (
     <div className="max-w-xl mx-auto p-4 sm:p-6 animate-in fade-in duration-500 relative">
       
-      {/* Real-time Cross-Device Sync Badge */}
-      <div className="mb-4 flex items-center justify-center">
+      {/* Real-time Cross-Device Sync & Parent PIN Control Strip */}
+      <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 shadow-sm transition-all">
           <Cloud className={`w-3.5 h-3.5 ${isSynced ? 'text-emerald-500' : 'text-amber-500'}`} />
           <span>
@@ -449,38 +662,192 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live sync active" />
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={() => openPinModal(parentPinHash ? 'change' : 'setup')}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-colors cursor-pointer ${
+            parentPinHash
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/70'
+              : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/70'
+          }`}
+          title={parentPinHash ? 'Update Parent Focus PIN' : 'Set a 4-digit Parent PIN to lock Focus Mode'}
+        >
+          <KeyRound className="w-3.5 h-3.5" />
+          <span>{parentPinHash ? 'Parent PIN Active · Change' : 'Set Parent PIN'}</span>
+        </button>
       </div>
 
-      {/* 5. BLOCKING SCREEN OVERLAY */}
+      {pinNotice && (
+        <div className="mb-4 px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center justify-center gap-2">
+          <Check className="w-4 h-4 shrink-0" />
+          <span>{pinNotice}</span>
+        </div>
+      )}
+
+      {/* 5. BLOCKING SCREEN OVERLAY (Protected by Dedicated Parent PIN) */}
       {showBlockingOverlay && (
-        <div className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
-          <Shield className="w-20 h-20 text-red-500 mb-6" />
+        <div className="fixed inset-0 z-[200] bg-slate-950 flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
+          <Shield className="w-20 h-20 text-rose-500 mb-6" />
           <h1 className="text-4xl font-extrabold text-white mb-4">Stay Focused 📚</h1>
           <p className="text-slate-300 text-lg mb-8 max-w-sm">
             Your study session is currently running. Distracting apps are blocked until you finish.
           </p>
-          <div className="text-6xl font-mono font-bold text-white mb-12 tabular-nums tracking-tighter">
+          <div className="text-6xl font-mono font-bold text-white mb-10 tabular-nums tracking-tighter">
             {dH}:{dM}:{dS}
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md">
             <button 
-              onClick={() => setShowBlockingOverlay(false)}
-              className="w-full sm:flex-1 px-6 py-4 bg-primary-600 hover:bg-primary-500 text-white rounded-2xl font-bold text-base shadow-lg shadow-primary-500/30 transition-all active:scale-95"
+              type="button"
+              onClick={() => openPinModal(parentPinHash ? 'verify-return' : 'setup')}
+              className="w-full sm:flex-1 px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold text-base shadow-lg shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
             >
-              Return to SJ Tutor AI
+              <Lock className="w-4 h-4 shrink-0" />
+              <span>Return to SJ Tutor AI</span>
             </button>
             <button
+              type="button"
               id="btn-terminate-study-session-overlay"
-              onClick={() => {
-                setShowBlockingOverlay(false);
-                confirmStop();
-              }}
-              className="w-full sm:flex-1 px-6 py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold text-base transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20"
+              onClick={() => openPinModal(parentPinHash ? 'verify-terminate' : 'setup')}
+              className="w-full sm:flex-1 px-6 py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold text-base transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20 cursor-pointer"
             >
-              <Square className="w-5 h-5 fill-current" />
-              Terminate Session
+              <Square className="w-4 h-4 fill-current shrink-0" />
+              <span>Terminate Session</span>
             </button>
           </div>
+          <p className="mt-5 text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+            <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+            <span>Parent PIN required to exit or terminate Focus Mode</span>
+          </p>
+        </div>
+      )}
+
+      {/* DEDICATED PARENT PIN MODAL (Setup / Change / Verify Return / Verify Terminate) */}
+      {pinModalMode && (
+        <div className="fixed inset-0 z-[250] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <motion.div
+            key={pinShakeKey}
+            initial={pinShakeKey > 0 ? { x: -8 } : { opacity: 0, scale: 0.96, y: 8 }}
+            animate={pinShakeKey > 0 ? { x: [0, -8, 8, -6, 6, 0] } : { opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: pinShakeKey > 0 ? 0.32 : 0.18 }}
+            className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden"
+          >
+            <div className="px-6 pt-6 pb-4 flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                    pinModalMode === 'verify-terminate'
+                      ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400'
+                      : 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400'
+                  }`}
+                >
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-tight">
+                    {pinModalMode === 'verify-return'
+                      ? 'Parent PIN Required'
+                      : pinModalMode === 'verify-terminate'
+                      ? 'Parent PIN to Terminate'
+                      : pinModalMode === 'change'
+                      ? pinStep === 'current'
+                        ? 'Verify Current Parent PIN'
+                        : pinStep === 'new'
+                        ? 'Enter New Parent PIN'
+                        : 'Confirm New Parent PIN'
+                      : pinStep === 'new'
+                      ? 'Create 4-Digit Parent PIN'
+                      : 'Confirm Parent PIN'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {pinModalMode === 'verify-return'
+                      ? 'Enter the 4-digit Parent PIN to return to SJ Tutor AI.'
+                      : pinModalMode === 'verify-terminate'
+                      ? 'Enter the 4-digit Parent PIN to terminate this study session.'
+                      : pinModalMode === 'change' && pinStep === 'current'
+                      ? 'Enter your existing Parent PIN before setting a new one.'
+                      : pinStep === 'confirm'
+                      ? 'Re-enter the 4-digit Parent PIN to confirm.'
+                      : 'Parents use this PIN to unlock Return and Terminate during Focus Mode.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closePinModal}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                aria-label="Close Parent PIN dialog"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                {[0, 1, 2, 3].map((idx) => (
+                  <input
+                    key={idx}
+                    ref={(el) => {
+                      pinInputRefs.current[idx] = el;
+                    }}
+                    type={showPinDigits ? 'text' : 'password'}
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={pinDigits[idx]}
+                    onChange={(e) => handlePinDigitChange(idx, e.target.value)}
+                    onKeyDown={(e) => handlePinKeyDown(idx, e)}
+                    aria-label={`Parent PIN digit ${idx + 1}`}
+                    className="w-13 h-14 text-center text-2xl font-mono font-bold tabular-nums rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all"
+                  />
+                ))}
+              </div>
+
+              <div className="flex justify-center mb-4">
+                <button
+                  type="button"
+                  onClick={() => setShowPinDigits((v) => !v)}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  {showPinDigits ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  <span>{showPinDigits ? 'Hide PIN' : 'Show PIN'}</span>
+                </button>
+              </div>
+
+              {pinError && (
+                <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center gap-2 text-left">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{pinError}</span>
+                </div>
+              )}
+
+              <div className="flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={closePinModal}
+                  className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitParentPin}
+                  className={`flex-1 py-3 rounded-xl text-white text-sm font-bold shadow-md transition-all cursor-pointer ${
+                    pinModalMode === 'verify-terminate'
+                      ? 'bg-rose-600 hover:bg-rose-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {pinModalMode === 'verify-return'
+                    ? 'Unlock & Return'
+                    : pinModalMode === 'verify-terminate'
+                    ? 'Unlock & Terminate'
+                    : pinStep === 'confirm'
+                    ? 'Save Parent PIN'
+                    : 'Continue'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
 
@@ -534,6 +901,11 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
                 </button>
                 <button 
                   onClick={() => {
+                    if (!parentPinHash) {
+                      setShowFocusSetup(false);
+                      openPinModal('setup-before-focus');
+                      return;
+                    }
                     if (hasAccessibilityPerm === null) {
                       setShowFocusSetup(false);
                       setShowPermDialog(true);
@@ -541,9 +913,9 @@ const StudyTimerView: React.FC<StudyTimerViewProps> = ({ userId, userEmail }) =>
                       startTimer(true);
                     }
                   }}
-                  className="flex-1 py-3.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold shadow-md shadow-primary-500/20 transition-all"
+                  className="flex-1 py-3.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold shadow-md shadow-primary-500/20 transition-all cursor-pointer"
                 >
-                  Continue
+                  {parentPinHash ? 'Continue' : 'Set Parent PIN & Start'}
                 </button>
               </div>
             </div>

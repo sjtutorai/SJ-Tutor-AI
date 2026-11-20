@@ -96,7 +96,7 @@ If the audio is completely silent or contains no discernible speech, return an e
 
         return response.text?.trim() || "";
       },
-      ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-3.5-transcribe"]
+      ["gemini-3.5-transcribe", "gemini-4-hydrogen", "gemini-3.1-flash-lite"]
     );
 
     res.json({ success: true, transcript });

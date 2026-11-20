@@ -42,11 +42,13 @@ import { UserProfile } from '../types';
 
 interface FloatingStreakWidgetProps {
   userProfile?: UserProfile;
+  userId?: string | null;
   onProfileUpdate?: (updates: Partial<UserProfile>) => void;
 }
 
 export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({ 
-  userProfile, 
+  userProfile,
+  userId,
   onProfileUpdate 
 }) => {
   const { 
@@ -123,33 +125,36 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
     };
   }, [streak.currentStreak]);
 
-  // Storage key for custom dragged streak position
-  const STREAK_POS_KEY = 'sjtutor_streak_widget_pos';
-
-  // Position state for floating drag / docking anywhere on screen
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(() => {
-    try {
-      const saved = localStorage.getItem('sjtutor_streak_widget_pos');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-          // Clamp inside current window dimensions
-          return {
-            x: Math.max(8, Math.min(window.innerWidth - 64, parsed.x)),
-            y: Math.max(8, Math.min(window.innerHeight - 64, parsed.y)),
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to load saved streak position:', e);
-    }
-    return null;
-  });
+  // Always start at bottom-right corner on mount/login; remains draggable during the session
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
 
   const [isDraggingActive, setIsDraggingActive] = useState(false);
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0, startPosX: 0, startPosY: 0 });
   const badgeRef = useRef<HTMLDivElement>(null);
+
+  // Reset Floating Streak badge back to bottom-right corner whenever a user logs in
+  useEffect(() => {
+    setPosition(null);
+    try {
+      localStorage.removeItem('sjtutor_streak_widget_pos');
+    } catch {
+      // ignore
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    const handleResetToCorner = () => {
+      setPosition(null);
+      try {
+        localStorage.removeItem('sjtutor_streak_widget_pos');
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('sjtutor_user_logged_in', handleResetToCorner);
+    return () => window.removeEventListener('sjtutor_user_logged_in', handleResetToCorner);
+  }, []);
 
   // Keep widget in bounds on window resize
   useEffect(() => {
@@ -159,13 +164,7 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
         const clampedX = Math.max(8, Math.min(window.innerWidth - 64, prev.x));
         const clampedY = Math.max(8, Math.min(window.innerHeight - 64, prev.y));
         if (clampedX !== prev.x || clampedY !== prev.y) {
-          const updated = { x: clampedX, y: clampedY };
-          try {
-            localStorage.setItem(STREAK_POS_KEY, JSON.stringify(updated));
-          } catch (e) {
-            console.warn('Failed to save streak position on resize:', e);
-          }
-          return updated;
+          return { x: clampedX, y: clampedY };
         }
         return prev;
       });
@@ -378,11 +377,6 @@ export const FloatingStreakWidget: React.FC<FloatingStreakWidgetProps> = ({
       const finalY = Math.max(8, Math.min(window.innerHeight - 64, dragStart.current.startPosY + deltaY));
       const finalPos = { x: finalX, y: finalY };
       setPosition(finalPos);
-      try {
-        localStorage.setItem(STREAK_POS_KEY, JSON.stringify(finalPos));
-      } catch (err) {
-        console.warn('Failed to save streak position:', err);
-      }
 
       setTimeout(() => {
         isDragging.current = false;

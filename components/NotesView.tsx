@@ -381,7 +381,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
     }
 
     const newNote: NoteItem = {
-      id: Date.now().toString(),
+      id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       title: 'Untitled Note',
       content,
       subject: assignedFolder,
@@ -512,7 +512,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
       if (content) {
         const assignedFolder = targetFolderForAi || selectedFolder || 'General Notes';
         const newNote: NoteItem = {
-          id: Date.now().toString(),
+          id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           title: chapterNameInput,
           content,
           subject: subjectInput,
@@ -1722,7 +1722,7 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
                     if (!newReminder.trim()) return;
                     const dueTimeString = newDate ? `${newDate}T${newTime || '23:59'}` : '';
                     const item: ReminderItem = {
-                      id: Date.now().toString(),
+                      id: `rem-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                       task: newReminder,
                       dueTime: dueTimeString ? new Date(dueTimeString).toISOString() : '',
                       completed: false

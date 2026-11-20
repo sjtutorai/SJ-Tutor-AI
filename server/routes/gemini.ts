@@ -2,10 +2,10 @@ import { Router } from "express";
 import { Type, ThinkingLevel } from "@google/genai";
 import { createDedicatedGeminiClient } from "../geminiClient";
 
-const DEFAULT_GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-4-hydrogen"];
+const DEFAULT_GEMINI_MODELS = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
 
 function buildLowLatencyThinkingConfig(model: string) {
-  return model === "gemini-4-hydrogen" || model === "gemini-3-flash-preview"
+  return model === "gemini-4-hydrogen"
     ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
     : {};
 }
@@ -1235,6 +1235,187 @@ Your responses should be concise, helpful, friendly, and formatted nicely with c
   } catch (error: any) {
     console.error("[Server Group Tutor Error]:", error);
     res.status(500).json({ success: false, error: error?.message || "Failed to respond in group" });
+  }
+});
+
+// 12. Smart Timetable Generator
+router.post("/smart-timetable", async (req, res) => {
+  try {
+    const { config, language = "English" } = req.body || {};
+    if (!config || typeof config !== "object") {
+      return res.status(400).json({ success: false, error: "Smart timetable configuration is required" });
+    }
+
+    const preferredDays: string[] = Array.isArray(config.availability?.preferredDays) && config.availability.preferredDays.length > 0
+      ? config.availability.preferredDays
+      : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+    const prompt = `You are SJ Tutor AI's Smart Timetable Architect. Create a realistic, conflict-free weekly study timetable in ${language} based strictly on this student profile:
+- Timetable Name: ${config.name}
+- Class / Grade: ${config.gradeClass} (${config.board})
+- Timetable Type: ${config.planType}
+- Subjects: ${JSON.stringify(config.subjects || [])}
+- Study Availability:
+  - Preferred Days: ${preferredDays.join(", ")}
+  - Primary Study Window: ${config.availability?.studyStartTime} to ${config.availability?.studyEndTime}
+  - Periods Available: Morning=${config.availability?.morningAvailable}, Afternoon=${config.availability?.afternoonAvailable}, Evening=${config.availability?.eveningAvailable}, Night=${config.availability?.nightAvailable}
+  - School Hours (DO NOT SCHEDULE HERE): ${config.availability?.hasSchoolHours ? `${config.availability.schoolStartTime} to ${config.availability.schoolEndTime} (Mon-Sat)` : "None"}
+  - Coaching/Tuition Hours (DO NOT SCHEDULE HERE): ${config.availability?.hasCoachingHours ? `${config.availability.coachingStartTime} to ${config.availability.coachingEndTime}` : "None"}
+  - Daily Travel Buffer: ${config.availability?.travelMinutesPerDay || 0} mins
+- Break & Session Preferences:
+  - Preferred Session Duration: ${config.breakPreferences?.sessionDurationMinutes || 45} mins
+  - Max Continuous Study: ${config.breakPreferences?.maxContinuousStudyMinutes || 90} mins
+  - Short Break: ${config.breakPreferences?.shortBreakMinutes || 10} mins, Long Break: ${config.breakPreferences?.longBreakMinutes || 25} mins
+  - Sleep Schedule (DO NOT SCHEDULE HERE): ${config.breakPreferences?.sleepStartTime} to ${config.breakPreferences?.sleepEndTime}
+  - Revision Frequency: ${config.breakPreferences?.revisionFrequency || "Daily"}
+  - Auto-Insert Breaks: ${config.breakPreferences?.autoInsertBreaks ?? true}
+- Exam Info: ${JSON.stringify(config.examInfo || {})}
+
+STRICT SCHEDULING RULES:
+1. Never schedule two subjects at the same time.
+2. Never schedule during School Hours, Coaching Hours, or Sleep Schedule.
+3. Schedule sessions across all Preferred Days (${preferredDays.join(", ")}).
+4. Give extra study and revision sessions to 'Difficult' subjects, 'Needs Improvement' confidence subjects, and 'High' priority subjects.
+5. Include 'Revision', 'Practice', and 'Break' sessions (if autoInsertBreaks is true).
+6. For each day in Preferred Days, generate 3 to 5 focused sessions (plus breaks) with specific chapter/topic names.
+7. Return JSON matching { aiAdvice: string, conflictWarning?: string, sessions: Array<{ day, startTime, endTime, durationMinutes, subject, topic, sessionType }> }.`;
+
+    const result = await serverGeminiKeyManager.executeWithRotation(
+      async (ai, model) => {
+        const response = await ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            ...buildLowLatencyThinkingConfig(model),
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                aiAdvice: { type: Type.STRING },
+                conflictWarning: { type: Type.STRING },
+                sessions: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      day: { type: Type.STRING },
+                      startTime: { type: Type.STRING },
+                      endTime: { type: Type.STRING },
+                      durationMinutes: { type: Type.INTEGER },
+                      subject: { type: Type.STRING },
+                      topic: { type: Type.STRING },
+                      sessionType: { type: Type.STRING },
+                    },
+                    required: ["day", "startTime", "endTime", "durationMinutes", "subject", "topic", "sessionType"],
+                  },
+                },
+              },
+              required: ["aiAdvice", "sessions"],
+            },
+          },
+        });
+
+        if (!response.text || !response.text.trim()) {
+          throw new Error("The AI did not return a timetable response. Please click Retry.");
+        }
+        return safeParseJson<{
+          aiAdvice?: string;
+          conflictWarning?: string;
+          sessions?: any[];
+        }>(response.text);
+      },
+      undefined,
+      { attemptTimeoutMs: 35000, overallDeadlineMs: 70000 }
+    );
+
+    res.json({
+      success: true,
+      aiAdvice: result.aiAdvice || "Prioritize high-difficulty subjects during your peak focus hours and review key formulas before sleep.",
+      conflictWarning: result.conflictWarning || undefined,
+      sessions: Array.isArray(result.sessions) ? result.sessions : [],
+    });
+  } catch (error: any) {
+    console.error("[Server Smart Timetable Error]:", error);
+    const classified = classifyGeminiHttpError(error, "Failed to generate smart timetable. Please try again.");
+    res.status(classified.status).json({ success: false, error: classified.message });
+  }
+});
+
+// 13. AI Tutor Topic Check Questions & Follow-Up Prompts
+router.post("/tutor-topic-questions", async (req, res) => {
+  try {
+    const { userQuestion = "", aiAnswer = "", subject = "General", grade = "General" } = req.body || {};
+    const prompt = `Based on the student's question and the tutor's explanation below for ${grade} ${subject}, generate:
+1. Exactly 2 multiple-choice practice questions (4 options each, 0-based correctAnswerIndex, and a concise explanation) that test the exact concept discussed.
+2. Exactly 4 short, engaging follow-up questions the student can click to explore this topic deeper.
+
+Student Question: "${String(userQuestion).slice(0, 400)}"
+Tutor Explanation: "${String(aiAnswer).slice(0, 1200)}"`;
+
+    const result = await serverGeminiKeyManager.executeWithRotation(async (ai, model) => {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          ...buildLowLatencyThinkingConfig(model),
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              practiceQuestions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    question: { type: Type.STRING },
+                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    correctAnswerIndex: { type: Type.INTEGER },
+                    explanation: { type: Type.STRING },
+                  },
+                  required: ["question", "options", "correctAnswerIndex", "explanation"],
+                },
+              },
+              followUpPrompts: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+            },
+            required: ["practiceQuestions", "followUpPrompts"],
+          },
+        },
+      });
+
+      if (!response.text) {
+        throw new Error("Empty tutor topic questions response");
+      }
+      const parsed = safeParseJson<{
+        practiceQuestions?: any[];
+        followUpPrompts?: string[];
+      }>(response.text);
+
+      const validPractice = validateAndNormalizeQuizQuestions(parsed.practiceQuestions || [], 2);
+      const prompts = Array.isArray(parsed.followUpPrompts)
+        ? parsed.followUpPrompts.filter((p) => typeof p === "string" && p.trim().length > 0).slice(0, 4)
+        : [];
+      return {
+        practiceQuestions: validPractice,
+        followUpPrompts: prompts,
+      };
+    });
+
+    res.json({
+      success: true,
+      practiceQuestions: result.practiceQuestions,
+      followUpPrompts: result.followUpPrompts,
+    });
+  } catch (error: any) {
+    console.error("[Server Tutor Topic Questions Error]:", error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || "Failed to generate tutor topic questions",
+      practiceQuestions: [],
+      followUpPrompts: [],
+    });
   }
 });
 

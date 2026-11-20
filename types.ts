@@ -143,6 +143,7 @@ export interface UserProfile {
   pinLockEnabled?: boolean;
   securityPin?: string;
   securityPinLength?: 4 | 6;
+  parentFocusPinHash?: string;
   biometricsEnabled?: boolean;
   securityQuestion?: string;
   securityAnswer?: string;
