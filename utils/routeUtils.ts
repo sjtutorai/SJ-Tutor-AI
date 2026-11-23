@@ -234,6 +234,16 @@ export const syncBrowserUrl = (
   } = {}
 ) => {
   try {
+    // Never overwrite or strip Firebase passwordless email-link parameters before verification completes
+    const currentSearch = typeof window !== "undefined" ? window.location.search || "" : "";
+    if (
+      currentSearch.includes("oobCode=") ||
+      currentSearch.includes("authMode=emailLink") ||
+      (currentSearch.includes("mode=signIn") && currentSearch.includes("apiKey="))
+    ) {
+      return;
+    }
+
     let targetPath = ROUTE_PATH_MAP[mode] || "/dashboard";
     let targetTitle = ROUTE_TITLES[mode] || "SJ Tutor AI";
 

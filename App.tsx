@@ -89,9 +89,11 @@ import {
 import {
   isSocialAuthInProgress,
   isEmailLinkAuthInProgress,
+  getCapturedEmailLinkHref,
+  clearCapturedEmailLinkHref,
   completePasswordlessEmailLinkSignIn,
 } from "./services/authService";
-import { onAuthStateChanged, signOut, isSignInWithEmailLink } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import type { User } from "firebase/auth";
 import {
   FileText,
@@ -338,6 +340,9 @@ const App: React.FC = () => {
   const [transitionStudentName, setTransitionStudentName] = useState("Student");
   const [pendingEmailLinkOnboarding, setPendingEmailLinkOnboarding] = useState<any | null>(null);
   const pendingEmailLinkOnboardingRef = useRef<boolean>(false);
+  const [isProcessingEmailLink, setIsProcessingEmailLink] = useState<boolean>(() =>
+    Boolean(getCapturedEmailLinkHref())
+  );
   const [emailLinkConfirmModal, setEmailLinkConfirmModal] = useState<{
     href: string;
     emailInput: string;
@@ -449,13 +454,30 @@ const App: React.FC = () => {
     }
 
     // Keep browser address bar and document title in sync for every feature
-    if (!showAuthModal && !showPremiumModal) {
+    // Never overwrite URL while processing a Firebase passwordless email sign-in link
+    if (
+      !showAuthModal &&
+      !showPremiumModal &&
+      !isProcessingEmailLink &&
+      !emailLinkConfirmModal &&
+      !pendingEmailLinkOnboarding &&
+      !getCapturedEmailLinkHref()
+    ) {
       syncBrowserUrl(mode, {
         shareId: publicShareId,
         groupSlug: mode === AppMode.GROUPS ? activeGroupSlug : null,
       });
     }
-  }, [mode, showAuthModal, showPremiumModal, publicShareId, activeGroupSlug]);
+  }, [
+    mode,
+    showAuthModal,
+    showPremiumModal,
+    publicShareId,
+    activeGroupSlug,
+    isProcessingEmailLink,
+    emailLinkConfirmModal,
+    pendingEmailLinkOnboarding,
+  ]);
 
   // Route & Hash Popstate Listener for full browser back/forward history navigation
   useEffect(() => {
@@ -535,7 +557,7 @@ const App: React.FC = () => {
     }
   }, [isSidebarOpen]);
   const [showSplash, setShowSplash] = useState(() => {
-    if (initialRoute.isAuthModalOpen) return false;
+    if (initialRoute.isAuthModalOpen || getCapturedEmailLinkHref()) return false;
     try {
       return sessionStorage.getItem("sjtutor_splash_seen") !== "true";
     } catch {
@@ -1344,9 +1366,10 @@ const App: React.FC = () => {
   // Passwordless Email Verification & Sign-In Link Processor (no window.prompt)
   const finalizeEmailLinkAuth = async (emailOverride?: string, href?: string) => {
     setShowSplash(false);
+    setIsProcessingEmailLink(true);
     setAuthLoading(true);
     try {
-      const targetHref = href || window.location.href;
+      const targetHref = href || getCapturedEmailLinkHref() || window.location.href;
       const res = await completePasswordlessEmailLinkSignIn(emailOverride, targetHref);
 
       if (res.status === "NEEDS_EMAIL_CONFIRMATION") {
@@ -1360,9 +1383,10 @@ const App: React.FC = () => {
         return;
       }
 
-      // Clear sensitive one-time auth query parameters from URL immediately
+      // Clear captured link & one-time auth query parameters from URL immediately
+      clearCapturedEmailLinkHref();
       try {
-        window.history.replaceState({}, document.title, window.location.pathname);
+        window.history.replaceState({}, document.title, "/dashboard");
       } catch {
         // ignore
       }
@@ -1385,6 +1409,7 @@ const App: React.FC = () => {
         setShowSplash(false);
         setShowAuthModal(false);
         await handleSignUpSuccess(res.user);
+        setMode(AppMode.DASHBOARD);
         triggerToast(
           "Signed In Passwordlessly ✨",
           `Welcome back, ${res.user.displayName || "Student"}!`,
@@ -1402,19 +1427,22 @@ const App: React.FC = () => {
       openAuthModal("signin");
     } catch (error) {
       console.error("Error signing in with email link", error);
+      clearCapturedEmailLinkHref();
       triggerToast(
         "Sign-In Error",
         "This sign-in link has expired or has already been used. Please request a new sign-in link.",
         "Important Alerts"
       );
     } finally {
+      setIsProcessingEmailLink(false);
       setAuthLoading(false);
     }
   };
 
   useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      finalizeEmailLinkAuth(undefined, window.location.href);
+    const capturedLink = getCapturedEmailLinkHref();
+    if (capturedLink) {
+      finalizeEmailLinkAuth(undefined, capturedLink);
     }
   }, []);
 
@@ -1594,12 +1622,11 @@ const App: React.FC = () => {
         }
         // Prevent racing with handleSocialAuth or passwordless email-link verification/onboarding
         if (
-          currentUser &&
-          (isSocialAuthInProgress() ||
-            isEmailLinkAuthInProgress() ||
-            pendingEmailLinkOnboardingRef.current)
+          isEmailLinkAuthInProgress() ||
+          Boolean(getCapturedEmailLinkHref()) ||
+          pendingEmailLinkOnboardingRef.current ||
+          (currentUser && isSocialAuthInProgress())
         ) {
-          setAuthLoading(false);
           return;
         }
         if (currentUser) {
@@ -4186,6 +4213,25 @@ const App: React.FC = () => {
     );
   }
 
+  if (isProcessingEmailLink) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center flex-col gap-4 px-4 text-center">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-blue-500/70 bg-slate-900 p-2 shadow-xl shadow-blue-500/20 animate-pulse">
+            <Logo className="w-full h-full" iconOnly noBorder />
+          </div>
+          <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-emerald-500 rounded-full animate-ping"></div>
+        </div>
+        <h2 className="text-lg font-extrabold text-white tracking-tight">
+          Verifying your email sign-in link...
+        </h2>
+        <p className="text-xs sm:text-sm text-slate-400 max-w-xs">
+          Please wait a moment while we securely sign you in without a password.
+        </p>
+      </div>
+    );
+  }
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-primary-50 dark:bg-slate-900 flex items-center justify-center flex-col gap-4">
@@ -4287,9 +4333,10 @@ const App: React.FC = () => {
             <button
               type="button"
               onClick={() => {
+                clearCapturedEmailLinkHref();
                 setEmailLinkConfirmModal(null);
                 try {
-                  window.history.replaceState({}, document.title, window.location.pathname);
+                  window.history.replaceState({}, document.title, "/");
                 } catch {
                   // ignore
                 }

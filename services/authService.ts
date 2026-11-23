@@ -53,6 +53,10 @@ async function safeParseAuthJson(response: Response): Promise<any> {
 
 let _socialAuthInProgress = false;
 let _emailLinkAuthInProgress = false;
+let _capturedInitialEmailLinkHref: string | null =
+  typeof window !== "undefined" && isSignInWithEmailLink(auth, window.location.href)
+    ? window.location.href
+    : null;
 
 export function isSocialAuthInProgress(): boolean {
   return _socialAuthInProgress;
@@ -60,6 +64,19 @@ export function isSocialAuthInProgress(): boolean {
 
 export function isEmailLinkAuthInProgress(): boolean {
   return _emailLinkAuthInProgress;
+}
+
+export function getCapturedEmailLinkHref(): string | null {
+  if (_capturedInitialEmailLinkHref) return _capturedInitialEmailLinkHref;
+  if (typeof window !== "undefined" && isSignInWithEmailLink(auth, window.location.href)) {
+    _capturedInitialEmailLinkHref = window.location.href;
+    return _capturedInitialEmailLinkHref;
+  }
+  return null;
+}
+
+export function clearCapturedEmailLinkHref(): void {
+  _capturedInitialEmailLinkHref = null;
 }
 
 async function safeGetDocWithTimeout(docRef: any, timeoutMs = 4000): Promise<any | null> {
