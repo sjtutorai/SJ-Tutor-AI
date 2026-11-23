@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Loader2,
   Mail,
@@ -16,7 +16,9 @@ import {
   HelpCircle,
   Lock,
   KeyRound,
-  Sparkles
+  Sparkles,
+  ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 import { GoogleIcon, AppleIcon, YahooIcon } from './AuthIcons';
 import { UnauthorizedDomainModal } from './UnauthorizedDomainModal';
@@ -24,7 +26,7 @@ import { BigScreenSignUpPage } from './BigScreenSignUpPage';
 import IdCardView from '../IdCardView';
 import {
   handleSocialAuth,
-  initEmailSignUp,
+  sendPasswordlessEmailLink,
   checkUsernameAvailability,
   createAccountAndGenerateSjTutorId,
   saveAccountSecurity,
@@ -39,6 +41,7 @@ interface SignUpFlowProps {
 
 type StepType =
   | 'AUTH_METHOD'
+  | 'EMAIL_VERIFICATION_SENT'
   | 'BIG_SCREEN_ONBOARDING'
   | 'ACCOUNT_EXISTS'
   | 'PROFILE_SETUP'
@@ -101,13 +104,20 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({
   // Auth Identity captured from Social popup or Email step
   const [authIdentity, setAuthIdentity] = useState<any>(null);
 
-  // Email form fields
+  // Passwordless Email Verification fields
   const [emailMode, setEmailMode] = useState(!!isPrefilledEmail);
   const [emailInput, setEmailInput] = useState(isPrefilledEmail && prefilledIdentifier ? prefilledIdentifier : '');
-  const [emailPassword, setEmailPassword] = useState('');
-  const [emailConfirmPassword, setEmailConfirmPassword] = useState('');
-  const [showEmailPw, setShowEmailPw] = useState(false);
-  const [showEmailConfirmPw, setShowEmailConfirmPw] = useState(false);
+  const [sentToEmail, setSentToEmail] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [emailLinkDisabledUrl, setEmailLinkDisabledUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   // Profile Setup fields
   const [firstName, setFirstName] = useState('');
@@ -148,6 +158,7 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({
   const getProgressStage = () => {
     switch (currentStep) {
       case 'AUTH_METHOD':
+      case 'EMAIL_VERIFICATION_SENT':
       case 'ACCOUNT_EXISTS':
         return 1;
       case 'PROFILE_SETUP':
@@ -181,6 +192,17 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({
         setCurrentStep('ACCOUNT_EXISTS');
         return;
       }
+      if (res.status === 'UNAUTHORIZED_DOMAIN') {
+        setUnauthorizedDomainData({
+          domain: res.domain || (typeof window !== 'undefined' ? window.location.hostname : ''),
+          provider,
+        });
+        return;
+      }
+      if (res.status === 'SUCCESS' && res.user) {
+        onSuccess(res.user);
+        return;
+      }
       if (res.status === 'PENDING_PROFILE') {
         const fullIdentity = {
           ...res.authIdentity,
@@ -194,75 +216,63 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({
         setCurrentStep('BIG_SCREEN_ONBOARDING');
         return;
       }
-
-      // If domain authorization is pending in environment, or popup closed/cancelled,
-      // gracefully redirect directly to the big screen page with the selected provider!
-      const fallbackIdentity = {
-        provider,
-        email: prefilledIdentifier || '',
-        displayName: '',
-      };
-      setAuthIdentity(fallbackIdentity);
-      if (onRedirectToBigScreen) {
-        onRedirectToBigScreen(fallbackIdentity);
+      if (res.status === 'ERROR') {
+        setErrorAlert(res.message || 'Sign-up with provider failed. Please try again.');
         return;
       }
-      setCurrentStep('BIG_SCREEN_ONBOARDING');
-      return;
     } catch (err: any) {
-      console.warn('Social auth catch fallback to big screen:', err);
-      const fallbackIdentity = {
-        provider,
-        email: prefilledIdentifier || '',
-        displayName: '',
-      };
-      setAuthIdentity(fallbackIdentity);
-      if (onRedirectToBigScreen) {
-        onRedirectToBigScreen(fallbackIdentity);
-        return;
-      }
-      setCurrentStep('BIG_SCREEN_ONBOARDING');
+      console.error('Social signup error:', err);
+      setErrorAlert(err?.message || 'Could not complete social sign-up. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   // -------------------------------------------------------------
-  // 2. Email + Password Sign Up Init
+  // 2. Passwordless Email Verification Link Sign Up
   // -------------------------------------------------------------
-  const handleEmailSignUpInit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendVerificationLink = async (targetEmail: string) => {
     setLoading(true);
     setErrorAlert(null);
+    setEmailLinkDisabledUrl(null);
     try {
-      const res = await initEmailSignUp(emailInput, emailPassword, emailConfirmPassword);
+      const res = await sendPasswordlessEmailLink(targetEmail, 'signup', true);
       if (res.status === 'ACCOUNT_ALREADY_EXISTS') {
         setCurrentStep('ACCOUNT_EXISTS');
         return;
       }
-      if (res.status === 'PENDING_PROFILE') {
-        const fullIdentity = {
-          ...res.authIdentity,
-          email: emailInput,
-          password: emailPassword,
-          provider: 'email',
-        };
-        setAuthIdentity(fullIdentity);
-        if (onRedirectToBigScreen) {
-          onRedirectToBigScreen(fullIdentity);
-          return;
-        }
-        setCurrentStep('BIG_SCREEN_ONBOARDING');
+      if (res.status === 'UNAUTHORIZED_DOMAIN') {
+        setUnauthorizedDomainData({
+          domain: res.domain || (typeof window !== 'undefined' ? window.location.hostname : ''),
+          provider: 'Email Link',
+        });
         return;
-      } else if (res.status === 'ERROR') {
-        setErrorAlert(res.message || 'Validation error');
       }
+      if (res.status === 'EMAIL_LINK_DISABLED') {
+        setEmailLinkDisabledUrl(
+          res.consoleUrl || 'https://console.firebase.google.com/project/sj-tutorai/authentication/providers'
+        );
+        setErrorAlert(res.message || 'Please enable Email link (passwordless sign-in) in Firebase Console.');
+        return;
+      }
+      if (res.status === 'EMAIL_LINK_SENT') {
+        setSentToEmail(res.maskedDestination || targetEmail.trim().toLowerCase());
+        setResendCooldown(30);
+        setCurrentStep('EMAIL_VERIFICATION_SENT');
+        return;
+      }
+      setErrorAlert(res.message || 'Could not send verification link. Please try again.');
     } catch (err: any) {
       console.error(err);
-      setErrorAlert('Error validating email.');
+      setErrorAlert('Error sending verification email. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEmailSignUpInit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleSendVerificationLink(emailInput);
   };
 
   // -------------------------------------------------------------
@@ -498,27 +508,24 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({
             </div>
           </div>
 
-          {/* Email Option Button */}
+          {/* Passwordless Email Verification Option Button */}
           <button
+            type="button"
             onClick={() => {
-              const fullIdentity = {
-                email: prefilledIdentifier || '',
-                provider: 'email',
-              };
-              setAuthIdentity(fullIdentity);
-              if (onRedirectToBigScreen) {
-                onRedirectToBigScreen(fullIdentity);
-                return;
-              }
-              setCurrentStep('BIG_SCREEN_ONBOARDING');
+              setErrorAlert(null);
+              setEmailLinkDisabledUrl(null);
+              setEmailMode(true);
             }}
-            className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold transition-all shadow-sm shadow-amber-500/20"
+            className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold transition-all shadow-sm shadow-amber-500/20 cursor-pointer"
           >
             <Mail className="w-5 h-5" />
-            <span>Sign up with Email & Password</span>
+            <span>Sign up with Email (Passwordless)</span>
           </button>
+          <p className="text-[11px] text-center text-slate-500 dark:text-slate-400 mt-2">
+            We&apos;ll send a secure verification link to your email — no password needed.
+          </p>
 
-          <div className="mt-8 text-center text-sm text-slate-600 dark:text-slate-400">
+          <div className="mt-7 text-center text-sm text-slate-600 dark:text-slate-400">
             Already have an account?{' '}
             <button
               onClick={() => onSwitchToLogin()}
@@ -530,29 +537,56 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({
         </div>
       )}
 
-      {/* ── Email & Password Form ── */}
+      {/* ── Passwordless Email Verification Form (New User) ── */}
       {currentStep === 'AUTH_METHOD' && emailMode && (
         <div>
           <button
-            onClick={() => setEmailMode(false)}
-            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-4 transition-colors"
+            type="button"
+            onClick={() => {
+              setErrorAlert(null);
+              setEmailLinkDisabledUrl(null);
+              setEmailMode(false);
+            }}
+            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-4 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>All sign up options</span>
           </button>
 
           <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-600 dark:text-emerald-300 text-[11px] font-bold uppercase tracking-wider mb-3">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Email Verification • Passwordless</span>
+            </div>
             <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              Create your account
+              Verify Your Email
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Enter your email and password to begin.
+              Enter your email to receive a one-click verification link. No password required.
             </p>
           </div>
 
+          {emailLinkDisabledUrl && (
+            <div className="mb-4 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 space-y-2">
+              <div className="font-bold text-amber-300">Firebase Setup Required</div>
+              <p className="text-slate-300 leading-relaxed">
+                Enable <strong>Email/Password → Email link (passwordless sign-in)</strong> in your Firebase Console to send verification links.
+              </p>
+              <a
+                href={emailLinkDisabledUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-amber-300 hover:text-amber-200 font-bold underline"
+              >
+                <span>Open Firebase Sign-in Providers</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          )}
+
           <form onSubmit={handleEmailSignUpInit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                 Email Address
               </label>
               <div className="relative">
@@ -560,76 +594,109 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({
                 <input
                   type="email"
                   required
+                  autoComplete="email"
                   placeholder="student@example.com"
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
                 />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showEmailPw ? 'text' : 'password'}
-                  required
-                  placeholder="••••••••"
-                  value={emailPassword}
-                  onChange={(e) => setEmailPassword(e.target.value)}
-                  className="w-full pl-4 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowEmailPw(!showEmailPw)}
-                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  {showEmailPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showEmailConfirmPw ? 'text' : 'password'}
-                  required
-                  placeholder="••••••••"
-                  value={emailConfirmPassword}
-                  onChange={(e) => setEmailConfirmPassword(e.target.value)}
-                  className="w-full pl-4 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowEmailConfirmPw(!showEmailConfirmPw)}
-                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  {showEmailConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 transition-all shadow-sm shadow-amber-500/20 disabled:opacity-50"
+              className="w-full mt-2 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-amber-500/20 disabled:opacity-50 cursor-pointer"
             >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Continue</span>}
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Sending Verification Link...</span>
+                </>
+              ) : (
+                <>
+                  <Mail className="w-4 h-4" />
+                  <span>Send Verification Link</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
 
           <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
             Already have an account?{' '}
             <button
-              onClick={() => onSwitchToLogin()}
+              type="button"
+              onClick={() => onSwitchToLogin(emailInput)}
               className="text-amber-600 dark:text-amber-400 font-semibold hover:underline"
             >
-              Log In
+              Log In Passwordlessly
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+          STEP 1B: EMAIL VERIFICATION LINK SENT (NEW USER INBOX CHECK)
+         ══════════════════════════════════════════════════════════ */}
+      {currentStep === 'EMAIL_VERIFICATION_SENT' && (
+        <div className="text-center py-3 space-y-5">
+          <div className="w-16 h-16 bg-emerald-500/15 border border-emerald-400/30 rounded-2xl flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-500/10">
+            <Mail className="w-8 h-8" />
+          </div>
+
+          <div>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-300 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-400/30 mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Verification Link Sent</span>
+            </span>
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-1">
+              Check Your Inbox
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
+              We sent a passwordless verification link to{' '}
+              <strong className="text-slate-900 dark:text-white">{sentToEmail}</strong>.
+            </p>
+          </div>
+
+          <div className="text-left p-4 rounded-2xl bg-slate-100 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 space-y-2 text-xs text-slate-600 dark:text-slate-300">
+            <div className="font-bold text-slate-900 dark:text-white">Next steps:</div>
+            <ol className="list-decimal list-inside space-y-1.5">
+              <li>Open the email from <strong>SJ Tutor AI</strong> (check Spam/Promotions if needed).</li>
+              <li>Click the <strong>Sign in to SJ Tutor AI</strong> verification link.</li>
+              <li>Your email is verified automatically and your student onboarding will open — no password needed!</li>
+            </ol>
+          </div>
+
+          <div className="space-y-2.5 pt-1">
+            <button
+              type="button"
+              disabled={loading || resendCooldown > 0}
+              onClick={() => handleSendVerificationLink(sentToEmail)}
+              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              <span>
+                {resendCooldown > 0
+                  ? `Resend Verification Link (${resendCooldown}s)`
+                  : 'Resend Verification Link'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setErrorAlert(null);
+                setCurrentStep('AUTH_METHOD');
+                setEmailMode(true);
+              }}
+              className="w-full py-2.5 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 font-semibold text-xs rounded-xl hover:bg-slate-200 dark:hover:bg-white/15 border border-slate-200 dark:border-white/10 transition-colors cursor-pointer"
+            >
+              Use a Different Email Address
             </button>
           </div>
         </div>
@@ -1496,11 +1563,16 @@ export const SignUpFlow: React.FC<SignUpFlowProps> = ({
         domain={unauthorizedDomainData?.domain}
         provider={unauthorizedDomainData?.provider || 'Google'}
         onRetry={() => {
-          if (unauthorizedDomainData?.provider) {
-            handleSocialSignUp(unauthorizedDomainData.provider as any);
+          const prov = unauthorizedDomainData?.provider;
+          setUnauthorizedDomainData(null);
+          if (prov === 'Email Link') {
+            if (emailInput.trim()) handleSendVerificationLink(emailInput);
+          } else if (prov) {
+            handleSocialSignUp(prov as any);
           }
         }}
         onSwitchToEmail={() => {
+          setUnauthorizedDomainData(null);
           setEmailMode(true);
         }}
       />

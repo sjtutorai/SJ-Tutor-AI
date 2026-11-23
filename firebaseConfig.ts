@@ -65,6 +65,9 @@ function createFirestoreInstance(): Firestore {
 export const db = createFirestoreInstance();
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
+googleProvider.addScope("email");
+googleProvider.addScope("profile");
 export const githubProvider = new GithubAuthProvider();
 export const appleProvider = new OAuthProvider("apple.com");
 export const yahooProvider = new OAuthProvider("yahoo.com");

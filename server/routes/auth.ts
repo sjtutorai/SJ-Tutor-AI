@@ -1155,9 +1155,26 @@ router.post("/sjtutor-login-step2-pin", async (req, res) => {
  */
 router.post("/login-with-id-card", async (req, res) => {
   try {
-    const { identifier, email } = req.body;
-    const cleanId = (identifier || "").trim().toUpperCase();
-    const cleanEmail = (email || "").trim().toLowerCase();
+    const { identifier, email, raw } = req.body || {};
+    let parsedId = typeof identifier === "string" ? identifier.trim() : "";
+    let parsedEmail = typeof email === "string" ? email.trim() : "";
+    let parsedUid = "";
+
+    const rawCandidate = typeof raw === "string" && raw.trim() ? raw.trim() : parsedId;
+    if (rawCandidate.startsWith("{") && rawCandidate.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(rawCandidate);
+        parsedId = String(parsed.id || parsed.sjTutorId || parsed.registrationNumber || parsed.uid || parsedId).trim();
+        parsedEmail = String(parsed.email || parsedEmail).trim();
+        parsedUid = String(parsed.uid || parsed.userId || "").trim();
+      } catch {
+        // ignore JSON parse failure
+      }
+    }
+
+    const cleanId = parsedId.toUpperCase();
+    const rawIdLower = parsedId.toLowerCase();
+    const cleanEmail = (parsedEmail || (parsedId.includes("@") ? parsedId : "")).toLowerCase();
 
     let matchedAccount: SjTutorAccount | undefined;
 
@@ -1174,12 +1191,14 @@ router.post("/login-with-id-card", async (req, res) => {
       }
     }
 
-    if (!matchedAccount && cleanId) {
+    if (!matchedAccount && (cleanId || parsedUid)) {
       for (const acc of sjTutorAccounts.values()) {
+        const accUid = String(acc.uid || acc.userId || "").toLowerCase();
         if (
           acc.sjTutorId?.toUpperCase() === cleanId ||
           acc.username?.toUpperCase() === cleanId ||
-          acc.uid === identifier
+          (parsedId && accUid === rawIdLower) ||
+          (parsedUid && accUid === parsedUid.toLowerCase())
         ) {
           matchedAccount = acc;
           break;
@@ -1188,7 +1207,13 @@ router.post("/login-with-id-card", async (req, res) => {
     }
 
     // Special match for sadanandj2011@gmail.com / Achiever
-    if (!matchedAccount && (cleanEmail === "sadanandj2011@gmail.com" || cleanId === "SJTA-ACHIEVER01")) {
+    if (
+      !matchedAccount &&
+      (cleanEmail === "sadanandj2011@gmail.com" ||
+        cleanId === "SJTA-ACHIEVER01" ||
+        rawIdLower === "sadanand_uid_achiever" ||
+        parsedUid === "sadanand_uid_achiever")
+    ) {
       matchedAccount = {
         uid: "sadanand_uid_achiever",
         userId: "sadanand_uid_achiever",
@@ -1217,7 +1242,13 @@ router.post("/login-with-id-card", async (req, res) => {
     }
 
     // Special match for channabasavajyoti@gmail.com / Achiever
-    if (!matchedAccount && (cleanEmail === "channabasavajyoti@gmail.com" || cleanId === "SJTA-ACHIEVER02" || cleanId === "NL2WojxLh4UNN5tnFiWeJz3EAge2")) {
+    if (
+      !matchedAccount &&
+      (cleanEmail === "channabasavajyoti@gmail.com" ||
+        cleanId === "SJTA-ACHIEVER02" ||
+        parsedId === "NL2WojxLh4UNN5tnFiWeJz3EAge2" ||
+        parsedUid === "NL2WojxLh4UNN5tnFiWeJz3EAge2")
+    ) {
       matchedAccount = {
         uid: "NL2WojxLh4UNN5tnFiWeJz3EAge2",
         userId: "NL2WojxLh4UNN5tnFiWeJz3EAge2",
@@ -1252,14 +1283,16 @@ router.post("/login-with-id-card", async (req, res) => {
       });
     }
 
-    const isAchiever = matchedAccount.email?.toLowerCase() === "sadanandj2011@gmail.com" ||
-                       matchedAccount.email?.toLowerCase() === "channabasavajyoti@gmail.com" ||
-                       matchedAccount.email?.toLowerCase() === "sjtutorai@gmail.com";
+    const isAchiever =
+      matchedAccount.email?.toLowerCase() === "sadanandj2011@gmail.com" ||
+      matchedAccount.email?.toLowerCase() === "channabasavajyoti@gmail.com" ||
+      matchedAccount.email?.toLowerCase() === "sjtutorai@gmail.com";
     const planType = isAchiever ? "Achiever" : "Scholar";
     const credits = isAchiever ? 99999 : 2000;
+    const resolvedUid = matchedAccount.uid || matchedAccount.userId || matchedAccount.sjTutorId;
 
     const userProfile = {
-      uid: matchedAccount.uid,
+      uid: resolvedUid,
       sjTutorId: matchedAccount.sjTutorId,
       registrationNumber: matchedAccount.sjTutorId,
       displayName: matchedAccount.displayName,

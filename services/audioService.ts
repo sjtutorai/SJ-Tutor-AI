@@ -78,14 +78,16 @@ export const transcribeAudioViaAI = async (
   language: string = 'English'
 ): Promise<string> => {
   try {
+    const cleanMimeType = String(mimeType || 'audio/webm').split(';')[0].trim() || 'audio/webm';
     const res = await fetch('/api/transcribe-audio', {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         audio: audioDataUrlOrBase64,
-        mimeType,
+        mimeType: cleanMimeType,
         language,
       }),
     });
@@ -96,7 +98,7 @@ export const transcribeAudioViaAI = async (
       try {
         data = JSON.parse(rawText);
       } catch {
-        throw new Error(`Transcription returned an invalid response (HTTP ${res.status}).`);
+        throw new Error(`Audio transcription encountered a temporary server error (HTTP ${res.status}). Please try again.`);
       }
     } else if (!res.ok) {
       throw new Error(`Transcription request failed (HTTP ${res.status}).`);

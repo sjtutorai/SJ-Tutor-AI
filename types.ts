@@ -154,7 +154,7 @@ export interface UserProfile {
   updatedAt?: number | any;
 }
 
-export type AuthProviderType = 'google' | 'apple' | 'yahoo' | 'github' | 'email_password' | 'sj_tutor_ai_id';
+export type AuthProviderType = 'google' | 'apple' | 'yahoo' | 'github' | 'email_password' | 'email_link' | 'sj_tutor_ai_id';
 
 export interface LinkedIdentity {
   id?: string;

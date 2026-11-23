@@ -913,8 +913,7 @@ export const exportContent = async (
       doc.save(`${fileNameBase}.pdf`);
       return;
     } catch (e) {
-      console.error("PDF generation failed:", e);
-      alert("PDF generation encountered an error. Falling back to plain text download.");
+      console.error("PDF generation failed, falling back to plain text download:", e);
       // Fallback to plain text
       format = 'txt';
       mimeType = 'text/plain;charset=utf-8';

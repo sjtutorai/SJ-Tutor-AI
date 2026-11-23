@@ -21,6 +21,7 @@ import QuizView from "./components/QuizView";
 import TutorChat from "./components/TutorChat";
 import ProfileView from "./components/ProfileView";
 import Auth from "./components/Auth";
+import { BigScreenSignUpPage } from "./components/auth/BigScreenSignUpPage";
 import { getDeviceRegisteredUser } from "./utils/registrationDetection";
 import SharedLockScreen from "./components/SharedLockScreen";
 import PremiumModal from "./components/PremiumModal";
@@ -85,7 +86,12 @@ import {
   getMembershipByEmail,
   resolveGoogleOneYearPremiumPlan,
 } from "./utils/userService";
-import { onAuthStateChanged, signOut, isSignInWithEmailLink, signInWithEmailLink, getAdditionalUserInfo, } from "firebase/auth";
+import {
+  isSocialAuthInProgress,
+  isEmailLinkAuthInProgress,
+  completePasswordlessEmailLinkSignIn,
+} from "./services/authService";
+import { onAuthStateChanged, signOut, isSignInWithEmailLink } from "firebase/auth";
 import type { User } from "firebase/auth";
 import {
   FileText,
@@ -330,6 +336,14 @@ const App: React.FC = () => {
   const [authPrefilledIdentifier, setAuthPrefilledIdentifier] = useState<string>('');
   const [showDashboardTransition, setShowDashboardTransition] = useState(false);
   const [transitionStudentName, setTransitionStudentName] = useState("Student");
+  const [pendingEmailLinkOnboarding, setPendingEmailLinkOnboarding] = useState<any | null>(null);
+  const pendingEmailLinkOnboardingRef = useRef<boolean>(false);
+  const [emailLinkConfirmModal, setEmailLinkConfirmModal] = useState<{
+    href: string;
+    emailInput: string;
+    error?: string;
+    loading?: boolean;
+  } | null>(null);
 
   const openAuthModal = (authMode?: 'signin' | 'signup', prefilledId?: string) => {
     const targetMode = authMode || (getDeviceRegisteredUser().hasRegistered ? 'signin' : 'signup');
@@ -1327,38 +1341,80 @@ const App: React.FC = () => {
     }
   }, [mode, userProfile.grade]);
 
-  // Magic Link Login Processor
+  // Passwordless Email Verification & Sign-In Link Processor (no window.prompt)
+  const finalizeEmailLinkAuth = async (emailOverride?: string, href?: string) => {
+    setShowSplash(false);
+    setAuthLoading(true);
+    try {
+      const targetHref = href || window.location.href;
+      const res = await completePasswordlessEmailLinkSignIn(emailOverride, targetHref);
+
+      if (res.status === "NEEDS_EMAIL_CONFIRMATION") {
+        setShowSplash(false);
+        setEmailLinkConfirmModal({
+          href: targetHref,
+          emailInput: emailOverride || "",
+          error: emailOverride ? res.message : undefined,
+          loading: false,
+        });
+        return;
+      }
+
+      // Clear sensitive one-time auth query parameters from URL immediately
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch {
+        // ignore
+      }
+      setEmailLinkConfirmModal(null);
+
+      if (res.status === "PENDING_PROFILE" && res.authIdentity) {
+        pendingEmailLinkOnboardingRef.current = true;
+        setPendingEmailLinkOnboarding(res.authIdentity);
+        setShowSplash(false);
+        setShowAuthModal(false);
+        triggerToast(
+          "Email Verified! ✅",
+          "Complete your student profile to generate your official SJ Tutor AI ID.",
+          "New Features"
+        );
+        return;
+      }
+
+      if (res.status === "SUCCESS" && res.user) {
+        setShowSplash(false);
+        setShowAuthModal(false);
+        await handleSignUpSuccess(res.user);
+        triggerToast(
+          "Signed In Passwordlessly ✨",
+          `Welcome back, ${res.user.displayName || "Student"}!`,
+          "New Features"
+        );
+        return;
+      }
+
+      triggerToast(
+        "Sign-In Link Error",
+        res.message || "This sign-in link has expired or was already used. Please request a fresh link.",
+        "Important Alerts"
+      );
+      setShowSplash(false);
+      openAuthModal("signin");
+    } catch (error) {
+      console.error("Error signing in with email link", error);
+      triggerToast(
+        "Sign-In Error",
+        "This sign-in link has expired or has already been used. Please request a new sign-in link.",
+        "Important Alerts"
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isSignInWithEmailLink(auth, window.location.href)) {
-      setAuthLoading(true);
-      let email = window.localStorage.getItem('emailForSignIn');
-      if (!email) {
-        email = window.prompt('Please provide your email for confirmation');
-      }
-      
-      if (email) {
-        signInWithEmailLink(auth, email, window.location.href)
-          .then(async (result) => {
-            window.localStorage.removeItem('emailForSignIn');
-            const additionalUserInfo = getAdditionalUserInfo(result);
-            if (additionalUserInfo?.isNewUser) {
-               const storedDisplayName = window.localStorage.getItem('displayNameForSignIn') || '';
-               window.localStorage.removeItem('displayNameForSignIn');
-               handleSignUpSuccess({ displayName: storedDisplayName });
-            }
-            // Clear URL of auth parameters
-            window.history.replaceState({}, document.title, window.location.pathname);
-          })
-          .catch((error) => {
-            console.error('Error signing in with email link', error);
-            triggerToast("Sign-In Error 🚫", "This sign-in link has expired or has already been used. Please request a new sign-in link.", "Important Alerts");
-          })
-          .finally(() => {
-             setAuthLoading(false);
-          });
-      } else {
-        setAuthLoading(false);
-      }
+      finalizeEmailLinkAuth(undefined, window.location.href);
     }
   }, []);
 
@@ -1533,6 +1589,16 @@ const App: React.FC = () => {
       async (currentUser) => {
         clearTimeout(timeoutId);
         if (isLoggingOutRef.current) {
+          setAuthLoading(false);
+          return;
+        }
+        // Prevent racing with handleSocialAuth or passwordless email-link verification/onboarding
+        if (
+          currentUser &&
+          (isSocialAuthInProgress() ||
+            isEmailLinkAuthInProgress() ||
+            pendingEmailLinkOnboardingRef.current)
+        ) {
           setAuthLoading(false);
           return;
         }
@@ -1994,14 +2060,18 @@ const App: React.FC = () => {
   };
 
   const handleSignUpSuccess = async (signupData?: Partial<UserProfile> | any) => {
+    isLoggingOutRef.current = false;
     if (signupData) {
       const targetUid = signupData.uid || auth.currentUser?.uid || `sjt_${Date.now()}`;
-      
-      // Fetch existing Firestore profile first to prevent overwriting Device A's fields
+
+      // Fetch existing Firestore profile first (with timeout so offline/slow network never hangs login)
       let remoteProfile: any = null;
       try {
-        const remoteDoc = await getDoc(doc(db, "users", targetUid));
-        if (remoteDoc.exists()) {
+        const remoteDoc = await Promise.race([
+          getDoc(doc(db, "users", targetUid)),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500)),
+        ]);
+        if (remoteDoc && remoteDoc.exists()) {
           remoteProfile = remoteDoc.data();
         }
       } catch (e) {
@@ -2013,6 +2083,7 @@ const App: React.FC = () => {
         ...remoteProfile,
         ...userProfile,
         ...signupData,
+        uid: targetUid,
         displayName: signupData.displayName || remoteProfile?.displayName || userProfile.displayName || "Student",
         email: signupData.email || remoteProfile?.email || userProfile.email || "",
         grade: signupData.classGrade || signupData.grade || remoteProfile?.grade || userProfile.grade || "Class 10",
@@ -2036,17 +2107,16 @@ const App: React.FC = () => {
         localStorage.setItem(`profile_${targetUid}`, JSON.stringify(mergedProfile));
         localStorage.setItem("sjtutor_active_user", JSON.stringify(mergedProfile));
         window.dispatchEvent(new Event("sjtutor_auth_changed"));
+        window.dispatchEvent(new Event("sjtutor_user_logged_in"));
       } catch (e) {
         console.warn("Could not save to localStorage", e);
       }
 
-      // If this is a fresh registration without an existing remote profile, save to Firestore
+      // If this is a fresh registration without an existing remote profile, save to Firestore in background
       if (auth.currentUser && !remoteProfile) {
-        try {
-          await saveProfileToFirestore(auth.currentUser.uid, mergedProfile);
-        } catch (e) {
+        saveProfileToFirestore(auth.currentUser.uid, mergedProfile).catch((e) => {
           console.warn("Could not save to firestore", e);
-        }
+        });
       }
 
       if (signupData?.language) {
@@ -4132,6 +4202,108 @@ const App: React.FC = () => {
     );
   }
 
+  // Brand-new passwordless email-verified user onboarding
+  if (pendingEmailLinkOnboarding) {
+    return (
+      <BigScreenSignUpPage
+        authIdentity={pendingEmailLinkOnboarding}
+        onSuccess={(userData) => {
+          pendingEmailLinkOnboardingRef.current = false;
+          setPendingEmailLinkOnboarding(null);
+          handleSignUpSuccess(userData);
+        }}
+        onCancel={() => {
+          pendingEmailLinkOnboardingRef.current = false;
+          setPendingEmailLinkOnboarding(null);
+          signOut(auth).catch(() => {});
+        }}
+      />
+    );
+  }
+
+  // Cross-device passwordless email-link confirmation modal (replaces iframe-blocked window.prompt)
+  if (emailLinkConfirmModal) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl text-white">
+          <div className="text-center mb-5">
+            <div className="w-12 h-12 rounded-2xl bg-blue-500/15 border border-blue-400/30 flex items-center justify-center mx-auto mb-3 text-blue-400">
+              <Logo className="w-8 h-8" iconOnly noBorder />
+            </div>
+            <h2 className="text-xl font-extrabold tracking-tight">
+              Confirm Your Email Address
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 mt-1.5">
+              You opened this sign-in link on a new browser or device. Enter the email address where you received the link to complete verification.
+            </p>
+          </div>
+
+          {emailLinkConfirmModal.error && (
+            <div className="mb-4 p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-200 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+              <span>{emailLinkConfirmModal.error}</span>
+            </div>
+          )}
+
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const cleanEmail = emailLinkConfirmModal.emailInput.trim();
+              if (!cleanEmail) return;
+              setEmailLinkConfirmModal((prev) =>
+                prev ? { ...prev, loading: true, error: undefined } : null
+              );
+              await finalizeEmailLinkAuth(cleanEmail, emailLinkConfirmModal.href);
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <label className="block text-xs font-semibold text-slate-200 mb-1.5">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                autoFocus
+                placeholder="student@example.com"
+                value={emailLinkConfirmModal.emailInput}
+                onChange={(e) =>
+                  setEmailLinkConfirmModal((prev) =>
+                    prev ? { ...prev, emailInput: e.target.value } : null
+                  )
+                }
+                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={emailLinkConfirmModal.loading}
+              className="w-full py-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white rounded-xl font-bold text-sm transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {emailLinkConfirmModal.loading ? "Verifying..." : "Verify & Continue"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setEmailLinkConfirmModal(null);
+                try {
+                  window.history.replaceState({}, document.title, window.location.pathname);
+                } catch {
+                  // ignore
+                }
+              }}
+              className="w-full py-2 text-xs text-slate-400 hover:text-white font-semibold cursor-pointer"
+            >
+              Cancel
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     // If we have shared content loaded or viewing public pages, show it in a public layout
     const hasSharedContent = summaryContent || homeworkContent || quizData;
@@ -4930,9 +5102,16 @@ const App: React.FC = () => {
                 
                 <button
                   onClick={() => {
-                    const relativeLink = shareSuccessModal.customUrl || `/share/${shareSuccessModal.shareId}`;
-                    console.log("[SHARE AUDIT] Opening share link in new tab:", relativeLink);
-                    window.open(relativeLink, "_blank");
+                    const targetShareId = shareSuccessModal.shareId;
+                    setShareSuccessModal(null);
+                    if (targetShareId) {
+                      setPublicShareId(targetShareId);
+                      try {
+                        window.history.pushState({}, "", `/share/${targetShareId}`);
+                      } catch {
+                        // ignore in restricted iframe
+                      }
+                    }
                   }}
                   className="py-3 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200/60 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 active:scale-95"
                 >
@@ -4999,8 +5178,8 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* 1. Two-Step Verification on Login Modal */}
-      {user && !isTwoStepVerified && (!!userProfile.twoFactorEnabled || !!userProfile.twoFactorPassword) && (
+      {/* 1. Two-Step Verification on Login Modal (only when a 2-step password is actually configured) */}
+      {user && !isTwoStepVerified && Boolean(userProfile.twoFactorPassword) && (
         <TwoStepLoginModal
           userProfile={userProfile}
           uid={user.uid}

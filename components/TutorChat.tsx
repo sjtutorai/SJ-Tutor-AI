@@ -984,11 +984,11 @@ const TutorChat: React.FC<TutorChatProps> = (props) => {
       }
     } catch (err: any) {
       console.error('Streaming error:', err);
-      const rawMsg = String(err?.message || err || '');
+      const rawMsg = String(err?.message || '').trim();
       const errorText =
-        rawMsg.includes('API key not valid') || rawMsg.includes('API_KEY_MISSING')
-          ? 'Server AI configuration issue. Please try again shortly.'
-          : 'Something went wrong while contacting SJ Tutor AI. Please try again.';
+        rawMsg && !rawMsg.startsWith('{') && rawMsg.length < 320
+          ? rawMsg
+          : 'Something went wrong while contacting SJ Tutor AI. Please click Regenerate or try again.';
 
       setMessages((prev) =>
         prev.map((m) =>

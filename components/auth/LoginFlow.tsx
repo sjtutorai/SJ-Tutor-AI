@@ -20,13 +20,16 @@ import {
   Search,
   ChevronDown,
   Lock,
+  ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
-import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { GoogleIcon, AppleIcon, YahooIcon } from './AuthIcons';
 import { UnauthorizedDomainModal } from './UnauthorizedDomainModal';
 import {
   handleSocialAuth,
   loginWithEmail,
+  sendPasswordlessEmailLink,
   loginSjTutorIdStep1,
   verifySjTutorIdStep2Pin,
   recoverAccountStep1,
@@ -35,6 +38,7 @@ import {
   findAccountAndLoginWithIdCard,
 } from '../../services/authService';
 import { SecurityPinService } from '../../services/securityPinService';
+import { decodeQrFromImageFile } from '../../utils/qrImageDecoder';
 
 interface LoginFlowProps {
   onSuccess: (userData: any) => void;
@@ -47,6 +51,7 @@ type LoginView =
   | 'ID_CARD_LOGIN'
   | 'ACCOUNT_NOT_FOUND'
   | 'EMAIL'
+  | 'EMAIL_LINK_SENT'
   | 'SJTUTOR_ID'
   | 'PIN_VERIFY'
   | 'RECOVER_LOOKUP'
@@ -82,6 +87,18 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [usePasswordMode, setUsePasswordMode] = useState(false);
+  const [sentLinkEmail, setSentLinkEmail] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [emailLinkDisabledUrl, setEmailLinkDisabledUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   // SJ Tutor AI ID login
   const [sjTutorIdInput, setSjTutorIdInput] = useState(!isPrefilledEmail && prefilledIdentifier ? prefilledIdentifier : '');
@@ -136,23 +153,33 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
     };
   }, [activeView, idCardMode, foundStudentAccount]);
 
-  const handleIdCardFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processUploadedIdCardFile = async (file: File) => {
     setIsSearchingFirestore(true);
     setErrorAlert(null);
     try {
-      const html5QrCode = new Html5Qrcode("hidden-file-qr-reader");
-      const decodedText = await html5QrCode.scanFile(file, false);
-      html5QrCode.clear();
+      const decodedText = await decodeQrFromImageFile(file);
+      if (!decodedText) {
+        setErrorAlert(
+          "Could not detect a QR code in this image. Try uploading a clear screenshot/PNG of your SJ ID Card, or enter your Student ID / Email directly."
+        );
+        return;
+      }
       await handleProcessIdCard(decodedText);
     } catch (err) {
       console.warn("Could not scan QR code from image:", err);
-      setErrorAlert("Could not detect a valid QR code in this image. Please enter the ID card number directly.");
-      setIdCardMode('manual');
+      setErrorAlert(
+        "Could not detect a valid QR code in this image. Please try another photo or enter your ID card number directly."
+      );
     } finally {
       setIsSearchingFirestore(false);
     }
+  };
+
+  const handleIdCardFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    await processUploadedIdCardFile(file);
   };
 
   const handleProcessIdCard = async (val: string) => {
@@ -229,10 +256,61 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
   };
 
   // -------------------------------------------------------------
-  // 2. Email + Password Log In
+  // 2A. Passwordless Email Sign-In Link (Default)
+  // -------------------------------------------------------------
+  const handleSendPasswordlessLink = async (targetEmail: string) => {
+    setLoading(true);
+    setErrorAlert(null);
+    setEmailLinkDisabledUrl(null);
+    try {
+      try {
+        if (rememberMe && targetEmail.trim()) {
+          localStorage.setItem(REMEMBERED_EMAIL_KEY, targetEmail.trim());
+        } else {
+          localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+        }
+      } catch {
+        // ignore storage errors
+      }
+      const res = await sendPasswordlessEmailLink(targetEmail, 'signin', rememberMe);
+      if (res.status === 'UNAUTHORIZED_DOMAIN') {
+        setUnauthorizedDomainData({
+          domain: res.domain || (typeof window !== 'undefined' ? window.location.hostname : ''),
+          provider: 'Email Link',
+        });
+        return;
+      }
+      if (res.status === 'EMAIL_LINK_DISABLED') {
+        setEmailLinkDisabledUrl(
+          res.consoleUrl || 'https://console.firebase.google.com/project/sj-tutorai/authentication/providers'
+        );
+        setErrorAlert(res.message || 'Please enable Email link (passwordless sign-in) in Firebase Console.');
+        return;
+      }
+      if (res.status === 'EMAIL_LINK_SENT') {
+        setSentLinkEmail(res.maskedDestination || targetEmail.trim().toLowerCase());
+        setResendCooldown(30);
+        setActiveView('EMAIL_LINK_SENT');
+        return;
+      }
+      setErrorAlert(res.message || 'Could not send sign-in link. Please try again.');
+    } catch (err: any) {
+      console.error(err);
+      setErrorAlert('Could not send passwordless sign-in link.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // 2B. Email Form Submit (Passwordless Default or Password Fallback)
   // -------------------------------------------------------------
   const handleEmailLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!usePasswordMode) {
+      await handleSendPasswordlessLink(email);
+      return;
+    }
     setLoading(true);
     setErrorAlert(null);
     try {
@@ -538,11 +616,14 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
             </button>
 
             <button
-              onClick={() => setActiveView('EMAIL')}
+              onClick={() => {
+                setUsePasswordMode(false);
+                setActiveView('EMAIL');
+              }}
               className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-white/10 hover:bg-white/15 border border-white/10 text-white rounded-xl font-semibold transition-colors cursor-pointer"
             >
               <Mail className="w-5 h-5 text-blue-400" />
-              <span>Log in with Email &amp; Password</span>
+              <span>Passwordless Email Sign-In</span>
             </button>
 
             <button
@@ -594,9 +675,6 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
               Scan your SJ Tutor AI Student ID card or enter your Card ID to find your account in Firestore and log in instantly.
             </p>
           </div>
-
-          {/* Hidden element for file scanning */}
-          <div id="hidden-file-qr-reader" className="hidden" />
 
           {foundStudentAccount ? (
             /* Verified Account Found in Firestore Card */
@@ -711,7 +789,7 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
                     className="overflow-hidden rounded-2xl border-2 border-dashed border-emerald-500/40 bg-slate-50 dark:bg-slate-800/50 p-1"
                   />
                   <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-                    Align the QR code from the back of your SJ Tutor AI ID card in front of your camera.
+                    Align the QR code from the front or back of your SJ Tutor AI ID card in front of your camera.
                   </p>
                 </div>
               )}
@@ -720,6 +798,18 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
               {idCardMode === 'upload' && (
                 <div
                   onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const droppedFile = e.dataTransfer.files?.[0];
+                    if (droppedFile) {
+                      processUploadedIdCardFile(droppedFile);
+                    }
+                  }}
                   className="border-2 border-dashed border-emerald-500/40 hover:border-emerald-500 bg-slate-50/50 dark:bg-slate-800/50 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 rounded-2xl p-8 text-center cursor-pointer transition-all group"
                 >
                   <input
@@ -736,12 +826,12 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
                     Click or Drag to Upload ID Card
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Upload a photo or screenshot of your ID Card or QR code (PNG, JPG, WEBP)
+                    Upload your downloaded SJ ID Card PNG, photo, or QR code screenshot (PNG, JPG, WEBP)
                   </p>
                   {isSearchingFirestore && (
                     <div className="mt-4 flex items-center justify-center gap-2 text-xs font-bold text-emerald-600">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Reading QR & searching Firestore...</span>
+                      <span>Reading QR & searching account...</span>
                     </div>
                   )}
                 </div>
@@ -843,7 +933,72 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
       )}
 
       {/* ══════════════════════════════════════════════════════════
-          VIEW: PRIMARY GLASSMORPHISM EMAIL + PASSWORD + GOOGLE LOGIN
+          VIEW: PASSWORDLESS EMAIL SIGN-IN LINK SENT
+         ══════════════════════════════════════════════════════════ */}
+      {activeView === 'EMAIL_LINK_SENT' && (
+        <div className="text-center py-3 space-y-5">
+          <div className="w-16 h-16 bg-blue-500/15 border border-blue-400/30 rounded-2xl flex items-center justify-center mx-auto text-blue-400 shadow-lg shadow-blue-500/10">
+            <Mail className="w-8 h-8" />
+          </div>
+
+          <div>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-300 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-400/30 mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Passwordless Link Sent</span>
+            </span>
+            <h2 className="text-2xl font-extrabold text-white tracking-tight mt-1">
+              Check Your Email
+            </h2>
+            <p className="text-sm text-slate-300 mt-2 leading-relaxed">
+              We sent a one-click sign-in link to{' '}
+              <strong className="text-white">{sentLinkEmail}</strong>.
+            </p>
+          </div>
+
+          <div className="text-left p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2 text-xs text-slate-300">
+            <div className="font-bold text-white">How to sign in:</div>
+            <ol className="list-decimal list-inside space-y-1.5">
+              <li>Open your inbox (check Spam/Promotions if you don&apos;t see it right away).</li>
+              <li>Click the <strong>Sign in to SJ Tutor AI</strong> link.</li>
+              <li>You&apos;ll be signed in instantly — or if you&apos;re a new user, your email will be verified and profile setup will open automatically.</li>
+            </ol>
+          </div>
+
+          <div className="space-y-2.5 pt-1">
+            <button
+              type="button"
+              disabled={loading || resendCooldown > 0}
+              onClick={() => handleSendPasswordlessLink(sentLinkEmail)}
+              className="w-full py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              <span>
+                {resendCooldown > 0
+                  ? `Resend Sign-In Link (${resendCooldown}s)`
+                  : 'Resend Sign-In Link'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setErrorAlert(null);
+                setActiveView('EMAIL');
+              }}
+              className="w-full py-2.5 bg-white/10 text-slate-200 font-semibold text-xs rounded-xl hover:bg-white/15 border border-white/10 transition-colors cursor-pointer"
+            >
+              Use a Different Email Address
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════
+          VIEW: PRIMARY GLASSMORPHISM PASSWORDLESS EMAIL + GOOGLE LOGIN
          ══════════════════════════════════════════════════════════ */}
       {activeView === 'EMAIL' && (
         <div>
@@ -853,13 +1008,39 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
             transition={{ duration: 0.35, delay: 0.04 }}
             className="text-center mb-5"
           >
+            {!usePasswordMode && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wider mb-2">
+                <ShieldCheck className="w-3 h-3" />
+                <span>Passwordless Sign-In</span>
+              </div>
+            )}
             <h2 className="text-2xl font-extrabold text-white tracking-tight">
               Sign In to Your Workspace
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 mt-1">
-              Continue learning with your AI tutor, notes, and quizzes.
+              {usePasswordMode
+                ? 'Sign in with your email and password.'
+                : 'Enter your email — we’ll send a verified one-click sign-in link (no password needed).'}
             </p>
           </motion.div>
+
+          {emailLinkDisabledUrl && (
+            <div className="mb-4 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 space-y-2">
+              <div className="font-bold text-amber-300">Firebase Setup Required</div>
+              <p className="text-slate-300 leading-relaxed">
+                Enable <strong>Email/Password → Email link (passwordless sign-in)</strong> in your Firebase Console to activate passwordless email links.
+              </p>
+              <a
+                href={emailLinkDisabledUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-amber-300 hover:text-amber-200 font-bold underline"
+              >
+                <span>Open Firebase Sign-in Providers</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          )}
 
           <form onSubmit={handleEmailLoginSubmit} className="space-y-4">
             {/* Sequential Field 1: Email */}
@@ -887,44 +1068,46 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
               </div>
             </motion.div>
 
-            {/* Sequential Field 2: Password with Show/Hide */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.18 }}
-            >
-              <label className="block text-xs font-semibold text-slate-200 mb-1.5">
-                Password
-              </label>
-              <div className="group relative rounded-xl p-[1px] bg-white/15 focus-within:bg-gradient-to-r focus-within:from-blue-400 focus-within:via-cyan-400 focus-within:to-violet-500 focus-within:shadow-[0_0_20px_rgba(59,130,246,0.35)] transition-all duration-300">
-                <div className="relative flex items-center bg-[#060d22]/90 rounded-[11px]">
-                  <Lock className="absolute left-3.5 w-4 h-4 text-slate-400 group-focus-within:text-blue-400 transition-colors" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    autoComplete="current-password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 bg-transparent rounded-[11px] text-sm text-white placeholder-slate-400 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    className="absolute right-3 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+            {/* Optional Field 2: Password (only shown if user opts into legacy password mode) */}
+            {usePasswordMode && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+              >
+                <label className="block text-xs font-semibold text-slate-200 mb-1.5">
+                  Password
+                </label>
+                <div className="group relative rounded-xl p-[1px] bg-white/15 focus-within:bg-gradient-to-r focus-within:from-blue-400 focus-within:via-cyan-400 focus-within:to-violet-500 focus-within:shadow-[0_0_20px_rgba(59,130,246,0.35)] transition-all duration-300">
+                  <div className="relative flex items-center bg-[#060d22]/90 rounded-[11px]">
+                    <Lock className="absolute left-3.5 w-4 h-4 text-slate-400 group-focus-within:text-blue-400 transition-colors" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="current-password"
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-10 pr-10 py-2.5 bg-transparent rounded-[11px] text-sm text-white placeholder-slate-400 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-3 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            )}
 
-            {/* Sequential Field 3: Remember me & Forgot password */}
+            {/* Sequential Field 3: Remember me & Mode Toggle */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.25 }}
+              transition={{ duration: 0.35, delay: 0.18 }}
               className="flex items-center justify-between gap-2 pt-0.5"
             >
               <label className="inline-flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
@@ -937,23 +1120,37 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
                 <span>Remember me</span>
               </label>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setRecoverIdentifier(email);
-                  setActiveView('RECOVER_LOOKUP');
-                }}
-                className="text-xs font-semibold text-blue-400 hover:text-cyan-300 hover:underline transition-colors cursor-pointer"
-              >
-                Forgot password?
-              </button>
+              {usePasswordMode ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecoverIdentifier(email);
+                    setActiveView('RECOVER_LOOKUP');
+                  }}
+                  className="text-xs font-semibold text-blue-400 hover:text-cyan-300 hover:underline transition-colors cursor-pointer"
+                >
+                  Forgot password?
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorAlert(null);
+                    setEmailLinkDisabledUrl(null);
+                    setUsePasswordMode(true);
+                  }}
+                  className="text-xs font-semibold text-slate-400 hover:text-blue-300 hover:underline transition-colors cursor-pointer"
+                >
+                  Use password instead
+                </button>
+              )}
             </motion.div>
 
-            {/* Sequential Field 4: Glowing Hover Login Button */}
+            {/* Sequential Field 4: Glowing Hover Primary Action Button */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.31 }}
+              transition={{ duration: 0.35, delay: 0.24 }}
             >
               <button
                 type="submit"
@@ -963,15 +1160,34 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Signing In...</span>
+                    <span>{usePasswordMode ? 'Signing In...' : 'Sending Sign-In Link...'}</span>
                   </>
-                ) : (
+                ) : usePasswordMode ? (
                   <>
                     <span>Log In</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
+                ) : (
+                  <>
+                    <Mail className="w-4 h-4" />
+                    <span>Send Passwordless Sign-In Link</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
                 )}
               </button>
+
+              {usePasswordMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorAlert(null);
+                    setUsePasswordMode(false);
+                  }}
+                  className="w-full mt-2 py-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200 transition-colors cursor-pointer"
+                >
+                  ← Switch back to Passwordless Email Link
+                </button>
+              )}
             </motion.div>
           </form>
 
@@ -1453,12 +1669,22 @@ export const LoginFlow: React.FC<LoginFlowProps> = ({ onSuccess, onSwitchToSignU
         domain={unauthorizedDomainData?.domain}
         provider={unauthorizedDomainData?.provider || 'Google'}
         onRetry={() => {
-          if (unauthorizedDomainData?.provider) {
-            handleSocialLogin(unauthorizedDomainData.provider as any);
+          const prov = unauthorizedDomainData?.provider;
+          setUnauthorizedDomainData(null);
+          if (prov === 'Email Link') {
+            if (email.trim()) handleSendPasswordlessLink(email);
+          } else if (prov) {
+            handleSocialLogin(prov as any);
           }
         }}
-        onSwitchToEmail={() => setActiveView('EMAIL')}
-        onSwitchToId={() => setActiveView('SJTUTOR_ID')}
+        onSwitchToEmail={() => {
+          setUnauthorizedDomainData(null);
+          setActiveView('EMAIL');
+        }}
+        onSwitchToId={() => {
+          setUnauthorizedDomainData(null);
+          setActiveView('SJTUTOR_ID');
+        }}
       />
     </div>
   );

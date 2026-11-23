@@ -65,21 +65,29 @@ let cachedStatus: KeyManagerStatus = {
   ],
 };
 
-function resolveAnswerIdxClient(rawIndex: unknown, optionsLength: number): number | null {
+function resolveAnswerIdxClient(rawIndex: unknown, options: string[]): number | null {
+  const optionsLength = options.length;
   if (typeof rawIndex === "number" && Number.isInteger(rawIndex)) {
-    return rawIndex >= 0 && rawIndex < optionsLength ? rawIndex : null;
+    if (rawIndex >= 0 && rawIndex < optionsLength) return rawIndex;
+    if (rawIndex === optionsLength && optionsLength > 0) return optionsLength - 1;
+    return null;
   }
   if (typeof rawIndex === "string") {
     const trimmed = rawIndex.trim();
     if (/^\d+$/.test(trimmed)) {
       const parsed = parseInt(trimmed, 10);
-      return parsed >= 0 && parsed < optionsLength ? parsed : null;
+      if (parsed >= 0 && parsed < optionsLength) return parsed;
+      if (parsed === optionsLength && optionsLength > 0) return optionsLength - 1;
+      return null;
     }
     const letterMatch = trimmed.match(/^(?:option\s*)?([A-Za-z])(?:[.)])?$/i);
     if (letterMatch) {
       const idx = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
       return idx >= 0 && idx < optionsLength ? idx : null;
     }
+    const lowerTarget = trimmed.toLowerCase();
+    const matchedIdx = options.findIndex((o) => o.trim().toLowerCase() === lowerTarget);
+    if (matchedIdx !== -1) return matchedIdx;
   }
   return null;
 }
@@ -92,7 +100,7 @@ function validateAndNormalizeQuizClient(parsed: unknown, requestedCount: number)
     : [];
 
   if (rawQuestions.length === 0) {
-    throw new Error("The AI did not return any quiz questions. Please try again.");
+    throw new Error("The AI did not return any quiz questions. Please click Retry.");
   }
 
   const validQuestions: QuizQuestion[] = [];
@@ -110,7 +118,7 @@ function validateAndNormalizeQuizClient(parsed: unknown, requestedCount: number)
 
     if (nonEmptyWithOriginalIdx.length < 2) continue;
 
-    const rawResolvedIdx = resolveAnswerIdxClient(q.correctAnswerIndex, rawOptions.length);
+    const rawResolvedIdx = resolveAnswerIdxClient(q.correctAnswerIndex, rawOptions);
     if (rawResolvedIdx === null) continue;
 
     const mappedIdx = nonEmptyWithOriginalIdx.findIndex(
@@ -119,8 +127,8 @@ function validateAndNormalizeQuizClient(parsed: unknown, requestedCount: number)
     if (mappedIdx === -1) continue;
 
     const options = nonEmptyWithOriginalIdx.map((entry: { text: string }) => entry.text);
-    const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
-    if (!explanation) continue;
+    const rawExplanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
+    const explanation = rawExplanation || `Correct answer: ${options[mappedIdx]}`;
 
     validQuestions.push({
       question: questionText,
@@ -141,7 +149,7 @@ async function fetchWithWarmupRetry(
   url: string,
   init: RequestInit,
   retries = 1,
-  timeoutMs = 60000
+  timeoutMs = 85000
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -162,12 +170,20 @@ async function fetchWithWarmupRetry(
     clearTimeout(timer);
   }
 
-  if (retries > 0 && (res.status === 502 || res.status === 503 || res.status === 504)) {
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    return fetchWithWarmupRetry(url, init, retries - 1, timeoutMs);
-  }
   const contentType = (res.headers.get("content-type") || "").toLowerCase();
-  if (retries > 0 && contentType.includes("text/html")) {
+  const isNonJsonError =
+    !res.ok &&
+    !contentType.includes("application/json") &&
+    !contentType.includes("text/event-stream");
+
+  if (
+    retries > 0 &&
+    (res.status === 502 ||
+      res.status === 503 ||
+      res.status === 504 ||
+      contentType.includes("text/html") ||
+      (res.status >= 500 && isNonJsonError))
+  ) {
     await new Promise((resolve) => setTimeout(resolve, 1200));
     return fetchWithWarmupRetry(url, init, retries - 1, timeoutMs);
   }
@@ -179,18 +195,21 @@ async function safeReadJsonResponse(res: Response, actionLabel: string): Promise
   if (!rawText || !rawText.trim()) {
     throw new Error(
       res.ok
-        ? `${actionLabel}: Server returned an empty response. Please click Retry.`
-        : `${actionLabel} failed (HTTP ${res.status}). Please click Retry.`
+        ? `${actionLabel}: The AI server returned an empty response. Please click Retry.`
+        : `${actionLabel} encountered a temporary server error (HTTP ${res.status}). Please click Retry.`
     );
   }
   let parsed: any;
   try {
     parsed = JSON.parse(rawText);
   } catch {
-    throw new Error(`${actionLabel}: Non-JSON response from server (HTTP ${res.status}).`);
+    console.warn(`[${actionLabel}] Unexpected non-JSON response (HTTP ${res.status}):`, rawText.slice(0, 300));
+    throw new Error(
+      `${actionLabel} encountered a temporary AI server error (HTTP ${res.status}). Please wait a moment and click Retry.`
+    );
   }
   if (!res.ok) {
-    throw new Error(parsed?.error || parsed?.message || `${actionLabel} failed (HTTP ${res.status}).`);
+    throw new Error(parsed?.error || parsed?.message || `${actionLabel} failed (HTTP ${res.status}). Please click Retry.`);
   }
   return parsed;
 }
@@ -465,7 +484,7 @@ export const GeminiService = {
     }
 
     const count = normalizedPayload.questionCount || 5;
-    const timeoutMs = count >= 20 ? 80000 : 60000;
+    const timeoutMs = count >= 20 ? 100000 : 85000;
 
     const res = await fetchWithWarmupRetry(
       "/api/ai/quiz",
@@ -669,7 +688,7 @@ export const GeminiService = {
         body: JSON.stringify({ config, language }),
       },
       1,
-      75000
+      95000
     );
 
     const body = await safeReadJsonResponse(res, "Smart Timetable");

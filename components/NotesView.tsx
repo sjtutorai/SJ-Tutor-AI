@@ -535,9 +535,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
       } else {
         triggerToast('Generation Failed', 'Failed to generate notes. Please try again.', 'Important Alerts');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("AI notes generation error:", err);
-      triggerToast('Generation Error', 'Something went wrong. Please check your connection and retry.', 'Important Alerts');
+      triggerToast('Generation Error', err?.message || 'Something went wrong. Please check your connection and retry.', 'Important Alerts');
     } finally {
       setIsGeneratingNotes(false);
     }
@@ -644,8 +644,9 @@ const NotesView: React.FC<NotesViewProps> = ({ userId, onDeductCredit, userProfi
         });
         triggerToast('AI Action Complete! 🧠', `Successfully applied ${task} to your notes.`, 'Important Alerts');
       }
-    } catch {
-      triggerToast('AI Action Failed', 'AI request failed. Please try again.', 'Important Alerts');
+    } catch (err: any) {
+      console.error("Note AI action error:", err);
+      triggerToast('AI Action Failed', err?.message || 'AI request failed. Please try again.', 'Important Alerts');
     } finally {
       setIsAiLoading(false);
     }

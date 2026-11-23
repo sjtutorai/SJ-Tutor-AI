@@ -1,13 +1,98 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { Type, ThinkingLevel } from "@google/genai";
 import { createDedicatedGeminiClient } from "../geminiClient";
 
-const DEFAULT_GEMINI_MODELS = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
+const DEFAULT_GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-4-hydrogen"];
+
+const SUPPORTED_INLINE_MIME_PREFIXES = ["image/", "audio/", "video/"];
+const SUPPORTED_INLINE_MIME_EXACT = new Set(["application/pdf"]);
 
 function buildLowLatencyThinkingConfig(model: string) {
   return model === "gemini-4-hydrogen"
     ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
     : {};
+}
+
+function normalizeMimeType(rawMime?: string): string {
+  return String(rawMime || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+}
+
+function isSupportedInlineMime(mimeType: string): boolean {
+  if (!mimeType) return false;
+  if (SUPPORTED_INLINE_MIME_EXACT.has(mimeType)) return true;
+  return SUPPORTED_INLINE_MIME_PREFIXES.some((prefix) => mimeType.startsWith(prefix));
+}
+
+function parseDataUrl(input: string, fallbackMime = "image/jpeg"): { mimeType: string; data: string } | null {
+  if (typeof input !== "string" || !input.trim()) return null;
+  const trimmed = input.trim();
+  const matches = trimmed.match(/^data:([^;]+)(?:;[^,]*)?;base64,(.+)$/s);
+  if (matches) {
+    return {
+      mimeType: normalizeMimeType(matches[1]) || fallbackMime,
+      data: matches[2].trim(),
+    };
+  }
+  return {
+    mimeType: normalizeMimeType(fallbackMime) || "image/jpeg",
+    data: trimmed,
+  };
+}
+
+function decodeBase64TextSafely(base64: string, maxChars = 16000): string {
+  try {
+    const decoded = Buffer.from(base64, "base64").toString("utf-8").trim();
+    return decoded.length > maxChars ? `${decoded.slice(0, maxChars)}\n...[truncated]` : decoded;
+  } catch {
+    return "";
+  }
+}
+
+function buildSafeAttachmentParts(
+  file: { name?: string; type?: string; dataUrl?: string; textContent?: string }
+): { inlinePart?: { inlineData: { mimeType: string; data: string } }; textNote?: string } {
+  const fileName = file.name || "attachment";
+  if (file.textContent && typeof file.textContent === "string" && file.textContent.trim()) {
+    return {
+      textNote: `\n[Attached File: ${fileName}]\nType: ${file.type || "text/plain"}\nContent:\n${file.textContent.slice(0, 16000)}\n`,
+    };
+  }
+  if (!file.dataUrl) return {};
+
+  const parsed = parseDataUrl(file.dataUrl, file.type || "application/octet-stream");
+  if (!parsed || !parsed.data) return {};
+
+  if (isSupportedInlineMime(parsed.mimeType)) {
+    return {
+      inlinePart: {
+        inlineData: {
+          mimeType: parsed.mimeType,
+          data: parsed.data,
+        },
+      },
+    };
+  }
+
+  if (
+    parsed.mimeType.startsWith("text/") ||
+    parsed.mimeType === "application/json" ||
+    parsed.mimeType === "application/xml" ||
+    parsed.mimeType === "application/csv"
+  ) {
+    const text = decodeBase64TextSafely(parsed.data);
+    if (text) {
+      return {
+        textNote: `\n[Attached File: ${fileName}]\nType: ${parsed.mimeType}\nContent:\n${text}\n`,
+      };
+    }
+  }
+
+  return {
+    textNote: `\n[Attached File: ${fileName} (${parsed.mimeType || "unknown type"}) — binary format could not be read directly; rely on user description or ask user to paste text/screenshot if needed.]\n`,
+  };
 }
 
 function safeParseJson<T>(raw: string): T {
@@ -23,7 +108,6 @@ function safeParseJson<T>(raw: string): T {
   try {
     return JSON.parse(cleaned) as T;
   } catch {
-    // Attempt to recover a complete JSON array or object surrounded by extra prose
     const firstBracket = cleaned.indexOf("[");
     const lastBracket = cleaned.lastIndexOf("]");
     if (firstBracket !== -1 && lastBracket > firstBracket) {
@@ -39,7 +123,7 @@ function safeParseJson<T>(raw: string): T {
       try {
         return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1)) as T;
       } catch {
-        // fall through to clean retryable error
+        // fall through to retryable error
       }
     }
     throw new Error("AI returned an invalid or incomplete JSON response. Please try again.");
@@ -53,21 +137,34 @@ interface NormalizedQuizQuestion {
   explanation: string;
 }
 
-function resolveCorrectAnswerIndex(rawIndex: unknown, optionsLength: number): number | null {
+function resolveCorrectAnswerIndex(
+  rawIndex: unknown,
+  options: string[]
+): number | null {
+  const optionsLength = options.length;
   if (typeof rawIndex === "number" && Number.isInteger(rawIndex)) {
-    return rawIndex >= 0 && rawIndex < optionsLength ? rawIndex : null;
+    if (rawIndex >= 0 && rawIndex < optionsLength) return rawIndex;
+    // Handle occasional 1-based index when model returns optionsLength (e.g. 4 for 4 options)
+    if (rawIndex === optionsLength && optionsLength > 0) return optionsLength - 1;
+    return null;
   }
   if (typeof rawIndex === "string") {
     const trimmed = rawIndex.trim();
     if (/^\d+$/.test(trimmed)) {
       const parsed = parseInt(trimmed, 10);
-      return parsed >= 0 && parsed < optionsLength ? parsed : null;
+      if (parsed >= 0 && parsed < optionsLength) return parsed;
+      if (parsed === optionsLength && optionsLength > 0) return optionsLength - 1;
+      return null;
     }
     const letterMatch = trimmed.match(/^(?:option\s*)?([A-Za-z])(?:[.)])?$/i);
     if (letterMatch) {
       const idx = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
       return idx >= 0 && idx < optionsLength ? idx : null;
     }
+    // Exact option text match fallback
+    const lowerTarget = trimmed.toLowerCase();
+    const matchedIdx = options.findIndex((o) => o.trim().toLowerCase() === lowerTarget);
+    if (matchedIdx !== -1) return matchedIdx;
   }
   return null;
 }
@@ -92,16 +189,17 @@ function validateAndNormalizeQuizQuestions(parsed: unknown, requestedCount: numb
     if (!questionText) continue;
 
     if (!Array.isArray(q.options)) continue;
-    const rawOptions = q.options.map((opt: unknown) => (typeof opt === "string" ? opt.trim() : String(opt ?? "").trim()));
+    const rawOptions = q.options.map((opt: unknown) =>
+      typeof opt === "string" ? opt.trim() : String(opt ?? "").trim()
+    );
 
-    // Keep track of original index mapping if any blank trailing options were omitted
     const nonEmptyWithOriginalIdx = rawOptions
       .map((text: string, originalIdx: number) => ({ text, originalIdx }))
       .filter((entry: { text: string; originalIdx: number }) => entry.text.length > 0);
 
     if (nonEmptyWithOriginalIdx.length < 2) continue;
 
-    const rawResolvedIdx = resolveCorrectAnswerIndex(q.correctAnswerIndex, rawOptions.length);
+    const rawResolvedIdx = resolveCorrectAnswerIndex(q.correctAnswerIndex, rawOptions);
     if (rawResolvedIdx === null) continue;
 
     const mappedIdx = nonEmptyWithOriginalIdx.findIndex(
@@ -110,8 +208,8 @@ function validateAndNormalizeQuizQuestions(parsed: unknown, requestedCount: numb
     if (mappedIdx === -1) continue;
 
     const options = nonEmptyWithOriginalIdx.map((entry: { text: string }) => entry.text);
-    const explanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
-    if (!explanation) continue;
+    const rawExplanation = typeof q.explanation === "string" ? q.explanation.trim() : "";
+    const explanation = rawExplanation || `Correct answer: ${options[mappedIdx]}`;
 
     validQuestions.push({
       question: questionText,
@@ -121,7 +219,7 @@ function validateAndNormalizeQuizQuestions(parsed: unknown, requestedCount: numb
     });
   }
 
-  const minimumRequired = Math.min(requestedCount, Math.max(1, Math.ceil(requestedCount * 0.7)));
+  const minimumRequired = Math.min(requestedCount, Math.max(1, Math.ceil(requestedCount * 0.6)));
   if (validQuestions.length < minimumRequired) {
     throw new Error(
       `Quiz generator returned incomplete or malformed questions (${validQuestions.length}/${requestedCount} valid). Please try again.`
@@ -131,7 +229,10 @@ function validateAndNormalizeQuizQuestions(parsed: unknown, requestedCount: numb
   return validQuestions.slice(0, requestedCount);
 }
 
-function classifyGeminiHttpError(error: any, fallbackMessage: string): { status: number; message: string } {
+export function classifyGeminiHttpError(
+  error: any,
+  actionLabel = "AI request"
+): { status: number; message: string } {
   const rawMsg = String(error?.message || error || "");
   const lower = rawMsg.toLowerCase();
   const explicitStatus = Number(error?.status || error?.statusCode || 0);
@@ -139,65 +240,151 @@ function classifyGeminiHttpError(error: any, fallbackMessage: string): { status:
   if (lower.includes("timed out") || explicitStatus === 504) {
     return {
       status: 504,
-      message: "Quiz generation took too long to respond. Please try again or use fewer questions.",
+      message: `${actionLabel} took too long to respond. Please click Retry.`,
     };
   }
+
   if (
     explicitStatus === 429 ||
     lower.includes("resource_exhausted") ||
     lower.includes("quota") ||
     lower.includes("rate limit") ||
     lower.includes("too many requests") ||
-    lower.includes("high demand") ||
-    lower.includes("overloaded")
+    lower.includes("generaterequestsperday")
   ) {
+    const isFreeTierDaily =
+      lower.includes("perday") ||
+      lower.includes("per day") ||
+      lower.includes("free_tier") ||
+      lower.includes("free tier");
     return {
       status: 429,
-      message: "The AI service is temporarily busy due to high demand or quota limits. Please wait a moment and click Retry.",
+      message: isFreeTierDaily
+        ? "The free-tier Gemini API daily quota has been reached on the configured server keys. Please wait a moment and retry, or select a billing-enabled API key in Settings > Secrets for higher quota."
+        : "The AI service is temporarily rate-limited due to high usage. Please wait a few seconds and click Retry.",
     };
   }
-  if (explicitStatus === 403 || lower.includes("permission_denied") || lower.includes("api key not valid") || lower.includes("api_key_invalid")) {
+
+  if (
+    explicitStatus === 503 ||
+    lower.includes("high demand") ||
+    lower.includes("overloaded") ||
+    lower.includes("unavailable") ||
+    lower.includes("service unavailable")
+  ) {
+    return {
+      status: 503,
+      message: "The AI model is currently experiencing temporary high demand. Please wait a moment and click Retry.",
+    };
+  }
+
+  if (
+    explicitStatus === 403 ||
+    explicitStatus === 401 ||
+    lower.includes("permission_denied") ||
+    lower.includes("api key not valid") ||
+    lower.includes("api_key_invalid") ||
+    lower.includes("missing gemini_api_key") ||
+    lower.includes("no valid gemini api keys")
+  ) {
     return {
       status: 403,
-      message: "Server Gemini API configuration could not be authorized. Please verify your server API key settings.",
+      message: "Server Gemini API key could not be authorized. Please check your API key in Settings > Secrets.",
     };
   }
-  if (lower.includes("invalid or incomplete json") || lower.includes("incomplete or malformed questions") || lower.includes("empty json") || lower.includes("empty question list")) {
+
+  if (
+    explicitStatus === 400 ||
+    lower.includes("invalid_argument") ||
+    lower.includes("unsupported mime")
+  ) {
+    return {
+      status: 400,
+      message: `${actionLabel} received an unsupported input or attachment format. Please try again with plain text, PDF, or an image.`,
+    };
+  }
+
+  if (
+    lower.includes("invalid or incomplete json") ||
+    lower.includes("incomplete or malformed questions") ||
+    lower.includes("empty json") ||
+    lower.includes("empty question list") ||
+    lower.includes("empty response")
+  ) {
     return {
       status: 502,
-      message: rawMsg || "The AI returned an invalid quiz format. Please click Retry.",
+      message: `${actionLabel} received an incomplete response from AI. Please click Retry.`,
     };
   }
+
   return {
     status: 500,
-    message: rawMsg || fallbackMessage,
+    message: `${actionLabel} encountered a temporary AI server error. Please click Retry.`,
   };
 }
 
 function withAttemptTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
-  ]);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+function extractRetryDelaySeconds(err: any): number | null {
+  const msg = String(err?.message || err || "");
+  const secMatch = msg.match(/"retryDelay"\s*:\s*"(\d+)s"/i);
+  if (secMatch) {
+    const parsed = parseInt(secMatch[1], 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  const humanMatch = msg.match(/retry in\s+(?:(\d+)h)?(?:(\d+)m)?(\d+(?:\.\d+)?)s/i);
+  if (humanMatch) {
+    const hours = humanMatch[1] ? parseInt(humanMatch[1], 10) : 0;
+    const mins = humanMatch[2] ? parseInt(humanMatch[2], 10) : 0;
+    const secs = humanMatch[3] ? Math.ceil(parseFloat(humanMatch[3])) : 0;
+    return hours * 3600 + mins * 60 + secs;
+  }
+  return null;
 }
 
 export interface ServerKeySlot {
   id: string;
   key: string;
   masked: string;
-  status: "ACTIVE" | "HIGH_DEMAND" | "COOLING_DOWN";
+  status: "ACTIVE" | "HIGH_DEMAND" | "COOLING_DOWN" | "INVALID";
   cooldownUntil: number;
   requests: number;
   highDemandCount: number;
 }
 
+interface PairCooldownEntry {
+  until: number;
+  reason: "DAILY_QUOTA" | "RATE_LIMIT" | "HIGH_DEMAND" | "TIMEOUT";
+}
+
 export class ServerGeminiKeyManager {
   private slots: ServerKeySlot[] = [];
-  private currentIndex: number = 0;
-  private readonly COOLDOWN_MS = 60000;
+  private currentIndex = 0;
+  private pairCooldowns = new Map<string, PairCooldownEntry>();
+  private modelCooldowns = new Map<string, number>();
+
+  private readonly SHORT_COOLDOWN_MS = 45000;
+  private readonly DAILY_QUOTA_COOLDOWN_MS = 10 * 60 * 1000; // 10 min (recovers promptly if billing/key changes)
+  private readonly TIMEOUT_COOLDOWN_MS = 20000;
+  private readonly INVALID_KEY_COOLDOWN_MS = 10 * 60 * 1000;
 
   constructor() {
     this.refresh();
+  }
+
+  private pairKey(slotId: string, model: string): string {
+    return `${slotId}::${model}`;
   }
 
   public refresh(): ServerKeySlot[] {
@@ -223,36 +410,80 @@ export class ServerGeminiKeyManager {
           id: def.id,
           key: trimmed,
           masked,
-          status: existing ? existing.status : "ACTIVE",
-          cooldownUntil: existing ? existing.cooldownUntil : 0,
+          status: "ACTIVE",
+          cooldownUntil: 0,
           requests: existing ? existing.requests : 0,
           highDemandCount: existing ? existing.highDemandCount : 0,
         });
       }
     }
+
+    // Clear cooldown caches on explicit refresh so newly updated keys/billing work immediately
+    this.pairCooldowns.clear();
+    this.modelCooldowns.clear();
     this.slots = newSlots;
     return this.slots;
   }
 
-  public isHighDemandError(err: any): boolean {
-    if (!err) return false;
+  private classifyErrorKind(
+    err: any
+  ): "INVALID_KEY" | "MODEL_NOT_FOUND" | "DAILY_QUOTA" | "RATE_LIMIT" | "HIGH_DEMAND" | "TIMEOUT" | "BAD_REQUEST" | "OTHER" {
+    if (!err) return "OTHER";
     const msg = String(err?.message || err?.statusText || err || "").toLowerCase();
-    const status = err?.status || err?.statusCode;
-    if (status === 429 || status === 503 || status === 500 || status === 502) return true;
-    return (
+    const status = Number(err?.status || err?.statusCode || 0);
+
+    if (
+      status === 401 ||
+      status === 403 ||
+      msg.includes("permission_denied") ||
+      msg.includes("api_key_invalid") ||
+      msg.includes("api key not valid")
+    ) {
+      return "INVALID_KEY";
+    }
+    if (status === 404 || msg.includes("not_found") || (msg.includes("model") && msg.includes("not found"))) {
+      return "MODEL_NOT_FOUND";
+    }
+    if (msg.includes("timed out")) {
+      return "TIMEOUT";
+    }
+    if (
+      status === 429 ||
       msg.includes("429") ||
       msg.includes("resource_exhausted") ||
       msg.includes("quota") ||
       msg.includes("rate limit") ||
-      msg.includes("ratelimit") ||
+      msg.includes("too many requests")
+    ) {
+      const retrySecs = extractRetryDelaySeconds(err);
+      if (
+        msg.includes("perday") ||
+        msg.includes("per day") ||
+        msg.includes("free_tier_requests") ||
+        (retrySecs !== null && retrySecs > 120)
+      ) {
+        return "DAILY_QUOTA";
+      }
+      return "RATE_LIMIT";
+    }
+    if (
+      status === 503 ||
+      status === 502 ||
+      status === 500 ||
+      msg.includes("503") ||
+      msg.includes("unavailable") ||
       msg.includes("high demand") ||
       msg.includes("overloaded") ||
       msg.includes("capacity") ||
-      msg.includes("too many requests") ||
       msg.includes("service unavailable") ||
-      msg.includes("503") ||
       msg.includes("try again later")
-    );
+    ) {
+      return "HIGH_DEMAND";
+    }
+    if (status === 400 || msg.includes("invalid_argument")) {
+      return "BAD_REQUEST";
+    }
+    return "OTHER";
   }
 
   public getSlots(): ServerKeySlot[] {
@@ -269,7 +500,19 @@ export class ServerGeminiKeyManager {
 
   public getStatus() {
     const slots = this.getSlots();
+    const now = Date.now();
     const active = slots[this.currentIndex % (slots.length || 1)];
+
+    const activePairCooldowns: Record<string, { reason: string; remainingSec: number }> = {};
+    for (const [k, v] of this.pairCooldowns.entries()) {
+      if (v.until > now) {
+        activePairCooldowns[k] = {
+          reason: v.reason,
+          remainingSec: Math.ceil((v.until - now) / 1000),
+        };
+      }
+    }
+
     return {
       totalKeys: slots.length,
       activeKeyId: active?.id || "NONE",
@@ -281,16 +524,131 @@ export class ServerGeminiKeyManager {
         status: s.status,
         requests: s.requests,
         highDemandCount: s.highDemandCount,
-        inCooldown: s.cooldownUntil > Date.now(),
-        cooldownRemainingSec: Math.max(0, Math.ceil((s.cooldownUntil - Date.now()) / 1000)),
+        inCooldown: s.cooldownUntil > now,
+        cooldownRemainingSec: Math.max(0, Math.ceil((s.cooldownUntil - now) / 1000)),
       })),
+      pairCooldowns: activePairCooldowns,
     };
   }
 
-  public isModelNotFoundError(err: any): boolean {
-    const status = err?.status || err?.statusCode;
-    const msg = String(err?.message || err || "").toLowerCase();
-    return status === 404 || msg.includes("not_found") || (msg.includes("model") && msg.includes("not found"));
+  private isPairCoolingDown(slotId: string, model: string, now: number): number {
+    const modelUntil = this.modelCooldowns.get(model) || 0;
+    const pairEntry = this.pairCooldowns.get(this.pairKey(slotId, model));
+    const pairUntil = pairEntry ? pairEntry.until : 0;
+    return Math.max(modelUntil, pairUntil) > now ? Math.max(modelUntil, pairUntil) : 0;
+  }
+
+  private buildCandidatePlan(preferredModels: string[]): { slot: ServerKeySlot; model: string }[] {
+    const slots = this.getSlots();
+    const now = Date.now();
+    const totalSlots = slots.length;
+    const startIdx = this.currentIndex % totalSlots;
+    this.currentIndex = (this.currentIndex + 1) % totalSlots;
+
+    const orderedSlots: ServerKeySlot[] = [];
+    for (let i = 0; i < totalSlots; i++) {
+      orderedSlots.push(slots[(startIdx + i) % totalSlots]);
+    }
+
+    const healthy: { slot: ServerKeySlot; model: string }[] = [];
+    const cooling: { slot: ServerKeySlot; model: string; until: number }[] = [];
+
+    for (const model of preferredModels) {
+      for (const slot of orderedSlots) {
+        if (slot.status === "INVALID" && slot.cooldownUntil > now) {
+          continue;
+        }
+        const until = this.isPairCoolingDown(slot.id, model, now);
+        if (until === 0) {
+          healthy.push({ slot, model });
+        } else {
+          cooling.push({ slot, model, until });
+        }
+      }
+    }
+
+    if (healthy.length > 0) {
+      return healthy;
+    }
+
+    // If every (slot, model) pair is cooling down, try up to 2 pairs with soonest expiry as a last-chance attempt
+    cooling.sort((a, b) => a.until - b.until);
+    return cooling.slice(0, Math.min(2, cooling.length)).map(({ slot, model }) => ({ slot, model }));
+  }
+
+  private recordAttemptFailure(
+    slot: ServerKeySlot,
+    model: string,
+    err: any,
+    highDemandHitsPerModel: Map<string, number>
+  ): { skipModelNow: boolean; abortAll: boolean } {
+    const now = Date.now();
+    const kind = this.classifyErrorKind(err);
+
+    if (kind === "INVALID_KEY") {
+      slot.status = "INVALID";
+      slot.cooldownUntil = now + this.INVALID_KEY_COOLDOWN_MS;
+      return { skipModelNow: false, abortAll: false };
+    }
+
+    if (kind === "MODEL_NOT_FOUND") {
+      this.modelCooldowns.set(model, now + this.DAILY_QUOTA_COOLDOWN_MS);
+      return { skipModelNow: true, abortAll: false };
+    }
+
+    if (kind === "BAD_REQUEST") {
+      // Prompt / MIME / schema issue won't be fixed by retrying another key on the same model
+      return { skipModelNow: true, abortAll: false };
+    }
+
+    if (kind === "DAILY_QUOTA") {
+      const retrySecs = extractRetryDelaySeconds(err);
+      const cooldownMs = retrySecs
+        ? Math.min(this.DAILY_QUOTA_COOLDOWN_MS, Math.max(this.SHORT_COOLDOWN_MS, retrySecs * 1000))
+        : this.DAILY_QUOTA_COOLDOWN_MS;
+      this.pairCooldowns.set(this.pairKey(slot.id, model), {
+        until: now + cooldownMs,
+        reason: "DAILY_QUOTA",
+      });
+      slot.highDemandCount++;
+      return { skipModelNow: false, abortAll: false };
+    }
+
+    if (kind === "RATE_LIMIT") {
+      this.pairCooldowns.set(this.pairKey(slot.id, model), {
+        until: now + this.SHORT_COOLDOWN_MS,
+        reason: "RATE_LIMIT",
+      });
+      slot.highDemandCount++;
+      return { skipModelNow: false, abortAll: false };
+    }
+
+    if (kind === "HIGH_DEMAND") {
+      this.pairCooldowns.set(this.pairKey(slot.id, model), {
+        until: now + this.SHORT_COOLDOWN_MS,
+        reason: "HIGH_DEMAND",
+      });
+      slot.highDemandCount++;
+      const hits = (highDemandHitsPerModel.get(model) || 0) + 1;
+      highDemandHitsPerModel.set(model, hits);
+      // After 2 keys hit 503 on this model, cool down the model globally and switch immediately
+      if (hits >= 2) {
+        this.modelCooldowns.set(model, now + this.SHORT_COOLDOWN_MS);
+        return { skipModelNow: true, abortAll: false };
+      }
+      return { skipModelNow: false, abortAll: false };
+    }
+
+    if (kind === "TIMEOUT") {
+      this.pairCooldowns.set(this.pairKey(slot.id, model), {
+        until: now + this.TIMEOUT_COOLDOWN_MS,
+        reason: "TIMEOUT",
+      });
+      // Immediately move to fallback model on timeout instead of burning another 25s
+      return { skipModelNow: true, abortAll: false };
+    }
+
+    return { skipModelNow: false, abortAll: false };
   }
 
   public async executeWithRotation<T>(
@@ -304,161 +662,220 @@ export class ServerGeminiKeyManager {
     }
 
     const preferredModels = modelsOverride && modelsOverride.length > 0 ? modelsOverride : DEFAULT_GEMINI_MODELS;
-    const attemptTimeoutMs = timeouts?.attemptTimeoutMs ?? 20000;
-    const overallDeadlineMs = timeouts?.overallDeadlineMs ?? 50000;
-    const totalSlots = slots.length;
-    const startIdx = this.currentIndex % totalSlots;
-    this.currentIndex = (this.currentIndex + 1) % totalSlots;
+    const attemptTimeoutMs = timeouts?.attemptTimeoutMs ?? 30000;
+    const overallDeadlineMs = timeouts?.overallDeadlineMs ?? 75000;
+    const candidates = this.buildCandidatePlan(preferredModels);
 
-    // Order active keys first, cooling-down keys last
-    const orderedIndices: number[] = [];
-    for (let i = 0; i < totalSlots; i++) {
-      const idx = (startIdx + i) % totalSlots;
-      if (slots[idx].cooldownUntil <= Date.now()) orderedIndices.push(idx);
-    }
-    for (let i = 0; i < totalSlots; i++) {
-      const idx = (startIdx + i) % totalSlots;
-      if (slots[idx].cooldownUntil > Date.now()) orderedIndices.push(idx);
+    if (candidates.length === 0) {
+      throw new Error("No valid Gemini API keys configured on server.");
     }
 
     let lastErr: any = null;
     const overallDeadline = Date.now() + overallDeadlineMs;
+    const skippedModels = new Set<string>();
+    const highDemandHitsPerModel = new Map<string, number>();
 
-    for (let mIdx = 0; mIdx < preferredModels.length; mIdx++) {
-      const currentModel = preferredModels[mIdx];
-      let attemptsOnThisModel = 0;
-      for (let i = 0; i < orderedIndices.length; i++) {
-        if (Date.now() > overallDeadline && mIdx > 0) {
-          break;
-        }
-        const slotIdx = orderedIndices[i];
-        const currentSlot = slots[slotIdx];
-        currentSlot.requests++;
-        attemptsOnThisModel++;
-        const startedAt = Date.now();
+    for (let idx = 0; idx < candidates.length; idx++) {
+      const { slot, model } = candidates[idx];
+      if (skippedModels.has(model)) continue;
 
-        try {
-          const ai = createDedicatedGeminiClient(currentSlot.key);
-          const result = await withAttemptTimeout(
-            operation(ai, currentModel, currentSlot),
-            attemptTimeoutMs,
-            `Gemini ${currentModel}`
-          );
-          currentSlot.status = "ACTIVE";
-          currentSlot.cooldownUntil = 0;
-          return result;
-        } catch (err: any) {
-          lastErr = err;
-          const elapsed = Date.now() - startedAt;
-          const highDemand = this.isHighDemandError(err);
-          const modelMissing = this.isModelNotFoundError(err);
-          const timedOut = String(err?.message || "").includes("timed out");
+      const remainingMs = overallDeadline - Date.now();
+      if (idx > 0 && remainingMs < 4000) {
+        break;
+      }
 
-          if (highDemand) {
-            currentSlot.status = "HIGH_DEMAND";
-            currentSlot.highDemandCount++;
-            currentSlot.cooldownUntil = Date.now() + this.COOLDOWN_MS;
-          }
+      slot.requests++;
+      const startedAt = Date.now();
+      const thisAttemptMs = Math.min(attemptTimeoutMs, Math.max(8000, remainingMs));
 
-          console.warn(
-            `[Server Gemini] Error (${elapsed}ms) on ${currentSlot.id} (${currentSlot.masked}) model ${currentModel}: ${err?.message || err}`
-          );
+      try {
+        const ai = createDedicatedGeminiClient(slot.key, thisAttemptMs + 5000);
+        const result = await withAttemptTimeout(
+          operation(ai, model, slot),
+          thisAttemptMs,
+          `Gemini ${model}`
+        );
+        slot.status = "ACTIVE";
+        slot.cooldownUntil = 0;
+        this.pairCooldowns.delete(this.pairKey(slot.id, model));
+        return result;
+      } catch (err: any) {
+        lastErr = err;
+        const elapsed = Date.now() - startedAt;
+        console.warn(
+          `[Server Gemini] Error (${elapsed}ms) on ${slot.id} (${slot.masked}) model ${model}: ${err?.message || err}`
+        );
 
-          if ((modelMissing || timedOut || attemptsOnThisModel >= 2) && mIdx < preferredModels.length - 1) {
-            break; // Quickly fall back to next model instead of burning timeout budget across all keys
-          }
-
-          if (i === orderedIndices.length - 1 && mIdx === preferredModels.length - 1) {
-            throw lastErr;
-          }
-        }
+        const { skipModelNow, abortAll } = this.recordAttemptFailure(slot, model, err, highDemandHitsPerModel);
+        if (skipModelNow) skippedModels.add(model);
+        if (abortAll) break;
       }
     }
+
     throw lastErr || new Error("All Gemini keys and fallback models failed on server.");
   }
 
-  public async executeStreamWithRotation(
-    streamBuilder: (ai: ReturnType<typeof createDedicatedGeminiClient>, model: string, slot: ServerKeySlot) => Promise<any>,
-    modelsOverride?: string[]
-  ): Promise<any> {
+  /**
+   * Opens a Gemini content stream and validates that the FIRST text chunk arrives before returning,
+   * so 429/503/timeout failures during stream startup seamlessly rotate to the next healthy (key, model).
+   */
+  public async openVerifiedStreamWithRotation(
+    streamBuilder: (ai: ReturnType<typeof createDedicatedGeminiClient>, model: string, slot: ServerKeySlot) => Promise<AsyncIterable<any>>,
+    options?: {
+      modelsOverride?: string[];
+      firstChunkTimeoutMs?: number;
+      overallDeadlineMs?: number;
+      isAborted?: () => boolean;
+    }
+  ): Promise<{ firstText: string; iterator: AsyncIterator<any>; model: string }> {
     const slots = this.getSlots();
     if (slots.length === 0) {
       throw new Error("No valid Gemini API keys configured on server.");
     }
 
-    const preferredModels = modelsOverride && modelsOverride.length > 0 ? modelsOverride : DEFAULT_GEMINI_MODELS;
-    const totalSlots = slots.length;
-    const startIdx = this.currentIndex % totalSlots;
-    this.currentIndex = (this.currentIndex + 1) % totalSlots;
+    const preferredModels =
+      options?.modelsOverride && options.modelsOverride.length > 0
+        ? options.modelsOverride
+        : DEFAULT_GEMINI_MODELS;
+    const firstChunkTimeoutMs = options?.firstChunkTimeoutMs ?? 30000;
+    const overallDeadlineMs = options?.overallDeadlineMs ?? 75000;
+    const candidates = this.buildCandidatePlan(preferredModels);
 
-    const orderedIndices: number[] = [];
-    for (let i = 0; i < totalSlots; i++) {
-      const idx = (startIdx + i) % totalSlots;
-      if (slots[idx].cooldownUntil <= Date.now()) orderedIndices.push(idx);
-    }
-    for (let i = 0; i < totalSlots; i++) {
-      const idx = (startIdx + i) % totalSlots;
-      if (slots[idx].cooldownUntil > Date.now()) orderedIndices.push(idx);
+    if (candidates.length === 0) {
+      throw new Error("No valid Gemini API keys configured on server.");
     }
 
     let lastErr: any = null;
-    const overallDeadline = Date.now() + 48000;
+    const overallDeadline = Date.now() + overallDeadlineMs;
+    const skippedModels = new Set<string>();
+    const highDemandHitsPerModel = new Map<string, number>();
 
-    for (let mIdx = 0; mIdx < preferredModels.length; mIdx++) {
-      const currentModel = preferredModels[mIdx];
-      let attemptsOnThisModel = 0;
-      for (let i = 0; i < orderedIndices.length; i++) {
-        if (Date.now() > overallDeadline && mIdx > 0) {
-          break;
-        }
-        const slotIdx = orderedIndices[i];
-        const currentSlot = slots[slotIdx];
-        currentSlot.requests++;
-        attemptsOnThisModel++;
-        const startedAt = Date.now();
+    for (let idx = 0; idx < candidates.length; idx++) {
+      if (options?.isAborted?.()) {
+        throw new Error("Client disconnected");
+      }
 
-        try {
-          const ai = createDedicatedGeminiClient(currentSlot.key);
-          const stream = await withAttemptTimeout(
-            streamBuilder(ai, currentModel, currentSlot),
-            18000,
-            `Gemini stream ${currentModel}`
-          );
-          currentSlot.status = "ACTIVE";
-          currentSlot.cooldownUntil = 0;
-          return stream;
-        } catch (err: any) {
-          lastErr = err;
-          const elapsed = Date.now() - startedAt;
-          const highDemand = this.isHighDemandError(err);
-          const modelMissing = this.isModelNotFoundError(err);
-          const timedOut = String(err?.message || "").includes("timed out");
+      const { slot, model } = candidates[idx];
+      if (skippedModels.has(model)) continue;
 
-          if (highDemand) {
-            currentSlot.status = "HIGH_DEMAND";
-            currentSlot.highDemandCount++;
-            currentSlot.cooldownUntil = Date.now() + this.COOLDOWN_MS;
-          }
+      const remainingMs = overallDeadline - Date.now();
+      if (idx > 0 && remainingMs < 5000) {
+        break;
+      }
 
-          console.warn(
-            `[Server Gemini Stream] Error (${elapsed}ms) on ${currentSlot.id} (${currentSlot.masked}) model ${currentModel}: ${err?.message || err}`
-          );
+      slot.requests++;
+      const startedAt = Date.now();
+      const thisAttemptMs = Math.min(firstChunkTimeoutMs, Math.max(10000, remainingMs));
 
-          if ((modelMissing || timedOut || attemptsOnThisModel >= 2) && mIdx < preferredModels.length - 1) {
-            break;
-          }
+      try {
+        const ai = createDedicatedGeminiClient(slot.key, thisAttemptMs + 25000);
+        const opened = await withAttemptTimeout(
+          (async () => {
+            const stream = await streamBuilder(ai, model, slot);
+            const iterator = stream[Symbol.asyncIterator]();
+            // Advance until we get the first non-empty text chunk (some initial chunks are thinking/metadata only)
+            for (let step = await iterator.next(); !step.done; step = await iterator.next()) {
+              const chunkText = step.value?.text || "";
+              if (chunkText) {
+                return { firstText: chunkText, iterator, model };
+              }
+            }
+            throw new Error("AI returned an empty response stream.");
+          })(),
+          thisAttemptMs,
+          `Gemini stream ${model}`
+        );
 
-          if (i === orderedIndices.length - 1 && mIdx === preferredModels.length - 1) {
-            throw lastErr;
-          }
-        }
+        slot.status = "ACTIVE";
+        slot.cooldownUntil = 0;
+        this.pairCooldowns.delete(this.pairKey(slot.id, model));
+        return opened;
+      } catch (err: any) {
+        lastErr = err;
+        const elapsed = Date.now() - startedAt;
+        console.warn(
+          `[Server Gemini Stream] Error (${elapsed}ms) on ${slot.id} (${slot.masked}) model ${model}: ${err?.message || err}`
+        );
+
+        const { skipModelNow, abortAll } = this.recordAttemptFailure(slot, model, err, highDemandHitsPerModel);
+        if (skipModelNow) skippedModels.add(model);
+        if (abortAll) break;
       }
     }
+
     throw lastErr || new Error("Failed to start Gemini stream on server.");
   }
 }
 
 export const serverGeminiKeyManager = new ServerGeminiKeyManager();
+
+/**
+ * Shared SSE streaming pipeline with keep-alive heartbeats, disconnect handling,
+ * verified first-chunk failover, and clean classified error events.
+ */
+async function pipeGeminiStreamToSSE(
+  _req: Request,
+  res: Response,
+  actionLabel: string,
+  streamBuilder: (ai: ReturnType<typeof createDedicatedGeminiClient>, model: string) => Promise<AsyncIterable<any>>
+) {
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
+  res.write(": connected\n\n");
+
+  let clientClosed = false;
+  res.on("close", () => {
+    if (!res.writableEnded) {
+      clientClosed = true;
+    }
+  });
+
+  const keepAliveTimer = setInterval(() => {
+    if (!clientClosed && !res.writableEnded) {
+      res.write(": ping\n\n");
+    }
+  }, 8000);
+
+  try {
+    const { firstText, iterator } = await serverGeminiKeyManager.openVerifiedStreamWithRotation(
+      (ai, model) => streamBuilder(ai, model),
+      {
+        firstChunkTimeoutMs: 30000,
+        overallDeadlineMs: 75000,
+        isAborted: () => clientClosed || res.writableEnded,
+      }
+    );
+
+    if (clientClosed || res.writableEnded) return;
+
+    res.write(`data: ${JSON.stringify({ text: firstText })}\n\n`);
+
+    while (!clientClosed && !res.writableEnded) {
+      const step = await iterator.next();
+      if (step.done) break;
+      const text = step.value?.text || "";
+      if (text) {
+        res.write(`data: ${JSON.stringify({ text })}\n\n`);
+      }
+    }
+
+    if (!clientClosed && !res.writableEnded) {
+      res.write("data: [DONE]\n\n");
+      res.end();
+    }
+  } catch (error: any) {
+    if (clientClosed || res.writableEnded) return;
+    console.error(`[Server ${actionLabel} Error]:`, error);
+    const classified = classifyGeminiHttpError(error, actionLabel);
+    res.write(`data: ${JSON.stringify({ error: classified.message })}\n\n`);
+    res.end();
+  } finally {
+    clearInterval(keepAliveTimer);
+  }
+}
 
 const router = Router();
 
@@ -476,7 +893,7 @@ router.post("/refresh", (_req, res) => {
 router.post("/note-ai", async (req, res) => {
   try {
     const { content, task, language = "English" } = req.body || {};
-    if (!content) return res.status(400).json({ error: "Note content is required" });
+    if (!content) return res.status(400).json({ success: false, error: "Note content is required." });
 
     const taskPrompts: Record<string, string> = {
       summarize: `Create a bulleted 'Revision Box' summary for the following note in ${language}. Focus on key definitions and dates.`,
@@ -496,13 +913,16 @@ router.post("/note-ai", async (req, res) => {
           systemInstruction: `You are an AI study assistant. You must communicate and generate content strictly in ${language}.`,
         },
       });
-      return response.text || "";
+      const out = response.text?.trim() || "";
+      if (!out) throw new Error("AI returned an empty response.");
+      return out;
     });
 
     res.json({ success: true, text });
   } catch (error: any) {
     console.error("[Server Note AI Error]:", error);
-    res.status(500).json({ success: false, error: error?.message || "Failed to process note" });
+    const classified = classifyGeminiHttpError(error, "Note AI");
+    res.status(classified.status).json({ success: false, error: classified.message });
   }
 });
 
@@ -533,20 +953,32 @@ router.post("/note-template", async (req, res) => {
           ...buildLowLatencyThinkingConfig(model),
         },
       });
-      return response.text || "";
+      const out = response.text?.trim() || "";
+      if (!out) throw new Error("AI returned an empty response.");
+      return out;
     });
 
     res.json({ success: true, text });
   } catch (error: any) {
     console.error("[Server Note Template Error]:", error);
-    res.status(500).json({ success: false, error: error?.message || "Failed to generate template" });
+    const classified = classifyGeminiHttpError(error, "Note template generation");
+    res.status(classified.status).json({ success: false, error: classified.message });
   }
 });
 
 // 4. Generate AI Syllabus Notes
 router.post("/ai-notes", async (req, res) => {
   try {
-    const { classGrade, board, subject, language = "English", chapterName, author, maxCharacters = 4000, difficulty = "Medium" } = req.body || {};
+    const {
+      classGrade,
+      board,
+      subject,
+      language = "English",
+      chapterName,
+      author,
+      maxCharacters = 4000,
+      difficulty = "Medium",
+    } = req.body || {};
 
     const systemInstruction = `You are SJ Tutor AI Notes Generator, an expert AI teacher that creates high-quality, syllabus-aligned notes for students.`;
     const prompt = `
@@ -590,22 +1022,29 @@ Generate notes based on:
 ## Quick Revision Summary
 `;
 
-    const text = await serverGeminiKeyManager.executeWithRotation(async (ai, model) => {
-      const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          ...buildLowLatencyThinkingConfig(model),
-          systemInstruction,
-        },
-      });
-      return response.text || "";
-    });
+    const text = await serverGeminiKeyManager.executeWithRotation(
+      async (ai, model) => {
+        const response = await ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            ...buildLowLatencyThinkingConfig(model),
+            systemInstruction,
+          },
+        });
+        const out = response.text?.trim() || "";
+        if (!out) throw new Error("AI returned an empty response.");
+        return out;
+      },
+      undefined,
+      { attemptTimeoutMs: 35000, overallDeadlineMs: 75000 }
+    );
 
     res.json({ success: true, text });
   } catch (error: any) {
     console.error("[Server AI Notes Error]:", error);
-    res.status(500).json({ success: false, error: error?.message || "Failed to generate AI notes" });
+    const classified = classifyGeminiHttpError(error, "AI Notes generation");
+    res.status(classified.status).json({ success: false, error: classified.message });
   }
 });
 
@@ -630,9 +1069,10 @@ router.post("/quiz", async (req, res) => {
         ? data.difficulty
         : "Medium";
 
-    const rawCount = data.questionCount === undefined || data.questionCount === null || data.questionCount === ""
-      ? 5
-      : Number(data.questionCount);
+    const rawCount =
+      data.questionCount === undefined || data.questionCount === null || data.questionCount === ""
+        ? 5
+        : Number(data.questionCount);
 
     if (!subject) {
       return res.status(400).json({ success: false, error: "Subject is required to generate a quiz." });
@@ -648,7 +1088,10 @@ router.post("/quiz", async (req, res) => {
     }
 
     const count = rawCount;
-    const authorLine = typeof data.author === "string" && data.author.trim() ? `\n      Author/Textbook Reference: ${data.author.trim()}` : "";
+    const authorLine =
+      typeof data.author === "string" && data.author.trim()
+        ? `\n      Author/Textbook Reference: ${data.author.trim()}`
+        : "";
 
     const prompt = `
       Create an academic multiple-choice quiz with EXACTLY ${count} questions based on the details below.
@@ -669,8 +1112,9 @@ router.post("/quiz", async (req, res) => {
       Language: ${language}${authorLine}
     `;
 
-    const attemptTimeoutMs = count >= 25 ? 35000 : count >= 12 ? 25000 : 20000;
-    const overallDeadlineMs = count >= 25 ? 70000 : 50000;
+    const isNonEnglish = language.toLowerCase() !== "english";
+    const attemptTimeoutMs = count >= 25 ? 45000 : count >= 10 || isNonEnglish ? 35000 : 25000;
+    const overallDeadlineMs = count >= 25 ? 85000 : 75000;
 
     const questions = await serverGeminiKeyManager.executeWithRotation(
       async (ai, model) => {
@@ -710,7 +1154,7 @@ router.post("/quiz", async (req, res) => {
     res.json({ success: true, questions });
   } catch (error: any) {
     console.error("[Server Quiz Error]:", error);
-    const classified = classifyGeminiHttpError(error, "Failed to generate quiz. Please try again.");
+    const classified = classifyGeminiHttpError(error, "Quiz generation");
     res.status(classified.status).json({ success: false, error: classified.message });
   }
 });
@@ -722,46 +1166,51 @@ router.post("/timetable", async (req, res) => {
     const today = new Date().toDateString();
     const prompt = `Current Date: ${today}. Goal: Create a study timetable in ${language} up to the exam date: ${examDate}. Subjects: ${subjects}. Daily limit: ${hoursPerDay} hours. Output strict JSON.`;
 
-    const timetable = await serverGeminiKeyManager.executeWithRotation(async (ai, model) => {
-      const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          ...buildLowLatencyThinkingConfig(model),
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                day: { type: Type.STRING },
-                date: { type: Type.STRING },
-                slots: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      time: { type: Type.STRING },
-                      activity: { type: Type.STRING },
-                      subject: { type: Type.STRING },
+    const timetable = await serverGeminiKeyManager.executeWithRotation(
+      async (ai, model) => {
+        const response = await ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            ...buildLowLatencyThinkingConfig(model),
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  day: { type: Type.STRING },
+                  date: { type: Type.STRING },
+                  slots: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        time: { type: Type.STRING },
+                        activity: { type: Type.STRING },
+                        subject: { type: Type.STRING },
+                      },
+                      required: ["time", "activity", "subject"],
                     },
-                    required: ["time", "activity", "subject"],
                   },
                 },
+                required: ["day", "date", "slots"],
               },
-              required: ["day", "date", "slots"],
             },
           },
-        },
-      });
-      if (response.text) return safeParseJson<any[]>(response.text);
-      throw new Error("Failed to generate timetable");
-    });
+        });
+        if (response.text) return safeParseJson<any[]>(response.text);
+        throw new Error("AI returned an empty JSON response.");
+      },
+      undefined,
+      { attemptTimeoutMs: 35000, overallDeadlineMs: 75000 }
+    );
 
     res.json({ success: true, timetable });
   } catch (error: any) {
     console.error("[Server Timetable Error]:", error);
-    res.status(500).json({ success: false, error: error?.message || "Failed to generate timetable" });
+    const classified = classifyGeminiHttpError(error, "Timetable generation");
+    res.status(classified.status).json({ success: false, error: classified.message });
   }
 });
 
@@ -771,46 +1220,51 @@ router.post("/timetable/update", async (req, res) => {
     const { currentTimetable, instruction, language = "English" } = req.body || {};
     const prompt = `Update the timetable based on: "${instruction}". Generate response in ${language}.\n\nCurrent: ${JSON.stringify(currentTimetable)}`;
 
-    const timetable = await serverGeminiKeyManager.executeWithRotation(async (ai, model) => {
-      const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          ...buildLowLatencyThinkingConfig(model),
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                day: { type: Type.STRING },
-                date: { type: Type.STRING },
-                slots: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      time: { type: Type.STRING },
-                      activity: { type: Type.STRING },
-                      subject: { type: Type.STRING },
+    const timetable = await serverGeminiKeyManager.executeWithRotation(
+      async (ai, model) => {
+        const response = await ai.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            ...buildLowLatencyThinkingConfig(model),
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  day: { type: Type.STRING },
+                  date: { type: Type.STRING },
+                  slots: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        time: { type: Type.STRING },
+                        activity: { type: Type.STRING },
+                        subject: { type: Type.STRING },
+                      },
+                      required: ["time", "activity", "subject"],
                     },
-                    required: ["time", "activity", "subject"],
                   },
                 },
+                required: ["day", "date", "slots"],
               },
-              required: ["day", "date", "slots"],
             },
           },
-        },
-      });
-      if (response.text) return safeParseJson<any[]>(response.text);
-      throw new Error("Failed to update timetable");
-    });
+        });
+        if (response.text) return safeParseJson<any[]>(response.text);
+        throw new Error("AI returned an empty JSON response.");
+      },
+      undefined,
+      { attemptTimeoutMs: 35000, overallDeadlineMs: 75000 }
+    );
 
     res.json({ success: true, timetable });
   } catch (error: any) {
     console.error("[Server Timetable Update Error]:", error);
-    res.status(500).json({ success: false, error: error?.message || "Failed to update timetable" });
+    const classified = classifyGeminiHttpError(error, "Timetable update");
+    res.status(classified.status).json({ success: false, error: classified.message });
   }
 });
 
@@ -820,19 +1274,25 @@ router.post("/tutor-chat", async (req, res) => {
     const { text, history = [], imagesBase64 = [], systemInstruction } = req.body || {};
 
     const currentParts: any[] = [{ text: (text || "").trim() || "Hello" }];
-    imagesBase64.forEach((img: string) => {
-      const cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-      currentParts.push({ inlineData: { mimeType: "image/jpeg", data: cleanBase64 } });
-    });
+    if (Array.isArray(imagesBase64)) {
+      imagesBase64.forEach((img: string) => {
+        const parsed = parseDataUrl(img, "image/jpeg");
+        if (parsed && isSupportedInlineMime(parsed.mimeType)) {
+          currentParts.push({ inlineData: { mimeType: parsed.mimeType, data: parsed.data } });
+        }
+      });
+    }
 
     const cleanHistory: { role: string; parts: any[] }[] = [];
-    for (const msg of history) {
+    for (const msg of Array.isArray(history) ? history : []) {
       if (!msg) continue;
       const parts: any[] = [];
       if (msg.images && Array.isArray(msg.images)) {
         msg.images.forEach((img: string) => {
-          const clean = img.replace(/^data:image\/[a-zA-Z]+;base64,/, "");
-          parts.push({ inlineData: { mimeType: "image/jpeg", data: clean } });
+          const parsed = parseDataUrl(img, "image/jpeg");
+          if (parsed && isSupportedInlineMime(parsed.mimeType)) {
+            parts.push({ inlineData: { mimeType: parsed.mimeType, data: parsed.data } });
+          }
         });
       }
       if (msg.text && typeof msg.text === "string" && msg.text.trim()) {
@@ -871,35 +1331,31 @@ router.post("/tutor-chat", async (req, res) => {
           systemInstruction,
         },
       });
-      return response.text || "";
+      const out = response.text?.trim() || "";
+      if (!out) throw new Error("AI returned an empty response.");
+      return out;
     });
 
     res.json({ success: true, text: reply });
   } catch (error: any) {
     console.error("[Server Tutor Chat Error]:", error);
-    res.status(500).json({ success: false, error: error?.message || "Failed to chat with tutor" });
+    const classified = classifyGeminiHttpError(error, "Tutor chat");
+    res.status(classified.status).json({ success: false, error: classified.message });
   }
 });
 
 // 9. Streaming endpoints (Summary, Homework, Tutor Chat) using Server-Sent Events (SSE)
 router.post("/summary-stream", async (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-  res.setHeader("Cache-Control", "no-cache, no-transform");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.flushHeaders?.();
-  res.write(": connected\n\n");
+  const { data, systemInstruction } = req.body || {};
+  if (!data) {
+    return res.status(400).json({ success: false, error: "Study request data is required." });
+  }
 
-  try {
-    const { data, systemInstruction } = req.body || {};
-    if (!data) {
-      throw new Error("Study request data is required");
-    }
-    const language = data.language || "English";
-    const maxChars = data.maxCharacters || 5000;
-    const difficulty = data.difficulty || "Medium";
+  const language = data.language || "English";
+  const maxChars = data.maxCharacters || 5000;
+  const difficulty = data.difficulty || "Medium";
 
-    const prompt = `
+  const prompt = `
       Create a comprehensive, syllabus-aligned, and structured study notes & summary for the following:
       THE ENTIRE NOTES/SUMMARY MUST BE WRITTEN IN ${String(language).toUpperCase()}.
       
@@ -921,58 +1377,38 @@ router.post("/summary-stream", async (req, res) => {
       ## Quick Revision Summary & Key Takeaways
     `;
 
-    const stream = await serverGeminiKeyManager.executeStreamWithRotation(async (ai, model) => {
-      return ai.models.generateContentStream({
-        model,
-        contents: prompt,
-        config: {
-          ...buildLowLatencyThinkingConfig(model),
-          systemInstruction: systemInstruction || `You are an expert academic tutor and notes creator. You generate high quality, structured syllabus-aligned notes only in ${language}.`,
-        },
-      });
-    });
-
-    let emitted = false;
-    for await (const chunk of stream) {
-      if (res.writableEnded) break;
-      const text = chunk.text || "";
-      if (text) {
-        emitted = true;
-        res.write(`data: ${JSON.stringify({ text })}\n\n`);
-      }
-    }
-    if (!res.writableEnded) {
-      if (!emitted) {
-        res.write(`data: ${JSON.stringify({ error: "AI returned an empty summary. Please click Retry." })}\n\n`);
-      }
-      res.write("data: [DONE]\n\n");
-      res.end();
-    }
-  } catch (error: any) {
-    console.error("[Server Summary Stream Error]:", error);
-    if (!res.writableEnded) {
-      res.write(`data: ${JSON.stringify({ error: error?.message || "Stream failed" })}\n\n`);
-      res.end();
-    }
-  }
+  await pipeGeminiStreamToSSE(req, res, "Summary generation", (ai, model) =>
+    ai.models.generateContentStream({
+      model,
+      contents: prompt,
+      config: {
+        ...buildLowLatencyThinkingConfig(model),
+        systemInstruction:
+          systemInstruction ||
+          `You are an expert academic tutor and notes creator. You generate high quality, structured syllabus-aligned notes only in ${language}.`,
+      },
+    })
+  );
 });
 
 router.post("/homework-stream", async (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-  res.setHeader("Cache-Control", "no-cache, no-transform");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.flushHeaders?.();
-  res.write(": connected\n\n");
+  const { data, files = [], systemInstruction } = req.body || {};
+  if (!data) {
+    return res.status(400).json({ success: false, error: "Homework request data is required." });
+  }
 
-  try {
-    const { data, files = [], systemInstruction } = req.body || {};
-    if (!data) {
-      throw new Error("Homework request data is required");
-    }
-    const language = data.language || "English";
+  const language = data.language || "English";
+  const safeFiles = Array.isArray(files) ? files : [];
 
-    const prompt = `
+  let extraFileText = "";
+  const inlineParts: any[] = [];
+  for (const file of safeFiles) {
+    const built = buildSafeAttachmentParts(file || {});
+    if (built.inlinePart) inlineParts.push(built.inlinePart);
+    if (built.textNote) extraFileText += built.textNote;
+  }
+
+  const prompt = `
       You are an expert Homework Solver and Academic Tutor.
       
       User Information:
@@ -984,7 +1420,8 @@ router.post("/homework-stream", async (req, res) => {
 
       Input:
       ${data.homeworkQuery ? `Text Question/Description: "${data.homeworkQuery}"` : "No text description provided."}
-      ${files.length > 0 ? `Files/Images Attached: I have attached ${files.length} file(s)/document(s)/image(s) of the homework/problem.` : "No files provided."}
+      ${safeFiles.length > 0 ? `Files/Images Attached: I have attached ${safeFiles.length} file(s)/document(s)/image(s) of the homework/problem.` : "No files provided."}
+      ${extraFileText}
       
       Requirements:
       - Carefully analyze ALL inputs (text, images, and documents).
@@ -996,189 +1433,130 @@ router.post("/homework-stream", async (req, res) => {
       If the inputs are unclear or do not contain educational problems, politely ask the student for more details or clearer files.
     `;
 
-    const contents: any[] = [{ text: prompt }];
-    files.forEach((file: any) => {
-      const matches = file.dataUrl?.match(/^data:([^;]+);base64,(.+)$/);
-      const mimeType = matches ? matches[1] : file.type || "image/jpeg";
-      const cleanBase64 = matches ? matches[2] : file.dataUrl;
-      if (cleanBase64) {
-        contents.push({ inlineData: { mimeType, data: cleanBase64 } });
-      }
-    });
+  const contents = [{ text: prompt }, ...inlineParts];
 
-    const stream = await serverGeminiKeyManager.executeStreamWithRotation(async (ai, model) => {
-      return ai.models.generateContentStream({
-        model,
-        contents: { parts: contents },
-        config: {
-          ...buildLowLatencyThinkingConfig(model),
-          systemInstruction: systemInstruction || `You are an expert Homework Solver and Academic Tutor. You generate content only in ${language}.`,
-        },
-      });
-    });
-
-    let emitted = false;
-    for await (const chunk of stream) {
-      if (res.writableEnded) break;
-      const text = chunk.text || "";
-      if (text) {
-        emitted = true;
-        res.write(`data: ${JSON.stringify({ text })}\n\n`);
-      }
-    }
-    if (!res.writableEnded) {
-      if (!emitted) {
-        res.write(`data: ${JSON.stringify({ error: "AI returned an empty solution. Please click Retry." })}\n\n`);
-      }
-      res.write("data: [DONE]\n\n");
-      res.end();
-    }
-  } catch (error: any) {
-    console.error("[Server Homework Stream Error]:", error);
-    if (!res.writableEnded) {
-      res.write(`data: ${JSON.stringify({ error: error?.message || "Stream failed" })}\n\n`);
-      res.end();
-    }
-  }
+  await pipeGeminiStreamToSSE(req, res, "Homework solver", (ai, model) =>
+    ai.models.generateContentStream({
+      model,
+      contents: { parts: contents },
+      config: {
+        ...buildLowLatencyThinkingConfig(model),
+        systemInstruction:
+          systemInstruction ||
+          `You are an expert Homework Solver and Academic Tutor. You generate content only in ${language}.`,
+      },
+    })
+  );
 });
 
 router.post("/tutor-stream", async (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-  res.setHeader("Cache-Control", "no-cache, no-transform");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.flushHeaders?.();
-  res.write(": connected\n\n");
+  const { text, history = [], imagesBase64 = [], extraFiles = [], userContext, systemInstruction } = req.body || {};
 
-  try {
-    const { text, history = [], imagesBase64 = [], extraFiles = [], userContext, systemInstruction } = req.body || {};
-
-    const fullInstruction =
-      (systemInstruction ||
-        `You are SJ Tutor AI, an advanced, highly intelligent, friendly, and motivational AI tutor and assistant.
+  const fullInstruction =
+    (systemInstruction ||
+      `You are SJ Tutor AI, an advanced, highly intelligent, friendly, and motivational AI tutor and assistant.
 Your mission:
 - Help students learn concepts deeply rather than just giving answers.
 - Explain math/science/coding/humanities step-by-step.
 - Show examples and real-life connections.
 - Keep your tone positive, encouraging, patient, curious, and professional.
 - Render beautiful Markdown with clear headings, subheadings, lists, code blocks with copy buttons, horizontal lines, tables, block quotes, and LaTeX math.`) +
-      (userContext ? `\n\nUser Context & Memory (Past Interactions):\n\n${userContext}` : "");
+    (userContext ? `\n\nUser Context & Memory (Past Interactions):\n\n${userContext}` : "");
 
-    const currentParts: any[] = [];
-    let fileContext = "";
-    extraFiles.forEach((f: any) => {
-      if (f.textContent) {
-        fileContext += `\n[Attached File: ${f.name}]\nType: ${f.type}\nContent:\n${f.textContent}\n`;
-      } else if (f.dataUrl) {
-        const matches = f.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (matches) {
-          currentParts.push({ inlineData: { mimeType: matches[1], data: matches[2] } });
-        }
-      }
-    });
+  const currentParts: any[] = [];
+  let fileContext = "";
 
-    imagesBase64.forEach((img: string) => {
-      const matches = img.match(/^data:([^;]+);base64,(.+)$/);
-      if (matches) {
-        currentParts.push({ inlineData: { mimeType: matches[1], data: matches[2] } });
-      } else {
-        currentParts.push({ inlineData: { mimeType: "image/jpeg", data: img } });
-      }
-    });
-
-    let finalPrompt = text ? String(text).trim() : "";
-    if (fileContext) {
-      finalPrompt = `${fileContext}\n\nUser Question:\n${finalPrompt}`;
-    }
-    if (!finalPrompt) {
-      finalPrompt = "Please examine and explain the attached image/file step-by-step.";
-    }
-    currentParts.push({ text: finalPrompt });
-
-    const cleanHistory: { role: string; parts: any[] }[] = [];
-    for (const msg of history) {
-      if (!msg) continue;
-      const parts: any[] = [];
-      if (msg.images && Array.isArray(msg.images)) {
-        msg.images.forEach((img: string) => {
-          const matches = img.match(/^data:([^;]+);base64,(.+)$/);
-          if (matches) parts.push({ inlineData: { mimeType: matches[1], data: matches[2] } });
-        });
-      }
-      if (msg.text && typeof msg.text === "string" && msg.text.trim()) {
-        parts.push({ text: msg.text.trim() });
-      }
-      if (parts.length > 0) {
-        cleanHistory.push({
-          role: msg.role === "model" ? "model" : "user",
-          parts,
-        });
-      }
-    }
-
-    const firstUserIdx = cleanHistory.findIndex((m) => m.role === "user");
-    const validHistory = firstUserIdx >= 0 ? cleanHistory.slice(firstUserIdx) : [];
-
-    const alternatingHistory: { role: string; parts: any[] }[] = [];
-    for (const turn of validHistory) {
-      if (alternatingHistory.length > 0 && alternatingHistory[alternatingHistory.length - 1].role === turn.role) {
-        alternatingHistory[alternatingHistory.length - 1].parts.push(...turn.parts);
-      } else {
-        alternatingHistory.push({ role: turn.role, parts: [...turn.parts] });
-      }
-    }
-
-    if (alternatingHistory.length > 0 && alternatingHistory[alternatingHistory.length - 1].role === "user") {
-      alternatingHistory.pop();
-    }
-
-    const contents = [...alternatingHistory, { role: "user", parts: currentParts }];
-
-    const stream = await serverGeminiKeyManager.executeStreamWithRotation(async (ai, model) => {
-      return ai.models.generateContentStream({
-        model,
-        contents,
-        config: {
-          ...buildLowLatencyThinkingConfig(model),
-          systemInstruction: fullInstruction,
-        },
-      });
-    });
-
-    let emitted = false;
-    for await (const chunk of stream) {
-      if (res.writableEnded) break;
-      const chunkText = chunk.text || "";
-      if (chunkText) {
-        emitted = true;
-        res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
-      }
-    }
-    if (!res.writableEnded) {
-      if (!emitted) {
-        res.write(`data: ${JSON.stringify({ error: "AI returned an empty response. Please click Retry." })}\n\n`);
-      }
-      res.write("data: [DONE]\n\n");
-      res.end();
-    }
-  } catch (error: any) {
-    console.error("[Server Tutor Stream Error]:", error);
-    if (!res.writableEnded) {
-      res.write(`data: ${JSON.stringify({ error: error?.message || "Tutor stream failed" })}\n\n`);
-      res.end();
+  if (Array.isArray(extraFiles)) {
+    for (const f of extraFiles) {
+      const built = buildSafeAttachmentParts(f || {});
+      if (built.inlinePart) currentParts.push(built.inlinePart);
+      if (built.textNote) fileContext += built.textNote;
     }
   }
+
+  if (Array.isArray(imagesBase64)) {
+    const alreadyInlineData = new Set(currentParts.map((p) => p?.inlineData?.data).filter(Boolean));
+    for (const img of imagesBase64) {
+      const parsed = parseDataUrl(img, "image/jpeg");
+      if (parsed && isSupportedInlineMime(parsed.mimeType) && !alreadyInlineData.has(parsed.data)) {
+        alreadyInlineData.add(parsed.data);
+        currentParts.push({ inlineData: { mimeType: parsed.mimeType, data: parsed.data } });
+      }
+    }
+  }
+
+  let finalPrompt = text ? String(text).trim() : "";
+  if (fileContext) {
+    finalPrompt = `${fileContext}\n\nUser Question:\n${finalPrompt}`;
+  }
+  if (!finalPrompt) {
+    finalPrompt = "Please examine and explain the attached image/file step-by-step.";
+  }
+  currentParts.push({ text: finalPrompt });
+
+  const cleanHistory: { role: string; parts: any[] }[] = [];
+  for (const msg of Array.isArray(history) ? history : []) {
+    if (!msg) continue;
+    const parts: any[] = [];
+    if (msg.images && Array.isArray(msg.images)) {
+      msg.images.forEach((img: string) => {
+        const parsed = parseDataUrl(img, "image/jpeg");
+        if (parsed && isSupportedInlineMime(parsed.mimeType)) {
+          parts.push({ inlineData: { mimeType: parsed.mimeType, data: parsed.data } });
+        }
+      });
+    }
+    if (msg.text && typeof msg.text === "string" && msg.text.trim()) {
+      parts.push({ text: msg.text.trim() });
+    }
+    if (parts.length > 0) {
+      cleanHistory.push({
+        role: msg.role === "model" ? "model" : "user",
+        parts,
+      });
+    }
+  }
+
+  const firstUserIdx = cleanHistory.findIndex((m) => m.role === "user");
+  const validHistory = firstUserIdx >= 0 ? cleanHistory.slice(firstUserIdx) : [];
+
+  const alternatingHistory: { role: string; parts: any[] }[] = [];
+  for (const turn of validHistory) {
+    if (alternatingHistory.length > 0 && alternatingHistory[alternatingHistory.length - 1].role === turn.role) {
+      alternatingHistory[alternatingHistory.length - 1].parts.push(...turn.parts);
+    } else {
+      alternatingHistory.push({ role: turn.role, parts: [...turn.parts] });
+    }
+  }
+
+  if (alternatingHistory.length > 0 && alternatingHistory[alternatingHistory.length - 1].role === "user") {
+    alternatingHistory.pop();
+  }
+
+  const contents = [...alternatingHistory, { role: "user", parts: currentParts }];
+
+  await pipeGeminiStreamToSSE(req, res, "AI Tutor", (ai, model) =>
+    ai.models.generateContentStream({
+      model,
+      contents,
+      config: {
+        ...buildLowLatencyThinkingConfig(model),
+        systemInstruction: fullInstruction,
+      },
+    })
+  );
 });
 
 // 10. Payment screenshot validation
 router.post("/validate-payment", async (req, res) => {
   try {
     const { imageBase64, planName, price } = req.body || {};
-    if (!imageBase64) return res.status(400).json({ error: "Screenshot image is required" });
+    if (!imageBase64) return res.status(400).json({ success: false, error: "Screenshot image is required." });
 
-    const matches = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
-    const mimeType = matches ? matches[1] : "image/jpeg";
-    const cleanData = matches ? matches[2] : imageBase64;
+    const parsedImg = parseDataUrl(imageBase64, "image/jpeg");
+    if (!parsedImg || !isSupportedInlineMime(parsedImg.mimeType)) {
+      return res.status(400).json({ success: false, error: "Please upload a valid image screenshot." });
+    }
 
     const prompt = `Analyze this image for plan "${planName}". Checks: Status SUCCESS, Amount exactly ₹${price}, Payee "SHIVABASAVARAJ SADASHIVAPPA JYOTI". Return JSON {isValid, reason}.`;
 
@@ -1186,7 +1564,7 @@ router.post("/validate-payment", async (req, res) => {
       const response = await ai.models.generateContent({
         model,
         contents: {
-          parts: [{ inlineData: { mimeType, data: cleanData } }, { text: prompt }],
+          parts: [{ inlineData: { mimeType: parsedImg.mimeType, data: parsedImg.data } }, { text: prompt }],
         },
         config: {
           ...buildLowLatencyThinkingConfig(model),
@@ -1202,13 +1580,14 @@ router.post("/validate-payment", async (req, res) => {
         },
       });
       if (response.text) return safeParseJson<{ isValid: boolean; reason: string }>(response.text);
-      throw new Error("No response from payment validator");
+      throw new Error("AI returned an empty JSON response.");
     });
 
     res.json({ success: true, ...result });
   } catch (error: any) {
     console.error("[Server Validate Payment Error]:", error);
-    res.status(500).json({ success: false, error: error?.message || "Failed to validate payment screenshot" });
+    const classified = classifyGeminiHttpError(error, "Payment validation");
+    res.status(classified.status).json({ success: false, error: classified.message });
   }
 });
 
@@ -1222,19 +1601,22 @@ Your responses should be concise, helpful, friendly, and formatted nicely with c
     const reply = await serverGeminiKeyManager.executeWithRotation(async (ai, model) => {
       const response = await ai.models.generateContent({
         model,
-        contents: prompt,
+        contents: prompt || "Hello",
         config: {
           ...buildLowLatencyThinkingConfig(model),
           systemInstruction,
         },
       });
-      return response.text || "";
+      const out = response.text?.trim() || "";
+      if (!out) throw new Error("AI returned an empty response.");
+      return out;
     });
 
     res.json({ success: true, text: reply });
   } catch (error: any) {
     console.error("[Server Group Tutor Error]:", error);
-    res.status(500).json({ success: false, error: error?.message || "Failed to respond in group" });
+    const classified = classifyGeminiHttpError(error, "Group AI Tutor");
+    res.status(classified.status).json({ success: false, error: classified.message });
   }
 });
 
@@ -1243,12 +1625,13 @@ router.post("/smart-timetable", async (req, res) => {
   try {
     const { config, language = "English" } = req.body || {};
     if (!config || typeof config !== "object") {
-      return res.status(400).json({ success: false, error: "Smart timetable configuration is required" });
+      return res.status(400).json({ success: false, error: "Smart timetable configuration is required." });
     }
 
-    const preferredDays: string[] = Array.isArray(config.availability?.preferredDays) && config.availability.preferredDays.length > 0
-      ? config.availability.preferredDays
-      : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const preferredDays: string[] =
+      Array.isArray(config.availability?.preferredDays) && config.availability.preferredDays.length > 0
+        ? config.availability.preferredDays
+        : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
     const prompt = `You are SJ Tutor AI's Smart Timetable Architect. Create a realistic, conflict-free weekly study timetable in ${language} based strictly on this student profile:
 - Timetable Name: ${config.name}
@@ -1316,7 +1699,7 @@ STRICT SCHEDULING RULES:
         });
 
         if (!response.text || !response.text.trim()) {
-          throw new Error("The AI did not return a timetable response. Please click Retry.");
+          throw new Error("AI returned an empty JSON response.");
         }
         return safeParseJson<{
           aiAdvice?: string;
@@ -1325,18 +1708,20 @@ STRICT SCHEDULING RULES:
         }>(response.text);
       },
       undefined,
-      { attemptTimeoutMs: 35000, overallDeadlineMs: 70000 }
+      { attemptTimeoutMs: 40000, overallDeadlineMs: 80000 }
     );
 
     res.json({
       success: true,
-      aiAdvice: result.aiAdvice || "Prioritize high-difficulty subjects during your peak focus hours and review key formulas before sleep.",
+      aiAdvice:
+        result.aiAdvice ||
+        "Prioritize high-difficulty subjects during your peak focus hours and review key formulas before sleep.",
       conflictWarning: result.conflictWarning || undefined,
       sessions: Array.isArray(result.sessions) ? result.sessions : [],
     });
   } catch (error: any) {
     console.error("[Server Smart Timetable Error]:", error);
-    const classified = classifyGeminiHttpError(error, "Failed to generate smart timetable. Please try again.");
+    const classified = classifyGeminiHttpError(error, "Smart timetable generation");
     res.status(classified.status).json({ success: false, error: classified.message });
   }
 });
@@ -1386,7 +1771,7 @@ Tutor Explanation: "${String(aiAnswer).slice(0, 1200)}"`;
       });
 
       if (!response.text) {
-        throw new Error("Empty tutor topic questions response");
+        throw new Error("AI returned an empty JSON response.");
       }
       const parsed = safeParseJson<{
         practiceQuestions?: any[];
@@ -1410,9 +1795,10 @@ Tutor Explanation: "${String(aiAnswer).slice(0, 1200)}"`;
     });
   } catch (error: any) {
     console.error("[Server Tutor Topic Questions Error]:", error);
-    res.status(500).json({
+    const classified = classifyGeminiHttpError(error, "Topic practice questions");
+    res.status(classified.status).json({
       success: false,
-      error: error?.message || "Failed to generate tutor topic questions",
+      error: classified.message,
       practiceQuestions: [],
       followUpPrompts: [],
     });

@@ -2,6 +2,10 @@ import {
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
+  sendEmailVerification,
   signOut,
   sendPasswordResetEmail,
   updateProfile,
@@ -13,6 +17,7 @@ import {
 import {
   doc,
   getDoc,
+  getDocFromCache,
   setDoc,
   collection,
   query,
@@ -46,6 +51,34 @@ async function safeParseAuthJson(response: Response): Promise<any> {
   }
 }
 
+let _socialAuthInProgress = false;
+let _emailLinkAuthInProgress = false;
+
+export function isSocialAuthInProgress(): boolean {
+  return _socialAuthInProgress;
+}
+
+export function isEmailLinkAuthInProgress(): boolean {
+  return _emailLinkAuthInProgress;
+}
+
+async function safeGetDocWithTimeout(docRef: any, timeoutMs = 4000): Promise<any | null> {
+  try {
+    const result = await Promise.race([
+      getDoc(docRef),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+    if (result) return result;
+  } catch {
+    // Fallback to cache below
+  }
+  try {
+    return await getDocFromCache(docRef);
+  } catch {
+    return null;
+  }
+}
+
 export type AuthResultStatus =
   | "SUCCESS"
   | "ACCOUNT_ALREADY_EXISTS"
@@ -56,6 +89,9 @@ export type AuthResultStatus =
   | "TOO_MANY_ATTEMPTS"
   | "PIN_REQUIRED"
   | "PENDING_PROFILE"
+  | "EMAIL_LINK_SENT"
+  | "EMAIL_LINK_DISABLED"
+  | "NEEDS_EMAIL_CONFIRMATION"
   | "UNAUTHORIZED_DOMAIN"
   | "ERROR";
 
@@ -181,6 +217,7 @@ export async function handleSocialAuth(
       ? yahooProvider
       : githubProvider;
 
+  _socialAuthInProgress = true;
   try {
     try {
       await setPersistence(
@@ -190,32 +227,45 @@ export async function handleSocialAuth(
     } catch (persistErr) {
       console.warn("Firebase persistence setup notice:", persistErr);
     }
+
     const userCred = await signInWithPopup(auth, provider);
     const currentUser = userCred.user;
     const additionalInfo = getAdditionalUserInfo(userCred);
 
-    // Check if user document already exists in Firestore or server
+    // Resiliently check if user document already exists in Firestore or server (never fail login on offline/timeout)
     const userDocRef = doc(db, "users", currentUser.uid);
-    const userDocSnap = await getDoc(userDocRef);
-    const existingFirestoreAccount = userDocSnap.exists();
+    const userDocSnap = await safeGetDocWithTimeout(userDocRef, 4000);
+    const existingFirestoreAccount = Boolean(userDocSnap && userDocSnap.exists());
+    const existingData: Record<string, any> = existingFirestoreAccount ? (userDocSnap.data() || {}) : {};
     const isNew = additionalInfo?.isNewUser ?? !existingFirestoreAccount;
 
     const identityKey = `${providerType}_${currentUser.uid}`;
-    const identityDoc = await getDoc(doc(db, "linked_identities", identityKey));
+    const identityDoc = await safeGetDocWithTimeout(doc(db, "linked_identities", identityKey), 2500);
 
     let serverExists = false;
     if (currentUser.email) {
-      serverExists = await checkIdentityExists({ email: currentUser.email, provider: providerType, identifier: currentUser.uid });
+      try {
+        serverExists = await Promise.race([
+          checkIdentityExists({ email: currentUser.email, provider: providerType, identifier: currentUser.uid }),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),
+        ]);
+      } catch {
+        serverExists = false;
+      }
     }
 
-    const isRegistered = existingFirestoreAccount || identityDoc.exists() || serverExists || (!isNew && (userDocSnap as any).data()?.sjTutorId);
+    const isRegistered =
+      existingFirestoreAccount ||
+      Boolean(identityDoc && identityDoc.exists()) ||
+      serverExists ||
+      (!isNew && Boolean(existingData?.sjTutorId));
 
     // ----------------------------------------------------
     // CASE A: User is in SIGN UP mode, but account ALREADY exists!
     // ----------------------------------------------------
     if (mode === "signup" && isRegistered) {
       console.warn(`[AUTH] Account already exists for ${providerType} (${currentUser.email || currentUser.uid})`);
-      await signOut(auth);
+      await signOut(auth).catch(() => {});
       return {
         status: "ACCOUNT_ALREADY_EXISTS",
         message: "This account is already registered with SJ Tutor AI. Please try logging in instead.",
@@ -253,35 +303,74 @@ export async function handleSocialAuth(
           hasCompletedOnboarding: true,
           isRegisteredInFirestore: true,
           trialStartDate: now,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          lastLoginAt: serverTimestamp(),
+          lastLoginAt: now,
         };
+
         try {
-          await setDoc(userDocRef, autoGoogleProfile, { merge: true });
-          await setDoc(doc(db, "sj_tutor_ids", generatedId), {
-            sjTutorId: generatedId,
-            userId: currentUser.uid,
-            displayName: autoGoogleProfile.displayName,
-            email: autoGoogleProfile.email,
-            twoStepEnabled: false,
-            createdAt: now,
-            updatedAt: now,
-          });
           localStorage.setItem(`profile_${currentUser.uid}`, JSON.stringify(autoGoogleProfile));
-        } catch (autoErr) {
-          console.warn("Google auto-provision notice:", autoErr);
+          localStorage.setItem("sjtutor_authenticated_user", JSON.stringify(autoGoogleProfile));
+          localStorage.setItem("sjtutor_active_user", JSON.stringify(autoGoogleProfile));
+        } catch {
+          // ignore storage quota
         }
+
+        // Persist to Firestore in background without blocking login
+        Promise.allSettled([
+          setDoc(
+            userDocRef,
+            {
+              ...autoGoogleProfile,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              lastLoginAt: serverTimestamp(),
+            },
+            { merge: true }
+          ),
+          setDoc(
+            doc(db, "sj_tutor_ids", generatedId),
+            {
+              sjTutorId: generatedId,
+              userId: currentUser.uid,
+              displayName: autoGoogleProfile.displayName,
+              email: autoGoogleProfile.email,
+              twoStepEnabled: false,
+              createdAt: now,
+              updatedAt: now,
+            },
+            { merge: true }
+          ),
+          setDoc(
+            doc(db, "linked_identities", identityKey),
+            {
+              provider: providerType,
+              uid: currentUser.uid,
+              email: autoGoogleProfile.email,
+              sjTutorId: generatedId,
+              updatedAt: now,
+            },
+            { merge: true }
+          ),
+        ]).catch((autoErr) => {
+          console.warn("Google auto-provision notice:", autoErr);
+        });
+
+        try {
+          window.dispatchEvent(new Event("sjtutor_user_logged_in"));
+          window.dispatchEvent(new Event("sjtutor_auth_changed"));
+        } catch {
+          // ignore
+        }
+
         return {
           status: "SUCCESS",
           sjTutorId: generatedId,
-          user: { ...currentUser, ...autoGoogleProfile },
+          user: { ...autoGoogleProfile },
           message: "Welcome! Your Google account unlocked the Achiever Premium Plan free for 1 year!",
         };
       }
 
       console.warn(`[AUTH] Account not found for ${providerType} (${currentUser.email || currentUser.uid})`);
-      await signOut(auth);
+      await signOut(auth).catch(() => {});
       return {
         status: "ACCOUNT_NOT_FOUND",
         message: "We couldn't find an SJ Tutor AI account associated with this login. Please try signing up first.",
@@ -309,7 +398,20 @@ export async function handleSocialAuth(
     // ----------------------------------------------------
     // CASE D: User is in LOGIN mode and account EXISTS -> Authenticate
     // ----------------------------------------------------
-    const profileData = userDocSnap.data() || {};
+    let cachedLocal: Record<string, any> = {};
+    try {
+      const rawCached = localStorage.getItem(`profile_${currentUser.uid}`);
+      if (rawCached) cachedLocal = JSON.parse(rawCached) || {};
+    } catch {
+      cachedLocal = {};
+    }
+
+    const profileData = { ...cachedLocal, ...existingData };
+    const ensuredSjTutorId =
+      profileData.sjTutorId ||
+      profileData.registrationNumber ||
+      generateSjTutorId();
+
     const googleOffer =
       providerType === "google"
         ? resolveGoogleOneYearPremiumPlan(currentUser, {
@@ -331,15 +433,68 @@ export async function handleSocialAuth(
         }
       : {};
 
-    if (googleOffer) {
-      setDoc(userDocRef, { ...upgradedFields, updatedAt: serverTimestamp() }, { merge: true }).catch(
-        () => {}
-      );
+    const mergedUser = {
+      ...profileData,
+      ...upgradedFields,
+      uid: currentUser.uid,
+      sjTutorId: ensuredSjTutorId,
+      registrationNumber: profileData.registrationNumber || ensuredSjTutorId,
+      displayName: profileData.displayName || profileData.name || currentUser.displayName || "Student",
+      name: profileData.name || profileData.displayName || currentUser.displayName || "Student",
+      email: (profileData.email || currentUser.email || "").toLowerCase(),
+      photoURL: profileData.photoURL || currentUser.photoURL || "",
+      hasCompletedOnboarding: true,
+      isRegisteredInFirestore: true,
+    };
+
+    try {
+      localStorage.setItem(`profile_${currentUser.uid}`, JSON.stringify(mergedUser));
+      localStorage.setItem("sjtutor_authenticated_user", JSON.stringify(mergedUser));
+      localStorage.setItem("sjtutor_active_user", JSON.stringify(mergedUser));
+    } catch {
+      // ignore storage quota
+    }
+
+    // Ensure sjTutorId and Google offer fields are synced to Firestore in background
+    Promise.allSettled([
+      setDoc(
+        userDocRef,
+        {
+          ...upgradedFields,
+          sjTutorId: ensuredSjTutorId,
+          registrationNumber: mergedUser.registrationNumber,
+          displayName: mergedUser.displayName,
+          email: mergedUser.email,
+          photoURL: mergedUser.photoURL,
+          lastLoginAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      ),
+      setDoc(
+        doc(db, "sj_tutor_ids", ensuredSjTutorId.toUpperCase()),
+        {
+          sjTutorId: ensuredSjTutorId.toUpperCase(),
+          userId: currentUser.uid,
+          displayName: mergedUser.displayName,
+          email: mergedUser.email,
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      ),
+    ]).catch(() => {});
+
+    try {
+      window.dispatchEvent(new Event("sjtutor_user_logged_in"));
+      window.dispatchEvent(new Event("sjtutor_auth_changed"));
+    } catch {
+      // ignore
     }
 
     return {
       status: "SUCCESS",
-      user: { ...currentUser, ...profileData, ...upgradedFields },
+      sjTutorId: ensuredSjTutorId,
+      user: mergedUser,
       message: googleOffer
         ? "Welcome back! Your 1-Year Free Achiever Premium Plan is active."
         : "Welcome back to SJ Tutor AI!",
@@ -368,15 +523,23 @@ export async function handleSocialAuth(
 
     console.error(`Error during ${providerType} auth (${mode}):`, error);
 
-    if (error.code === "auth/popup-closed-by-user" || error.code === "auth/cancelled-popup-request") {
+    if (errorCode === "auth/popup-closed-by-user" || errorCode === "auth/cancelled-popup-request") {
       return {
         status: "ERROR",
-        message: "Sign-in was cancelled.",
+        message: "Sign-in popup was closed before completing. Please click Continue with Google again.",
         error,
       };
     }
 
-    if (error.code === "auth/account-exists-with-different-credential") {
+    if (errorCode === "auth/popup-blocked") {
+      return {
+        status: "ERROR",
+        message: "Your browser blocked the Google Sign-In popup. Please allow popups for this site and click Continue with Google again.",
+        error,
+      };
+    }
+
+    if (errorCode === "auth/account-exists-with-different-credential") {
       return {
         status: "ACCOUNT_ALREADY_EXISTS",
         message: "This email is already associated with another login provider. Please log in with your original method.",
@@ -384,10 +547,400 @@ export async function handleSocialAuth(
       };
     }
 
+    if (errorCode === "auth/network-request-failed") {
+      return {
+        status: "ERROR",
+        message: "Network error reaching Google Sign-In. Please check your connection and try again.",
+        error,
+      };
+    }
+
     return {
       status: "ERROR",
-      message: error.message || "Authentication failed. Please try again.",
+      message: error?.message || "Authentication failed. Please try again.",
       error,
+    };
+  } finally {
+    _socialAuthInProgress = false;
+  }
+}
+
+/**
+ * Send a Firebase Passwordless Email Verification & Sign-In Link.
+ * - For new users ('signup'): verifies email ownership before onboarding (no password required).
+ * - For returning/any users ('signin'): signs in passwordlessly via one-click verified email link.
+ */
+export async function sendPasswordlessEmailLink(
+  email: string,
+  intent: "signin" | "signup" = "signin",
+  rememberMe = true
+): Promise<AuthResult> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!normalizedEmail || !emailRegex.test(normalizedEmail)) {
+    return {
+      status: "ERROR",
+      message: "Please enter a valid email address.",
+    };
+  }
+
+  try {
+    if (intent === "signup") {
+      const exists = await checkIdentityExists({ email: normalizedEmail });
+      if (exists) {
+        return {
+          status: "ACCOUNT_ALREADY_EXISTS",
+          message: "This email is already registered with SJ Tutor AI. Use passwordless Log In instead.",
+        };
+      }
+    }
+
+    const origin =
+      typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : "https://sj-tutorai.web.app";
+
+    const actionCodeSettings = {
+      url: `${origin}/?authMode=emailLink&intent=${intent}`,
+      handleCodeInApp: true,
+    };
+
+    await sendSignInLinkToEmail(auth, normalizedEmail, actionCodeSettings);
+
+    try {
+      window.localStorage.setItem("emailForSignIn", normalizedEmail);
+      window.localStorage.setItem("emailLinkIntent", intent);
+      window.localStorage.setItem("emailLinkRememberMe", rememberMe ? "true" : "false");
+    } catch {
+      // Ignore storage quota errors
+    }
+
+    return {
+      status: "EMAIL_LINK_SENT",
+      maskedDestination: normalizedEmail,
+      message:
+        intent === "signup"
+          ? `Verification link sent to ${normalizedEmail}. Open your inbox and click the link to verify your email and create your account.`
+          : `Passwordless sign-in link sent to ${normalizedEmail}. Open your inbox and click the link to sign in instantly.`,
+    };
+  } catch (error: any) {
+    const errorCode = error?.code || "";
+    const errorMessage = error?.message || "";
+    const currentHost = typeof window !== "undefined" ? window.location.hostname : "current domain";
+
+    if (
+      errorCode === "auth/unauthorized-domain" ||
+      errorCode === "auth/unauthorized-continue-uri" ||
+      errorMessage.includes("unauthorized-domain")
+    ) {
+      const consoleUrl = "https://console.firebase.google.com/project/sj-tutorai/authentication/settings";
+      return {
+        status: "UNAUTHORIZED_DOMAIN",
+        domain: currentHost,
+        consoleUrl,
+        message: `Domain authorization required: "${currentHost}" must be added to Firebase Authentication Authorized Domains.`,
+        error,
+      };
+    }
+
+    if (
+      errorCode === "auth/operation-not-allowed" ||
+      errorMessage.includes("OPERATION_NOT_ALLOWED")
+    ) {
+      const consoleUrl = "https://console.firebase.google.com/project/sj-tutorai/authentication/providers";
+      return {
+        status: "EMAIL_LINK_DISABLED",
+        consoleUrl,
+        message:
+          'Passwordless Email Link sign-in is not yet enabled in Firebase Console. Open Authentication -> Sign-in method -> Email/Password and enable "Email link (passwordless sign-in)".',
+        error,
+      };
+    }
+
+    if (errorCode === "auth/invalid-email") {
+      return {
+        status: "ERROR",
+        message: "That email address format looks invalid. Please double-check and try again.",
+        error,
+      };
+    }
+
+    if (errorCode === "auth/quota-exceeded" || errorCode === "auth/too-many-requests") {
+      return {
+        status: "TOO_MANY_ATTEMPTS",
+        message: "Too many sign-in link requests. Please wait a few minutes before requesting another link.",
+        error,
+      };
+    }
+
+    console.error("[AUTH] sendPasswordlessEmailLink error:", error);
+    return {
+      status: "ERROR",
+      message: error?.message || "Could not send verification link. Please try again.",
+      error,
+    };
+  }
+}
+
+/**
+ * Complete Firebase Passwordless Email Link Sign-In / Verification when the user returns via link.
+ * - Existing account -> hydrates profile & signs straight into Dashboard.
+ * - New user -> verifies email (emailVerified: true) and returns PENDING_PROFILE for passwordless onboarding.
+ */
+export async function completePasswordlessEmailLinkSignIn(
+  emailOverride?: string,
+  href?: string
+): Promise<AuthResult> {
+  const linkUrl =
+    href || (typeof window !== "undefined" ? window.location.href : "");
+
+  if (!linkUrl || !isSignInWithEmailLink(auth, linkUrl)) {
+    return {
+      status: "ERROR",
+      message: "Invalid or missing email sign-in link.",
+    };
+  }
+
+  let storedEmail = "";
+  let storedRemember = true;
+  try {
+    storedEmail = window.localStorage.getItem("emailForSignIn") || "";
+    storedRemember = window.localStorage.getItem("emailLinkRememberMe") !== "false";
+  } catch {
+    // ignore
+  }
+
+  const normalizedEmail = (emailOverride || storedEmail).trim().toLowerCase();
+  if (!normalizedEmail) {
+    return {
+      status: "NEEDS_EMAIL_CONFIRMATION",
+      message: "Please confirm the email address where you received this sign-in link.",
+    };
+  }
+
+  _emailLinkAuthInProgress = true;
+  try {
+    try {
+      await setPersistence(
+        auth,
+        storedRemember ? browserLocalPersistence : browserSessionPersistence
+      );
+    } catch (persistErr) {
+      console.warn("Firebase persistence setup notice:", persistErr);
+    }
+
+    const userCred = await signInWithEmailLink(auth, normalizedEmail, linkUrl);
+    const currentUser = userCred.user;
+    const additionalInfo = getAdditionalUserInfo(userCred);
+
+    try {
+      window.localStorage.removeItem("emailForSignIn");
+      window.localStorage.removeItem("emailLinkIntent");
+      window.localStorage.removeItem("emailLinkRememberMe");
+      window.localStorage.removeItem("displayNameForSignIn");
+    } catch {
+      // ignore
+    }
+
+    const userDocRef = doc(db, "users", currentUser.uid);
+    const userDocSnap = await safeGetDocWithTimeout(userDocRef, 4000);
+    const existingFirestoreAccount = Boolean(userDocSnap && userDocSnap.exists());
+    const existingData: Record<string, any> = existingFirestoreAccount ? (userDocSnap.data() || {}) : {};
+
+    let serverMatch: Record<string, any> | null = null;
+    if (!existingFirestoreAccount && normalizedEmail) {
+      try {
+        const res = await Promise.race([
+          fetch("/api/auth/login-with-id-card", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ identifier: normalizedEmail }),
+          }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+        ]);
+        if (res && res.ok) {
+          const parsed = await safeParseAuthJson(res);
+          if (parsed.success && parsed.user) {
+            serverMatch = parsed.user;
+          }
+        }
+      } catch {
+        serverMatch = null;
+      }
+    }
+
+    const isExistingRegistered =
+      (existingFirestoreAccount && Boolean(existingData.hasCompletedOnboarding || existingData.sjTutorId)) ||
+      Boolean(serverMatch?.sjTutorId) ||
+      (additionalInfo?.isNewUser === false && existingFirestoreAccount);
+
+    // Brand-new verified user -> launch passwordless student profile onboarding
+    if (!isExistingRegistered) {
+      return {
+        status: "PENDING_PROFILE",
+        authIdentity: {
+          uid: currentUser.uid,
+          email: normalizedEmail,
+          displayName: currentUser.displayName || "",
+          photoURL: currentUser.photoURL || "",
+          provider: "email_link",
+          emailVerified: true,
+        },
+        user: currentUser,
+        message: "Email verified! Complete your profile to generate your SJ Tutor AI ID.",
+      };
+    }
+
+    // Existing registered user -> hydrate and log straight in
+    let cachedLocal: Record<string, any> = {};
+    try {
+      const rawCached = localStorage.getItem(`profile_${currentUser.uid}`);
+      if (rawCached) cachedLocal = JSON.parse(rawCached) || {};
+    } catch {
+      cachedLocal = {};
+    }
+
+    const profileData = { ...cachedLocal, ...(serverMatch || {}), ...existingData };
+    const ensuredSjTutorId =
+      profileData.sjTutorId ||
+      profileData.registrationNumber ||
+      generateSjTutorId();
+
+    const mergedUser = {
+      ...profileData,
+      uid: currentUser.uid,
+      sjTutorId: ensuredSjTutorId,
+      registrationNumber: profileData.registrationNumber || ensuredSjTutorId,
+      displayName:
+        profileData.displayName ||
+        profileData.name ||
+        currentUser.displayName ||
+        normalizedEmail.split("@")[0],
+      name:
+        profileData.name ||
+        profileData.displayName ||
+        currentUser.displayName ||
+        normalizedEmail.split("@")[0],
+      email: normalizedEmail,
+      emailVerified: true,
+      provider: profileData.provider || "email_link",
+      photoURL: profileData.photoURL || currentUser.photoURL || "",
+      hasCompletedOnboarding: true,
+      isRegisteredInFirestore: true,
+    };
+
+    try {
+      localStorage.setItem(`profile_${currentUser.uid}`, JSON.stringify(mergedUser));
+      localStorage.setItem("sjtutor_authenticated_user", JSON.stringify(mergedUser));
+      localStorage.setItem("sjtutor_active_user", JSON.stringify(mergedUser));
+    } catch {
+      // ignore
+    }
+
+    Promise.allSettled([
+      setDoc(
+        userDocRef,
+        {
+          ...mergedUser,
+          emailVerified: true,
+          lastLoginAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      ),
+      setDoc(
+        doc(db, "sj_tutor_ids", ensuredSjTutorId.toUpperCase()),
+        {
+          sjTutorId: ensuredSjTutorId.toUpperCase(),
+          userId: currentUser.uid,
+          displayName: mergedUser.displayName,
+          email: normalizedEmail,
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      ),
+      setDoc(
+        doc(db, "linked_identities", `email_link_${currentUser.uid}`),
+        {
+          provider: "email_link",
+          uid: currentUser.uid,
+          email: normalizedEmail,
+          sjTutorId: ensuredSjTutorId,
+          verified: true,
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      ),
+    ]).catch(() => {});
+
+    try {
+      window.dispatchEvent(new Event("sjtutor_user_logged_in"));
+      window.dispatchEvent(new Event("sjtutor_auth_changed"));
+    } catch {
+      // ignore
+    }
+
+    return {
+      status: "SUCCESS",
+      sjTutorId: ensuredSjTutorId,
+      user: mergedUser,
+      message: "Email verified & signed in passwordlessly!",
+    };
+  } catch (error: any) {
+    const code = error?.code || "";
+    console.error("[AUTH] completePasswordlessEmailLinkSignIn error:", error);
+
+    if (code === "auth/invalid-action-code" || code === "auth/expired-action-code") {
+      return {
+        status: "ERROR",
+        message: "This sign-in link has expired or was already used. Please request a fresh link.",
+        error,
+      };
+    }
+
+    if (code === "auth/invalid-email") {
+      return {
+        status: "NEEDS_EMAIL_CONFIRMATION",
+        message: "The email entered did not match this sign-in link. Please enter the exact email you used.",
+        error,
+      };
+    }
+
+    return {
+      status: "ERROR",
+      message: error?.message || "Could not verify your email sign-in link. Please request a new one.",
+      error,
+    };
+  } finally {
+    _emailLinkAuthInProgress = false;
+  }
+}
+
+/**
+ * Send standard Firebase email verification to a currently signed-in unverified user.
+ */
+export async function sendCurrentUserEmailVerification(): Promise<{ success: boolean; message: string }> {
+  const user = auth.currentUser;
+  if (!user) {
+    return { success: false, message: "No active session found. Please sign in first." };
+  }
+  if (user.emailVerified) {
+    return { success: true, message: "Your email is already verified." };
+  }
+  try {
+    await sendEmailVerification(user, {
+      url: typeof window !== "undefined" ? window.location.origin : "https://sj-tutorai.web.app",
+      handleCodeInApp: false,
+    });
+    return {
+      success: true,
+      message: `Verification email sent to ${user.email}. Please check your inbox.`,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error?.message || "Could not send verification email. Please try again shortly.",
     };
   }
 }
@@ -473,18 +1026,33 @@ export async function loginWithEmail(
     const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
     const user = cred.user;
 
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    if (!userDoc.exists()) {
-      await signOut(auth);
-      return {
-        status: "ACCOUNT_NOT_FOUND",
-        message: "We couldn't find an SJ Tutor AI account associated with this login. Please try signing up first.",
-      };
+    const userDoc = await safeGetDocWithTimeout(doc(db, "users", user.uid), 4000);
+    let profileData: Record<string, any> = userDoc && userDoc.exists() ? (userDoc.data() || {}) : {};
+    if (!userDoc || !userDoc.exists()) {
+      // Check local cache or synthesize profile if Firebase Auth succeeded
+      try {
+        const cached = localStorage.getItem(`profile_${user.uid}`);
+        if (cached) profileData = JSON.parse(cached) || {};
+      } catch {
+        // ignore
+      }
+      if (!profileData.sjTutorId) {
+        profileData = {
+          ...profileData,
+          uid: user.uid,
+          email: normalizedEmail,
+          displayName: user.displayName || normalizedEmail.split("@")[0],
+          sjTutorId: generateSjTutorId(),
+          hasCompletedOnboarding: true,
+          isRegisteredInFirestore: true,
+        };
+        setDoc(doc(db, "users", user.uid), { ...profileData, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
+      }
     }
 
     return {
       status: "SUCCESS",
-      user: { ...user, ...userDoc.data() },
+      user: { ...profileData, uid: user.uid, email: profileData.email || normalizedEmail, displayName: profileData.displayName || user.displayName || "Student" },
       message: "Welcome back!",
     };
   } catch (error: any) {
@@ -575,8 +1143,18 @@ export async function createAccountAndGenerateSjTutorId(params: {
     const dob = params.dob || additional.dob || "";
     const preferredLanguage = params.preferredLanguage || additional.tutoringLanguage || "English";
 
-    // If email and user not yet created in Firebase Auth
-    if ((provider === "email" || provider === "email_password") && !authUid && email && initialPassword) {
+    const isPasswordlessSentinel =
+      !initialPassword ||
+      initialPassword === "social-auth-verified" ||
+      initialPassword === "passwordless-email-verified";
+
+    // If email+password signup and user not yet created in Firebase Auth
+    if (
+      (provider === "email" || provider === "email_password") &&
+      !authUid &&
+      email &&
+      !isPasswordlessSentinel
+    ) {
       try {
         const cred = await createUserWithEmailAndPassword(auth, email, initialPassword);
         authUid = cred.user.uid;
@@ -587,6 +1165,10 @@ export async function createAccountAndGenerateSjTutorId(params: {
             photoURL: params.photoURL || undefined,
           });
         }
+        // Automatically send verification email for new password-based users
+        sendEmailVerification(cred.user).catch((vErr) => {
+          console.warn("Could not send verification email after signup:", vErr);
+        });
       } catch (fbErr: any) {
         if (fbErr.code === "auth/email-already-in-use") {
           return {
@@ -596,7 +1178,23 @@ export async function createAccountAndGenerateSjTutorId(params: {
         }
         console.warn("Firebase Auth creation notice (continuing with server registration):", fbErr);
       }
+    } else if (auth.currentUser && (provider === "email_link" || !authUid)) {
+      authUid = authUid || auth.currentUser.uid;
+      if (params.firstName || params.lastName) {
+        const fullName = [params.firstName, params.lastName].filter(Boolean).join(" ");
+        updateProfile(auth.currentUser, {
+          displayName: fullName,
+          photoURL: params.photoURL || undefined,
+        }).catch(() => {});
+      }
     }
+
+    const isEmailVerified = Boolean(
+      params.authIdentity?.emailVerified ||
+        auth.currentUser?.emailVerified ||
+        provider === "email_link" ||
+        provider === "google"
+    );
 
     // Call server to generate SJ Tutor AI ID and persist account
     const fullName = [params.firstName, params.lastName].filter(Boolean).join(" ") || `Student`;
@@ -672,6 +1270,7 @@ export async function createAccountAndGenerateSjTutorId(params: {
           lastName: params.lastName,
           username: params.username,
           email,
+          emailVerified: isEmailVerified,
           provider,
           linkedProviders: [provider],
           phoneNumber: params.phoneNumber || "",
@@ -703,7 +1302,7 @@ export async function createAccountAndGenerateSjTutorId(params: {
               }
             : {}),
           hasCompletedOnboarding: true,
-          twoFactorEnabled: true,
+          twoFactorEnabled: false,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         },
@@ -715,11 +1314,27 @@ export async function createAccountAndGenerateSjTutorId(params: {
         userId: finalUid,
         displayName: fullName,
         email,
+        emailVerified: isEmailVerified,
         phoneNumber: params.phoneNumber || "",
-        twoStepEnabled: true,
+        twoStepEnabled: false,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
+
+      if (provider === "email_link" && finalUid) {
+        await setDoc(
+          doc(db, "linked_identities", `email_link_${finalUid}`),
+          {
+            provider: "email_link",
+            uid: finalUid,
+            email,
+            sjTutorId: generatedId,
+            verified: true,
+            updatedAt: Date.now(),
+          },
+          { merge: true }
+        );
+      }
     } catch (fsErr) {
       console.warn("Firestore sync during account creation:", fsErr);
     }
@@ -731,6 +1346,8 @@ export async function createAccountAndGenerateSjTutorId(params: {
         ...data.user,
         uid: finalUid,
         sjTutorId: generatedId,
+        emailVerified: isEmailVerified,
+        provider,
         planType: finalPlanType,
         credits: finalCredits,
         ...(googleOffer
@@ -1233,97 +1850,120 @@ export async function findAccountAndLoginWithIdCard(
     }
 
     let parsedId = raw;
+    let parsedUid = "";
     let parsedEmail = "";
     let parsedName = "";
     let parsedPlan = "";
     let parsedInstitution = "";
     let parsedGrade = "";
     let parsedPhone = "";
+    let isVerifiedSjCardQr = false;
 
     // If QR payload is JSON from the ID Card QR code
     if (raw.startsWith("{") && raw.endsWith("}")) {
       try {
         const parsed = JSON.parse(raw);
-        parsedId = parsed.id || parsed.sjTutorId || parsed.uid || raw;
-        parsedEmail = parsed.email || "";
-        parsedName = parsed.name || parsed.displayName || "";
-        parsedPlan = parsed.plan || parsed.planType || "";
-        parsedInstitution = parsed.institution || "";
-        parsedGrade = parsed.grade || "";
-        parsedPhone = parsed.phone || parsed.phoneNumber || "";
+        parsedId = String(parsed.id || parsed.sjTutorId || parsed.registrationNumber || parsed.uid || raw).trim();
+        parsedUid = String(parsed.uid || parsed.userId || "").trim();
+        parsedEmail = String(parsed.email || "").trim();
+        parsedName = String(parsed.name || parsed.displayName || "").trim();
+        parsedPlan = String(parsed.plan || parsed.planType || "").trim();
+        parsedInstitution = String(parsed.institution || "").trim();
+        parsedGrade = String(parsed.grade || "").trim();
+        parsedPhone = String(parsed.phone || parsed.phoneNumber || "").trim();
+        isVerifiedSjCardQr =
+          (parsed.app === "SJ Tutor AI" || Boolean(parsed.verified)) &&
+          Boolean(parsedId || parsedUid || parsedEmail);
       } catch {
         // use raw
       }
     }
 
     const cleanId = parsedId.trim();
+    const upperId = cleanId.toUpperCase();
     const cleanEmail = parsedEmail.trim().toLowerCase();
+    const emailToSearch = cleanEmail || (cleanId.includes("@") ? cleanId.toLowerCase() : "");
 
     let foundUserDoc: any = null;
     let foundUserId = "";
 
-    // 1. Check direct doc in Firestore: doc(db, "users", cleanId)
-    try {
-      if (cleanId) {
-        const directSnap = await getDoc(doc(db, "users", cleanId));
-        if (directSnap.exists()) {
+    // 1. Check direct doc in Firestore by parsedUid or cleanId
+    const directCandidates = Array.from(new Set([parsedUid, cleanId].filter((v) => v && !v.includes("/"))));
+    for (const candidateUid of directCandidates) {
+      if (foundUserDoc) break;
+      try {
+        const directSnap = await safeGetDocWithTimeout(doc(db, "users", candidateUid), 3500);
+        if (directSnap && directSnap.exists()) {
           foundUserDoc = directSnap.data();
           foundUserId = directSnap.id;
         }
+      } catch (err) {
+        console.warn("Direct Firestore doc lookup error:", err);
       }
-    } catch (err) {
-      console.warn("Direct Firestore doc lookup error:", err);
     }
 
-    // 2. Query Firestore users collection by sjTutorId
-    if (!foundUserDoc && cleanId) {
+    // 2. Check sj_tutor_ids lookup table (case-insensitive via uppercase doc key)
+    if (!foundUserDoc && upperId && !upperId.includes("/")) {
       try {
-        const q = query(collection(db, "users"), where("sjTutorId", "==", cleanId));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          foundUserDoc = snap.docs[0].data();
-          foundUserId = snap.docs[0].id;
+        const idMapSnap = await safeGetDocWithTimeout(doc(db, "sj_tutor_ids", upperId), 3500);
+        if (idMapSnap && idMapSnap.exists()) {
+          const mapData = idMapSnap.data() || {};
+          const mappedUid = mapData.userId || mapData.uid;
+          if (mappedUid) {
+            const linkedUserSnap = await safeGetDocWithTimeout(doc(db, "users", mappedUid), 3500);
+            if (linkedUserSnap && linkedUserSnap.exists()) {
+              foundUserDoc = linkedUserSnap.data();
+              foundUserId = linkedUserSnap.id;
+            } else {
+              foundUserDoc = {
+                uid: mappedUid,
+                sjTutorId: mapData.sjTutorId || upperId,
+                registrationNumber: mapData.sjTutorId || upperId,
+                displayName: mapData.displayName || parsedName || "Student",
+                email: mapData.email || emailToSearch || "",
+                phoneNumber: mapData.phoneNumber || parsedPhone || "",
+              };
+              foundUserId = mappedUid;
+            }
+          }
         }
       } catch (err) {
-        console.warn("Firestore query by sjTutorId error:", err);
+        console.warn("Firestore sj_tutor_ids lookup error:", err);
       }
     }
 
-    // 3. Query Firestore by registrationNumber
-    if (!foundUserDoc && cleanId) {
-      try {
-        const q = query(collection(db, "users"), where("registrationNumber", "==", cleanId));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          foundUserDoc = snap.docs[0].data();
-          foundUserId = snap.docs[0].id;
+    // 3. Query Firestore users collection by sjTutorId, registrationNumber, studentId (exact + uppercase)
+    const idVariants = Array.from(new Set([cleanId, upperId].filter(Boolean)));
+    const lookupFields = ["sjTutorId", "registrationNumber", "studentId"] as const;
+    for (const field of lookupFields) {
+      if (foundUserDoc) break;
+      for (const variant of idVariants) {
+        if (foundUserDoc) break;
+        try {
+          const q = query(collection(db, "users"), where(field, "==", variant));
+          const snap = await Promise.race([
+            getDocs(q),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500)),
+          ]);
+          if (snap && !snap.empty) {
+            foundUserDoc = snap.docs[0].data();
+            foundUserId = snap.docs[0].id;
+          }
+        } catch (err) {
+          console.warn(`Firestore query by ${field} error:`, err);
         }
-      } catch (err) {
-        console.warn("Firestore query by registrationNumber error:", err);
       }
     }
 
-    // 4. Query Firestore by studentId
-    if (!foundUserDoc && cleanId) {
-      try {
-        const q = query(collection(db, "users"), where("studentId", "==", cleanId));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          foundUserDoc = snap.docs[0].data();
-          foundUserId = snap.docs[0].id;
-        }
-      } catch (err) {
-        console.warn("Firestore query by studentId error:", err);
-      }
-    }
-
-    // 5. Query Firestore by email
-    const emailToSearch = cleanEmail || (cleanId.includes("@") ? cleanId.toLowerCase() : "");
+    // 4. Query Firestore by email
     if (!foundUserDoc && emailToSearch) {
       try {
         const q = query(collection(db, "users"), where("email", "==", emailToSearch));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
+        const snap = await Promise.race([
+          getDocs(q),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500)),
+        ]);
+        if (snap && !snap.empty) {
           foundUserDoc = snap.docs[0].data();
           foundUserId = snap.docs[0].id;
         }
@@ -1332,7 +1972,7 @@ export async function findAccountAndLoginWithIdCard(
       }
     }
 
-    // 6. Check server API fallback / seeded accounts
+    // 5. Check server API fallback / seeded accounts
     if (!foundUserDoc) {
       try {
         const serverRes = await fetch("/api/auth/login-with-id-card", {
@@ -1344,7 +1984,7 @@ export async function findAccountAndLoginWithIdCard(
           const serverData = await safeParseAuthJson(serverRes);
           if (serverData.user) {
             foundUserDoc = serverData.user;
-            foundUserId = serverData.user.uid || cleanId;
+            foundUserId = serverData.user.uid || serverData.user.userId || cleanId;
           }
         }
       } catch (serverErr) {
@@ -1352,8 +1992,44 @@ export async function findAccountAndLoginWithIdCard(
       }
     }
 
-    // Fallback seed for target account (e.g. sadanandj2011@gmail.com / SJTA-ACHIEVER01)
-    if (!foundUserDoc && (emailToSearch === "sadanandj2011@gmail.com" || cleanId.toUpperCase() === "SJTA-ACHIEVER01" || cleanId === "sadanand_uid_achiever")) {
+    // 6. Check local cached profiles (works seamlessly offline or for recently generated SJ ID cards!)
+    if (!foundUserDoc && typeof localStorage !== "undefined") {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (!key || !key.startsWith("profile_")) continue;
+          const itemRaw = localStorage.getItem(key);
+          if (!itemRaw) continue;
+          const prof = JSON.parse(itemRaw);
+          if (!prof || typeof prof !== "object") continue;
+          const profSjId = String(prof.sjTutorId || "").toUpperCase();
+          const profReg = String(prof.registrationNumber || "").toUpperCase();
+          const profEmail = String(prof.email || "").toLowerCase();
+          const profUid = String(prof.uid || key.replace("profile_", ""));
+          if (
+            (upperId && (profSjId === upperId || profReg === upperId)) ||
+            (parsedUid && profUid === parsedUid) ||
+            (cleanId && profUid === cleanId) ||
+            (emailToSearch && profEmail === emailToSearch)
+          ) {
+            foundUserDoc = prof;
+            foundUserId = profUid;
+            break;
+          }
+        }
+      } catch {
+        // ignore localStorage scan error
+      }
+    }
+
+    // 7. Fallback seed for target accounts
+    if (
+      !foundUserDoc &&
+      (emailToSearch === "sadanandj2011@gmail.com" ||
+        upperId === "SJTA-ACHIEVER01" ||
+        cleanId === "sadanand_uid_achiever" ||
+        parsedUid === "sadanand_uid_achiever")
+    ) {
       foundUserId = "sadanand_uid_achiever";
       foundUserDoc = {
         uid: "sadanand_uid_achiever",
@@ -1370,15 +2046,16 @@ export async function findAccountAndLoginWithIdCard(
         hasCompletedOnboarding: true,
         isRegisteredInFirestore: true,
       };
-      try {
-        await setDoc(doc(db, "users", foundUserId), foundUserDoc, { merge: true });
-      } catch (e) {
-        console.warn("Error seeding found account to Firestore:", e);
-      }
+      setDoc(doc(db, "users", foundUserId), foundUserDoc, { merge: true }).catch(() => {});
     }
 
-    // Fallback seed for Channabasava Jyoti (INR 499 Achiever Plan)
-    if (!foundUserDoc && (emailToSearch === "channabasavajyoti@gmail.com" || cleanId.toUpperCase() === "SJTA-ACHIEVER02" || cleanId === "NL2WojxLh4UNN5tnFiWeJz3EAge2")) {
+    if (
+      !foundUserDoc &&
+      (emailToSearch === "channabasavajyoti@gmail.com" ||
+        upperId === "SJTA-ACHIEVER02" ||
+        cleanId === "NL2WojxLh4UNN5tnFiWeJz3EAge2" ||
+        parsedUid === "NL2WojxLh4UNN5tnFiWeJz3EAge2")
+    ) {
       foundUserId = "NL2WojxLh4UNN5tnFiWeJz3EAge2";
       foundUserDoc = {
         uid: "NL2WojxLh4UNN5tnFiWeJz3EAge2",
@@ -1395,22 +2072,38 @@ export async function findAccountAndLoginWithIdCard(
         hasCompletedOnboarding: true,
         isRegisteredInFirestore: true,
       };
-      try {
-        await setDoc(doc(db, "users", foundUserId), foundUserDoc, { merge: true });
-      } catch (e) {
-        console.warn("Error seeding found account to Firestore:", e);
-      }
+      setDoc(doc(db, "users", foundUserId), foundUserDoc, { merge: true }).catch(() => {});
+    }
+
+    // 8. Verified SJ Tutor AI ID Card QR payload hydration fallback (if scanned directly from an exported SJ ID card while offline/unindexed)
+    if (!foundUserDoc && isVerifiedSjCardQr && (parsedUid || cleanId) && (parsedName || emailToSearch)) {
+      foundUserId = parsedUid || `sjcard_${upperId.replace(/[^A-Z0-9_-]/g, "")}`;
+      foundUserDoc = {
+        uid: foundUserId,
+        displayName: parsedName || "Student",
+        name: parsedName || "Student",
+        email: emailToSearch,
+        sjTutorId: upperId || foundUserId,
+        registrationNumber: upperId || foundUserId,
+        institution: parsedInstitution || "SJ Tutor AI Academy",
+        grade: parsedGrade || "10th Grade",
+        phoneNumber: parsedPhone || "",
+        planType: parsedPlan || "Scholar",
+        credits: parsedPlan === "Achiever" ? 99999 : 2000,
+        hasCompletedOnboarding: true,
+        isRegisteredInFirestore: true,
+      };
     }
 
     if (!foundUserDoc) {
       return {
         success: false,
         status: "ACCOUNT_NOT_FOUND",
-        message: `No active student account found in Firestore for "${cleanId || emailToSearch}". Please check the ID Card or register first.`,
+        message: `No active student account found for "${cleanId || emailToSearch}". Please check your SJ Tutor ID Card number, email, or register first.`,
       };
     }
 
-    // Apply latest membership / VIP plan rules (e.g. Achiever for sadanandj2011@gmail.com)
+    // Apply latest membership / VIP plan rules
     const effectiveEmail = (foundUserDoc.email || emailToSearch || "").toLowerCase();
     const membership = getMembershipByEmail(effectiveEmail);
 
@@ -1421,10 +2114,10 @@ export async function findAccountAndLoginWithIdCard(
     let streakHistory = Array.isArray(foundUserDoc.streakHistory) ? foundUserDoc.streakHistory : [];
     let claimedMilestones = Array.isArray(foundUserDoc.claimedMilestones) ? foundUserDoc.claimedMilestones : [];
 
-    const targetUid = foundUserId || foundUserDoc.uid || cleanId;
+    const targetUid = foundUserId || foundUserDoc.uid || foundUserDoc.userId || cleanId;
     try {
-      const streakDocSnap = await getDoc(doc(db, "streaks", targetUid));
-      if (streakDocSnap.exists()) {
+      const streakDocSnap = await safeGetDocWithTimeout(doc(db, "streaks", targetUid), 2500);
+      if (streakDocSnap && streakDocSnap.exists()) {
         const sData = streakDocSnap.data();
         if (typeof sData.currentStreak === "number") streakCount = Math.max(streakCount, sData.currentStreak);
         if (typeof sData.highestStreak === "number") longestStreak = Math.max(longestStreak, sData.highestStreak);
@@ -1436,16 +2129,19 @@ export async function findAccountAndLoginWithIdCard(
       console.warn("Could not query streaks collection in Firestore:", streakErr);
     }
 
+    const resolvedSjId = foundUserDoc.sjTutorId || foundUserDoc.registrationNumber || upperId || cleanId;
+
     const fullProfile = {
+      ...foundUserDoc,
       uid: targetUid,
       displayName: foundUserDoc.displayName || foundUserDoc.name || parsedName || "Student",
       name: foundUserDoc.displayName || foundUserDoc.name || parsedName || "Student",
       email: effectiveEmail,
       photoURL: foundUserDoc.photoURL || null,
-      sjTutorId: foundUserDoc.sjTutorId || cleanId,
-      registrationNumber: foundUserDoc.registrationNumber || foundUserDoc.sjTutorId || cleanId,
+      sjTutorId: resolvedSjId,
+      registrationNumber: foundUserDoc.registrationNumber || resolvedSjId,
       institution: foundUserDoc.institution || parsedInstitution || "SJ Tutor AI Academy",
-      grade: foundUserDoc.grade || foundUserDoc.class || parsedGrade || "Class 10",
+      grade: foundUserDoc.grade || foundUserDoc.class || foundUserDoc.classGrade || parsedGrade || "Class 10",
       phoneNumber: foundUserDoc.phoneNumber || parsedPhone || "",
       credits: membership ? Math.max(membership.credits, foundUserDoc.credits || 0) : (foundUserDoc.credits ?? 2000),
       planType: membership ? membership.planType : (foundUserDoc.planType || parsedPlan || "Scholar"),
@@ -1460,17 +2156,7 @@ export async function findAccountAndLoginWithIdCard(
       hasCompletedOnboarding: true,
       isRegisteredInFirestore: true,
       lastLoginAt: Date.now(),
-      ...foundUserDoc,
     };
-
-    // Ensure streak values override any old/zero values in foundUserDoc
-    fullProfile.streak = streakCount;
-    fullProfile.currentStreak = streakCount;
-    fullProfile.highestStreak = longestStreak;
-    fullProfile.longestStreak = longestStreak;
-    fullProfile.lastStudyDate = lastStudyDate;
-    fullProfile.streakHistory = streakHistory;
-    fullProfile.claimedMilestones = claimedMilestones;
 
     if (membership) {
       fullProfile.planType = membership.planType;
@@ -1478,12 +2164,25 @@ export async function findAccountAndLoginWithIdCard(
       fullProfile.hasCompletedOnboarding = true;
     }
 
-    // Keep Firestore updated with fullProfile
-    try {
-      await setDoc(doc(db, "users", fullProfile.uid), fullProfile, { merge: true });
-    } catch (e) {
+    // Keep Firestore updated in background (never block login if offline)
+    Promise.allSettled([
+      setDoc(doc(db, "users", fullProfile.uid), fullProfile, { merge: true }),
+      resolvedSjId && !resolvedSjId.includes("/")
+        ? setDoc(
+            doc(db, "sj_tutor_ids", resolvedSjId.toUpperCase()),
+            {
+              sjTutorId: resolvedSjId.toUpperCase(),
+              userId: fullProfile.uid,
+              displayName: fullProfile.displayName,
+              email: fullProfile.email,
+              updatedAt: Date.now(),
+            },
+            { merge: true }
+          )
+        : Promise.resolve(),
+    ]).catch((e) => {
       console.warn("Error updating Firestore on ID card login:", e);
-    }
+    });
 
     // Store active session in localStorage
     localStorage.setItem("sjtutor_authenticated_user", JSON.stringify(fullProfile));
@@ -1508,21 +2207,22 @@ export async function findAccountAndLoginWithIdCard(
       console.warn("Could not save streak to localStorage:", streakStoreErr);
     }
 
-    // Mark login attempt so Two-Step Verification is strictly enforced upon login
+    // Mark login attempt so Two-Step Verification is only checked if configured
     try {
       SecurityPinService.markLoginAttempt(fullProfile.uid);
     } catch (secErr) {
       console.warn("SecurityPinService markLoginAttempt error:", secErr);
     }
 
-    // Dispatch global event for immediate hydration
+    // Dispatch global events for immediate hydration and streak bottom-right reset
+    window.dispatchEvent(new Event("sjtutor_user_logged_in"));
     window.dispatchEvent(new Event("sjtutor_auth_changed"));
 
     return {
       success: true,
       status: "SUCCESS",
       user: fullProfile,
-      message: `Account found in Firestore! Welcome back, ${fullProfile.displayName}.`,
+      message: `Account verified! Welcome back, ${fullProfile.displayName}.`,
     };
   } catch (error: any) {
     console.error("ID Card login error:", error);

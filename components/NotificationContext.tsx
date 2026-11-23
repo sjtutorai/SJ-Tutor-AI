@@ -306,19 +306,66 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // Track auth state & register service worker + push subscriptions
+  // Track auth state (Firebase Auth + SJ ID Card / SJ Tutor ID sessions) & register push subscriptions
   useEffect(() => {
     NotificationService.registerServiceWorker().catch(() => {});
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      const hasPermission = typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted';
-      if (user && hasPermission) {
-        NotificationService.registerPushSubscription(user.uid).catch(() => {});
-        setupFCM(user).catch(() => {});
+    const readLocalSessionUser = (): User | null => {
+      try {
+        const raw =
+          localStorage.getItem('sjtutor_authenticated_user') ||
+          localStorage.getItem('sjtutor_active_user');
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        const uid = parsed?.uid || parsed?.userId || parsed?.sjTutorId;
+        if (!uid) return null;
+        return {
+          uid: String(uid),
+          email: parsed?.email || null,
+          displayName: parsed?.displayName || parsed?.name || 'Student',
+          photoURL: parsed?.photoURL || null,
+        } as User;
+      } catch {
+        return null;
       }
+    };
+
+    const syncUser = (fbUser: User | null) => {
+      const resolvedUser = fbUser || readLocalSessionUser();
+      setCurrentUser(resolvedUser);
+      const hasPermission =
+        typeof window !== 'undefined' &&
+        'Notification' in window &&
+        window.Notification.permission === 'granted';
+      if (resolvedUser && hasPermission) {
+        NotificationService.registerPushSubscription(resolvedUser.uid).catch(() => {});
+        if (fbUser) {
+          setupFCM(fbUser).catch(() => {});
+        }
+      }
+    };
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      syncUser(user);
     });
-    return unsubscribe;
+
+    const handleCustomAuthChange = () => {
+      syncUser(auth.currentUser);
+    };
+    window.addEventListener('sjtutor_auth_changed', handleCustomAuthChange);
+    window.addEventListener('sjtutor_user_logged_in', handleCustomAuthChange);
+
+    // Immediate local hydration on mount
+    if (!auth.currentUser) {
+      const localUser = readLocalSessionUser();
+      if (localUser) setCurrentUser(localUser);
+    }
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('sjtutor_auth_changed', handleCustomAuthChange);
+      window.removeEventListener('sjtutor_user_logged_in', handleCustomAuthChange);
+    };
   }, []);
 
   // Sync / load notifications

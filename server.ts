@@ -9,9 +9,9 @@ import { getFirebaseBackendStatus, verifyFirebaseUserWithBackend, checkFirebaseE
 import path from "path";
 import fs from "fs";
 
-// Load .env with override to ensure it takes precedence over system defaults
+// Load .env without overriding already-injected runtime secrets
 const envPath = path.resolve(process.cwd(), ".env");
-dotenv.config({ path: envPath, override: true });
+dotenv.config({ path: envPath, override: false });
 serverGeminiKeyManager.refresh();
 
 const app = express();
@@ -381,9 +381,9 @@ app.post("/api/calls/dismiss", async (req, res) => {
 // Audio Transcription Endpoint using Gemini AI
 app.post("/api/transcribe-audio", async (req, res) => {
   try {
-    const { audio, mimeType = "audio/webm", language = "English" } = req.body;
+    const { audio, mimeType = "audio/webm", language = "English" } = req.body || {};
     if (!audio) {
-      return res.status(400).json({ error: "Audio data is required" });
+      return res.status(400).json({ success: false, error: "Audio data is required" });
     }
 
     let cleanBase64 = audio;
@@ -395,6 +395,8 @@ app.post("/api/transcribe-audio", async (req, res) => {
         cleanBase64 = parts[1];
       }
     }
+    // Strip codec suffixes (e.g. "audio/webm;codecs=opus" -> "audio/webm") for Gemini API compatibility
+    const normalizedMimeType = String(finalMimeType || "audio/webm").split(";")[0].trim() || "audio/webm";
 
     const prompt = `Transcribe all spoken words in this audio recording accurately and faithfully. 
 Preserve the speaker's language (primarily ${language} or any spoken language in the audio).
@@ -406,28 +408,37 @@ If the audio is completely silent or contains no discernible speech, return an e
       async (ai, modelName) => {
         const response = await ai.models.generateContent({
           model: modelName,
-          contents: [
-            {
-              inlineData: {
-                mimeType: finalMimeType || 'audio/webm',
-                data: cleanBase64,
-              }
-            },
-            {
-              text: prompt
-            }
-          ]
+          contents: {
+            parts: [
+              {
+                inlineData: {
+                  mimeType: normalizedMimeType,
+                  data: cleanBase64,
+                },
+              },
+              {
+                text: prompt,
+              },
+            ],
+          },
         });
 
         return response.text?.trim() || "";
       },
-      ['gemini-3.5-transcribe', 'gemini-4-hydrogen', 'gemini-3.1-flash-lite']
+      ["gemini-3.5-transcribe", "gemini-3.1-flash-lite", "gemini-4-hydrogen"],
+      { attemptTimeoutMs: 25000, overallDeadlineMs: 60000 }
     );
 
     res.json({ success: true, transcript });
   } catch (error: any) {
     console.error("[Audio Transcription API Error]:", error);
-    res.status(500).json({ success: false, error: error.message || "Failed to transcribe audio" });
+    const status = Number(error?.status || error?.statusCode) === 429 ? 429 : 500;
+    const msg = String(error?.message || "");
+    const friendly =
+      status === 429 || msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("resource_exhausted")
+        ? "Audio transcription quota is temporarily full. Please wait a moment and try again."
+        : msg || "Failed to transcribe audio";
+    res.status(status).json({ success: false, error: friendly });
   }
 });
 

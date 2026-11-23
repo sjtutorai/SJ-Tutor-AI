@@ -3,9 +3,11 @@ import { GoogleGenAI } from "@google/genai";
 let cachedClient: GoogleGenAI | null = null;
 let cachedKey: string | null = null;
 
+const GEMINI_HTTP_TIMEOUT_MS = 65000;
+
 /**
  * Returns a server-side GoogleGenAI client with the required aistudio-build telemetry header.
- * Reads process.env.GEMINI_API_KEY (or GEMINI_API_KEY_1 / API_KEY fallbacks).
+ * Reads process.env.GEMINI_API_KEY (or GEMINI_API_KEY_1..3 / API_KEY fallbacks).
  */
 export function getServerGeminiClient(explicitKey?: string): { ai: GoogleGenAI; key: string } {
   const activeKey =
@@ -27,7 +29,7 @@ export function getServerGeminiClient(explicitKey?: string): { ai: GoogleGenAI; 
   const ai = new GoogleGenAI({
     apiKey: activeKey,
     httpOptions: {
-      timeout: 45000,
+      timeout: GEMINI_HTTP_TIMEOUT_MS,
       headers: {
         "User-Agent": "aistudio-build",
       },
@@ -42,11 +44,11 @@ export function getServerGeminiClient(explicitKey?: string): { ai: GoogleGenAI; 
 /**
  * Creates a freshly initialized client for a specific key (useful during key rotation).
  */
-export function createDedicatedGeminiClient(apiKey: string): GoogleGenAI {
+export function createDedicatedGeminiClient(apiKey: string, timeoutMs = GEMINI_HTTP_TIMEOUT_MS): GoogleGenAI {
   return new GoogleGenAI({
     apiKey,
     httpOptions: {
-      timeout: 45000,
+      timeout: timeoutMs,
       headers: {
         "User-Agent": "aistudio-build",
       },

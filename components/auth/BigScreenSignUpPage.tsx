@@ -20,12 +20,12 @@ import {
   Compass,
   ExternalLink,
   Printer,
-  QrCode,
   RefreshCw,
   Lock,
   Eye,
   EyeOff
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import Logo from '../Logo';
 import {
   checkUsernameAvailability,
@@ -127,7 +127,15 @@ export const BigScreenSignUpPage: React.FC<BigScreenSignUpPageProps> = ({
     message?: string;
   }>({ checked: false });
   const [photoURL, setPhotoURL] = useState(() => authIdentity?.photoURL || '');
-  const isSocialAuth = Boolean(authIdentity?.provider && authIdentity.provider !== 'email' && authIdentity.provider !== 'email_password');
+  const isPasswordlessVerified = Boolean(
+    authIdentity?.provider === 'email_link' || authIdentity?.emailVerified === true
+  );
+  const isSocialAuth = Boolean(
+    isPasswordlessVerified ||
+      (authIdentity?.provider &&
+        authIdentity.provider !== 'email' &&
+        authIdentity.provider !== 'email_password')
+  );
   const [password, setPassword] = useState(() => authIdentity?.password || '');
   const [confirmPassword, setConfirmPassword] = useState(() => authIdentity?.password || '');
   const [showPassword, setShowPassword] = useState(false);
@@ -421,12 +429,14 @@ export const BigScreenSignUpPage: React.FC<BigScreenSignUpPageProps> = ({
       // 1. Call server/authService to create account and generate official SJ Tutor AI ID
       const creationRes = await createAccountAndGenerateSjTutorId({
         email: email.trim().toLowerCase(),
-        password: password || authIdentity?.password || 'social-auth-verified',
+        password: isPasswordlessVerified
+          ? 'passwordless-email-verified'
+          : password || authIdentity?.password || 'social-auth-verified',
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         username: username.trim().toLowerCase(),
         phoneNumber: fullPhoneNumber,
-        authProvider: authIdentity?.provider || 'email',
+        authProvider: authIdentity?.provider || 'email_link',
         institution: institution.trim() || 'SJ Tutor AI Academy',
         grade,
         classGrade: grade,
@@ -460,8 +470,9 @@ export const BigScreenSignUpPage: React.FC<BigScreenSignUpPageProps> = ({
         authIdentity: {
           ...authIdentity,
           email: email.trim().toLowerCase(),
-          password: password || authIdentity?.password,
-          provider: authIdentity?.provider || 'email',
+          emailVerified: isPasswordlessVerified || Boolean(authIdentity?.emailVerified),
+          password: isPasswordlessVerified ? undefined : password || authIdentity?.password,
+          provider: authIdentity?.provider || 'email_link',
         },
       });
 
@@ -494,6 +505,7 @@ export const BigScreenSignUpPage: React.FC<BigScreenSignUpPageProps> = ({
         registrationNumber: regNumber,
         username: username.trim().toLowerCase(),
         email: email.trim().toLowerCase(),
+        emailVerified: isPasswordlessVerified || Boolean(authIdentity?.emailVerified) || isSocialAuth,
         phoneNumber: fullPhoneNumber,
         displayName: `${firstName.trim()} ${lastName.trim()}`.trim(),
         institution: institution.trim() || 'SJ Tutor AI Academy',
@@ -509,7 +521,7 @@ export const BigScreenSignUpPage: React.FC<BigScreenSignUpPageProps> = ({
         hearAboutUs: effectiveDiscovery,
         dob,
         photoURL,
-        linkedProviders: authIdentity?.provider ? [authIdentity.provider] : ['email'],
+        linkedProviders: authIdentity?.provider ? [authIdentity.provider] : ['email_link'],
       };
 
       // Save device registration detection for subsequent visits
@@ -742,7 +754,11 @@ export const BigScreenSignUpPage: React.FC<BigScreenSignUpPageProps> = ({
                       {authIdentity?.email && isSocialAuth && (
                         <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 font-bold flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                          <span>Verified ({authIdentity.provider || 'Social'})</span>
+                          <span>
+                            {isPasswordlessVerified
+                              ? 'Email Verified (Passwordless)'
+                              : `Verified (${authIdentity.provider || 'Social'})`}
+                          </span>
                         </span>
                       )}
                     </div>
@@ -862,11 +878,19 @@ export const BigScreenSignUpPage: React.FC<BigScreenSignUpPageProps> = ({
                       <div className="flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                         <span>
-                          Account verified with <strong>{authIdentity?.provider?.toUpperCase() || 'Provider'}</strong>. Password skipped.
+                          {isPasswordlessVerified ? (
+                            <>
+                              Email verified via <strong>Passwordless Sign-In Link</strong>. No password required!
+                            </>
+                          ) : (
+                            <>
+                              Account verified with <strong>{authIdentity?.provider?.toUpperCase() || 'Provider'}</strong>. Password skipped.
+                            </>
+                          )}
                         </span>
                       </div>
-                      <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
-                        Pre-verified
+                      <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full font-bold shrink-0">
+                        {isPasswordlessVerified ? 'Passwordless' : 'Pre-verified'}
                       </span>
                     </div>
                   )}
@@ -1629,10 +1653,24 @@ export const BigScreenSignUpPage: React.FC<BigScreenSignUpPageProps> = ({
                       </div>
                     </div>
 
-                    {/* QR Code Placeholder Graphic */}
+                    {/* Real Scannable QR Code */}
                     <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 rounded-lg bg-white p-1 flex items-center justify-center">
-                        <QrCode className="w-8 h-8 text-slate-950" />
+                      <div className="rounded-lg bg-white p-1 flex items-center justify-center shadow-sm">
+                        <QRCodeSVG
+                          value={JSON.stringify({
+                            app: 'SJ Tutor AI',
+                            id: registrationData.sjTutorId,
+                            uid: registrationData.userData?.uid || undefined,
+                            name: registrationData.fullName,
+                            email: registrationData.email,
+                            grade: registrationData.grade,
+                            institution: registrationData.institution,
+                            verified: true,
+                          })}
+                          size={44}
+                          level="M"
+                          includeMargin={false}
+                        />
                       </div>
                       <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-400 via-pink-400 to-cyan-400 shadow-md ring-2 ring-white/10" title="Security Hologram" />
                     </div>
